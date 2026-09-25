@@ -8,6 +8,7 @@
 ## Мови і фреймворки
 1. Backend і все не пов'язане з інтерфейсом - С#, .NET 10 (перейдемо на 11 після його релізу у листопаді, якщо залежності дозволять), агрегатор на ASP.NET Core (+ ASP.NET Core gRPC Service), unmanaged certs (не на часі),
 2. Frontend: сайт окремою програмою на рівні з агентами, SPA, React, TS, TanStack Router, TanStack Query, React Context
+3. <img width="535" height="538" alt="2a0e48044dae065e6c0ff6ac4bbd0a9f" src="https://github.com/user-attachments/assets/9556c00a-f981-4590-b8ce-533d05646390" />
 
 ## Особливості модулів і системи:
 1. Опціонально можна реалізувати mTLS щоб зробити типу безпечніше йоу, складніше неавторизовано підключитися

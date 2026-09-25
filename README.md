@@ -6,8 +6,8 @@
 5. База даних SQLite, але можна розглянути опціонально PostgreSQL
 
 ## Мови і фреймворки
-Backend і все не пов'язане з інтерфейсом - С#, .NET 10 (перейдемо на 11 після його релізу у листопаді, якщо залежності дозволять), агрегатор на ASP.NET Core (+ ASP.NET Core gRPC Service), unmanaged certs (не на часі),
-Frontend: сайт окремою програмою на рівні з агентами, SPA, React, TS, TanStack Router, TanStack Query, React Context
+1. Backend і все не пов'язане з інтерфейсом - С#, .NET 10 (перейдемо на 11 після його релізу у листопаді, якщо залежності дозволять), агрегатор на ASP.NET Core (+ ASP.NET Core gRPC Service), unmanaged certs (не на часі),
+2. Frontend: сайт окремою програмою на рівні з агентами, SPA, React, TS, TanStack Router, TanStack Query, React Context
 
 ## Особливості модулів і системи:
 1. Опціонально можна реалізувати mTLS щоб зробити типу безпечніше йоу, складніше неавторизовано підключитися

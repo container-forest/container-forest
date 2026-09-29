@@ -1,7 +1,11 @@
+using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Stacks;
+using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Environments;
+using ContainerForest.Aggregator.Domain.Stacks;
 using Microsoft.EntityFrameworkCore;
 
 namespace ContainerForest.Aggregator.Infrastructure.Persistence;
@@ -36,4 +40,23 @@ internal sealed class EnvironmentRepository(AggregatorDbContext db)
 
     public Task<bool> NameExistsAsync(string name, CancellationToken cancellationToken) =>
         Set.AnyAsync(e => e.Name == name, cancellationToken);
+}
+
+internal sealed class StackRepository(AggregatorDbContext db) : EfRepository<Stack, StackId>(db), IStackRepository
+{
+    public Task<Stack?> FindByNameAsync(EnvironmentId environmentId, StackName name, CancellationToken cancellationToken) =>
+        Set.SingleOrDefaultAsync(s => s.EnvironmentId == environmentId && s.Name == name, cancellationToken);
+}
+
+internal sealed class UserRepository(AggregatorDbContext db) : EfRepository<User, UserId>(db), IUserRepository
+{
+    public Task<User?> FindByUserNameAsync(string userName, CancellationToken cancellationToken) =>
+        Set.SingleOrDefaultAsync(u => u.UserName == userName, cancellationToken);
+}
+
+internal sealed class RoleAssignmentRepository(AggregatorDbContext db)
+    : EfRepository<RoleAssignment, RoleAssignmentId>(db), IRoleAssignmentRepository
+{
+    public async Task<IReadOnlyList<RoleAssignment>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>
+        await Set.Where(a => a.UserId == userId).ToListAsync(cancellationToken);
 }

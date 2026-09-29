@@ -38,6 +38,12 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         return (await response.Content.ReadFromJsonAsync<CreatedEnvironment>(Json))!;
     }
 
+    public async Task CreateUserAsync(string userName, bool isAdmin)
+    {
+        var response = await CreateClient().PostAsJsonAsync("/api/dev/users", new { userName, isAdmin });
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task<FakeAgent> EnrollAndConnectAsync(string bootId = "boot-1")
     {
         var environment = await CreateEnvironmentAsync();

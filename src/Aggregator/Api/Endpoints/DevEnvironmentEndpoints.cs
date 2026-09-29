@@ -1,4 +1,6 @@
+using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
+using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Domain.Common;
 
@@ -36,8 +38,43 @@ internal static class DevEnvironmentEndpoints
         group.MapGet("/{id:guid}/containers", (Guid id, IAgentChannel agents, CancellationToken ct) =>
             agents.ListContainersAsync(EnvironmentId.From(id), ct));
 
+        // Acts as the user named in the X-Dev-User header, so the authorization decorator can be tried out.
+        group.MapPost(
+            "/{id:guid}/containers/{containerId}/{action}",
+            async (
+                Guid id,
+                string containerId,
+                string action,
+                int? timeoutSeconds,
+                HttpRequest request,
+                IUserRepository users,
+                ContainerCommandService commands,
+                CancellationToken ct) =>
+            {
+                if (!Enum.TryParse<ContainerAction>(action, ignoreCase: true, out var containerAction)
+                    || !Enum.IsDefined(containerAction))
+                {
+                    return Results.Problem(
+                        statusCode: StatusCodes.Status400BadRequest, detail: "Action must be start, stop or restart.");
+                }
+
+                var userName = request.Headers[DevUserHeader].ToString();
+                if (await users.FindByUserNameAsync(userName, ct) is not { } user)
+                {
+                    return Results.Problem(
+                        statusCode: StatusCodes.Status401Unauthorized,
+                        detail: $"Header {DevUserHeader} must name an existing user.");
+                }
+
+                var stopTimeout = timeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null;
+                await commands.ExecuteAsync(user.Id, EnvironmentId.From(id), containerId, containerAction, stopTimeout, ct);
+                return Results.NoContent();
+            });
+
         return app;
     }
+
+    public const string DevUserHeader = "X-Dev-User";
 
     public sealed record CreateEnvironmentRequest(string Name, bool IsPrivate);
 

@@ -16,6 +16,7 @@ internal sealed class ProblemDetailsExceptionHandler(IProblemDetailsService prob
             DomainValidationException => (StatusCodes.Status400BadRequest, "Invalid request"),
             DomainConflictException => (StatusCodes.Status409Conflict, "Conflict"),
             NotFoundException => (StatusCodes.Status404NotFound, "Not found"),
+            UnauthenticatedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
             AccessDeniedException => (StatusCodes.Status403Forbidden, "Forbidden"),
             AgentOfflineException or AgentDisconnectedException => (StatusCodes.Status503ServiceUnavailable, "Agent unavailable"),
             AgentTimeoutException => (StatusCodes.Status504GatewayTimeout, "Agent timeout"),

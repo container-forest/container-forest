@@ -18,6 +18,7 @@ public class ContainerCommandServiceTests
     private readonly InMemoryStacks stacks = new();
     private readonly InMemoryRoleAssignments roleAssignments = new();
     private readonly FakeAgentChannel agent = new();
+    private readonly FakeCurrentUser currentUser = new();
     private readonly ContainerCommandService service;
 
     private readonly User alice = User.Create("alice", Now);
@@ -25,8 +26,10 @@ public class ContainerCommandServiceTests
 
     public ContainerCommandServiceTests()
     {
-        service = new ContainerCommandService(users, environments, stacks, roleAssignments, agent);
+        service = new ContainerCommandService(
+            new CurrentActor(currentUser, users), environments, stacks, roleAssignments, agent);
         users.Add(alice);
+        currentUser.Id = alice.Id;
         environments.Add(environment);
     }
 
@@ -91,9 +94,10 @@ public class ContainerCommandServiceTests
     {
         var admin = User.CreateAdministrator("root", Now);
         users.Add(admin);
+        currentUser.Id = admin.Id;
         AddContainer("c1", "web-app-1", ContainerState.Running);
 
-        await service.ExecuteAsync(admin.Id, environment.Id, "c1", ContainerAction.Stop, stopTimeout: null, Ct);
+        await Run(ContainerAction.Stop, "c1");
 
         Assert.Contains("stop c1", agent.Calls);
     }
@@ -106,6 +110,15 @@ public class ContainerCommandServiceTests
         AddContainer("c1", "web-app-1", ContainerState.Running);
 
         await Assert.ThrowsAsync<AccessDeniedException>(() => Run(ContainerAction.Restart, "c1"));
+        Assert.Empty(agent.Calls);
+    }
+
+    [Fact]
+    public async Task Anonymous_request_is_unauthenticated()
+    {
+        currentUser.Id = null;
+
+        await Assert.ThrowsAsync<UnauthenticatedException>(() => Run(ContainerAction.Restart, "c1"));
         Assert.Empty(agent.Calls);
     }
 
@@ -174,7 +187,7 @@ public class ContainerCommandServiceTests
         Grant(Role.Operator);
         AddContainer("c1", "web-app-1", ContainerState.Running);
 
-        await service.ExecuteAsync(alice.Id, environment.Id, "c1", ContainerAction.Stop, TimeSpan.FromSeconds(30), Ct);
+        await service.ExecuteAsync(environment.Id, "c1", ContainerAction.Stop, TimeSpan.FromSeconds(30), Ct);
 
         Assert.Equal(TimeSpan.FromSeconds(30), agent.LastStopTimeout);
     }
@@ -186,11 +199,11 @@ public class ContainerCommandServiceTests
         AddContainer("c1", "web-app-1", ContainerState.Running);
 
         await Assert.ThrowsAsync<DomainValidationException>(() =>
-            service.ExecuteAsync(alice.Id, environment.Id, "c1", ContainerAction.Stop, TimeSpan.FromHours(1), Ct));
+            service.ExecuteAsync(environment.Id, "c1", ContainerAction.Stop, TimeSpan.FromHours(1), Ct));
     }
 
     private Task Run(ContainerAction action, string containerId) =>
-        service.ExecuteAsync(alice.Id, environment.Id, containerId, action, stopTimeout: null, Ct);
+        service.ExecuteAsync(environment.Id, containerId, action, stopTimeout: null, Ct);
 
     private void Grant(Role role) => roleAssignments.Add(RoleAssignment.ForEnvironment(alice.Id, environment.Id, role, Now));
 

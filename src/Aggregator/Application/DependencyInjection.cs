@@ -1,3 +1,4 @@
+using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Application.Environments;
@@ -13,7 +14,9 @@ public static class DependencyInjection
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<EnvironmentService>();
         services.AddScoped<AgentEnrollmentService>();
+        services.AddScoped<CurrentActor>();
         services.AddScoped<ContainerCommandService>();
+        services.AddScoped<ContainerQueryService>();
         return services;
     }
 }

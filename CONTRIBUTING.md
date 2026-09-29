@@ -58,17 +58,16 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
 Потрібно: .NET 10 SDK, Node.js 22, Docker (на Windows — Docker Desktop).
 
 1. `dotnet run --project src/Aggregator/Api` — ЦА: REST на `http://localhost:5080`, gRPC для агентів на `http://localhost:5081`. База SQLite створюється й мігрує сама при старті (`src/Aggregator/Api/aggregator.db`).
-2. Створити середовище й отримати enrollment-токен. Поки немає логіну й панелі, для цього є тимчасові dev-ендпоінти без автентифікації, доступні лише в оточенні `Development`:
+2. Створити середовище й отримати enrollment-токен. Поки немає логіну й панелі, для цього є тимчасові dev-ендпоінти, доступні лише в оточенні `Development`. Замість логіну заголовок `X-Dev-User` називає користувача, від імені якого йде запит (без пароля):
    ```sh
-   curl -X POST http://localhost:5080/api/dev/environments -H 'content-type: application/json' -d '{"name":"local","isPrivate":false}'
-   curl http://localhost:5080/api/dev/environments                      # статус агентів
-   curl http://localhost:5080/api/dev/environments/<id>/containers      # контейнери через агента
-   ```
-   Дії з контейнерами виконуються від імені користувача з заголовка `X-Dev-User`:
-   ```sh
-   curl -X POST http://localhost:5080/api/dev/users -H 'content-type: application/json' -d '{"userName":"root","isAdmin":true}'
+   curl -X POST http://localhost:5080/api/dev/users -H 'content-type: application/json' -d '{"userName":"root","isAdmin":true}'   # без заголовка
+   curl -H 'X-Dev-User: root' http://localhost:5080/api/me
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments -H 'content-type: application/json' -d '{"name":"local","isPrivate":false}'
+   curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments                   # видимі середовища й статус агентів
+   curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers   # видимі контейнери через агента
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers/<container>/restart   # start | stop | restart, ?timeoutSeconds=30
    ```
+   Роль на середовищі для звичайного користувача: `POST /api/dev/users/<userId>/environment-roles` з `{"environmentId":"<id>","role":"Operator"}`.
 3. `dotnet run --project src/Agent` з `CF_AGENT__CONTROLLERURL=http://localhost:5081` і `CF_AGENT__ENROLLMENTTOKEN=<токен>` — агент підключиться до локального Docker.
 4. `cd src/Web && npm ci && npm run dev` — панель на `http://localhost:5173`; `/api` і `/hubs` проксюються на ЦА.
 

@@ -49,12 +49,31 @@ internal sealed class InMemoryStacks : InMemoryRepository<Stack, StackId>, IStac
 {
     public Task<Stack?> FindByNameAsync(EnvironmentId environmentId, StackName name, CancellationToken cancellationToken) =>
         Task.FromResult(Items.FirstOrDefault(s => s.EnvironmentId == environmentId && s.Name == name));
+
+    public Task<IReadOnlyList<Stack>> ListByEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Stack>>(Items.Where(s => s.EnvironmentId == environmentId).ToList());
 }
 
 internal sealed class InMemoryRoleAssignments : InMemoryRepository<RoleAssignment, RoleAssignmentId>, IRoleAssignmentRepository
 {
     public Task<IReadOnlyList<RoleAssignment>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<RoleAssignment>>(Items.Where(a => a.UserId == userId).ToList());
+}
+
+internal sealed class FakeCurrentUser : ICurrentUser
+{
+    public UserId? Id { get; set; }
+}
+
+internal sealed class FakeUnitOfWork : IUnitOfWork
+{
+    public int Saves { get; private set; }
+
+    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        Saves++;
+        return Task.FromResult(0);
+    }
 }
 
 /// <summary>Agent that reports a fixed set of containers and records the actions it was asked to run.</summary>

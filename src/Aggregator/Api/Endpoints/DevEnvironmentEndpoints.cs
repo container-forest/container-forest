@@ -1,14 +1,14 @@
-using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 
 namespace ContainerForest.Aggregator.Api.Endpoints;
 
 /// <summary>
-/// Temporary endpoints for local development until login and the real panel API exist.
-/// They have no authentication, so Program.cs maps them only in the Development environment.
+/// Temporary endpoints for local development until the panel API exists. They act as the user from the
+/// X-Dev-User header (see DevUserAuthenticationHandler) and are mapped only in the Development environment.
 /// </summary>
 internal static class DevEnvironmentEndpoints
 {
@@ -17,8 +17,8 @@ internal static class DevEnvironmentEndpoints
         var group = app.MapGroup("/api/dev/environments").WithTags("Dev: environments");
 
         group.MapGet("/", async (EnvironmentService environments, CancellationToken ct) =>
-            (await environments.ListAsync(ct)).Select(e => new EnvironmentResponse(
-                e.Id.Value, e.Name, e.IsPrivate, e.IsEnrolled, e.IsOnline, e.AgentHostname, e.AgentVersion, e.LastSeenAt)));
+            (await environments.ListVisibleAsync(ct)).Select(e => new EnvironmentResponse(
+                e.Id.Value, e.Name, e.IsPrivate, e.IsEnrolled, e.IsOnline, e.AgentHostname, e.AgentVersion, e.LastSeenAt, e.Role)));
 
         group.MapPost("/", async (CreateEnvironmentRequest request, EnvironmentService environments, CancellationToken ct) =>
         {
@@ -35,21 +35,21 @@ internal static class DevEnvironmentEndpoints
             return new EnrollmentTokenResponse(token.Token, token.ExpiresAt);
         });
 
-        group.MapGet("/{id:guid}/containers", (Guid id, IAgentChannel agents, CancellationToken ct) =>
-            agents.ListContainersAsync(EnvironmentId.From(id), ct));
+        group.MapGet("/{id:guid}/containers", async (Guid id, ContainerQueryService containers, CancellationToken ct) =>
+            (await containers.ListAsync(EnvironmentId.From(id), ct)).Select(v => new ContainerResponse(
+                v.Container.Id,
+                v.Container.Name,
+                v.Container.State,
+                v.Container.Image,
+                v.Container.StackName,
+                v.Container.ServiceName,
+                v.Container.StatusText,
+                v.Container.CreatedAt,
+                v.CanControl)));
 
-        // Acts as the user named in the X-Dev-User header, so the authorization decorator can be tried out.
         group.MapPost(
             "/{id:guid}/containers/{containerId}/{action}",
-            async (
-                Guid id,
-                string containerId,
-                string action,
-                int? timeoutSeconds,
-                HttpRequest request,
-                IUserRepository users,
-                ContainerCommandService commands,
-                CancellationToken ct) =>
+            async (Guid id, string containerId, string action, int? timeoutSeconds, ContainerCommandService commands, CancellationToken ct) =>
             {
                 if (!Enum.TryParse<ContainerAction>(action, ignoreCase: true, out var containerAction)
                     || !Enum.IsDefined(containerAction))
@@ -58,23 +58,13 @@ internal static class DevEnvironmentEndpoints
                         statusCode: StatusCodes.Status400BadRequest, detail: "Action must be start, stop or restart.");
                 }
 
-                var userName = request.Headers[DevUserHeader].ToString();
-                if (await users.FindByUserNameAsync(userName, ct) is not { } user)
-                {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status401Unauthorized,
-                        detail: $"Header {DevUserHeader} must name an existing user.");
-                }
-
                 var stopTimeout = timeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null;
-                await commands.ExecuteAsync(user.Id, EnvironmentId.From(id), containerId, containerAction, stopTimeout, ct);
+                await commands.ExecuteAsync(EnvironmentId.From(id), containerId, containerAction, stopTimeout, ct);
                 return Results.NoContent();
             });
 
         return app;
     }
-
-    public const string DevUserHeader = "X-Dev-User";
 
     public sealed record CreateEnvironmentRequest(string Name, bool IsPrivate);
 
@@ -90,5 +80,17 @@ internal static class DevEnvironmentEndpoints
         bool IsOnline,
         string? AgentHostname,
         string? AgentVersion,
-        DateTimeOffset? LastSeenAt);
+        DateTimeOffset? LastSeenAt,
+        Role? Role);
+
+    public sealed record ContainerResponse(
+        string Id,
+        string Name,
+        ContainerState State,
+        string Image,
+        string? StackName,
+        string? ServiceName,
+        string StatusText,
+        DateTimeOffset? CreatedAt,
+        bool CanControl);
 }

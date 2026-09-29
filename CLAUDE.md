@@ -8,7 +8,7 @@
 ## Стан проєкту
 
 - Етап: **вибір теми / проєктування** (перший із трьох етапів навчального проєкту: вибір теми → альфа-версія → остаточна версія).
-- Структура репозиторію в README позначена як «не затверджено».
+- Структура репозиторію зафіксована в ADR-0001; створено скелет .NET-рішення. `src/Web` і `tests/` ще не створені.
 - Дедлайни етапів і лабораторних робіт у цьому файлі не зафіксовані: уточнити в команди.
 - Ролі учасників №3 і №4 (Синенко, Денисенко) ще можуть змінитися.
 
@@ -27,6 +27,7 @@
 
 | Рішення | Чому |
 |---|---|
+| Шари ЦА `Domain ← Application ← Infrastructure ← Api`, без SharedKernel; `Contracts` — лише `.proto`; веб отримує типи з OpenAPI-документа, який комітиться (ADR-0001) | Спільний між застосунками лише протокол; зміни HTTP-контракту видно в диффі PR |
 | Агент на кожному хості сам відкриває gRPC bidi-стрім до ЦА | На хостах немає вхідних портів, Docker API не виставляється в мережу, працює за NAT |
 | gRPC, а не SignalR, для агентів і бота | Жорсткий контракт у `.proto`, природний стрімінг логів, агент теоретично можна переписати іншою мовою |
 | Request/response поверх стріму через `request_id` + `TaskCompletionSource` | gRPC-стрім не має семантики запит→відповідь |
@@ -173,6 +174,7 @@ enum PullPolicy { PULL_MISSING = 0; PULL_ALWAYS = 1; }
 
 ### Фронтенд
 
+- Шляхи нижче відносно `src/Web`.
 - `queryOptions`-фабрики в `src/api/queries.ts` — єдине джерело ключів запитів.
 - Router створюється з `context: { queryClient }`, `defaultPreload: "intent"`, `defaultPreloadStaleTime: 0`.
 - Авторизовані маршрути лежать під pathless layout `_authed` (`beforeLoad` → `ensureQueryData(meQuery)`, 401 → redirect на `/login` з `search.redirect`; `/login` має `validateSearch` для `redirect`).
@@ -181,7 +183,7 @@ enum PullPolicy { PULL_MISSING = 0; PULL_ALWAYS = 1; }
 - Фільтри таблиць — у search params (`validateSearch`).
 - Форми — React Hook Form + Zod. Глобальний UI-стан — `useState`/Context; Zustand лише за реальної потреби. Redux — ні.
 - Приховування кнопок за правами — лише косметика; реальна перевірка на ЦА.
-- TS-клієнт генерується з OpenAPI-схеми ЦА (`openapi-typescript` + `openapi-fetch` або orval). Змінив DTO — перегенеруй клієнт.
+- TS-клієнт генерується з `src/Aggregator/Api/openapi/*.json` (`openapi-typescript` + `openapi-fetch`). Змінив DTO — перезбери `Api`, закомить JSON і перегенеруй клієнт. Типи подій SignalR пишуться вручну.
 - `routeTree.gen.ts` комітиться, руками не редагується.
 
 ## Відомі пастки (додатково до README)

@@ -143,6 +143,7 @@ enum ErrorCode {
   ERROR_CODE_CANCELLED = 6;           // ended by CancelRequest
   ERROR_CODE_BUSY = 7;                // another operation on the same stack is running
   ERROR_CODE_INTERNAL = 8;
+  ERROR_CODE_UNSUPPORTED = 9;         // this agent version has no handler for the command
 }
 
 message ListContainers {}

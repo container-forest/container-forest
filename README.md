@@ -77,4 +77,4 @@ flowchart LR
 
 ## Команда
 
-Петренко Богдан, Бояр Володимир, Синенко Дмитро, Денисенко Любов (ІПС-22). Ролі й розподіл відповідальності — у [docs/project-overview.md](docs/project-overview.md#команда).
+[Петренко Богдан](https://github.com/lepterion), [Бояр Володимир](https://github.com/volodaboyar1-star), [Синенко Дмитро](https://github.com/Dmyt-S), [Денисенко Любов](https://github.com/denysenkoliubov) (ІПС-22). Ролі й розподіл відповідальності — у [docs/project-overview.md](docs/project-overview.md#команда).

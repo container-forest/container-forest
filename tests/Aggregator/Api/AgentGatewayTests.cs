@@ -140,6 +140,27 @@ public class AgentGatewayTests
     }
 
     [Fact]
+    public async Task Command_the_agent_does_not_support_is_not_implemented()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+
+        var request = app.CreateClient().GetAsync($"/api/dev/environments/{agent.EnvironmentId}/containers", Ct);
+        var command = await agent.ReceiveAsync();
+        await agent.SendAsync(new AgentMessage
+        {
+            Result = new CommandResult
+            {
+                RequestId = command.RequestId,
+                Error = new CommandError { Code = ErrorCode.Unsupported, Message = "This agent version does not support the command." },
+            },
+        });
+
+        var response = await request;
+        Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Disconnect_fails_the_waiting_command()
     {
         await using var app = new AggregatorApp();

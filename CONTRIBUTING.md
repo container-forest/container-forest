@@ -65,7 +65,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments -H 'content-type: application/json' -d '{"name":"local","isPrivate":false}'
    curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments                   # видимі середовища й статус агентів
    curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers   # видимі контейнери через агента
-   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers/<container>/restart   # start | stop | restart, ?timeoutSeconds=30
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers/<container>/restart   # start | stop | restart, ?timeoutSeconds=30; <container> — повний id або ім'я, короткий id дає 404
    ```
    Роль на середовищі для звичайного користувача: `POST /api/dev/users/<userId>/environment-roles` з `{"environmentId":"<id>","role":"Operator"}`.
 3. `dotnet run --project src/Agent` з `CF_AGENT__ENROLLMENTTOKEN=<токен>` — агент зареєструється, підключиться до ЦА і до локального Docker. У `Development` адреса ЦА вже `http://localhost:5081` (інакше — `CF_AGENT__CONTROLLERURL`). Облікові дані агент зберігає в `agent-credentials.json` у каталозі даних (`CF_AGENT__DATADIRECTORY`; типово `/opt/container-forest`, на Windows `%LOCALAPPDATA%\container-forest`), тож токен потрібен лише для першого запуску. Щоб зареєструвати агента наново, видаліть цей файл. У PowerShell:

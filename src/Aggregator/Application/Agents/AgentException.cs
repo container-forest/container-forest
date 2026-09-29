@@ -41,4 +41,7 @@ public enum AgentErrorKind
     Cancelled,
     Busy,
     Internal,
+
+    /// <summary>The agent version has no handler for the command; updating the agent fixes it.</summary>
+    Unsupported,
 }

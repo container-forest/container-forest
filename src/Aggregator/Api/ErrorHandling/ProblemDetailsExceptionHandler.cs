@@ -44,6 +44,7 @@ internal sealed class ProblemDetailsExceptionHandler(IProblemDetailsService prob
         AgentErrorKind.NotFound => StatusCodes.Status404NotFound,
         AgentErrorKind.Busy => StatusCodes.Status409Conflict,
         AgentErrorKind.Timeout => StatusCodes.Status504GatewayTimeout,
+        AgentErrorKind.Unsupported => StatusCodes.Status501NotImplemented,
         _ => StatusCodes.Status502BadGateway,
     };
 }

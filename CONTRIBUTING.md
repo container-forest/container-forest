@@ -5,7 +5,7 @@
 ## Правила роботи в команді
 
 - Кожен PR перевіряється на [інваріанти безпеки](docs/architecture.md#інваріанти-безпеки): порушувати їх не можна в жодному PR.
-- Жодних прямих комітів у `main`. Лише PR з хоча б одним рев'ю від іншого учасника.
+- Жодних прямих комітів у `main`. Лише PR з хоча б одним рев'ю від іншого учасника і зеленим [CI](#ci).
 - Коміти за [Conventional Commits](https://www.conventionalcommits.org/): `feat(agent): ...`, `fix(web): ...`.
 - **`CONTRIBUTIONS.md`** — кожен веде свій список класів, методів, ієрархій, екранів і обробників для лаб. Оновлюйте разом із PR, а не в кінці семестру. Попередній розподіл класів і екранів між учасниками — у [docs/project-overview.md](docs/project-overview.md#команда).
 - Нотатки для ретроспективи з лаби 3 пишіть у `docs/retro/<бібліотека>.md` одразу, поки пам'ятаєте проблеми. Якщо з бібліотекою працює кілька учасників, кожен пише свій розділ у тому самому файлі.
@@ -18,6 +18,7 @@
 
 ```
 ContainerForest.slnx
+.github/workflows/ci.yml         CI: збірка й тести на кожен PR
 Directory.Build.props            спільні властивості .NET-проєктів
 Directory.Packages.props         версії NuGet-пакетів (central package management)
 dotnet-tools.json                локальні інструменти .NET (dotnet-ef)
@@ -72,6 +73,24 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
 4. `cd src/Web && npm ci && npm run dev` — панель на `http://localhost:5173`; `/api` і `/hubs` проксюються на ЦА.
 
 Тести: `dotnet test --solution ContainerForest.slnx`. Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент.
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) запускається на кожен PR і на пуш у `main`. PR мержиться лише із зеленим CI. Кроки:
+
+1. `dotnet restore` і `dotnet build` з `CI=true`: попередження компілятора й аналізаторів стають помилками (`Directory.Build.props`).
+2. Перевірка, що закомічений `src/Aggregator/Api/openapi/*.json` збігається з тим, що згенерувала збірка. Якщо крок упав — зберіть `src/Aggregator/Api` локально й закомітьте JSON.
+3. `dotnet test --solution ContainerForest.slnx`.
+
+Відтворити CI локально перед пушем:
+
+```sh
+CI=true dotnet build ContainerForest.slnx     # PowerShell: $env:CI="true"; dotnet build ContainerForest.slnx
+git status src/Aggregator/Api/openapi          # має бути без змін
+dotnet test --solution ContainerForest.slnx --no-build
+```
+
+Тест, що впав у CI, — це помилка, яку треба знайти, а не «нестабільність»: не вимикайте й не пропускайте тести, щоб отримати зелений статус.
 
 Міграції EF Core (інструмент ставиться з `dotnet-tools.json`):
 

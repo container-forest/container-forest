@@ -105,6 +105,7 @@
 - Доменні класи називаються `DockerEnvironment` (не `Environment`: конфлікт із `System.Environment` через неявний `using System`) і `GitRepository` (не `Repository`: плутається з патерном Repository).
 - Домен не читає годинник сам: методи приймають `DateTimeOffset now`. Ідентифікатори — `readonly record struct` над `Guid` v7 з інтерфейсом `IStronglyTypedId<TSelf>`.
 - Тести — xUnit v3 на Microsoft.Testing.Platform (увімкнено в `global.json`): `dotnet test --solution ContainerForest.slnx`. Проєкти тестів у `tests/`, структура повторює `src/`.
+- CI — `.github/workflows/ci.yml` (GitHub Actions, `ubuntu-latest`, SDK з `global.json`): restore → build з `CI=true` → перевірка, що закомічений OpenAPI-документ актуальний → тести. Опис і локальне відтворення — у `CONTRIBUTING.md`. Коли з'явиться `src/Web`, додати окремий job (`npm ci`, typecheck, збірка).
 - Конфігурація через options + `AddEnvironmentVariables(prefix: "CF_")`, `ValidateOnStart()`. Вкладені секції через `__` (`CF_AGENT__CONTROLLERURL`).
 - Запис у gRPC-стрім тільки через обгортку з `SemaphoreSlim`: gRPC забороняє паралельні записи.
 - `AgentRegistry.Open` при повторному підключенні агента закриває стару сесію. При закритті сесії всі очікувані запити завершуються `AgentDisconnectedException`.

@@ -2,7 +2,17 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Application\ContainerForest.Aggregator.Application.csproj" />
-    <ProjectReference Include="..\..\Contracts\ContainerForest.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Core.Api" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Messages and the server base class; Api gets them through this project. -->
+    <Protobuf Include="..\..\Contracts\agent\agent.proto" ProtoRoot="..\..\Contracts" GrpcServices="Server" Link="Contracts\agent.proto" />
   </ItemGroup>
 
 </Project>

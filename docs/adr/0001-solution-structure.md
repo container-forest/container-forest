@@ -1,6 +1,6 @@
 # ADR-0001. Структура репозиторію і шари ЦА
 
-- Статус: прийнято
+- Статус: прийнято; п. 4 замінено [ADR-0002](0002-proto-contracts-layout.md)
 - Дата: 2026-09-29
 
 ## Контекст
@@ -20,7 +20,7 @@ Directory.Build.props         спільні властивості .NET-про�
 Directory.Packages.props      центральне керування версіями NuGet
 global.json
 src/
-  Contracts/                  ContainerForest.Contracts: лише .proto
+  Contracts/                  лише .proto (див. ADR-0002)
   Aggregator/
     Domain/                   ContainerForest.Aggregator.Domain
     Application/              ContainerForest.Aggregator.Application
@@ -34,7 +34,7 @@ deploy/
 docs/
 ```
 
-1. **Одна папка верхнього рівня в `src/` відповідає одному окремо розгортаному застосунку.** Виняток — бібліотека `Contracts`. Групи на кшталт `Clients/` не вводимо, бо в них немає спільної збірки, коду чи способу розгортання.
+1. **Одна папка верхнього рівня в `src/` відповідає одному окремо розгортаному застосунку.** Виняток — `Contracts` зі спільними `.proto`-файлами. Групи на кшталт `Clients/` не вводимо, бо в них немає спільної збірки, коду чи способу розгортання.
 2. **ЦА ділиться на шари.** Залежності йдуть лише всередину: `Domain ← Application ← Infrastructure ← Api`.
    - `Domain` не має залежностей.
    - `Application` містить сценарії, команди, декоратор авторизації, `DeployPipeline`, `IDeployStep` і порти, наприклад канал до агента. На `Contracts` воно не посилається.

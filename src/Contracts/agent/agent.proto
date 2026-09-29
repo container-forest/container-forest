@@ -1,9 +1,16 @@
 syntax = "proto3";
-package container_forest.agent.v1;
-option csharp_namespace = "ContainerForest.Contracts.Agent.V1";
+package agent;
+option csharp_namespace = "ContainerForest.Contracts.Agent";
 
+// "Gateway" already names the role; a "Service" suffix would only lengthen the generated C# types.
+// buf:lint:ignore SERVICE_SUFFIX
 service AgentGateway {
   rpc Enroll(EnrollRequest) returns (EnrollResponse);
+
+  // Bidirectional stream: message types are named by sender, not request/response,
+  // because the aggregator's commands travel in the response stream.
+  // buf:lint:ignore RPC_REQUEST_STANDARD_NAME
+  // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
   rpc Connect(stream AgentMessage) returns (stream ControllerMessage);
 }
 

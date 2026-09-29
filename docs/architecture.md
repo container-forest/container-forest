@@ -126,6 +126,7 @@ services:
   container-forest-agent:
     image: ghcr.io/<org>/container-forest-agent:latest
     restart: unless-stopped
+    hostname: <назва хоста>   # агент передає її ЦА при реєстрації; без неї в панелі буде id контейнера
     environment:
       CF_AGENT__CONTROLLERURL: https://forest.example.com
       CF_AGENT__ENROLLMENTTOKEN: ${ENROLLMENT_TOKEN}   # потрібен лише для першого запуску

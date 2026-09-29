@@ -102,6 +102,7 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
         ErrorCode.Cancelled => AgentErrorKind.Cancelled,
         ErrorCode.Busy => AgentErrorKind.Busy,
         ErrorCode.Internal => AgentErrorKind.Internal,
+        ErrorCode.Unsupported => AgentErrorKind.Unsupported,
         _ => AgentErrorKind.Unknown,
     };
 

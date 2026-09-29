@@ -1,0 +1,207 @@
+# CLAUDE.md — container-forest
+
+Загальний опис, компоненти, інваріанти безпеки, права доступу та іменування: @README.md
+Мотивація, команда, розподіл відповідальності, аналіз аналогів: @docs/project-overview.md
+
+Цей файл містить те, чого немає в документах вище: історію рішень з обґрунтуванням, відкинуті альтернативи, вимоги курсу, технічні домовленості й відкриті питання. Він перенесений з чату, в якому проєктувалась система.
+
+## Стан проєкту
+
+- Етап: **вибір теми / проєктування** (перший із трьох етапів навчального проєкту: вибір теми → альфа-версія → остаточна версія).
+- Структура репозиторію в README позначена як «не затверджено».
+- Дедлайни етапів і лабораторних робіт у цьому файлі не зафіксовані: уточнити в команди.
+- Ролі учасників №3 і №4 (Синенко, Денисенко) ще можуть змінитися.
+
+## Правила роботи для Claude Code
+
+- Спілкування й документація — українською. Ідентифікатори, коментарі в коді, повідомлення комітів — англійською.
+- Відповідати прямо, на рівні реалізації, з робочим кодом, а не концептуальними оглядами.
+- **Інваріанти безпеки з README не порушувати.** Якщо задача вимагає їх порушити, зупинитися й спитати.
+- Контракти `.proto` у пакеті `*.v1` змінювати лише сумісно: нові поля й нові варіанти `oneof`, без перенумерації чи видалення. Несумісні зміни — новий пакет `v2`.
+- Кожен клас, метод і екран зараховується конкретному учаснику (див. «Вимоги курсу»). Якщо незрозуміло, чия це частина коду, спитати. Після додавання елементів нагадати оновити `CONTRIBUTIONS.md`.
+- Нову залежність не додавати мовчки: назвати її, пояснити навіщо, і якщо вона може піти в ретроспективу лаби 3, сказати про це.
+- Коміти за Conventional Commits (`feat(agent): ...`), жодних прямих комітів у `main`.
+- Архітектурне рішення, яке змінює щось із розділу «Рішення», оформлювати як ADR у `docs/adr/`.
+
+## Рішення та їх обґрунтування
+
+| Рішення | Чому |
+|---|---|
+| Агент на кожному хості сам відкриває gRPC bidi-стрім до ЦА | На хостах немає вхідних портів, Docker API не виставляється в мережу, працює за NAT |
+| gRPC, а не SignalR, для агентів і бота | Жорсткий контракт у `.proto`, природний стрімінг логів, агент теоретично можна переписати іншою мовою |
+| Request/response поверх стріму через `request_id` + `TaskCompletionSource` | gRPC-стрім не має семантики запит→відповідь |
+| SOPS розшифровується лише в ЦА; окрема age-пара на кожне середовище | ЦА і так має root-еквівалентний контроль над усіма хостами; розсилати ключі на хости означає розширювати поверхню атаки без виграшу. Окремий ключ на середовище дає криптографічну ізоляцію між серверами |
+| Git-репозиторій тягне ЦА (LibGit2Sharp, HTTPS + deploy-токен) | ЦА потрібен вміст для розшифрування; агенту не потрібні ні git-креди, ні ключі |
+| Образи тягне агент напряму з registry | Пересилати гігабайти через ЦА безглуздо; креди registry ЦА передає агенту в тимчасовому `DOCKER_CONFIG` на tmpfs |
+| Агент викликає `docker compose` CLI, а не реалізує compose через Docker API | Повторювати compose вручну — величезна робота |
+| Каталоги стеків монтуються в агент за тим самим шляхом, що й на хості | Шляхи bind-mount'ів резолвить Docker daemon на хості |
+| Файлові секрети в `/run/container-forest` (tmpfs хоста) | Не потрапляють на диск; ціна — rehydrate після перезавантаження |
+| Env-секрети — свідомий компроміс | Docker зберігає env у конфігурації контейнера на диску (`docker inspect`). Так роблять усі, включно з Portainer; це задокументовано, а не приховано |
+| Команди до офлайн-агента не ставляться в чергу | `restart`, виконаний через години, гірший за помилку |
+| Авторизація — лише в ЦА, як Decorator навколо команд | Одна перевірка для панелі й бота; обійти через інший інтерфейс неможливо |
+| Три окремі операції: restart / redeploy / redeploy with pull (+ окремо down) | Portainer змішує їх в одну кнопку, це головне джерело скарг на нього |
+| Веб-панель — окремий сервіс: статична SPA у nginx, nginx проксює `/api` і `/hubs` на ЦА | Same-origin → cookie `SameSite=Strict` і WebSocket без CORS; Node-рантайм не потрібен |
+| React + Vite + TanStack Router + TanStack Query | Типізовані маршрути й search params, інтеграція loader'ів із кешем Query |
+| Discord-бот — окремий .NET-застосунок, говорить із ЦА по gRPC | Сервісний токен бота + Discord ID користувача (on-behalf-of); права перевіряє ЦА |
+| SQLite для MVP | Підтримка ще й PostgreSQL означає два набори міграцій EF Core |
+| Системні стеки (ЦА, агент) оновлюються через одноразовий helper-контейнер | Агент, що робить `compose up` власного контейнера, вбиває себе посеред команди |
+
+## Відкинуті альтернативи (не пропонувати повторно без нових аргументів)
+
+- **FUSE-том із секретами** (початкова ідея №5 з тір-листа). FUSE усередині контейнера вимагає `SYS_ADMIN` і `/dev/fuse` на кожному контейнері. Правильна форма — Docker volume plugin, але і вона має мало переваг над ін'єкцією при старті, бо більшість застосунків не перечитують конфіг. Аналоги (`docker-volume-keywhiz`) закинуті. Нормального FUSE-біндингу для .NET немає.
+- **ЦА підключається до Docker API хостів по TCP.** Замінено агентами.
+- **Агент сам клонує git і розшифровує секрети.** Ключі й креди розповзлися б по хостах.
+- **Blazor.** Команда обрала React-SPA окремим сервісом.
+- **Next.js.** SSR не потрібен дашборду за логіном; зайвий Node-сервер і плутанина server/client components.
+- **Vue / Angular.** Розглядалися (Vue — найнижчий поріг входу, Angular — найближчий до C#/ООП), обрано React.
+- **Redux.** Серверний стан живе в TanStack Query, URL-стан у Router.
+- **Власна реалізація логіну.** Хешування паролів і сесії — ASP.NET Core; оцінюється шар авторизації, а не логін.
+- **Складний RBAC у стилі Portainer BE з явними заборонами.** Ефективна роль = максимум із ролі на середовищі й ролі на стеку.
+
+## Вимоги курсу (ООП, 2025–2026)
+
+Кількості **рахуються для кожного учасника окремо**: кожен елемент приписується одному студенту, двом зараховувати не можна (формулювання умови, прочитання варто підтвердити у викладача). Кількості орієнтовні.
+
+**Лаба 1 — базові ідеї ООП (C#):**
+- ≥ 9 класів (або подібних типів), ≥ 15 полів, ≥ 25 нетривіальних методів.
+- Тривіальними вважаються геттери/сеттери, що лише читають/пишуть поле, і конструктори, що лише ініціалізують поля. Тому команди мають містити реальну логіку: перевірку стану, таймаути, повтори, аудит.
+- ≥ 2 ієрархії успадкування, одна з них ≥ 3 класів.
+- ≥ 3 незалежні випадки поліморфізму, серед них хоча б один статичний (generics) і хоча б один динамічний. Для кожного має бути клієнтський код, що працює через поліморфний інтерфейс.
+- Доцільна інкапсуляція; де доречно — абстрактні класи й інтерфейси.
+- Потрібна точна кількість елементів кожного типу з переліком → `CONTRIBUTIONS.md`.
+
+**Лаба 2 — GUI (веб-панель):**
+- ≥ 4 екрани, ≥ 20 елементів керування, ≥ 1 контейнерний елемент (таблиця, список, дерево), ≥ 10 обробників подій.
+- Логіка окремо від GUI.
+- **Discord-бот не зараховується** (боти в месенджерах умова прямо відносить до «екзотичних» інтерфейсів). Тому учасник, відповідальний за бота, теж робить екрани панелі.
+
+**Лаба 3 — зовнішні бібліотеки:**
+- Бібліотеки не зі стандартної бібліотеки мови; не Qt і не фреймворки для unit-тестів.
+- Пакети Microsoft (EF Core, ASP.NET Identity) — сіра зона, на них не розраховувати.
+- У репозиторії чітко вказати, які бібліотеки і які їхні можливості використано.
+- Ретроспектива за списком питань з умови (задачі, чому саме ця бібліотека, документація, проблеми, плюси/мінуси, що змінили б, використані ресурси) → `docs/retro/<бібліотека>.md`, вести в процесі.
+- Кандидати: Docker.DotNet, Discord.Net, Grpc.AspNetCore / Grpc.Net.Client, LibGit2Sharp, YamlDotNet, Quartz.NET, Polly, FluentValidation, Otp.NET, TanStack Query, TanStack Router, React Hook Form, Zod, Monaco Editor, xterm.js.
+
+**Навчальний проєкт:**
+- Три етапи з окремими дедлайнами: вибір теми → альфа → остаточна версія.
+- Аналіз аналогів обов'язковий для оцінки «відмінно». Оновлюється на кожному етапі; у `docs/project-overview.md` початковий стан не редагується, оновлення додаються датованими підрозділами.
+- Не повторювати існуючі застосунки повністю; показати, чим проєкт відрізняється.
+- UML-діаграми вітаються.
+
+## Контракт агента (чернетка `container_forest.agent.v1`)
+
+```proto
+syntax = "proto3";
+package container_forest.agent.v1;
+option csharp_namespace = "ContainerForest.Contracts.Agent.V1";
+
+service AgentGateway {
+  rpc Enroll(EnrollRequest) returns (EnrollResponse);
+  rpc Connect(stream AgentMessage) returns (stream ControllerMessage);
+}
+
+message EnrollRequest  { string enrollment_token = 1; string hostname = 2; string agent_version = 3; }
+message EnrollResponse { string agent_id = 1; string agent_secret = 2; }
+
+message ControllerMessage {
+  string request_id = 1;
+  oneof body {
+    ListContainers   list_containers   = 10;
+    RestartContainer restart_container = 11;
+    StopContainer    stop_container    = 12;
+    DeployStack      deploy_stack      = 13;
+  }
+}
+
+message AgentMessage {
+  oneof body {
+    Hello           hello           = 1;
+    CommandResult   result          = 2;
+    ContainerEvent  container_event = 3;
+    Heartbeat       heartbeat       = 4;
+    CommandProgress progress        = 5;
+  }
+}
+
+message Hello           { string agent_version = 1; string docker_version = 2; string boot_id = 3; repeated ContainerInfo snapshot = 4; }
+message Heartbeat       {}
+message ContainerEvent  { string container_id = 1; string action = 2; int64 timestamp_unix_ms = 3; }
+message ContainerInfo   { string id = 1; string name = 2; string state = 3; string image = 4; }
+message CommandProgress { string request_id = 1; string line = 2; }
+
+message CommandResult {
+  string request_id = 1;
+  bool success = 2;
+  string error = 3;
+  oneof payload { ContainerList containers = 10; }
+}
+message ContainerList { repeated ContainerInfo items = 1; }
+
+message ListContainers   {}
+message RestartContainer { string container_id = 1; int32 timeout_seconds = 2; }
+message StopContainer    { string container_id = 1; int32 timeout_seconds = 2; }
+
+message DeployStack {
+  string stack_name = 1;
+  string commit_sha = 2;
+  repeated StackFile files = 3;
+  map<string, string> env = 4;
+  repeated RegistryAuth registry_auths = 5;
+  PullPolicy pull = 6;
+}
+message StackFile    { string path = 1; bytes content = 2; uint32 mode = 3; bool secret = 4; }
+message RegistryAuth { string server = 1; string username = 2; string password = 3; }
+enum PullPolicy { PULL_MISSING = 0; PULL_ALWAYS = 1; }
+```
+
+## Технічні домовленості
+
+### Бекенд (.NET)
+
+- Конфігурація через options + `AddEnvironmentVariables(prefix: "CF_")`, `ValidateOnStart()`. Вкладені секції через `__` (`CF_AGENT__CONTROLLERURL`).
+- Запис у gRPC-стрім тільки через обгортку з `SemaphoreSlim`: gRPC забороняє паралельні записи.
+- `AgentRegistry.Open` при повторному підключенні агента закриває стару сесію. При закритті сесії всі очікувані запити завершуються `AgentDisconnectedException`.
+- Агент: перепідключення з експоненційною затримкою (до 60 с) і jitter; якщо сесія жила довше хвилини, лічильник спроб скидається. Heartbeat кожні 15 с.
+- На агенті команди диспетчеризуються за `ControllerMessage.BodyCase` до `IAgentCommandHandler`; обробники отримують `ICommandProgress` для стрімінгу виводу.
+- `docker compose` запускати через `ProcessStartInfo.ArgumentList` (без shell). Env-секрети передавати в `psi.Environment`, не в `.env`-файл.
+- Операції зі стеками: `restart` = `docker compose restart`; `redeploy` = `up -d --remove-orphans --pull missing --wait`; `redeploy with pull` = те саме з `--pull always`.
+- SOPS викликати бінарником, ключ передавати через змінну `SOPS_AGE_KEY` дочірнього процесу, вміст — через stdin. Приватні ключі в БД ЦА шифруються (Data Protection або master key з конфігурації ЦА).
+- Файли стеку писати атомарно: `<name>.tmp` → поточний каталог перейменувати на `<name>.prev` → `.tmp` на `<name>`. Шлях каталогу стеку між релізами не змінюється, інакше compose пересоздаватиме контейнери з bind-mount'ами.
+- Webhook GitHub/Gitea: перевірка HMAC через `CryptographicOperations.FixedTimeEquals`, лише постановка в чергу; деплой виконує фоновий сервіс.
+- Cookie-автентифікація для API повертає 401/403 замість редіректу на логін. За reverse proxy — `UseForwardedHeaders` з `XForwardedProto`.
+- Kestrel: окремий порт для gRPC (HTTP/2), окремий для REST/SignalR.
+
+### Фронтенд
+
+- `queryOptions`-фабрики в `src/api/queries.ts` — єдине джерело ключів запитів.
+- Router створюється з `context: { queryClient }`, `defaultPreload: "intent"`, `defaultPreloadStaleTime: 0`.
+- Авторизовані маршрути лежать під pathless layout `_authed` (`beforeLoad` → `ensureQueryData(meQuery)`, 401 → redirect на `/login` з `search.redirect`; `/login` має `validateSearch` для `redirect`).
+- Жодного `fetch` у `useEffect`: дані через Query, переходи через Router.
+- Одне SignalR-з'єднання на застосунок через `HubProvider` (React Context), змонтований усередині `_authed`. Події SignalR інвалідовують запити Query, а не пишуть у окремий стор.
+- Фільтри таблиць — у search params (`validateSearch`).
+- Форми — React Hook Form + Zod. Глобальний UI-стан — `useState`/Context; Zustand лише за реальної потреби. Redux — ні.
+- Приховування кнопок за правами — лише косметика; реальна перевірка на ЦА.
+- TS-клієнт генерується з OpenAPI-схеми ЦА (`openapi-typescript` + `openapi-fetch` або orval). Змінив DTO — перегенеруй клієнт.
+- `routeTree.gen.ts` комітиться, руками не редагується.
+
+## Відомі пастки (додатково до README)
+
+- gRPC обмежує повідомлення 4 МБ за замовчуванням: задати явний ліміт розміру пакета деплою на ЦА і відхиляти більші.
+- Reverse proxy перед ЦА має пропускати HTTP/2 для gRPC (у nginx — `grpc_pass`) і мати великі таймаути для довгих стрімів, інакше з'єднання рватиметься кожні 60 с.
+- Після перезавантаження хоста Docker піднімає контейнери раніше, ніж агент підключається, тому контейнери з файловими секретами падають до rehydrate. Новий `boot_id` у `Hello` — сигнал для ЦА повторно надіслати секрети.
+- LibGit2Sharp з NuGet не підтримує SSH — лише HTTPS.
+- Назва стеку: `^[a-z0-9][a-z0-9_-]*$` (вимога compose і захист від path traversal). Кожен `StackFile.Path` — відносний, без `..`, після `Path.GetFullPath` лишається в каталозі стеку.
+- Образи з тегом `latest` у поєднанні з `--pull always` ламають відтворюваність; `ValidateComposeStep` має їх відхиляти або попереджати. `build:` у compose відхиляється.
+- Логи контейнерів можуть містити секрети; маскування в аудиті не рятує від того, що застосунок сам вивів у stdout.
+- Розробка на Windows: Docker.DotNet підключається через `npipe://./pipe/docker_engine`.
+- Демонстрація на захисті — на тестовому середовищі, не на робочій інфраструктурі.
+
+## Відкриті питання
+
+- Остаточні ролі й розподіл класів/екранів для учасників №3 і №4.
+- Дедлайни етапів проєкту і лабораторних; що саме має бути готове до дедлайну лаби 1 (доменне ядро потрібне раніше за UI).
+- Підтвердити у викладача, що кількості в лабах рахуються на кожного учасника.
+- Reverse proxy для продакшн-розгортання ЦА (Caddy / Traefik / nginx).
+- Що мається на увазі під «unmanaged certs» у README.
+- Перехід на .NET 11 (STS) — лише за конкретні фічі, не за строк підтримки.
+- mTLS між агентом і ЦА — stretch goal.

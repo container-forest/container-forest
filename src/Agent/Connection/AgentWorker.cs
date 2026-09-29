@@ -34,10 +34,14 @@ public sealed class AgentWorker(
             Environment.ExitCode = 1;
             lifetime.StopApplication();
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        catch (Exception ex) when (stoppingToken.IsCancellationRequested && IsCancellation(ex))
         {
+            // Normal shutdown. gRPC reports a cancelled call as RpcException(Cancelled), not OperationCanceledException.
         }
     }
+
+    private static bool IsCancellation(Exception ex) =>
+        ex is OperationCanceledException or RpcException { StatusCode: StatusCode.Cancelled };
 
     private async Task<AgentCredentials> EnrollAsync(AgentGateway.AgentGatewayClient gateway, CancellationToken stoppingToken)
     {

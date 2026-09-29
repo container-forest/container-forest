@@ -2,18 +2,29 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ContainerForest.Aggregator.Api.Grpc;
+using ContainerForest.Aggregator.Application.Access;
+using ContainerForest.Aggregator.Application.Common;
+using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Contracts.Agent;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace ContainerForest.Aggregator.Api.Tests;
 
-/// <summary>The aggregator in memory with its own SQLite file, plus helpers to act as an agent.</summary>
+/// <summary>
+/// The aggregator in memory with its own SQLite file, plus helpers to act as an agent.
+/// <see cref="WebApplicationFactory{TEntryPoint}.CreateClient()"/> acts as the administrator <see cref="AdminUserName"/>.
+/// </summary>
 internal sealed class AggregatorApp : WebApplicationFactory<Program>
 {
+    public const string AdminUserName = "admin";
+    public const string DevUserHeader = "X-Dev-User";
+
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter() },
@@ -29,6 +40,18 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
             channel ??= GrpcChannel.ForAddress(Server.BaseAddress, new GrpcChannelOptions { HttpHandler = Server.CreateHandler() });
             return new AgentGateway.AgentGatewayClient(channel);
         }
+    }
+
+    /// <summary>A client that acts as the given user; null for an anonymous client.</summary>
+    public HttpClient CreateClientAs(string? userName)
+    {
+        var client = Server.CreateClient();
+        if (userName is not null)
+        {
+            client.DefaultRequestHeaders.Add(DevUserHeader, userName);
+        }
+
+        return client;
     }
 
     public async Task<CreatedEnvironment> CreateEnvironmentAsync(string name = "test")
@@ -76,6 +99,25 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         builder.UseEnvironment("Development");
         builder.UseSetting("ConnectionStrings:Aggregator", $"Data Source={databasePath}");
         builder.UseSetting("AgentGateway:CommandTimeout", "00:00:05");
+    }
+
+    protected override void ConfigureClient(HttpClient client)
+    {
+        base.ConfigureClient(client);
+        client.DefaultRequestHeaders.Add(DevUserHeader, AdminUserName);
+    }
+
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        var host = base.CreateHost(builder);
+
+        // The host has started, so migrations are applied.
+        using var scope = host.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+        users.Add(User.CreateAdministrator(AdminUserName, DateTimeOffset.UtcNow));
+        scope.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync().GetAwaiter().GetResult();
+
+        return host;
     }
 
     public override async ValueTask DisposeAsync()

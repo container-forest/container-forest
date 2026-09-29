@@ -46,6 +46,9 @@ internal sealed class StackRepository(AggregatorDbContext db) : EfRepository<Sta
 {
     public Task<Stack?> FindByNameAsync(EnvironmentId environmentId, StackName name, CancellationToken cancellationToken) =>
         Set.SingleOrDefaultAsync(s => s.EnvironmentId == environmentId && s.Name == name, cancellationToken);
+
+    public async Task<IReadOnlyList<Stack>> ListByEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        await Set.Where(s => s.EnvironmentId == environmentId).ToListAsync(cancellationToken);
 }
 
 internal sealed class UserRepository(AggregatorDbContext db) : EfRepository<User, UserId>(db), IUserRepository

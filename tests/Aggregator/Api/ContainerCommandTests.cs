@@ -11,10 +11,9 @@ public class ContainerCommandTests
     public async Task Admin_restarts_a_container_through_the_agent()
     {
         await using var app = new AggregatorApp();
-        await app.CreateUserAsync("root", isAdmin: true);
         await using var agent = await app.EnrollAndConnectAsync();
 
-        var request = Send(app, agent, "c1", "restart", "root");
+        var request = Send(app, agent, "c1", "restart", AggregatorApp.AdminUserName);
         await AnswerListAsync(agent);
 
         var command = await agent.ReceiveAsync();
@@ -53,10 +52,8 @@ public class ContainerCommandTests
 
     private static Task<HttpResponseMessage> Send(AggregatorApp app, FakeAgent agent, string containerId, string action, string user)
     {
-        var message = new HttpRequestMessage(
-            HttpMethod.Post, $"/api/dev/environments/{agent.EnvironmentId}/containers/{containerId}/{action}");
-        message.Headers.Add("X-Dev-User", user);
-        return app.CreateClient().SendAsync(message, Ct);
+        return app.CreateClientAs(user).PostAsync(
+            $"/api/dev/environments/{agent.EnvironmentId}/containers/{containerId}/{action}", content: null, Ct);
     }
 
     private static async Task AnswerListAsync(FakeAgent agent)

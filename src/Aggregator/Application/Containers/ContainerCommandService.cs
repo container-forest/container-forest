@@ -11,7 +11,7 @@ namespace ContainerForest.Aggregator.Application.Containers;
 
 /// <summary>Entry point for container actions from the panel and the bot.</summary>
 public sealed class ContainerCommandService(
-    IUserRepository users,
+    CurrentActor currentActor,
     IEnvironmentRepository environments,
     IStackRepository stacks,
     IRoleAssignmentRepository roleAssignments,
@@ -20,19 +20,13 @@ public sealed class ContainerCommandService(
     /// <param name="containerId">Full container id or exact container name.</param>
     /// <param name="stopTimeout">For stop and restart; <see cref="StoppingContainerCommand.DefaultStopTimeout"/> when null.</param>
     public async Task ExecuteAsync(
-        UserId actorId,
         EnvironmentId environmentId,
         string containerId,
         ContainerAction action,
         TimeSpan? stopTimeout,
         CancellationToken cancellationToken)
     {
-        var actor = await users.FindAsync(actorId, cancellationToken);
-        if (actor is not { IsActive: true })
-        {
-            throw new AccessDeniedException("The user does not exist or is deactivated.");
-        }
-
+        var actor = await currentActor.GetAsync(cancellationToken);
         var environment = await environments.FindAsync(environmentId, cancellationToken);
 
         // An environment the user may not see is reported as missing, so its existence does not leak.

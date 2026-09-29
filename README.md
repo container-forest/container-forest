@@ -119,17 +119,25 @@ flowchart LR
 - Власний container registry.
 - Встановлення й оновлення самого Docker Engine.
 
-## Структура репозиторію (не затверджено)
+## Структура репозиторію
+
+Обґрунтування — у [ADR-0001](docs/adr/0001-solution-structure.md).
 
 ```
+ContainerForest.slnx
+Directory.Build.props            спільні властивості .NET-проєктів
+Directory.Packages.props         версії NuGet-пакетів (central package management)
 src/
-  ContainerForest.Contracts/     .proto, спільні для ЦА, агента й бота
-  ContainerForest.Core/          домен, команди, пайплайн, авторизація
-  ContainerForest.Aggregator/    ASP.NET Core: REST, SignalR, gRPC
-  ContainerForest.Agent/         .NET Worker Service
-  ContainerForest.DiscordBot/
-web/                             Vite + React + TS
-tests/
+  Contracts/                     .proto, спільні для ЦА, агента й бота
+  Aggregator/
+    Domain/                      доменна модель, без залежностей
+    Application/                 команди, авторизація, пайплайн деплою, порти
+    Infrastructure/              EF Core, git, SOPS, з'єднання з агентами
+    Api/                         ASP.NET Core: REST, SignalR, gRPC; openapi/*.json
+  Agent/                         .NET Worker Service
+  DiscordBot/
+  Web/                           Vite + React + TS
+tests/                           дзеркалить src/
 deploy/                          compose-файли для ЦА і агента
 docs/
   project-overview.md            опис проєкту, команда, аналіз аналогів
@@ -170,10 +178,10 @@ services:
 
 Потрібно: .NET 10 SDK, Node.js 22, Docker (на Windows — Docker Desktop).
 
-1. `dotnet run --project src/ContainerForest.Aggregator` — ЦА на `http://localhost:5080`.
+1. `dotnet run --project src/Aggregator/Api` — ЦА на `http://localhost:5080`.
 2. В UI створити середовище й скопіювати enrollment-токен.
-3. `dotnet run --project src/ContainerForest.Agent` з `CF_AGENT__CONTROLLERURL=http://localhost:5080` і `CF_AGENT__ENROLLMENTTOKEN=<токен>` — агент підключиться до локального Docker.
-4. `cd web && npm ci && npm run dev` — панель на `http://localhost:5173`; `/api` і `/hubs` проксюються на ЦА.
+3. `dotnet run --project src/Agent` з `CF_AGENT__CONTROLLERURL=http://localhost:5080` і `CF_AGENT__ENROLLMENTTOKEN=<токен>` — агент підключиться до локального Docker.
+4. `cd src/Web && npm ci && npm run dev` — панель на `http://localhost:5173`; `/api` і `/hubs` проксюються на ЦА.
 
 ⚠️ Для розробки використовуйте локальний Docker або тестовий сервер, **не продакшн-інфраструктуру**.
 

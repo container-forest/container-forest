@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dotnet:
+    name: Build and test (.NET)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Directory.Build.props turns warnings into errors when CI=true.
+      CI: true
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore ContainerForest.slnx
+
+      - name: Build
+        run: dotnet build ContainerForest.slnx --no-restore
+
+      # The build regenerates the OpenAPI document; the committed copy must match it.
+      - name: Check committed OpenAPI document
+        run: |
+          if ! git diff --exit-code -- src/Aggregator/Api/openapi; then
+            echo "::error::src/Aggregator/Api/openapi is out of date. Build src/Aggregator/Api and commit the JSON."
+            exit 1
+          fi
+
+      - name: Test
+        run: dotnet test --solution ContainerForest.slnx --no-build

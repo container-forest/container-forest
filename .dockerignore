@@ -1,0 +1,15 @@
+# Build contexts are the repository root; keep them small and free of local state.
+.git
+.vs
+.vscode
+.idea
+**/bin/
+**/obj/
+**/node_modules/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/appsettings.Development.json
+**/agent-credentials.json
+tests/
+docs/

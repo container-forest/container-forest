@@ -77,6 +77,18 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
 
 Тести: `dotnet test --solution ContainerForest.slnx`. Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент.
 
+Docker-образ агента збирається з кореня репозиторію (контексту потрібні `src/Contracts` і `Directory.*.props`), а запускається так само, як у [прикладі розгортання](docs/architecture.md#розгортання-агента). Щоб підключити його до ЦА, запущеного локально через `dotnet run`, використовуйте `http://host.docker.internal:5081`:
+
+```sh
+docker build -f src/Agent/Dockerfile -t container-forest-agent:dev .
+docker run -d --name cf-agent --hostname my-laptop \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v cf-agent-data:/opt/container-forest \
+  -e CF_AGENT__CONTROLLERURL=http://host.docker.internal:5081 \
+  -e CF_AGENT__ENROLLMENTTOKEN=<токен> \
+  container-forest-agent:dev
+```
+
 Міграції EF Core (інструмент ставиться з `dotnet-tools.json`):
 
 ```sh

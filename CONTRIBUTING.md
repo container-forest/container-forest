@@ -64,6 +64,11 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    curl http://localhost:5080/api/dev/environments                      # статус агентів
    curl http://localhost:5080/api/dev/environments/<id>/containers      # контейнери через агента
    ```
+   Дії з контейнерами виконуються від імені користувача з заголовка `X-Dev-User`:
+   ```sh
+   curl -X POST http://localhost:5080/api/dev/users -H 'content-type: application/json' -d '{"userName":"root","isAdmin":true}'
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers/<container>/restart   # start | stop | restart, ?timeoutSeconds=30
+   ```
 3. `dotnet run --project src/Agent` з `CF_AGENT__CONTROLLERURL=http://localhost:5081` і `CF_AGENT__ENROLLMENTTOKEN=<токен>` — агент підключиться до локального Docker.
 4. `cd src/Web && npm ci && npm run dev` — панель на `http://localhost:5173`; `/api` і `/hubs` проксюються на ЦА.
 

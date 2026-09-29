@@ -1,0 +1,6 @@
+# LF in the repository and in every working tree, whatever core.autocrlf says.
+* text=auto eol=lf
+
+# Windows batch files need CRLF to run.
+*.cmd text eol=crlf
+*.bat text eol=crlf

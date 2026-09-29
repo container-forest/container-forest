@@ -9,7 +9,9 @@
     <Project Path="src/Aggregator/Infrastructure/ContainerForest.Aggregator.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/Tests/">
+    <Project Path="tests/Aggregator/Api/ContainerForest.Aggregator.Api.Tests.csproj" />
     <Project Path="tests/Aggregator/Domain/ContainerForest.Aggregator.Domain.Tests.csproj" />
+    <Project Path="tests/Aggregator/Infrastructure/ContainerForest.Aggregator.Infrastructure.Tests.csproj" />
   </Folder>
   <Project Path="src/Agent/ContainerForest.Agent.csproj" />
   <Project Path="src/DiscordBot/ContainerForest.DiscordBot.csproj" />

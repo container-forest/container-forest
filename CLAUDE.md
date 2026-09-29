@@ -110,6 +110,11 @@
 - `AgentRegistry.Open` при повторному підключенні агента закриває стару сесію. При закритті сесії всі очікувані запити завершуються `AgentDisconnectedException`.
 - Агент: перепідключення з експоненційною затримкою (до 60 с) і jitter; якщо сесія жила довше хвилини, лічильник спроб скидається. Heartbeat кожні 15 с.
 - На агенті команди диспетчеризуються за `ControllerMessage.BodyCase` до `IAgentCommandHandler`; обробники отримують `ICommandProgress` для стрімінгу виводу.
+- Кожна команда, крім `CancelRequest`, отримує рівно один `CommandResult` з тим самим `request_id`, інакше ЦА чекатиме до таймауту. Команда без обробника (зокрема невідомий агенту варіант `oneof`, що парситься як `BodyCase.None`) — `ERROR_CODE_UNSUPPORTED`. `CommandError.message` показується в панелі: читабельний текст без деталей винятків; деталі — у лог агента.
+- Агент використовує форк `Docker.DotNet.Enhanced` (Testcontainers), не закинутий оригінал. Клієнт — `new DockerClientBuilder().Build()`: endpoint як у docker CLI (`DOCKER_HOST` → поточний контекст → типовий сокет). Власний таймаут клієнта (100 с) вимкнено, бо ЦА дозволяє час зупинки до 5 хв; кожен виклик має свій бюджет у `DockerDotNetGateway`.
+- `timeout_seconds = 0` у Stop/Restart означає «вбити одразу» (ЦА приймає 0), а не типовий час Docker.
+- `container_id` перед зверненням до Docker API перевіряється регулярним виразом `^[a-zA-Z0-9][a-zA-Z0-9_.-]*\z`: id стає частиною шляху запиту.
+- Облікові дані агента — `<DataDirectory>/agent-credentials.json`, запис атомарний, на Unix з правами 0600 від створення. Hostname для `Enroll` — `Environment.MachineName`; в контейнері його задає `hostname:` у compose агента (окремої змінної середовища немає).
 - `docker compose` запускати через `ProcessStartInfo.ArgumentList` (без shell). Env-секрети передавати в `psi.Environment`, не в `.env`-файл.
 - Операції зі стеками: `restart` = `docker compose restart`; `redeploy` = `up -d --remove-orphans --pull missing --wait`; `redeploy with pull` = те саме з `--pull always`.
 - `RestartStack` і `DownStack` виконувати як `docker compose -p <stack> restart|down` **без `-f`**. Так compose не читає файл і не вимагає env-змінних, яких на диску немає; з `-f` або без `-p` у каталозі стеку команда падає на обов'язкових змінних `${VAR:?}` (перевірено на Compose 5.5.1). Env лишається в конфігурації контейнерів.
@@ -152,7 +157,7 @@
 - Вирази EF (`ValueConverter`) не можуть викликати `static abstract` члени інтерфейсу напряму — лише через звичайний статичний метод (див. `StronglyTypedIdConverter`).
 - xUnit v3 з аналізатором `xUnit1051` вимагає передавати `TestContext.Current.CancellationToken`; у CI це помилка збірки.
 - Логи контейнерів можуть містити секрети; маскування в аудиті не рятує від того, що застосунок сам вивів у stdout.
-- Розробка на Windows: Docker.DotNet підключається через `npipe://./pipe/docker_engine`.
+- Розробка на Windows: Docker.DotNet підключається через named pipe поточного Docker-контексту (`npipe://./pipe/dockerDesktopLinuxEngine` у Docker Desktop). Якщо Docker вимкнено, підключення чекає 10 с і завершується `TimeoutException`; `/proc/.../boot_id` немає, тому boot_id — час старту системи (`UptimeBootIdProvider`).
 - Демонстрація на захисті — на тестовому середовищі, не на робочій інфраструктурі.
 
 ## Відкриті питання

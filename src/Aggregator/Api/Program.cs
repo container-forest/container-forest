@@ -33,6 +33,7 @@ if (app.Environment.IsDevelopment())
 {
     // No authentication yet (security invariant 4): never expose these outside local development.
     app.MapDevEnvironmentEndpoints();
+    app.MapDevAccessEndpoints();
 }
 
 app.Run();

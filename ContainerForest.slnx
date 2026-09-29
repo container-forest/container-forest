@@ -10,6 +10,7 @@
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="tests/Aggregator/Api/ContainerForest.Aggregator.Api.Tests.csproj" />
+    <Project Path="tests/Aggregator/Application/ContainerForest.Aggregator.Application.Tests.csproj" />
     <Project Path="tests/Aggregator/Domain/ContainerForest.Aggregator.Domain.Tests.csproj" />
     <Project Path="tests/Aggregator/Infrastructure/ContainerForest.Aggregator.Infrastructure.Tests.csproj" />
   </Folder>

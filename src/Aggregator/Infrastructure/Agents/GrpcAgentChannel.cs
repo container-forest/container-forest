@@ -15,7 +15,8 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
     public async Task<IReadOnlyList<ContainerSnapshot>> ListContainersAsync(
         EnvironmentId environmentId, CancellationToken cancellationToken)
     {
-        var result = await SendAsync(environmentId, new ControllerMessage { ListContainers = new ListContainers() }, cancellationToken);
+        var result = await SendAsync(
+            environmentId, new ControllerMessage { ListContainers = new ListContainers() }, options.Value.CommandTimeout, cancellationToken);
         if (result.PayloadCase != CommandResult.PayloadOneofCase.Containers)
         {
             throw new AgentCommandFailedException(environmentId, AgentErrorKind.Internal, "Agent returned no container list.");
@@ -24,15 +25,43 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
         return result.Containers.Items.Select(ToSnapshot).ToList();
     }
 
+    public Task StartContainerAsync(EnvironmentId environmentId, string containerId, CancellationToken cancellationToken) =>
+        SendAsync(
+            environmentId,
+            new ControllerMessage { StartContainer = new StartContainer { ContainerId = containerId } },
+            options.Value.CommandTimeout,
+            cancellationToken);
+
+    public Task StopContainerAsync(
+        EnvironmentId environmentId, string containerId, TimeSpan stopTimeout, CancellationToken cancellationToken) =>
+        SendAsync(
+            environmentId,
+            new ControllerMessage { StopContainer = new StopContainer { ContainerId = containerId, TimeoutSeconds = Seconds(stopTimeout) } },
+            WaitFor(stopTimeout),
+            cancellationToken);
+
+    public Task RestartContainerAsync(
+        EnvironmentId environmentId, string containerId, TimeSpan stopTimeout, CancellationToken cancellationToken) =>
+        SendAsync(
+            environmentId,
+            new ControllerMessage { RestartContainer = new RestartContainer { ContainerId = containerId, TimeoutSeconds = Seconds(stopTimeout) } },
+            WaitFor(stopTimeout),
+            cancellationToken);
+
+    // Docker may wait the whole stop timeout before killing the process; the answer comes after that.
+    private TimeSpan WaitFor(TimeSpan stopTimeout) => options.Value.CommandTimeout + stopTimeout;
+
+    private static int Seconds(TimeSpan timeout) => (int)Math.Ceiling(timeout.TotalSeconds);
+
     private async Task<CommandResult> SendAsync(
-        EnvironmentId environmentId, ControllerMessage command, CancellationToken cancellationToken)
+        EnvironmentId environmentId, ControllerMessage command, TimeSpan timeout, CancellationToken cancellationToken)
     {
         if (!registry.TryGet(environmentId, out var session))
         {
             throw new AgentOfflineException(environmentId);
         }
 
-        var result = await session.RequestAsync(command, options.Value.CommandTimeout, cancellationToken);
+        var result = await session.RequestAsync(command, timeout, cancellationToken);
         if (result.Error is { } error)
         {
             throw new AgentCommandFailedException(environmentId, ToErrorKind(error.Code), error.Message);

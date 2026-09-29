@@ -1,3 +1,4 @@
+using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Domain.Common;
@@ -15,6 +16,7 @@ internal sealed class ProblemDetailsExceptionHandler(IProblemDetailsService prob
             DomainValidationException => (StatusCodes.Status400BadRequest, "Invalid request"),
             DomainConflictException => (StatusCodes.Status409Conflict, "Conflict"),
             NotFoundException => (StatusCodes.Status404NotFound, "Not found"),
+            AccessDeniedException => (StatusCodes.Status403Forbidden, "Forbidden"),
             AgentOfflineException or AgentDisconnectedException => (StatusCodes.Status503ServiceUnavailable, "Agent unavailable"),
             AgentTimeoutException => (StatusCodes.Status504GatewayTimeout, "Agent timeout"),
             AgentCommandFailedException failed => (StatusFor(failed.Kind), "Agent command failed"),

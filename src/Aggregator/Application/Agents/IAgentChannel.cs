@@ -14,6 +14,16 @@ public interface IAgentChannel
     bool IsOnline(EnvironmentId environmentId);
 
     Task<IReadOnlyList<ContainerSnapshot>> ListContainersAsync(EnvironmentId environmentId, CancellationToken cancellationToken);
+
+    Task StartContainerAsync(EnvironmentId environmentId, string containerId, CancellationToken cancellationToken);
+
+    /// <param name="stopTimeout">How long Docker waits for the process to exit before killing it.</param>
+    Task StopContainerAsync(
+        EnvironmentId environmentId, string containerId, TimeSpan stopTimeout, CancellationToken cancellationToken);
+
+    /// <param name="stopTimeout">How long Docker waits for the process to exit before killing it.</param>
+    Task RestartContainerAsync(
+        EnvironmentId environmentId, string containerId, TimeSpan stopTimeout, CancellationToken cancellationToken);
 }
 
 /// <summary>Live state of a container as the agent reports it; not stored in the database.</summary>

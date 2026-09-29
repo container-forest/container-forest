@@ -8,7 +8,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Application\ContainerForest.Aggregator.Application.csproj" />
     <ProjectReference Include="..\Infrastructure\ContainerForest.Aggregator.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\Contracts\ContainerForest.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

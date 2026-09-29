@@ -1,0 +1,8 @@
+version: v2
+modules:
+  - path: src/Contracts
+lint:
+  use:
+    - STANDARD
+  except:
+    - PACKAGE_VERSION_SUFFIX # ADR-0002: packages carry no version

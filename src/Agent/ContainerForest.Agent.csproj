@@ -1,10 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
   <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Core.Api" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Contracts\ContainerForest.Contracts.csproj" />
+    <Protobuf Include="..\Contracts\agent\agent.proto" ProtoRoot="..\Contracts" GrpcServices="Client" Link="Contracts\agent.proto" />
   </ItemGroup>
+
 </Project>

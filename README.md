@@ -63,7 +63,7 @@ flowchart LR
 |---|---|---|
 | Панель → ЦА | HTTPS REST + SignalR (WebSocket) | cookie сесії користувача (`cf_session`) |
 | Бот → ЦА | gRPC | сервісний токен бота + Discord ID користувача, від імені якого діє |
-| Агент → ЦА | gRPC bidi-стрім (`container_forest.agent.v1`), з'єднання відкриває агент | `agent_id` + секрет (опційно mTLS) |
+| Агент → ЦА | gRPC bidi-стрім (пакет `agent`), з'єднання відкриває агент | `agent_id` + секрет у metadata `x-agent-id` / `x-agent-secret` (опційно mTLS) |
 | Агент → Docker | Unix socket | — (агент фактично має root на хості) |
 | Docker → registry | HTTPS | тимчасовий `DOCKER_CONFIG` з кредами від ЦА |
 | ЦА → Git | HTTPS | deploy-токен лише на читання (SSH не підтримується LibGit2Sharp) |
@@ -127,8 +127,9 @@ flowchart LR
 ContainerForest.slnx
 Directory.Build.props            спільні властивості .NET-проєктів
 Directory.Packages.props         версії NuGet-пакетів (central package management)
+buf.yaml                         правила лінтера для .proto (Buf)
 src/
-  Contracts/                     .proto, спільні для ЦА, агента й бота
+  Contracts/                     .proto-файли; C#-код генерують проєкти-споживачі
   Aggregator/
     Domain/                      доменна модель, без залежностей
     Application/                 команди, авторизація, пайплайн деплою, порти
@@ -152,7 +153,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
 |---|---|
 | Docker-образи | `container-forest-aggregator`, `container-forest-agent`, `container-forest-web`, `container-forest-discord-bot` |
 | .NET-проєкти й namespace'и | `ContainerForest.*` |
-| Protobuf-пакети | `container_forest.<модуль>.v<N>` |
+| Protobuf-пакети | `<модуль>` без префікса й версії; файл у `src/Contracts/<модуль>/` (ADR-0002) |
 | Змінні середовища | префікс `CF_`, вкладені секції через `__` (наприклад, `CF_AGENT__CONTROLLERURL`) |
 | Каталоги на хостах | `/opt/container-forest` (стеки, дані агента), `/run/container-forest` (секрети, tmpfs) |
 

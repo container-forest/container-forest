@@ -17,7 +17,7 @@
 - Спілкування й документація — українською. Ідентифікатори, коментарі в коді, повідомлення комітів — англійською.
 - Відповідати прямо, на рівні реалізації, з робочим кодом, а не концептуальними оглядами.
 - **Інваріанти безпеки з README не порушувати.** Якщо задача вимагає їх порушити, зупинитися й спитати.
-- Контракти `.proto` у пакеті `*.v1` змінювати лише сумісно: нові поля й нові варіанти `oneof`, без перенумерації чи видалення. Несумісні зміни — новий пакет `v2`.
+- Контракти `.proto` змінювати лише сумісно: нові поля й нові варіанти `oneof`, без перенумерації чи видалення (видалене поле — у `reserved`). Версії в пакеті немає (ADR-0002), тому несумісна зміна означає одночасне оновлення ЦА й усіх агентів — її уникати. Виняток: контракт вважається чернеткою (можна змінювати несумісно), доки в `main` не змерджено перший код ЦА, агента чи бота, що його використовує.
 - Кожен клас, метод і екран зараховується конкретному учаснику (див. «Вимоги курсу»). Якщо незрозуміло, чия це частина коду, спитати. Після додавання елементів нагадати оновити `CONTRIBUTIONS.md`.
 - Нову залежність не додавати мовчки: назвати її, пояснити навіщо, і якщо вона може піти в ретроспективу лаби 3, сказати про це.
 - Коміти за Conventional Commits (`feat(agent): ...`), жодних прямих комітів у `main`.
@@ -27,7 +27,7 @@
 
 | Рішення | Чому |
 |---|---|
-| Шари ЦА `Domain ← Application ← Infrastructure ← Api`, без SharedKernel; `Contracts` — лише `.proto`; веб отримує типи з OpenAPI-документа, який комітиться (ADR-0001) | Спільний між застосунками лише протокол; зміни HTTP-контракту видно в диффі PR |
+| Шари ЦА `Domain ← Application ← Infrastructure ← Api`, без SharedKernel; `src/Contracts` — лише `.proto`-файли, код генерує кожен споживач (ADR-0002); веб отримує типи з OpenAPI-документа, який комітиться (ADR-0001, ADR-0002) | Спільний між застосунками лише протокол; зміни HTTP-контракту видно в диффі PR |
 | Агент на кожному хості сам відкриває gRPC bidi-стрім до ЦА | На хостах немає вхідних портів, Docker API не виставляється в мережу, працює за NAT |
 | gRPC, а не SignalR, для агентів і бота | Жорсткий контракт у `.proto`, природний стрімінг логів, агент теоретично можна переписати іншою мовою |
 | Request/response поверх стріму через `request_id` + `TaskCompletionSource` | gRPC-стрім не має семантики запит→відповідь |
@@ -61,6 +61,8 @@
 
 ## Вимоги курсу (ООП, 2025–2026)
 
+**Контракти й доменні сутності — Петренко Б. О.** (рішення команди): `.proto`, REST DTO, події SignalR і `Aggregator.Domain` проєктує й зараховує собі він. Інші учасники реалізують логіку поверх них у своїх зонах.
+
 Кількості **рахуються для кожного учасника окремо**: кожен елемент приписується одному студенту, двом зараховувати не можна (формулювання умови, прочитання варто підтвердити у викладача). Кількості орієнтовні.
 
 **Лаба 1 — базові ідеї ООП (C#):**
@@ -89,71 +91,9 @@
 - Не повторювати існуючі застосунки повністю; показати, чим проєкт відрізняється.
 - UML-діаграми вітаються.
 
-## Контракт агента (чернетка `container_forest.agent.v1`)
+## Контракт агента
 
-```proto
-syntax = "proto3";
-package container_forest.agent.v1;
-option csharp_namespace = "ContainerForest.Contracts.Agent.V1";
-
-service AgentGateway {
-  rpc Enroll(EnrollRequest) returns (EnrollResponse);
-  rpc Connect(stream AgentMessage) returns (stream ControllerMessage);
-}
-
-message EnrollRequest  { string enrollment_token = 1; string hostname = 2; string agent_version = 3; }
-message EnrollResponse { string agent_id = 1; string agent_secret = 2; }
-
-message ControllerMessage {
-  string request_id = 1;
-  oneof body {
-    ListContainers   list_containers   = 10;
-    RestartContainer restart_container = 11;
-    StopContainer    stop_container    = 12;
-    DeployStack      deploy_stack      = 13;
-  }
-}
-
-message AgentMessage {
-  oneof body {
-    Hello           hello           = 1;
-    CommandResult   result          = 2;
-    ContainerEvent  container_event = 3;
-    Heartbeat       heartbeat       = 4;
-    CommandProgress progress        = 5;
-  }
-}
-
-message Hello           { string agent_version = 1; string docker_version = 2; string boot_id = 3; repeated ContainerInfo snapshot = 4; }
-message Heartbeat       {}
-message ContainerEvent  { string container_id = 1; string action = 2; int64 timestamp_unix_ms = 3; }
-message ContainerInfo   { string id = 1; string name = 2; string state = 3; string image = 4; }
-message CommandProgress { string request_id = 1; string line = 2; }
-
-message CommandResult {
-  string request_id = 1;
-  bool success = 2;
-  string error = 3;
-  oneof payload { ContainerList containers = 10; }
-}
-message ContainerList { repeated ContainerInfo items = 1; }
-
-message ListContainers   {}
-message RestartContainer { string container_id = 1; int32 timeout_seconds = 2; }
-message StopContainer    { string container_id = 1; int32 timeout_seconds = 2; }
-
-message DeployStack {
-  string stack_name = 1;
-  string commit_sha = 2;
-  repeated StackFile files = 3;
-  map<string, string> env = 4;
-  repeated RegistryAuth registry_auths = 5;
-  PullPolicy pull = 6;
-}
-message StackFile    { string path = 1; bytes content = 2; uint32 mode = 3; bool secret = 4; }
-message RegistryAuth { string server = 1; string username = 2; string password = 3; }
-enum PullPolicy { PULL_MISSING = 0; PULL_ALWAYS = 1; }
-```
+`src/Contracts/agent/agent.proto` — єдине джерело; копію сюди не переносити. Покриває обсяг альфа-версії. Відкладено: статистика для графіків, exec/attach, окрема команда rehydrate (поки що — повторний `DeployStack`).
 
 ## Технічні домовленості
 
@@ -166,6 +106,7 @@ enum PullPolicy { PULL_MISSING = 0; PULL_ALWAYS = 1; }
 - На агенті команди диспетчеризуються за `ControllerMessage.BodyCase` до `IAgentCommandHandler`; обробники отримують `ICommandProgress` для стрімінгу виводу.
 - `docker compose` запускати через `ProcessStartInfo.ArgumentList` (без shell). Env-секрети передавати в `psi.Environment`, не в `.env`-файл.
 - Операції зі стеками: `restart` = `docker compose restart`; `redeploy` = `up -d --remove-orphans --pull missing --wait`; `redeploy with pull` = те саме з `--pull always`.
+- `RestartStack` і `DownStack` виконувати як `docker compose -p <stack> restart|down` **без `-f`**. Так compose не читає файл і не вимагає env-змінних, яких на диску немає; з `-f` або без `-p` у каталозі стеку команда падає на обов'язкових змінних `${VAR:?}` (перевірено на Compose 5.5.1). Env лишається в конфігурації контейнерів.
 - SOPS викликати бінарником, ключ передавати через змінну `SOPS_AGE_KEY` дочірнього процесу, вміст — через stdin. Приватні ключі в БД ЦА шифруються (Data Protection або master key з конфігурації ЦА).
 - Файли стеку писати атомарно: `<name>.tmp` → поточний каталог перейменувати на `<name>.prev` → `.tmp` на `<name>`. Шлях каталогу стеку між релізами не змінюється, інакше compose пересоздаватиме контейнери з bind-mount'ами.
 - Webhook GitHub/Gitea: перевірка HMAC через `CryptographicOperations.FixedTimeEquals`, лише постановка в чергу; деплой виконує фоновий сервіс.

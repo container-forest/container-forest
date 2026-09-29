@@ -14,9 +14,10 @@ public class DockerEnvironmentTests
         var environment = Environment();
         var token = environment.IssueEnrollmentToken(Now, Lifetime);
 
-        Assert.True(environment.TryEnroll(token, Now.AddMinutes(5), out var secret));
+        Assert.True(environment.TryEnroll(token, "host", Now.AddMinutes(5), out var secret));
 
         Assert.True(environment.IsEnrolled);
+        Assert.Equal("host", environment.AgentHostname);
         Assert.True(environment.VerifyAgentSecret(secret));
         Assert.NotEqual(secret, environment.AgentSecretHash);
         Assert.Null(environment.EnrollmentTokenHash);
@@ -27,9 +28,9 @@ public class DockerEnvironmentTests
     {
         var environment = Environment();
         var token = environment.IssueEnrollmentToken(Now, Lifetime);
-        environment.TryEnroll(token, Now, out _);
+        environment.TryEnroll(token, "host", Now, out _);
 
-        Assert.False(environment.TryEnroll(token, Now, out _));
+        Assert.False(environment.TryEnroll(token, "host", Now, out _));
     }
 
     [Fact]
@@ -38,7 +39,7 @@ public class DockerEnvironmentTests
         var environment = Environment();
         var token = environment.IssueEnrollmentToken(Now, Lifetime);
 
-        Assert.False(environment.TryEnroll(token, Now + Lifetime, out _));
+        Assert.False(environment.TryEnroll(token, "host", Now + Lifetime, out _));
         Assert.False(environment.IsEnrolled);
     }
 
@@ -49,16 +50,16 @@ public class DockerEnvironmentTests
         var first = environment.IssueEnrollmentToken(Now, Lifetime);
         environment.IssueEnrollmentToken(Now, Lifetime);
 
-        Assert.False(environment.TryEnroll("wrong", Now, out _));
-        Assert.False(environment.TryEnroll(first, Now, out _));
+        Assert.False(environment.TryEnroll("wrong", "host", Now, out _));
+        Assert.False(environment.TryEnroll(first, "host", Now, out _));
     }
 
     [Fact]
     public void Re_enrolling_invalidates_the_previous_agent_secret()
     {
         var environment = Environment();
-        environment.TryEnroll(environment.IssueEnrollmentToken(Now, Lifetime), Now, out var oldSecret);
-        environment.TryEnroll(environment.IssueEnrollmentToken(Now, Lifetime), Now, out var newSecret);
+        environment.TryEnroll(environment.IssueEnrollmentToken(Now, Lifetime), "host", Now, out var oldSecret);
+        environment.TryEnroll(environment.IssueEnrollmentToken(Now, Lifetime), "host", Now, out var newSecret);
 
         Assert.False(environment.VerifyAgentSecret(oldSecret!));
         Assert.True(environment.VerifyAgentSecret(newSecret!));
@@ -92,7 +93,7 @@ public class DockerEnvironmentTests
     public void Revoked_agent_cannot_authenticate()
     {
         var environment = Environment();
-        environment.TryEnroll(environment.IssueEnrollmentToken(Now, Lifetime), Now, out var secret);
+        environment.TryEnroll(environment.IssueEnrollmentToken(Now, Lifetime), "host", Now, out var secret);
         environment.RevokeAgent();
 
         Assert.False(environment.VerifyAgentSecret(secret!));
@@ -108,7 +109,7 @@ public class DockerEnvironmentTests
     private static DockerEnvironment EnrolledEnvironment()
     {
         var environment = Environment();
-        environment.TryEnroll(environment.IssueEnrollmentToken(Now, Lifetime), Now, out _);
+        environment.TryEnroll(environment.IssueEnrollmentToken(Now, Lifetime), "host", Now, out _);
         return environment;
     }
 }

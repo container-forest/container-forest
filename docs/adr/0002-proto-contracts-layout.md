@@ -18,7 +18,7 @@
 
 1. `src/Contracts/` містить лише `.proto`-файли, без проєкту. Каталог повторює назву пакета: `agent/agent.proto`, пізніше `bot/bot.proto`. `src/Contracts` — корінь для імпортів (`ProtoRoot`).
 2. Код генерує кожен споживач сам через `Grpc.Tools`, тільки потрібну йому частину:
-   - `Aggregator.Infrastructure`: повідомлення й серверний базовий клас (`GrpcServices="Server"`), а `Api` отримує їх через посилання на `Infrastructure`;
+   - `Aggregator.Infrastructure`: повідомлення, серверний базовий клас і клієнт (`GrpcServices="Both"`), а `Api` отримує їх через посилання на `Infrastructure`. Клієнт потрібен інтеграційним тестам, які підключаються до ЦА як агент: згенерувати його окремо в тестовому проєкті не можна, бо ті самі типи з двох збірок конфліктують (доповнено 2026-09-29);
    - `Agent`: повідомлення й клієнт (`GrpcServices="Client"`);
    - `DiscordBot` підключить `bot.proto`, коли той з'явиться.
 3. Пакет — це назва модуля без префікса й версії: `agent`, `bot`. C#-namespace задається через `csharp_namespace`: `ContainerForest.Contracts.<Модуль>`. Шлях gRPC-методу виглядає як `/agent.AgentGateway/Connect`.

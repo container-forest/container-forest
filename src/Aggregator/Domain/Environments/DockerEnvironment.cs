@@ -12,6 +12,8 @@ public sealed class DockerEnvironment : Entity<EnvironmentId>
 {
     public const int MaxNameLength = 64;
 
+    public const int MaxHostnameLength = 253;
+
     public static readonly TimeSpan DefaultEnrollmentTokenLifetime = TimeSpan.FromHours(24);
 
     private DockerEnvironment(EnvironmentId id, string name, bool isPrivate, DateTimeOffset createdAt)
@@ -42,6 +44,9 @@ public sealed class DockerEnvironment : Entity<EnvironmentId>
     public string? AgentSecretHash { get; private set; }
 
     public DateTimeOffset? EnrolledAt { get; private set; }
+
+    /// <summary>Hostname the agent reported when it enrolled.</summary>
+    public string? AgentHostname { get; private set; }
 
     public string? AgentVersion { get; private set; }
 
@@ -82,7 +87,8 @@ public sealed class DockerEnvironment : Entity<EnvironmentId>
     /// Consumes a valid enrollment token and returns a new agent secret in plain text.
     /// Enrolling again replaces the previous secret, so an old agent can no longer connect.
     /// </summary>
-    public bool TryEnroll(string enrollmentToken, DateTimeOffset now, [NotNullWhen(true)] out string? agentSecret)
+    public bool TryEnroll(
+        string enrollmentToken, string hostname, DateTimeOffset now, [NotNullWhen(true)] out string? agentSecret)
     {
         agentSecret = null;
 
@@ -98,6 +104,7 @@ public sealed class DockerEnvironment : Entity<EnvironmentId>
 
         EnrollmentTokenHash = null;
         EnrollmentTokenExpiresAt = null;
+        AgentHostname = NormalizeHostname(hostname);
 
         agentSecret = SecretToken.Generate();
         AgentSecretHash = SecretToken.Hash(agentSecret);
@@ -140,6 +147,7 @@ public sealed class DockerEnvironment : Entity<EnvironmentId>
     {
         AgentSecretHash = null;
         EnrolledAt = null;
+        AgentHostname = null;
         AgentVersion = null;
         LastBootId = null;
     }
@@ -151,6 +159,18 @@ public sealed class DockerEnvironment : Entity<EnvironmentId>
         {
             LastSeenAt = now;
         }
+    }
+
+    // The hostname is informational: it is shown in the UI and never used for decisions.
+    private static string? NormalizeHostname(string hostname)
+    {
+        var trimmed = hostname.Trim();
+        if (trimmed.Length == 0)
+        {
+            return null;
+        }
+
+        return new string(trimmed.Where(c => !char.IsControl(c)).Take(MaxHostnameLength).ToArray());
     }
 
     private static string NormalizeName(string name)

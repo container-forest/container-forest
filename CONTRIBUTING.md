@@ -1,0 +1,66 @@
+# Робота над container-forest
+
+Правила для команди: як вносити зміни, як влаштований репозиторій і як запустити систему локально. Технічний опис системи — у [docs/architecture.md](docs/architecture.md).
+
+## Правила роботи в команді
+
+- Кожен PR перевіряється на [інваріанти безпеки](docs/architecture.md#інваріанти-безпеки): порушувати їх не можна в жодному PR.
+- Жодних прямих комітів у `main`. Лише PR з хоча б одним рев'ю від іншого учасника.
+- Коміти за [Conventional Commits](https://www.conventionalcommits.org/): `feat(agent): ...`, `fix(web): ...`.
+- **`CONTRIBUTIONS.md`** — кожен веде свій список класів, методів, ієрархій, екранів і обробників для лаб. Оновлюйте разом із PR, а не в кінці семестру. Попередній розподіл класів і екранів між учасниками — у [docs/project-overview.md](docs/project-overview.md#команда).
+- Нотатки для ретроспективи з лаби 3 пишіть у `docs/retro/<бібліотека>.md` одразу, поки пам'ятаєте проблеми.
+- Архітектурні рішення, про які сперечались (наприклад, «git тягне ЦА, а не агент»), фіксуйте короткими ADR у `docs/adr/`.
+- Аналіз аналогів у `docs/project-overview.md` оновлюється на кожному етапі проєкту новим підрозділом з датою; стан на початку розробки не редагується.
+
+## Структура репозиторію
+
+Обґрунтування — у [ADR-0001](docs/adr/0001-solution-structure.md).
+
+```
+ContainerForest.slnx
+Directory.Build.props            спільні властивості .NET-проєктів
+Directory.Packages.props         версії NuGet-пакетів (central package management)
+buf.yaml                         правила лінтера для .proto (Buf)
+src/
+  Contracts/                     .proto-файли; C#-код генерують проєкти-споживачі
+  Aggregator/
+    Domain/                      доменна модель, без залежностей
+    Application/                 команди, авторизація, пайплайн деплою, порти
+    Infrastructure/              EF Core, git, SOPS, з'єднання з агентами
+    Api/                         ASP.NET Core: REST, SignalR, gRPC; openapi/*.json
+  Agent/                         .NET Worker Service
+  DiscordBot/
+  Web/                           Vite + React + TS
+tests/                           дзеркалить src/
+deploy/                          compose-файли для ЦА і агента
+docs/
+  architecture.md                компоненти, протоколи, безпека, права
+  project-overview.md            опис проєкту, команда, аналіз аналогів
+  adr/                           записи архітектурних рішень
+  retro/                         ретроспективи по бібліотеках (лаба 3)
+CONTRIBUTING.md                  цей файл: правила команди
+CONTRIBUTIONS.md                 облік елементів лабораторних для кожного учасника
+```
+
+## Іменування
+
+| Де | Як |
+|---|---|
+| Docker-образи | `container-forest-aggregator`, `container-forest-agent`, `container-forest-web`, `container-forest-discord-bot` |
+| .NET-проєкти й namespace'и | `ContainerForest.*` |
+| Protobuf-пакети | `<модуль>` без префікса й версії; файл у `src/Contracts/<модуль>/` (ADR-0002) |
+| Змінні середовища | префікс `CF_`, вкладені секції через `__` (наприклад, `CF_AGENT__CONTROLLERURL`) |
+| Каталоги на хостах | `/opt/container-forest` (стеки, дані агента), `/run/container-forest` (секрети, tmpfs) |
+
+## Локальний запуск
+
+Потрібно: .NET 10 SDK, Node.js 22, Docker (на Windows — Docker Desktop).
+
+1. `dotnet run --project src/Aggregator/Api` — ЦА на `http://localhost:5080`.
+2. В UI створити середовище й скопіювати enrollment-токен.
+3. `dotnet run --project src/Agent` з `CF_AGENT__CONTROLLERURL=http://localhost:5080` і `CF_AGENT__ENROLLMENTTOKEN=<токен>` — агент підключиться до локального Docker.
+4. `cd src/Web && npm ci && npm run dev` — панель на `http://localhost:5173`; `/api` і `/hubs` проксюються на ЦА.
+
+Тести: `dotnet test --solution ContainerForest.slnx`.
+
+⚠️ Для розробки використовуйте локальний Docker або тестовий сервер, **не продакшн-інфраструктуру**.

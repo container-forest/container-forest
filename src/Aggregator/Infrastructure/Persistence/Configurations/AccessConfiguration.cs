@@ -65,3 +65,24 @@ internal sealed class StackRoleAssignmentConfiguration : IEntityTypeConfiguratio
         builder.HasOne<Stack>().WithMany().HasForeignKey(a => a.StackId).OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+internal sealed class DiscordLinkConfiguration : IEntityTypeConfiguration<DiscordLink>
+{
+    public void Configure(EntityTypeBuilder<DiscordLink> builder)
+    {
+        builder.ToTable("DiscordLinks");
+        builder.HasKey(l => l.Id);
+        builder.Property(l => l.Id).ValueGeneratedNever();
+        builder.HasOne<User>().WithOne().HasForeignKey<DiscordLink>(l => l.Id).OnDelete(DeleteBehavior.Cascade);
+
+        // Snowflakes fit in a signed 64-bit integer, which is what SQLite stores.
+        builder.Property(l => l.DiscordUserId).HasConversion<long?>();
+        builder.HasIndex(l => l.DiscordUserId).IsUnique();
+        builder.Property(l => l.DiscordUserName).HasMaxLength(DiscordLink.MaxDiscordUserNameLength);
+
+        builder.Property(l => l.PendingCodeHash).HasMaxLength(EnvironmentConfiguration.Sha256HexLength);
+        builder.HasIndex(l => l.PendingCodeHash).IsUnique();
+
+        builder.Ignore(l => l.IsLinked);
+    }
+}

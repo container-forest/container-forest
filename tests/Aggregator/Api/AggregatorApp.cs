@@ -6,6 +6,8 @@ using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Common;
+using ContainerForest.Contracts.Bot;
 using ContainerForest.Contracts.Agent;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -29,6 +31,9 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
     public const string AdminUserName = "admin";
     public const string DevUserHeader = "X-Dev-User";
 
+    /// <summary>The bot token the aggregator accepts; <see cref="BotGateway"/> sends it with every call.</summary>
+    public const string BotToken = "test-bot-token";
+
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter() },
@@ -39,14 +44,12 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
 
     public StubGitSource Git { get; } = new();
 
-    public AgentGateway.AgentGatewayClient Gateway
-    {
-        get
-        {
-            channel ??= GrpcChannel.ForAddress(Server.BaseAddress, new GrpcChannelOptions { HttpHandler = Server.CreateHandler() });
-            return new AgentGateway.AgentGatewayClient(channel);
-        }
-    }
+    public BotGateway.BotGatewayClient BotGateway => new(Channel);
+
+    public AgentGateway.AgentGatewayClient Gateway => new(Channel);
+
+    private GrpcChannel Channel =>
+        channel ??= GrpcChannel.ForAddress(Server.BaseAddress, new GrpcChannelOptions { HttpHandler = Server.CreateHandler() });
 
     /// <summary>A client that acts as the given user; null for an anonymous client.</summary>
     public HttpClient CreateClientAs(string? userName)
@@ -105,6 +108,7 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         builder.UseEnvironment("Development");
         builder.UseSetting("ConnectionStrings:Aggregator", $"Data Source={databasePath}");
         builder.UseSetting("AgentGateway:CommandTimeout", "00:00:05");
+        builder.UseSetting("BotGateway:TokenHashes:0", SecretToken.Hash(BotToken));
         builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Singleton<IGitSource>(Git)));
     }
 

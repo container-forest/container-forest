@@ -77,6 +77,13 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/deployments/<deploymentId>   # статус і лог
    ```
    Клони репозиторіїв ЦА тримає в `git-cache/` у робочому каталозі (`CF_GIT__CACHEDIRECTORY`).
+
+   Discord-бот підключається до того самого gRPC-порту `5081`. ЦА приймає його, лише якщо в конфігурації є хеш токена бота:
+   ```sh
+   TOKEN=$(openssl rand -hex 32)                                              # у бота: CF_BOT__SERVICETOKEN
+   export CF_BOTGATEWAY__TOKENHASHES__0=$(printf '%s' "$TOKEN" | sha256sum | cut -d' ' -f1)   # у ЦА, перед dotnet run
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/me/discord/link-code          # код для /link у Discord
+   ```
 3. `dotnet run --project src/Agent` з `CF_AGENT__ENROLLMENTTOKEN=<токен>` — агент зареєструється, підключиться до ЦА і до локального Docker. У `Development` адреса ЦА вже `http://localhost:5081` (інакше — `CF_AGENT__CONTROLLERURL`). Облікові дані агент зберігає в `agent-credentials.json` у каталозі даних (`CF_AGENT__DATADIRECTORY`; типово `/opt/container-forest`, на Windows `%LOCALAPPDATA%\container-forest`), тож токен потрібен лише для першого запуску. Щоб зареєструвати агента наново, видаліть цей файл. У PowerShell:
    ```powershell
    $env:CF_AGENT__ENROLLMENTTOKEN = "<токен>"

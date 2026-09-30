@@ -17,6 +17,39 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
 
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.DiscordLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("DiscordUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DiscordUserName")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LinkedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("PendingCodeExpiresAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PendingCodeHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DiscordUserId")
+                        .IsUnique();
+
+                    b.HasIndex("PendingCodeHash")
+                        .IsUnique();
+
+                    b.ToTable("DiscordLinks", (string)null);
+                });
+
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.RoleAssignment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -301,6 +334,15 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasDiscriminator().HasValue("Stack");
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.DiscordLink", b =>
+                {
+                    b.HasOne("ContainerForest.Aggregator.Domain.Access.User", null)
+                        .WithOne()
+                        .HasForeignKey("ContainerForest.Aggregator.Domain.Access.DiscordLink", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.RoleAssignment", b =>

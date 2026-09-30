@@ -31,7 +31,12 @@ else
     builder.Services.AddAuthentication();
 }
 
-builder.Services.AddGrpc();
+builder.Services.AddGrpc()
+    .AddServiceOptions<BotGatewayService>(options => options.Interceptors.Add<BotGatewayInterceptor>());
+builder.Services.AddOptions<BotGatewayOptions>()
+    .Bind(builder.Configuration.GetSection(BotGatewayOptions.SectionName))
+    .Validate(o => o.IsValid(), "BotGateway:TokenHashes must be SHA-256 hashes: 64 lowercase hex characters.")
+    .ValidateOnStart();
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
@@ -45,7 +50,9 @@ app.UseAuthentication();
 
 app.MapOpenApi();
 app.MapGrpcService<AgentGatewayService>();
+app.MapGrpcService<BotGatewayService>();
 app.MapMeEndpoints();
+app.MapDiscordLinkEndpoints();
 
 if (app.Environment.IsDevelopment())
 {

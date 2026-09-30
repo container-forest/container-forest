@@ -6,7 +6,7 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Configurations;
 
 internal sealed class EnvironmentConfiguration : IEntityTypeConfiguration<DockerEnvironment>
 {
-    private const int Sha256HexLength = 64;
+    public const int Sha256HexLength = 64;
 
     public void Configure(EntityTypeBuilder<DockerEnvironment> builder)
     {

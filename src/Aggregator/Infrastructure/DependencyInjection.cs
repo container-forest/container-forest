@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<IStackRepository, StackRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRoleAssignmentRepository, RoleAssignmentRepository>();
+        services.AddScoped<IDiscordLinkRepository, DiscordLinkRepository>();
         services.AddScoped<IGitRepositoryRepository, GitRepositoryRepository>();
         services.AddScoped<IDeploymentRepository, DeploymentRepository>();
         if (runHostedServices)

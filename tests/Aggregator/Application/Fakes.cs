@@ -58,6 +58,15 @@ internal sealed class InMemoryStacks : InMemoryRepository<Stack, StackId>, IStac
         Task.FromResult<IReadOnlyList<Stack>>(Items.Where(s => s.EnvironmentId == environmentId).ToList());
 }
 
+internal sealed class InMemoryDiscordLinks : InMemoryRepository<DiscordLink, UserId>, IDiscordLinkRepository
+{
+    public Task<DiscordLink?> FindByDiscordUserAsync(ulong discordUserId, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.FirstOrDefault(l => l.DiscordUserId == discordUserId));
+
+    public Task<DiscordLink?> FindByCodeHashAsync(string codeHash, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.FirstOrDefault(l => l.PendingCodeHash == codeHash));
+}
+
 internal sealed class InMemoryRoleAssignments : InMemoryRepository<RoleAssignment, RoleAssignmentId>, IRoleAssignmentRepository
 {
     public Task<IReadOnlyList<RoleAssignment>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>

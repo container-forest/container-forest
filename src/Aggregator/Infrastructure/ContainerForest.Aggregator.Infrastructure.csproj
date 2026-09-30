@@ -22,10 +22,11 @@
 
   <ItemGroup>
     <!--
-      Messages, the server base class for Api, and the client, which integration tests use to act as an agent.
+      Messages, the server base classes for Api, and the clients, which integration tests use to act as an agent or the bot.
       Api gets the generated types through this project.
     -->
     <Protobuf Include="..\..\Contracts\agent\agent.proto" ProtoRoot="..\..\Contracts" GrpcServices="Both" Link="Contracts\agent.proto" />
+    <Protobuf Include="..\..\Contracts\bot\bot.proto" ProtoRoot="..\..\Contracts" GrpcServices="Both" Link="Contracts\bot.proto" />
   </ItemGroup>
 
 </Project>

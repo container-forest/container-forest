@@ -70,6 +70,23 @@ public class AgentSessionRunnerTests
     }
 
     [Fact]
+    public async Task Cancel_request_from_the_aggregator_stops_a_running_command()
+    {
+        docker.StopGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var session = CreateRunner().RunAsync(gateway, Credentials, Ct);
+
+        gateway.Received.Send(new ControllerMessage { RequestId = "r1", RestartContainer = new RestartContainer { ContainerId = "c1", TimeoutSeconds = 300 } });
+        gateway.Received.Send(new ControllerMessage { RequestId = "r2", CancelRequest = new CancelRequest { TargetRequestId = "r1" } });
+
+        var result = (await gateway.Sent.NextAsync(m => m.Result is not null)).Result;
+        Assert.Equal("r1", result.RequestId);
+        Assert.Equal(ErrorCode.Cancelled, result.Error.Code);
+
+        gateway.Received.End();
+        await session;
+    }
+
+    [Fact]
     public async Task Sends_heartbeats()
     {
         var session = CreateRunner(heartbeat: TimeSpan.FromMilliseconds(20)).RunAsync(gateway, Credentials, Ct);

@@ -13,6 +13,9 @@ namespace ContainerForest.Aggregator.Infrastructure.Agents;
 /// </summary>
 public sealed class AgentSession
 {
+    /// <summary>How long sending a CancelRequest may wait for the stream; the caller has already given up.</summary>
+    public static readonly TimeSpan CancelWriteTimeout = TimeSpan.FromSeconds(5);
+
     private readonly IAsyncStreamWriter<ControllerMessage> writer;
     private readonly ILogger logger;
 
@@ -47,7 +50,11 @@ public sealed class AgentSession
 
     public int PendingCount => pending.Count;
 
-    /// <summary>Sends a command and waits for its result.</summary>
+    /// <summary>
+    /// Sends a command and waits for its result. When the wait ends without a result (timeout or the caller's
+    /// cancellation), the agent is asked to cancel the command: otherwise compose would keep changing the stack
+    /// after the deployment was reported as failed.
+    /// </summary>
     /// <param name="onProgress">Receives the command's output lines (CommandProgress) until the result arrives.</param>
     /// <exception cref="AgentDisconnectedException">The session closed before the result arrived.</exception>
     /// <exception cref="AgentTimeoutException">No result within <paramref name="timeout"/>.</exception>
@@ -59,6 +66,7 @@ public sealed class AgentSession
 
         var completion = new TaskCompletionSource<CommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         pending[requestId] = new PendingRequest(completion, onProgress);
+        var sent = false;
         try
         {
             // Checked after registering: Close marks the session closed before it fails pending requests,
@@ -69,11 +77,18 @@ public sealed class AgentSession
             }
 
             await WriteAsync(command, cancellationToken);
+            sent = true;
             return await completion.Task.WaitAsync(timeout, cancellationToken);
         }
         catch (TimeoutException)
         {
+            await CancelOnAgentAsync(requestId);
             throw new AgentTimeoutException(EnvironmentId, timeout);
+        }
+        catch (OperationCanceledException) when (sent && cancellationToken.IsCancellationRequested)
+        {
+            await CancelOnAgentAsync(requestId);
+            throw;
         }
         finally
         {
@@ -159,6 +174,36 @@ public sealed class AgentSession
             {
                 request.Completion.TrySetException(new AgentDisconnectedException(EnvironmentId));
             }
+        }
+    }
+
+    /// <summary>
+    /// Best effort: a CancelRequest gets no result, and when it cannot be sent the connection is gone,
+    /// which cancels the agent's commands anyway.
+    /// </summary>
+    private async Task CancelOnAgentAsync(string requestId)
+    {
+        if (IsClosed)
+        {
+            return;
+        }
+
+        using var timeout = new CancellationTokenSource(CancelWriteTimeout);
+        try
+        {
+            await WriteAsync(
+                new ControllerMessage
+                {
+                    RequestId = Guid.NewGuid().ToString("N"),
+                    CancelRequest = new CancelRequest { TargetRequestId = requestId },
+                },
+                timeout.Token);
+            logger.LogInformation("Asked environment {EnvironmentId} to cancel request {RequestId}", EnvironmentId, requestId);
+        }
+        catch (Exception ex)
+        {
+            // Whatever the reason, the caller must get its own error (timeout or cancellation), not this one.
+            logger.LogDebug("Could not cancel request {RequestId} on environment {EnvironmentId}: {Reason}", requestId, EnvironmentId, ex.Message);
         }
     }
 

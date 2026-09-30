@@ -19,6 +19,9 @@ internal sealed class FakeDockerGateway : IDockerGateway
 
     public TimeSpan? LastStopTimeout { get; private set; }
 
+    /// <summary>When set, a restart waits for it, as Docker waits for a slow process to stop.</summary>
+    public TaskCompletionSource? StopGate { get; set; }
+
     public Task<string> GetVersionAsync(CancellationToken cancellationToken) => Run("version", "29.8.0");
 
     public Task<IReadOnlyList<ContainerInfo>> ListContainersAsync(CancellationToken cancellationToken) =>
@@ -33,10 +36,16 @@ internal sealed class FakeDockerGateway : IDockerGateway
         return Run($"stop {containerId}", true);
     }
 
-    public Task RestartContainerAsync(string containerId, TimeSpan stopTimeout, CancellationToken cancellationToken)
+    public async Task RestartContainerAsync(string containerId, TimeSpan stopTimeout, CancellationToken cancellationToken)
     {
         LastStopTimeout = stopTimeout;
-        return Run($"restart {containerId}", true);
+        if (StopGate is { } gate)
+        {
+            // A long grace period: the restart waits until the gate opens or the command is cancelled.
+            await gate.Task.WaitAsync(cancellationToken);
+        }
+
+        await Run($"restart {containerId}", true);
     }
 
     private Task<T> Run<T>(string call, T result)

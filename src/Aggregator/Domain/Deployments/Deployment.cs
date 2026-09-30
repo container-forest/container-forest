@@ -18,6 +18,17 @@ public enum DeploymentTrigger
     Webhook,
 }
 
+public enum DeploymentLogLevel
+{
+    Info,
+    Warning,
+    Error,
+}
+
+/// <summary>One line of a deployment log: pipeline messages and the output of docker compose on the agent.</summary>
+/// <param name="Sequence">Position in the log, from 0; lines are ordered by it.</param>
+public sealed record DeploymentLogLine(int Sequence, DateTimeOffset At, DeploymentLogLevel Level, string Text);
+
 public enum ImagePullPolicy
 {
     /// <summary>Pull only images missing on the host (redeploy).</summary>
@@ -34,6 +45,10 @@ public enum ImagePullPolicy
 public sealed class Deployment : Entity<DeploymentId>
 {
     public const int MaxErrorLength = 2000;
+    public const int MaxLogLines = 5000;
+    public const int MaxLogLineLength = 2000;
+
+    private readonly List<DeploymentLogLine> log = [];
 
     private Deployment(
         DeploymentId id,
@@ -77,6 +92,12 @@ public sealed class Deployment : Entity<DeploymentId>
 
     /// <summary>Short failure reason. It must not contain secret values; the pipeline masks them first.</summary>
     public string? Error { get; private set; }
+
+    /// <summary>
+    /// What the pipeline did, in order. Lines must not contain secret values; the pipeline masks them first.
+    /// After <see cref="MaxLogLines"/> lines the rest is dropped and one final line says so.
+    /// </summary>
+    public IReadOnlyList<DeploymentLogLine> Log => [.. log.OrderBy(line => line.Sequence)];
 
     public bool IsFinished => Status is DeploymentStatus.Succeeded or DeploymentStatus.Failed or DeploymentStatus.Cancelled;
 
@@ -126,6 +147,28 @@ public sealed class Deployment : Entity<DeploymentId>
         TransitionTo(DeploymentStatus.Failed, DeploymentStatus.Queued, DeploymentStatus.Running);
         Error = error.Length > MaxErrorLength ? error[..MaxErrorLength] : error;
         FinishedAt = now;
+    }
+
+    public void AppendLog(DeploymentLogLevel level, string text, DateTimeOffset now)
+    {
+        if (IsFinished)
+        {
+            throw new DomainConflictException($"Deployment {Id} is {Status}; its log is closed.");
+        }
+
+        if (log.Count > MaxLogLines)
+        {
+            return;
+        }
+
+        if (log.Count == MaxLogLines)
+        {
+            log.Add(new DeploymentLogLine(log.Count, now, DeploymentLogLevel.Warning, "Log limit reached; further lines are dropped."));
+            return;
+        }
+
+        var line = text.Length > MaxLogLineLength ? text[..MaxLogLineLength] : text;
+        log.Add(new DeploymentLogLine(log.Count, now, level, line));
     }
 
     public void Cancel(DateTimeOffset now)

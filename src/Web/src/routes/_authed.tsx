@@ -25,18 +25,18 @@ function AuthedLayout() {
   const { me } = Route.useRouteContext();
 
   return (
-    <div className="layout">
-      <header className="topbar">
-        <Link to="/" className="brand">
+    <div className="min-h-svh">
+      <header className="flex items-center gap-6 border-b px-6 py-3">
+        <Link to="/" className="font-semibold">
           container-forest
         </Link>
-        <nav className="nav">{/* Screens add their links here. */}</nav>
-        <span className="user">
+        <nav className="flex flex-1 gap-4 text-sm">{/* Screens add their links here. */}</nav>
+        <span className="text-muted-foreground text-sm">
           {me.userName}
           {me.isAdmin && " (адміністратор)"}
         </span>
       </header>
-      <main className="page">
+      <main className="mx-auto max-w-6xl p-6">
         <Outlet />
       </main>
     </div>

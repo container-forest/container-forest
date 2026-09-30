@@ -49,6 +49,7 @@
 | Три окремі операції: restart / redeploy / redeploy with pull (+ окремо down) | Portainer змішує їх в одну кнопку, це головне джерело скарг на нього |
 | Веб-панель — окремий сервіс: статична SPA у nginx, nginx проксює `/api` і `/hubs` на ЦА | Same-origin → cookie `SameSite=Strict` і WebSocket без CORS; Node-рантайм не потрібен |
 | React + Vite + TanStack Router + TanStack Query | Типізовані маршрути й search params, інтеграція loader'ів із кешем Query |
+| UI — shadcn/ui на Tailwind CSS і Radix UI | Tailwind потрібен у будь-якому разі; компоненти shadcn лежать у репозиторії й правляться під наші екрани, доступність (фокус, клавіатура, ARIA) дає Radix. Mantine / MUI / Ant Design відкинуто: власний вигляд і стилі, MUI і Ant — ще й CSS-in-JS і власні форми, що конфліктують із React Hook Form |
 | Discord-бот — окремий .NET-застосунок, говорить із ЦА по gRPC | Сервісний токен бота + Discord ID користувача (on-behalf-of); права перевіряє ЦА |
 | SQLite для MVP | Підтримка ще й PostgreSQL означає два набори міграцій EF Core |
 | Системні стеки (ЦА, агент) оновлюються через одноразовий helper-контейнер | Агент, що робить `compose up` власного контейнера, вбиває себе посеред команди |
@@ -153,7 +154,8 @@
 
 - Шляхи нижче відносно `src/Web`.
 - Vite 8, React 19, TypeScript **5.9**, а не 7: `openapi-typescript` підтримує лише TypeScript 5 (TS 7 не має JS API). Версії в `package.json` точні (`--save-exact`), Node — з `.nvmrc`.
-- Два tsconfig: `tsconfig.json` для застосунку (без типів Node), `tsconfig.node.json` для `vite.config.ts`.
+- Два tsconfig: `tsconfig.json` для застосунку (без типів Node), `tsconfig.node.json` для `vite.config.ts`. Аліас `@/` → `src/`.
+- UI: shadcn/ui (стиль `radix-nova`, `components.json`), Tailwind CSS 4 через `@tailwindcss/vite`, теми — CSS-змінні в `src/styles.css`, іконки — `lucide-react`, шрифт Geist вбудовується в збірку. Компонент додається командою `npx shadcn@latest add <назва>` у `src/components/ui`. Ці файли згенеровані: їх можна правити, але в облік лаби 2 вони нікому не йдуть; зараховуються екрани й власні компоненти поза `components/ui`. Для лаби 3 бібліотеки тут — Tailwind CSS і Radix UI (shadcn — генератор коду, а не бібліотека).
 - Доступ до API — `api` з `src/api/client.ts` (`openapi-fetch`, типи з `schema.gen.ts`); `unwrap` перетворює не-2xx на `ApiError` з problem details. На 401 Query не повторює запит.
 - Поки немає логіну, dev-сервер додає `X-Dev-User` з `CF_DEV_USER` у проксі (`vite.config.ts`); у коді застосунку dev-автентифікації немає. `/login` — заглушка до екрана входу Денисенко Л. В.; `search.redirect` приймає лише шляхи того самого сайту (`/…`, не `//…`), щоб не було open redirect.
 - Образ панелі — `src/Web/Dockerfile`: збірка на Node 24, роздача nginx (`nginx.conf.template`, `AGGREGATOR_URL` підставляється при старті), SPA-fallback на `index.html`, `/assets/` кешуються назавжди, CSP `default-src 'self'`. Інлайн-скриптів і стилів з CDN у застосунку не додавати: CSP їх заблокує.

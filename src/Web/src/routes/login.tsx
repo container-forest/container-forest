@@ -19,9 +19,9 @@ export const Route = createFileRoute("/login")({
 // navigates to search.redirect ?? "/".
 function Login() {
   return (
-    <main className="page">
-      <h1>Вхід</h1>
-      <p>
+    <main className="mx-auto max-w-md p-6">
+      <h1 className="font-heading text-2xl font-semibold">Вхід</h1>
+      <p className="text-muted-foreground mt-2">
         Вхід ще не реалізовано. Для розробки запустіть панель з <code>CF_DEV_USER=&lt;користувач&gt;</code>: dev-сервер
         додасть заголовок <code>X-Dev-User</code> до запитів у ЦА.
       </p>

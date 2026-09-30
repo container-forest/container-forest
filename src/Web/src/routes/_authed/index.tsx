@@ -7,8 +7,8 @@ export const Route = createFileRoute("/_authed/")({
 function Home() {
   return (
     <>
-      <h1>container-forest</h1>
-      <p>Панель у розробці: екрани з'являться тут.</p>
+      <h1 className="font-heading text-2xl font-semibold">container-forest</h1>
+      <p className="text-muted-foreground mt-2">Панель у розробці: екрани з'являться тут.</p>
     </>
   );
 }

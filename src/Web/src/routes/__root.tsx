@@ -9,7 +9,7 @@ export interface RouterContext {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: Root,
-  notFoundComponent: () => <p className="page">Сторінку не знайдено.</p>,
+  notFoundComponent: () => <p className="p-6">Сторінку не знайдено.</p>,
 });
 
 function Root() {

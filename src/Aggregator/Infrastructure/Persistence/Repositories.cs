@@ -2,6 +2,7 @@ using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
@@ -107,4 +108,14 @@ internal sealed class DeploymentRepository(AggregatorDbContext db)
             .Select(d => new DeploymentSummary(
                 d.Id, d.Status, d.Trigger, d.PullPolicy, d.Commit, d.QueuedAt, d.StartedAt, d.FinishedAt, d.Error))
             .ToListAsync(cancellationToken);
+}
+
+internal sealed class RegistryCredentialRepository(AggregatorDbContext db)
+    : EfRepository<RegistryCredential, RegistryCredentialId>(db), IRegistryCredentialRepository
+{
+    public async Task<IReadOnlyList<RegistryCredential>> ListByEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        await Set.Where(c => c.EnvironmentId == environmentId).OrderBy(c => c.Server).ToListAsync(cancellationToken);
+
+    public Task<RegistryCredential?> FindByServerAsync(EnvironmentId environmentId, string server, CancellationToken cancellationToken) =>
+        Set.SingleOrDefaultAsync(c => c.EnvironmentId == environmentId && c.Server == server, cancellationToken);
 }

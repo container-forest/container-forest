@@ -29,11 +29,7 @@ public abstract partial class ContainerActionHandler<TCommand>(IDockerGateway do
 
     protected abstract Task RunAsync(string containerId, TCommand command, CancellationToken cancellationToken);
 
-    /// <summary>Converts the protocol's timeout_seconds; 0 means "kill at once", as the aggregator allows it.</summary>
-    protected static TimeSpan ToStopTimeout(int seconds) =>
-        seconds >= 0
-            ? TimeSpan.FromSeconds(seconds)
-            : throw new InvalidCommandArgumentException("Stop timeout must not be negative.");
+    protected static TimeSpan ToStopTimeout(int seconds) => StopTimeout.FromSeconds(seconds);
 
     // The id becomes part of a Docker API path, so only characters of container ids and names are allowed.
     // A '/' or ".." could otherwise address a different endpoint.

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The tests host a BotGateway server in memory, so they generate the server side of bot.proto themselves.
+      The bot generates the same message types for its client; the alias keeps the bot's copy out of the global
+      namespace, so the two copies do not conflict (ADR-0002). Files that use the bot write "extern alias bot;".
+    -->
+    <ProjectReference Include="..\..\src\DiscordBot\ContainerForest.DiscordBot.csproj" Aliases="bot" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="..\..\src\Contracts\bot\bot.proto" ProtoRoot="..\..\src\Contracts" GrpcServices="Server" Link="Contracts\bot.proto" />
+  </ItemGroup>
+
+</Project>

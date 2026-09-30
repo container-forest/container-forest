@@ -89,9 +89,21 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    $env:CF_AGENT__ENROLLMENTTOKEN = "<токен>"
    dotnet run --project src/Agent
    ```
-4. `cd src/Web && npm ci && npm run dev` — панель на `http://localhost:5173`; `/api` і `/hubs` проксюються на ЦА.
+4. `dotnet run --project src/DiscordBot` — Discord-бот. Адреса ЦА в `Development` вже `http://localhost:5081` (інакше — `CF_BOT__CONTROLLERURL`). Токен із кроку 2 бот бере з `CF_BOT__SERVICETOKEN`, локально — з user-secrets:
+   ```sh
+   dotnet user-secrets set Bot:ServiceToken "$TOKEN" --project src/DiscordBot
+   ```
+   У PowerShell токен і хеш для ЦА (`sha256sum` тут немає):
+   ```powershell
+   $bytes = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+   $token = -join ($bytes | ForEach-Object { $_.ToString('x2') })
+   $env:CF_BOTGATEWAY__TOKENHASHES__0 = -join ([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($token)) | ForEach-Object { $_.ToString('x2') })   # у ЦА, перед dotnet run
+   dotnet user-secrets set Bot:ServiceToken $token --project src/DiscordBot
+   ```
+   Токен рівносильний адмінському доступу; деталі й ротація — у `CLAUDE.md` (пункт про токен бота). Поки що бот має лише клієнт ЦА, без підключення до Discord.
+5. `cd src/Web && npm ci && npm run dev` — панель на `http://localhost:5173`; `/api` і `/hubs` проксюються на ЦА.
 
-Тести: `dotnet test --solution ContainerForest.slnx`. Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент.
+Тести: `dotnet test --solution ContainerForest.slnx`. Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
 
 Docker-образ агента збирається з кореня репозиторію (контексту потрібні `src/Contracts` і `Directory.*.props`), а запускається так само, як у [прикладі розгортання](docs/architecture.md#розгортання-агента). Щоб підключити його до ЦА, запущеного локально через `dotnet run`, використовуйте `http://host.docker.internal:5081`:
 

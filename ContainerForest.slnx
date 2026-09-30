@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/Contracts/">
     <File Path="src/Contracts/agent/agent.proto" />
+    <File Path="src/Contracts/bot/bot.proto" />
   </Folder>
   <Folder Name="/Aggregator/">
     <Project Path="src/Aggregator/Api/ContainerForest.Aggregator.Api.csproj" />
@@ -14,6 +15,7 @@
     <Project Path="tests/Aggregator/Domain/ContainerForest.Aggregator.Domain.Tests.csproj" />
     <Project Path="tests/Aggregator/Infrastructure/ContainerForest.Aggregator.Infrastructure.Tests.csproj" />
     <Project Path="tests/Agent/ContainerForest.Agent.Tests.csproj" />
+    <Project Path="tests/DiscordBot/ContainerForest.DiscordBot.Tests.csproj" />
   </Folder>
   <Project Path="src/Agent/ContainerForest.Agent.csproj" />
   <Project Path="src/DiscordBot/ContainerForest.DiscordBot.csproj" />

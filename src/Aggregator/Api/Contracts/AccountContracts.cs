@@ -10,3 +10,10 @@ public sealed record LoginRequest(string UserName, string Password, bool Remembe
 
 /// <summary>The signed-in user: <c>GET /api/me</c>, and the answer to a successful login.</summary>
 public sealed record MeResponse(Guid Id, string UserName, bool IsAdmin);
+
+/// <summary>
+/// Body of <c>POST /api/auth/password</c>: the signed-in user changes their own password and answers 204.
+/// A wrong current password is 400; a new password that fails the policy (see UserContracts) is 400 with the reasons.
+/// The user's other sessions end; the current one stays signed in.
+/// </summary>
+public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);

@@ -12,7 +12,7 @@
 - Структура репозиторію зафіксована в ADR-0001. CI (GitHub Actions) збирає й тестує кожен PR.
 - **ЦА:** доменна модель, EF Core + SQLite, gRPC-шлюз агентів і бота (прив'язка Discord-акаунта за кодом, середовища, контейнери, start/stop/restart), команди контейнерів з авторизацією (`AuthorizedCommand`), `ICurrentUser` і фільтрація за видимістю, `/api/me`, пайплайн деплою з публічного git-репозиторію (без SOPS) з логом та історією деплоїв. Тимчасові `/api/dev/*` з dev-автентифікацією `X-Dev-User` замість логіну.
 - **Агент:** реєстрація, з'єднання з heartbeat і перепідключенням, `ListContainers` і start/stop/restart через Docker.DotNet.Enhanced, Docker-образ.
-- **Ще немає:** логіну (зона Денисенко Л. В.), обробників стеків на агенті (`DeployStack`, `RestartStack`, `DownStack`: зараз агент відповідає `ERROR_CODE_UNSUPPORTED`), приватних репозиторіїв (токени), SOPS, операцій restart/down стеку в ЦА, webhook-деплою, SignalR і live-оновлень, стрімінгу логів, `src/Web`, сповіщень у Discord, Docker-образу бота.
+- **Ще немає:** логіну (зона Денисенко Л. В.), обробників стеків на агенті (`DeployStack`, `RestartStack`, `DownStack`: зараз агент відповідає `ERROR_CODE_UNSUPPORTED`), приватних репозиторіїв (токени), SOPS, операцій restart/down стеку в ЦА, webhook-деплою, SignalR і live-оновлень, стрімінгу логів, екранів панелі (є лише каркас `src/Web`), сповіщень у Discord, Docker-образу бота.
 - **Бот:** клієнт ЦА по gRPC (`IForestClient` → `GrpcForestClient`); slash-команди `/environments`, `/containers`, `/start`, `/stop`, `/restart`, `/link` на Discord.Net з автодоповненням; усі відповіді ephemeral.
 - Дедлайни етапів і лабораторних робіт у цьому файлі не зафіксовані: уточнити в команди.
 - Ролі учасників №3 і №4 (Синенко, Денисенко) ще можуть змінитися.
@@ -109,7 +109,7 @@
 - Доменні класи називаються `DockerEnvironment` (не `Environment`: конфлікт із `System.Environment` через неявний `using System`) і `GitRepository` (не `Repository`: плутається з патерном Repository).
 - Домен не читає годинник сам: методи приймають `DateTimeOffset now`. Ідентифікатори — `readonly record struct` над `Guid` v7 з інтерфейсом `IStronglyTypedId<TSelf>`.
 - Тести — xUnit v3 на Microsoft.Testing.Platform (увімкнено в `global.json`): `dotnet test --solution ContainerForest.slnx`. Проєкти тестів у `tests/`, структура повторює `src/`.
-- CI — `.github/workflows/ci.yml` (GitHub Actions, `ubuntu-latest`, SDK з `global.json`): restore → build з `CI=true` → перевірка, що закомічений OpenAPI-документ актуальний → тести. Опис і локальне відтворення — у `CONTRIBUTING.md`. Коли з'явиться `src/Web`, додати окремий job (`npm ci`, typecheck, збірка).
+- CI — `.github/workflows/ci.yml` (GitHub Actions, `ubuntu-latest`, SDK з `global.json`): restore → build з `CI=true` → перевірка, що закомічений OpenAPI-документ актуальний → тести. Окремий job `web`: `npm ci` → актуальність `schema.gen.ts` → `npm run build` (typecheck + Vite) → актуальність `routeTree.gen.ts`. Опис і локальне відтворення — у `CONTRIBUTING.md`.
 - Конфігурація через options + `AddEnvironmentVariables(prefix: "CF_")`, `ValidateOnStart()`. Вкладені секції через `__` (`CF_AGENT__CONTROLLERURL`).
 - Запис у gRPC-стрім тільки через обгортку з `SemaphoreSlim`: gRPC забороняє паралельні записи.
 - `AgentRegistry.Open` при повторному підключенні агента закриває стару сесію. При закритті сесії всі очікувані запити завершуються `AgentDisconnectedException`.
@@ -152,6 +152,11 @@
 ### Фронтенд
 
 - Шляхи нижче відносно `src/Web`.
+- Vite 8, React 19, TypeScript **5.9**, а не 7: `openapi-typescript` підтримує лише TypeScript 5 (TS 7 не має JS API). Версії в `package.json` точні (`--save-exact`), Node — з `.nvmrc`.
+- Два tsconfig: `tsconfig.json` для застосунку (без типів Node), `tsconfig.node.json` для `vite.config.ts`.
+- Доступ до API — `api` з `src/api/client.ts` (`openapi-fetch`, типи з `schema.gen.ts`); `unwrap` перетворює не-2xx на `ApiError` з problem details. На 401 Query не повторює запит.
+- Поки немає логіну, dev-сервер додає `X-Dev-User` з `CF_DEV_USER` у проксі (`vite.config.ts`); у коді застосунку dev-автентифікації немає. `/login` — заглушка до екрана входу Денисенко Л. В.; `search.redirect` приймає лише шляхи того самого сайту (`/…`, не `//…`), щоб не було open redirect.
+- Образ панелі — `src/Web/Dockerfile`: збірка на Node 24, роздача nginx (`nginx.conf.template`, `AGGREGATOR_URL` підставляється при старті), SPA-fallback на `index.html`, `/assets/` кешуються назавжди, CSP `default-src 'self'`. Інлайн-скриптів і стилів з CDN у застосунку не додавати: CSP їх заблокує.
 - `queryOptions`-фабрики в `src/api/queries.ts` — єдине джерело ключів запитів.
 - Router створюється з `context: { queryClient }`, `defaultPreload: "intent"`, `defaultPreloadStaleTime: 0`.
 - Авторизовані маршрути лежать під pathless layout `_authed` (`beforeLoad` → `ensureQueryData(meQuery)`, 401 → redirect на `/login` з `search.redirect`; `/login` має `validateSearch` для `redirect`).

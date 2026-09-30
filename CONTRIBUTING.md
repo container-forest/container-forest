@@ -124,6 +124,15 @@ docker run -d --name cf-agent --hostname my-laptop \
   container-forest-agent:dev
 ```
 
+Образ Discord-бота збирається так само; приклад розгортання — [`deploy/discord-bot/compose.yaml`](deploy/discord-bot/compose.yaml) (опис — у [docs/architecture.md](docs/architecture.md#розгортання-discord-бота)). Локально токени зручно передати файлом `.env.local` з рядками `CF_DISCORD__TOKEN=…` і `CF_BOT__SERVICETOKEN=…` (він у `.gitignore`), а в `CF_BOT__CONTROLLERURL` вказати `http://host.docker.internal:5081`. Образ не читає user-secrets і стартує в оточенні `Production`, тож команди реєструються глобально; для тестового сервера додайте `-e DOTNET_ENVIRONMENT=Development -e CF_DISCORD__DEVGUILDID=<id сервера>`:
+
+```sh
+docker build -f src/DiscordBot/Dockerfile -t container-forest-discord-bot:dev .
+docker run -d --name cf-discord-bot --env-file .env.local \
+  -e CF_BOT__CONTROLLERURL=http://host.docker.internal:5081 \
+  container-forest-discord-bot:dev
+```
+
 Міграції EF Core (інструмент ставиться з `dotnet-tools.json`):
 
 ```sh

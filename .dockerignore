@@ -11,5 +11,7 @@
 **/*.db-wal
 **/appsettings.Development.json
 **/agent-credentials.json
+**/.env
+**/.env.*
 tests/
 docs/

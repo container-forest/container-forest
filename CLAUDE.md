@@ -12,8 +12,8 @@
 - Структура репозиторію зафіксована в ADR-0001. CI (GitHub Actions) збирає й тестує кожен PR.
 - **ЦА:** доменна модель, EF Core + SQLite, gRPC-шлюз агентів і бота (прив'язка Discord-акаунта за кодом, середовища, контейнери, start/stop/restart), команди контейнерів з авторизацією (`AuthorizedCommand`), `ICurrentUser` і фільтрація за видимістю, `/api/me`, пайплайн деплою з публічного git-репозиторію (без SOPS) з логом та історією деплоїв. Тимчасові `/api/dev/*` з dev-автентифікацією `X-Dev-User` замість логіну.
 - **Агент:** реєстрація, з'єднання з heartbeat і перепідключенням, `ListContainers` і start/stop/restart через Docker.DotNet.Enhanced, Docker-образ.
-- **Ще немає:** логіну (зона Денисенко Л. В.), обробників стеків на агенті (`DeployStack`, `RestartStack`, `DownStack`: зараз агент відповідає `ERROR_CODE_UNSUPPORTED`), приватних репозиторіїв (токени), SOPS, операцій restart/down стеку в ЦА, webhook-деплою, SignalR і live-оновлень, стрімінгу логів, `src/Web`, сповіщень у Discord, Docker-образу бота.
-- **Бот:** клієнт ЦА по gRPC (`IForestClient` → `GrpcForestClient`); slash-команди `/environments`, `/containers`, `/start`, `/stop`, `/restart`, `/link` на Discord.Net з автодоповненням; усі відповіді ephemeral.
+- **Ще немає:** логіну (зона Денисенко Л. В.), обробників стеків на агенті (`DeployStack`, `RestartStack`, `DownStack`: зараз агент відповідає `ERROR_CODE_UNSUPPORTED`), приватних репозиторіїв (токени), SOPS, операцій restart/down стеку в ЦА, webhook-деплою, SignalR і live-оновлень, стрімінгу логів, `src/Web`, сповіщень у Discord.
+- **Бот:** клієнт ЦА по gRPC (`IForestClient` → `GrpcForestClient`); slash-команди `/environments`, `/containers`, `/start`, `/stop`, `/restart`, `/link` на Discord.Net з автодоповненням; усі відповіді ephemeral; Docker-образ (`src/DiscordBot/Dockerfile`) і приклад розгортання `deploy/discord-bot/compose.yaml`.
 - Дедлайни етапів і лабораторних робіт у цьому файлі не зафіксовані: уточнити в команди.
 - Ролі учасників №3 і №4 (Синенко, Денисенко) ще можуть змінитися.
 

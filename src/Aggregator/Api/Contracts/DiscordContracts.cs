@@ -8,7 +8,7 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 //
 // The user types "/link <code>" in Discord; the bot passes the code to LinkAccount. A new code replaces the
 // previous one. In the final version the Discord OAuth2 login links the account too; both ways store the
-// same link (an ASP.NET Identity external login with provider "Discord").
+// same link (the DiscordLink entity).
 
 /// <param name="DiscordUserName">Null when not linked.</param>
 public sealed record DiscordLinkResponse(bool Linked, string? DiscordUserName, DateTimeOffset? LinkedAt);

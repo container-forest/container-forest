@@ -61,6 +61,15 @@ internal sealed class UserRepository(AggregatorDbContext db) : EfRepository<User
         Set.SingleOrDefaultAsync(u => u.UserName == userName, cancellationToken);
 }
 
+internal sealed class DiscordLinkRepository(AggregatorDbContext db) : EfRepository<DiscordLink, UserId>(db), IDiscordLinkRepository
+{
+    public Task<DiscordLink?> FindByDiscordUserAsync(ulong discordUserId, CancellationToken cancellationToken) =>
+        Set.SingleOrDefaultAsync(l => l.DiscordUserId == discordUserId, cancellationToken);
+
+    public Task<DiscordLink?> FindByCodeHashAsync(string codeHash, CancellationToken cancellationToken) =>
+        Set.SingleOrDefaultAsync(l => l.PendingCodeHash == codeHash, cancellationToken);
+}
+
 internal sealed class RoleAssignmentRepository(AggregatorDbContext db)
     : EfRepository<RoleAssignment, RoleAssignmentId>(db), IRoleAssignmentRepository
 {

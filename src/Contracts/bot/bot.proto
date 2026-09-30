@@ -1,0 +1,139 @@
+syntax = "proto3";
+package bot;
+option csharp_namespace = "ContainerForest.Contracts.Bot";
+
+// Discord bot -> aggregator protocol. The bot is a client only; it decides nothing itself.
+//
+// Authentication:
+// - Every call carries the bot's service token in the metadata "x-bot-token". The aggregator keeps only
+//   its hash. The token is as powerful as an administrator's password: whoever holds it can act as any
+//   linked user (security invariant 9).
+// - Every request names the Discord user the bot acts for (discord_user_id). The aggregator maps it to the
+//   linked user of the system and checks that user's permissions, exactly as for the panel.
+//
+// Errors are gRPC status codes:
+//   UNAUTHENTICATED      the bot token is invalid, or the Discord user is not linked (see "x-cf-reason")
+//   PERMISSION_DENIED    the user lacks the role for the action, or is deactivated
+//   NOT_FOUND            unknown environment or container, or one the user may not see
+//   INVALID_ARGUMENT     malformed request, e.g. a stop timeout out of range
+//   FAILED_PRECONDITION  the action makes no sense in the current state, or a container prefix is ambiguous
+//   UNAVAILABLE          the environment's agent is offline or disconnected; nothing is queued
+//   DEADLINE_EXCEEDED    the agent did not answer in time
+//   UNIMPLEMENTED        the agent is too old for the command
+//   INTERNAL             the agent reported an error; the status message is readable text for the user
+// For UNAUTHENTICATED the trailer "x-cf-reason" is "invalid-bot-token" (a configuration error: log it,
+// do not show it) or "account-not-linked" (tell the user to link their Discord account).
+// Status messages never contain secrets or exception details and may be shown to the user as they are.
+//
+// "Gateway" already names the role; a "Service" suffix would only lengthen the generated C# types.
+// buf:lint:ignore SERVICE_SUFFIX
+service BotGateway {
+  // The linked user behind a Discord account. For an unlinked account it answers linked = false
+  // instead of UNAUTHENTICATED, so the bot can offer linking without treating it as an error.
+  rpc GetCaller(GetCallerRequest) returns (GetCallerResponse);
+
+  // Links the Discord account to the user who issued the one-time code in the panel.
+  rpc LinkAccount(LinkAccountRequest) returns (LinkAccountResponse);
+
+  // Environments the user may see, by name.
+  rpc ListEnvironments(ListEnvironmentsRequest) returns (ListEnvironmentsResponse);
+
+  // Containers of an environment the user may see, each with whether the user may control it.
+  rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
+
+  // Starts, stops or restarts a container. Returns once the agent has done it.
+  rpc ControlContainer(ControlContainerRequest) returns (ControlContainerResponse);
+}
+
+message GetCallerRequest {
+  uint64 discord_user_id = 1;
+}
+
+message GetCallerResponse {
+  bool linked = 1;
+  // The fields below are set only when linked is true.
+  string user_id = 2;
+  string user_name = 3;
+  bool is_admin = 4;
+  bool is_active = 5;
+}
+
+// code comes from the panel (valid for a few minutes, single use). A Discord account links to one user;
+// linking it again moves the link. Wrong or expired code: INVALID_ARGUMENT.
+message LinkAccountRequest {
+  uint64 discord_user_id = 1;
+  string discord_user_name = 2;  // shown in the panel next to the link; informational only
+  string code = 3;
+}
+
+message LinkAccountResponse {
+  string user_name = 1;
+}
+
+message ListEnvironmentsRequest {
+  uint64 discord_user_id = 1;
+}
+
+message ListEnvironmentsResponse {
+  repeated Environment environments = 1;
+}
+
+message Environment {
+  string id = 1;  // UUID; pass it back in later requests
+  string name = 2;
+  bool online = 3;
+}
+
+message ListContainersRequest {
+  uint64 discord_user_id = 1;
+  string environment_id = 2;
+}
+
+message ListContainersResponse {
+  repeated Container containers = 1;
+}
+
+// stack_name and service_name are empty for containers outside compose.
+message Container {
+  string id = 1;
+  string name = 2;
+  ContainerState state = 3;
+  string image = 4;
+  string stack_name = 5;
+  string service_name = 6;
+  string status_text = 7;  // Docker's human-readable status, e.g. "Up 3 minutes (healthy)"
+  bool can_control = 8;    // the user may start, stop and restart it; use it to hide buttons, nothing more
+}
+
+// Same values as agent.ContainerState; kept separate so the bot does not depend on the agent protocol.
+enum ContainerState {
+  CONTAINER_STATE_UNSPECIFIED = 0;
+  CONTAINER_STATE_CREATED = 1;
+  CONTAINER_STATE_RUNNING = 2;
+  CONTAINER_STATE_PAUSED = 3;
+  CONTAINER_STATE_RESTARTING = 4;
+  CONTAINER_STATE_REMOVING = 5;
+  CONTAINER_STATE_EXITED = 6;
+  CONTAINER_STATE_DEAD = 7;
+}
+
+// container is a full id, an exact name or a unique id prefix, as in the docker CLI.
+message ControlContainerRequest {
+  uint64 discord_user_id = 1;
+  string environment_id = 2;
+  string container = 3;
+  ContainerAction action = 4;
+  // For stop and restart: seconds Docker waits before killing the process, 0 = kill at once.
+  // Unset means the aggregator's default.
+  optional int32 timeout_seconds = 5;
+}
+
+message ControlContainerResponse {}
+
+// Must be set; CONTAINER_ACTION_UNSPECIFIED is INVALID_ARGUMENT.
+enum ContainerAction {
+  CONTAINER_ACTION_UNSPECIFIED = 0;
+  CONTAINER_ACTION_START = 1;
+  CONTAINER_ACTION_STOP = 2;
+  CONTAINER_ACTION_RESTART = 3;
+}

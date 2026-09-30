@@ -14,6 +14,7 @@ public sealed class DeployContext(
     Deployment deployment, Stack stack, DockerEnvironment environment, GitRepository repository, TimeProvider time)
 {
     private GitSnapshot? source;
+    private ComposeFile? compose;
     private StackBundle? bundle;
 
     public Deployment Deployment { get; } = deployment;
@@ -31,6 +32,13 @@ public sealed class DeployContext(
     {
         get => source ?? throw NotYetProduced(nameof(Source));
         set => source = value;
+    }
+
+    /// <summary>The parsed compose file of the stack; set by <see cref="Steps.ValidateComposeStep"/>.</summary>
+    public ComposeFile Compose
+    {
+        get => compose ?? throw NotYetProduced(nameof(Compose));
+        set => compose = value;
     }
 
     /// <summary>What is sent to the agent; set by <see cref="Steps.BuildBundleStep"/>.</summary>

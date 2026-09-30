@@ -219,6 +219,167 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.ToTable("Environments", (string)null);
                 });
 
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Environments.RegistryCredential", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("EnvironmentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProtectedPassword")
+                        .IsRequired()
+                        .HasMaxLength(8192)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Server")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EnvironmentId", "Server")
+                        .IsUnique();
+
+                    b.ToTable("RegistryCredentials", (string)null);
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Notifications.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("EnvironmentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("FinishedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("OccurredAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("RuleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("StackId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.ToTable("Notifications", (string)null);
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Notifications.NotificationChannel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("DiscordChannelId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("NotificationChannels", (string)null);
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Notifications.NotificationRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("EnvironmentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Events")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("StackId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChannelId");
+
+                    b.HasIndex("EnvironmentId");
+
+                    b.HasIndex("StackId");
+
+                    b.ToTable("NotificationRules", (string)null);
+                });
+
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Repositories.GitRepository", b =>
                 {
                     b.Property<Guid>("Id")
@@ -397,6 +558,34 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("Log");
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Environments.RegistryCredential", b =>
+                {
+                    b.HasOne("ContainerForest.Aggregator.Domain.Environments.DockerEnvironment", null)
+                        .WithMany()
+                        .HasForeignKey("EnvironmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Notifications.NotificationRule", b =>
+                {
+                    b.HasOne("ContainerForest.Aggregator.Domain.Notifications.NotificationChannel", null)
+                        .WithMany()
+                        .HasForeignKey("ChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ContainerForest.Aggregator.Domain.Environments.DockerEnvironment", null)
+                        .WithMany()
+                        .HasForeignKey("EnvironmentId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("ContainerForest.Aggregator.Domain.Stacks.Stack", null)
+                        .WithMany()
+                        .HasForeignKey("StackId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Stacks.Stack", b =>

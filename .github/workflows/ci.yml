@@ -45,3 +45,42 @@ jobs:
 
       - name: Test
         run: dotnet test --solution ContainerForest.slnx --no-build
+
+  web:
+    name: Build (web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: src/Web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: src/Web/.nvmrc
+          cache: npm
+          cache-dependency-path: src/Web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # The API types come from the committed OpenAPI document; the committed copy must match it.
+      - name: Check generated API types
+        run: |
+          npm run generate:api
+          if ! git diff --exit-code -- src/api/schema.gen.ts; then
+            echo "::error::src/Web/src/api/schema.gen.ts is out of date. Run npm run generate:api and commit it."
+            exit 1
+          fi
+
+      # typecheck + vite build; the build also regenerates src/routeTree.gen.ts.
+      - name: Build
+        run: npm run build
+
+      - name: Check generated route tree
+        run: |
+          if ! git diff --exit-code -- src/routeTree.gen.ts; then
+            echo "::error::src/Web/src/routeTree.gen.ts is out of date. Run npm run build and commit it."
+            exit 1
+          fi

@@ -3,6 +3,7 @@ using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
+using ContainerForest.Aggregator.Domain.Notifications;
 using ContainerForest.Aggregator.Domain.Repositories;
 using ContainerForest.Aggregator.Domain.Stacks;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,14 @@ public sealed class AggregatorDbContext(DbContextOptions<AggregatorDbContext> op
 
     public DbSet<DiscordLink> DiscordLinks => Set<DiscordLink>();
 
+    public DbSet<NotificationChannel> NotificationChannels => Set<NotificationChannel>();
+
+    public DbSet<NotificationRule> NotificationRules => Set<NotificationRule>();
+
+    public DbSet<Notification> Notifications => Set<Notification>();
+
+    public DbSet<RegistryCredential> RegistryCredentials => Set<RegistryCredential>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AggregatorDbContext).Assembly);
 
@@ -37,6 +46,10 @@ public sealed class AggregatorDbContext(DbContextOptions<AggregatorDbContext> op
         configurationBuilder.AddStronglyTypedId<DeploymentId>();
         configurationBuilder.AddStronglyTypedId<UserId>();
         configurationBuilder.AddStronglyTypedId<RoleAssignmentId>();
+        configurationBuilder.AddStronglyTypedId<NotificationChannelId>();
+        configurationBuilder.AddStronglyTypedId<NotificationRuleId>();
+        configurationBuilder.AddStronglyTypedId<NotificationId>();
+        configurationBuilder.AddStronglyTypedId<RegistryCredentialId>();
 
         // SQLite has no DateTimeOffset type: stored as text it cannot be compared or ordered in queries.
         configurationBuilder.Properties<DateTimeOffset>().HaveConversion<DateTimeOffsetToBinaryConverter>();

@@ -2,12 +2,15 @@ using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Notifications;
+using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
+using ContainerForest.Aggregator.Domain.Notifications;
 using ContainerForest.Aggregator.Domain.Repositories;
 using ContainerForest.Aggregator.Domain.Stacks;
 using Microsoft.EntityFrameworkCore;
@@ -107,4 +110,44 @@ internal sealed class DeploymentRepository(AggregatorDbContext db)
             .Select(d => new DeploymentSummary(
                 d.Id, d.Status, d.Trigger, d.PullPolicy, d.Commit, d.QueuedAt, d.StartedAt, d.FinishedAt, d.Error))
             .ToListAsync(cancellationToken);
+}
+
+internal sealed class NotificationChannelRepository(AggregatorDbContext db)
+    : EfRepository<NotificationChannel, NotificationChannelId>(db), INotificationChannelRepository
+{
+    public async Task<IReadOnlyList<NotificationChannel>> ListAsync(CancellationToken cancellationToken) =>
+        await Set.OrderBy(c => c.Name).ToListAsync(cancellationToken);
+}
+
+internal sealed class NotificationRuleRepository(AggregatorDbContext db)
+    : EfRepository<NotificationRule, NotificationRuleId>(db), INotificationRuleRepository
+{
+    public async Task<IReadOnlyList<NotificationRule>> ListActiveAsync(CancellationToken cancellationToken) =>
+        await Set.Where(r => r.IsEnabled)
+            .Join(Db.NotificationChannels.Where(c => c.IsEnabled), r => r.ChannelId, c => c.Id, (r, _) => r)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<NotificationRule>> ListByChannelAsync(
+        NotificationChannelId channelId, CancellationToken cancellationToken) =>
+        await Set.Where(r => r.ChannelId == channelId).OrderBy(r => r.CreatedAt).ToListAsync(cancellationToken);
+}
+
+internal sealed class NotificationRepository(AggregatorDbContext db)
+    : EfRepository<Notification, NotificationId>(db), INotificationRepository
+{
+    public async Task<IReadOnlyList<Notification>> ListPendingAsync(CancellationToken cancellationToken) =>
+        await Set.Where(n => n.Status == NotificationStatus.Pending).OrderBy(n => n.CreatedAt).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Notification>> ListRecentAsync(int limit, CancellationToken cancellationToken) =>
+        await Set.OrderByDescending(n => n.CreatedAt).Take(limit).ToListAsync(cancellationToken);
+}
+
+internal sealed class RegistryCredentialRepository(AggregatorDbContext db)
+    : EfRepository<RegistryCredential, RegistryCredentialId>(db), IRegistryCredentialRepository
+{
+    public async Task<IReadOnlyList<RegistryCredential>> ListByEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        await Set.Where(c => c.EnvironmentId == environmentId).OrderBy(c => c.Server).ToListAsync(cancellationToken);
+
+    public Task<RegistryCredential?> FindByServerAsync(EnvironmentId environmentId, string server, CancellationToken cancellationToken) =>
+        Set.SingleOrDefaultAsync(c => c.EnvironmentId == environmentId && c.Server == server, cancellationToken);
 }

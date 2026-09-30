@@ -111,7 +111,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
 5. Панель: `cd src/Web && npm ci`, потім `CF_DEV_USER=root npm run dev` (PowerShell: `$env:CF_DEV_USER="root"; npm run dev`) — `http://localhost:5173`. Dev-сервер проксює `/api` і `/hubs` на ЦА (`CF_AGGREGATOR_URL`, типово `http://localhost:5080`) і, поки немає логіну, додає до кожного запиту `X-Dev-User` з `CF_DEV_USER`. Без неї панель відправить на `/login`.
    - Змінили DTO в ЦА — зберіть `src/Aggregator/Api` (оновиться OpenAPI-документ) і виконайте `npm run generate:api`: типи клієнта в `src/api/schema.gen.ts` генеруються з нього.
    - `src/routeTree.gen.ts` генерує плагін TanStack Router під час `npm run dev`/`build`; обидва згенеровані файли комітяться й руками не редагуються.
-   - Компоненти UI — shadcn/ui: `npx shadcn@latest add table` (з `src/Web`) додає компонент у `src/components/ui`; згенеровані файли комітяться.
+   - Компоненти UI — shadcn/ui: `npm run ui:add -- table` (з `src/Web`) додає компонент у `src/components/ui` і переводить його іконки на Material Symbols; згенеровані файли комітяться. Якщо після цього `npm run typecheck` скаржиться на відсутню іконку, додайте її в `src/components/icons.ts` (назви — як у Lucide, іконки — з https://fonts.google.com/icons).
    - Docker-образ панелі (nginx зі статичними файлами, проксі `/api` і `/hubs` на `AGGREGATOR_URL`): `docker build -t container-forest-web:dev src/Web`.
 
 Тести: `dotnet test --solution ContainerForest.slnx`. Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.

@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
+import Icons from "unplugin-icons/vite";
 import { defineConfig, type ProxyOptions } from "vite";
 
 // The aggregator's REST port in local development (see CONTRIBUTING.md).
@@ -19,7 +20,13 @@ const proxy: ProxyOptions = {
 
 export default defineConfig({
   // The router plugin must come before react(); it writes src/routeTree.gen.ts.
-  plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
+  plugins: [
+    tanstackRouter({ target: "react", autoCodeSplitting: true }),
+    react(),
+    tailwindcss(),
+    // Material Symbols as React components, compiled at build time: only the icons in use reach the bundle.
+    Icons({ compiler: "jsx", jsx: "react" }),
+  ],
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },

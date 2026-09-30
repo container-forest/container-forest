@@ -101,6 +101,50 @@ public class DeploymentTests
     }
 
     [Fact]
+    public async Task Registry_credentials_of_the_environment_reach_the_agent_with_the_deployment()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        var client = app.CreateClient();
+        var path = $"/api/dev/environments/{agent.EnvironmentId}/registry-credentials";
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Created, client.PutAsJsonAsync(path, new { server = "https://ghcr.io", username = "bot", password = "old-token" }, Ct));
+        var replaced = await client.PutAsJsonAsync(path, new { server = "ghcr.io", username = "bot", password = "ghcr-token" }, Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, replaced);
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Created, client.PutAsJsonAsync(path, new { server = "registry.example.com", username = "x", password = "unused" }, Ct));
+
+        var listed = await client.GetStringAsync(path, Ct);
+        Assert.Contains("ghcr.io", listed);
+        Assert.DoesNotContain("token", listed);
+
+        app.Git.Snapshot = Snapshot(("compose.yaml", "services:\n  api:\n    image: ghcr.io/org/api:1.2\n"));
+        var stack = await CreateStackAsync(app, agent, "compose.yaml");
+        await QueueAsync(app, stack.Id);
+
+        var command = await agent.ReceiveAsync();
+        var auth = Assert.Single(command.DeployStack.RegistryAuths);
+        Assert.Equal(("ghcr.io", "bot", "ghcr-token"), (auth.Server, auth.Username, auth.Password));
+    }
+
+    [Fact]
+    public async Task Only_administrators_may_manage_registry_credentials()
+    {
+        await using var app = new AggregatorApp();
+        await app.CreateUserAsync("alice", isAdmin: false);
+        await using var agent = await app.EnrollAndConnectAsync();
+        var alice = app.CreateClientAs("alice");
+        var path = $"/api/dev/environments/{agent.EnvironmentId}/registry-credentials";
+
+        await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, alice.GetAsync(path, Ct));
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Forbidden, alice.PutAsJsonAsync(path, new { server = "ghcr.io", username = "bot", password = "p" }, Ct));
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.BadRequest,
+            app.CreateClient().PutAsJsonAsync(path, new { server = "ghcr.io/org", username = "bot", password = "p" }, Ct));
+    }
+
+    [Fact]
     public async Task Viewer_may_see_the_history_but_not_deploy()
     {
         await using var app = new AggregatorApp();

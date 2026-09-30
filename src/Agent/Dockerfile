@@ -20,6 +20,24 @@ FROM mcr.microsoft.com/dotnet/runtime:10.0
 LABEL org.opencontainers.image.title="container-forest-agent" \
       org.opencontainers.image.source="https://github.com/lepterion/container-forest"
 
+# Stacks are deployed with the docker CLI and its compose plugin, which talk to the host's daemon through the socket.
+# Only the client is installed: the daemon is the host's. Packages come from Docker's apt repository, because
+# the distribution's docker.io lags behind and has no compose v2 plugin. The repository follows the base image's
+# distribution (ID in os-release): the .NET 10 images are Ubuntu 24.04, earlier ones were Debian.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && install -m 0755 -d /etc/apt/keyrings \
+    && . /etc/os-release \
+    && curl -fsSL "https://download.docker.com/linux/${ID}/gpg" -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" \
+        > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
+    && apt-get purge -y curl \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
 # The content root must be the application directory, or appsettings.json is not found.
 WORKDIR /app
 COPY --from=build /app .

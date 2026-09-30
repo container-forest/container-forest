@@ -219,6 +219,43 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.ToTable("Environments", (string)null);
                 });
 
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Environments.RegistryCredential", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("EnvironmentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProtectedPassword")
+                        .IsRequired()
+                        .HasMaxLength(8192)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Server")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EnvironmentId", "Server")
+                        .IsUnique();
+
+                    b.ToTable("RegistryCredentials", (string)null);
+                });
+
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Notifications.Notification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -521,6 +558,15 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("Log");
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Environments.RegistryCredential", b =>
+                {
+                    b.HasOne("ContainerForest.Aggregator.Domain.Environments.DockerEnvironment", null)
+                        .WithMany()
+                        .HasForeignKey("EnvironmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Notifications.NotificationRule", b =>

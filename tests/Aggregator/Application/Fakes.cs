@@ -3,6 +3,7 @@ using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
@@ -187,4 +188,26 @@ internal sealed class FakeAgentChannel : IAgentChannel
         DeployOutput.ForEach(onProgress);
         return DeployError is null ? Task.CompletedTask : Task.FromException(DeployError);
     }
+}
+
+internal sealed class InMemoryRegistryCredentials : InMemoryRepository<RegistryCredential, RegistryCredentialId>, IRegistryCredentialRepository
+{
+    public IReadOnlyList<RegistryCredential> All => Items;
+
+    public Task<IReadOnlyList<RegistryCredential>> ListByEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<RegistryCredential>>(Items.Where(c => c.EnvironmentId == environmentId).OrderBy(c => c.Server).ToList());
+
+    public Task<RegistryCredential?> FindByServerAsync(EnvironmentId environmentId, string server, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.FirstOrDefault(c => c.EnvironmentId == environmentId && c.Server == server));
+}
+
+/// <summary>"Encrypts" by adding a purpose prefix, so tests can see that a value was protected and for what.</summary>
+internal sealed class FakeSecretProtector : ISecretProtector
+{
+    public string Protect(SecretPurpose purpose, string plaintext) => $"{purpose}:{plaintext}";
+
+    public string Unprotect(SecretPurpose purpose, string protectedValue) =>
+        protectedValue.StartsWith($"{purpose}:", StringComparison.Ordinal)
+            ? protectedValue[(purpose.ToString().Length + 1)..]
+            : throw new SecretUnreadableException(purpose, new InvalidOperationException("Not protected by this fake."));
 }

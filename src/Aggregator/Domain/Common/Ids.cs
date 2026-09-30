@@ -74,3 +74,10 @@ public readonly record struct NotificationId(Guid Value) : IStronglyTypedId<Noti
     public static NotificationId From(Guid value) => new(value);
     public override string ToString() => Value.ToString();
 }
+
+public readonly record struct RegistryCredentialId(Guid Value) : IStronglyTypedId<RegistryCredentialId>
+{
+    public static RegistryCredentialId New() => new(Guid.CreateVersion7());
+    public static RegistryCredentialId From(Guid value) => new(value);
+    public override string ToString() => Value.ToString();
+}

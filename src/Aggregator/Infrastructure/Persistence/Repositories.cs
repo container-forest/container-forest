@@ -3,6 +3,7 @@ using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Notifications;
+using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
@@ -139,4 +140,14 @@ internal sealed class NotificationRepository(AggregatorDbContext db)
 
     public async Task<IReadOnlyList<Notification>> ListRecentAsync(int limit, CancellationToken cancellationToken) =>
         await Set.OrderByDescending(n => n.CreatedAt).Take(limit).ToListAsync(cancellationToken);
+}
+
+internal sealed class RegistryCredentialRepository(AggregatorDbContext db)
+    : EfRepository<RegistryCredential, RegistryCredentialId>(db), IRegistryCredentialRepository
+{
+    public async Task<IReadOnlyList<RegistryCredential>> ListByEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        await Set.Where(c => c.EnvironmentId == environmentId).OrderBy(c => c.Server).ToListAsync(cancellationToken);
+
+    public Task<RegistryCredential?> FindByServerAsync(EnvironmentId environmentId, string server, CancellationToken cancellationToken) =>
+        Set.SingleOrDefaultAsync(c => c.EnvironmentId == environmentId && c.Server == server, cancellationToken);
 }

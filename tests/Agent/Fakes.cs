@@ -1,6 +1,8 @@
 using System.Threading.Channels;
 using ContainerForest.Agent.Commands;
+using ContainerForest.Agent.Compose;
 using ContainerForest.Agent.Docker;
+using ContainerForest.Agent.Stacks;
 using ContainerForest.Contracts.Agent;
 using Grpc.Core;
 
@@ -166,4 +168,83 @@ internal sealed class RecordingProgress : ICommandProgress
         Lines.Add(line);
         return Task.CompletedTask;
     }
+}
+
+/// <summary>Records compose runs; a run reports <see cref="Output"/>, then fails with <see cref="Failure"/> when it is set.</summary>
+internal sealed class FakeComposeRunner : IComposeRunner
+{
+    private readonly List<ComposeInvocation> runs = [];
+
+    public IReadOnlyList<ComposeInvocation> Runs
+    {
+        get
+        {
+            lock (runs)
+            {
+                return [.. runs];
+            }
+        }
+    }
+
+    public List<string> Output { get; } = [];
+
+    public AgentCommandException? Failure { get; set; }
+
+    /// <summary>When set, a run waits for it, so a test can start a second operation meanwhile.</summary>
+    public TaskCompletionSource? Gate { get; set; }
+
+    /// <summary>Whether DOCKER_CONFIG pointed at an existing directory while compose ran.</summary>
+    public bool? DockerConfigExistedDuringRun { get; private set; }
+
+    public async Task RunAsync(ComposeInvocation invocation, ICommandProgress progress, CancellationToken cancellationToken)
+    {
+        lock (runs)
+        {
+            runs.Add(invocation);
+        }
+
+        if (invocation.Environment.TryGetValue(RegistryConfigWriter.DockerConfigVariable, out var dockerConfig))
+        {
+            DockerConfigExistedDuringRun = File.Exists(Path.Combine(dockerConfig, "config.json"));
+        }
+
+        foreach (var line in Output)
+        {
+            await progress.ReportAsync(line, cancellationToken);
+        }
+
+        if (Gate is { } gate)
+        {
+            await gate.Task.WaitAsync(cancellationToken);
+        }
+
+        if (Failure is { } failure)
+        {
+            throw failure;
+        }
+    }
+}
+
+/// <summary>Keeps written layouts in memory and records the secret clean-ups.</summary>
+internal sealed class FakeStackFileStore : IStackFileStore
+{
+    public HashSet<string> Deployed { get; } = [];
+
+    public List<StackLayout> Written { get; } = [];
+
+    public List<string> Calls { get; } = [];
+
+    public bool Exists(string stackName) => Deployed.Contains(stackName);
+
+    public Task<string> WriteAsync(StackLayout layout, CancellationToken cancellationToken)
+    {
+        Written.Add(layout);
+        Deployed.Add(layout.StackName);
+        Calls.Add($"write {layout.StackName}");
+        return Task.FromResult(Path.Combine(Path.GetTempPath(), "stacks", layout.StackName));
+    }
+
+    public void DiscardPreviousSecrets(string stackName) => Calls.Add($"discard-previous-secrets {stackName}");
+
+    public void DeleteSecrets(string stackName) => Calls.Add($"delete-secrets {stackName}");
 }

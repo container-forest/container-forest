@@ -1,0 +1,23 @@
+# Discord bot of container-forest. See docs/architecture.md, "Розгортання Discord-бота".
+#
+# The two tokens come from an .env file next to this one, which is never committed:
+#   DISCORD_TOKEN=...       the bot token of the Discord application (Developer Portal -> Bot)
+#   BOT_SERVICE_TOKEN=...   the bot's token for the aggregator; the aggregator keeps only its SHA-256
+#                           in CF_BOTGATEWAY__TOKENHASHES__0
+# Both are as powerful as an administrator's password (security invariant 9): keep .env readable by root only.
+services:
+  container-forest-discord-bot:
+    image: ghcr.io/<org>/container-forest-discord-bot:latest
+    restart: unless-stopped
+    environment:
+      CF_BOT__CONTROLLERURL: https://forest.example.com
+      CF_BOT__SERVICETOKEN: ${BOT_SERVICE_TOKEN:?set BOT_SERVICE_TOKEN in .env}
+      CF_DISCORD__TOKEN: ${DISCORD_TOKEN:?set DISCORD_TOKEN in .env}
+    # The bot keeps no state and only makes outbound connections, so it needs neither privileges nor a writable disk.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

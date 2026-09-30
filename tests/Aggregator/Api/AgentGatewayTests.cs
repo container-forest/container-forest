@@ -113,7 +113,7 @@ public class AgentGatewayTests
         var response = await app.CreateClient().GetAsync(
             $"/api/dev/environments/{environment.Id}/containers", Ct);
 
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        await HttpAssert.StatusAsync(HttpStatusCode.ServiceUnavailable, response);
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public class AgentGatewayTests
         });
 
         var response = await request;
-        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        await HttpAssert.StatusAsync(HttpStatusCode.BadGateway, response);
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct);
         Assert.Equal("Docker socket unreachable", problem.GetProperty("detail").GetString());
     }
@@ -157,7 +157,7 @@ public class AgentGatewayTests
         });
 
         var response = await request;
-        Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
+        await HttpAssert.StatusAsync(HttpStatusCode.NotImplemented, response);
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public class AgentGatewayTests
         await agent.DisposeAsync();
 
         var response = await request;
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        await HttpAssert.StatusAsync(HttpStatusCode.ServiceUnavailable, response);
         await app.WaitUntilOnlineAsync(agent.EnvironmentId, online: false);
     }
 }

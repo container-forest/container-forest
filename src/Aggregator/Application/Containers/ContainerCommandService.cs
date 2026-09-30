@@ -17,7 +17,7 @@ public sealed class ContainerCommandService(
     IRoleAssignmentRepository roleAssignments,
     IAgentChannel agents)
 {
-    /// <param name="containerId">Full container id or exact container name.</param>
+    /// <param name="containerId">Full id, exact name or unique id prefix, see <see cref="ContainerLookup"/>.</param>
     /// <param name="stopTimeout">For stop and restart; <see cref="StoppingContainerCommand.DefaultStopTimeout"/> when null.</param>
     public async Task ExecuteAsync(
         EnvironmentId environmentId,
@@ -38,9 +38,7 @@ public sealed class ContainerCommandService(
         }
 
         var containers = await agents.ListContainersAsync(environment.Id, cancellationToken);
-        var container = containers.FirstOrDefault(c => c.Id == containerId)
-            ?? containers.FirstOrDefault(c => c.Name == containerId)
-            ?? throw new NotFoundException("Container", containerId);
+        var container = ContainerLookup.Find(containers, containerId);
 
         var stack = container.StackName is { } name && StackName.TryParse(name, out var stackName)
             ? await stacks.FindByNameAsync(environment.Id, stackName, cancellationToken)

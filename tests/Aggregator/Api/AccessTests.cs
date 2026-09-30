@@ -26,7 +26,7 @@ public class AccessTests
 
         var response = await app.CreateClientAs(null).GetAsync("/api/me", Ct);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await HttpAssert.StatusAsync(HttpStatusCode.Unauthorized, response);
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public class AccessTests
         var response = await app.CreateClientAs("alice").PostAsJsonAsync(
             "/api/dev/environments", new { name = "prod", isPrivate = true }, Ct);
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, response);
     }
 
     [Fact]
@@ -54,6 +54,6 @@ public class AccessTests
         var containers = await alice.GetAsync($"/api/dev/environments/{id}/containers", Ct);
 
         Assert.Equal(0, listed.GetArrayLength());
-        Assert.Equal(HttpStatusCode.NotFound, containers.StatusCode);
+        await HttpAssert.StatusAsync(HttpStatusCode.NotFound, containers);
     }
 }

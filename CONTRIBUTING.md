@@ -69,7 +69,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers/<container>/restart   # start | stop | restart, ?timeoutSeconds=30; <container> — повний id, ім'я або унікальний префікс id (як у docker)
    ```
    Роль на середовищі для звичайного користувача: `POST /api/dev/users/<userId>/environment-roles` з `{"environmentId":"<id>","role":"Operator"}`.
-   Деплой стеку з публічного git-репозиторію (compose-файл має використовувати готові образи, `build:` відхиляється; поки агент не вміє `DeployStack`, деплой завершиться помилкою на останньому кроці):
+   Деплой стеку з публічного git-репозиторію (compose-файл має використовувати готові образи, `build:` відхиляється; для перевірки підходить `https://github.com/dockersamples/example-voting-app.git` з `composePath` = `docker-compose.images.yml`):
    ```sh
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/repositories -H 'content-type: application/json' -d '{"name":"infra","url":"https://github.com/<org>/<repo>.git"}'
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/stacks -H 'content-type: application/json' -d '{"name":"web","repositoryId":"<repoId>","branch":"main","composePath":"apps/web/compose.yaml"}'
@@ -77,6 +77,14 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/deployments/<deploymentId>   # статус і лог
    ```
    Клони репозиторіїв ЦА тримає в `git-cache/` у робочому каталозі (`CF_GIT__CACHEDIRECTORY`).
+
+   Образи з приватного registry: креди задаються на середовищі (лише адміністратор; пароль ніколи не повертається). Повторний `PUT` для того самого `server` замінює логін:
+   ```sh
+   curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/registry-credentials -H 'content-type: application/json' -d '{"server":"ghcr.io","username":"<user>","password":"<token>"}'
+   curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/registry-credentials
+   curl -X DELETE -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/registry-credentials/<credentialId>
+   ```
+   Паролі шифруються ключами з `data-protection-keys/` у робочому каталозі ЦА (`CF_DATAPROTECTION__KEYDIRECTORY`): без цього каталогу збережені креди не розшифруються.
 
    Discord-бот підключається до того самого gRPC-порту `5081`. ЦА приймає його, лише якщо в конфігурації є хеш токена бота:
    ```sh

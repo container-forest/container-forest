@@ -48,7 +48,18 @@ public sealed record StackBundle(StackName StackName, CommitSha Commit, IReadOnl
     /// <summary>Name of the compose file in the stack directory on the host; the agent passes it to compose with -f.</summary>
     public const string ComposeFileName = "compose.yaml";
 
+    /// <summary>Logins the agent uses to pull the stack's images; set by the registry credentials step.</summary>
+    public IReadOnlyList<RegistryLogin> RegistryLogins { get; init; } = [];
+
     public long TotalBytes => Files.Sum(f => (long)f.Content.Length);
+}
+
+/// <summary>A decrypted registry login for the agent.</summary>
+/// <param name="Server">The key in docker's config.json, e.g. "ghcr.io" or "https://index.docker.io/v1/".</param>
+public sealed record RegistryLogin(string Server, string Username, string Password)
+{
+    // Records print every property; the password must not reach a log through ToString.
+    public override string ToString() => $"{nameof(RegistryLogin)} {{ Server = {Server}, Username = {Username} }}";
 }
 
 /// <param name="Mode">Unix permission bits, e.g. 0o644.</param>

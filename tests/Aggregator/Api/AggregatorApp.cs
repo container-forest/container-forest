@@ -40,6 +40,7 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
     };
 
     private readonly string databasePath = Path.Combine(Path.GetTempPath(), $"cf-test-{Guid.NewGuid():N}.db");
+    private readonly string keyDirectory = Path.Combine(Path.GetTempPath(), $"cf-test-keys-{Guid.NewGuid():N}");
     private GrpcChannel? channel;
 
     public StubGitSource Git { get; } = new();
@@ -107,6 +108,7 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Development");
         builder.UseSetting("ConnectionStrings:Aggregator", $"Data Source={databasePath}");
+        builder.UseSetting("DataProtection:KeyDirectory", keyDirectory);
         builder.UseSetting("AgentGateway:CommandTimeout", "00:00:05");
         builder.UseSetting("BotGateway:TokenHashes:0", SecretToken.Hash(BotToken));
         builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Singleton<IGitSource>(Git)));
@@ -139,6 +141,11 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         foreach (var file in new[] { databasePath, databasePath + "-wal", databasePath + "-shm" })
         {
             File.Delete(file);
+        }
+
+        if (Directory.Exists(keyDirectory))
+        {
+            Directory.Delete(keyDirectory, recursive: true);
         }
     }
 

@@ -22,7 +22,7 @@ public class ContainerCommandTests
         Assert.Equal(10, command.RestartContainer.TimeoutSeconds);
         await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
 
-        Assert.Equal(HttpStatusCode.NoContent, (await request).StatusCode);
+        await HttpAssert.StatusAsync(HttpStatusCode.NoContent, request);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class ContainerCommandTests
         await AnswerListAsync(agent);
 
         // Public environments give an implicit Viewer role, which may see containers but not stop them.
-        Assert.Equal(HttpStatusCode.Forbidden, (await request).StatusCode);
+        await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, request);
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class ContainerCommandTests
 
         var response = await Send(app, agent, "c1", "restart", "nobody");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await HttpAssert.StatusAsync(HttpStatusCode.Unauthorized, response);
     }
 
     private static Task<HttpResponseMessage> Send(AggregatorApp app, FakeAgent agent, string containerId, string action, string user)

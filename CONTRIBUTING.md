@@ -78,6 +78,14 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    ```
    Клони репозиторіїв ЦА тримає в `git-cache/` у робочому каталозі (`CF_GIT__CACHEDIRECTORY`).
 
+   Образи з приватного registry: креди задаються на середовищі (лише адміністратор; пароль ніколи не повертається). Повторний `PUT` для того самого `server` замінює логін:
+   ```sh
+   curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/registry-credentials -H 'content-type: application/json' -d '{"server":"ghcr.io","username":"<user>","password":"<token>"}'
+   curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/registry-credentials
+   curl -X DELETE -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/registry-credentials/<credentialId>
+   ```
+   Паролі шифруються ключами з `data-protection-keys/` у робочому каталозі ЦА (`CF_DATAPROTECTION__KEYDIRECTORY`): без цього каталогу збережені креди не розшифруються.
+
    Discord-бот підключається до того самого gRPC-порту `5081`. ЦА приймає його, лише якщо в конфігурації є хеш токена бота:
    ```sh
    TOKEN=$(openssl rand -hex 32)                                              # у бота: CF_BOT__SERVICETOKEN

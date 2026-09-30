@@ -13,7 +13,10 @@ public static class DependencyInjection
     {
         services.AddOptions<AgentOptions>()
             .Bind(configuration.GetSection(AgentOptions.SectionName))
-            .Validate(o => o.IsValid(), "CF_AGENT__CONTROLLERURL must be an absolute http(s) URL, the data directory must be set and the heartbeat interval positive.")
+            .Validate(
+                o => o.IsValid(),
+                "CF_AGENT__CONTROLLERURL must be an absolute http(s) URL, the data, stacks and secrets directories absolute paths, " +
+                "the docker executable set and the compose timeout and heartbeat interval positive.")
             .ValidateOnStart();
 
         services.AddSingleton(TimeProvider.System);

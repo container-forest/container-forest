@@ -37,3 +37,31 @@ public sealed class DockerTimeoutException(TimeSpan timeout)
 
 public sealed class UnsupportedCommandException(string commandName)
     : AgentCommandException(ErrorCode.Unsupported, $"This agent version does not support the {commandName} command.");
+
+public sealed class StackNotFoundException(string stackName)
+    : AgentCommandException(ErrorCode.NotFound, $"Stack '{stackName}' is not deployed on this host.")
+{
+    public string StackName { get; } = stackName;
+}
+
+public sealed class StackBusyException(string stackName)
+    : AgentCommandException(ErrorCode.Busy, $"Another operation on stack '{stackName}' is running; try again when it has finished.")
+{
+    public string StackName { get; } = stackName;
+}
+
+public sealed class ComposeUnavailableException(string executable, Exception innerException)
+    : AgentCommandException(
+        ErrorCode.DockerUnavailable, $"The docker CLI ('{executable}') could not be started on this host.", innerException);
+
+public sealed class ComposeFailedException(string operation, int exitCode)
+    : AgentCommandException(ErrorCode.CommandFailed, $"{operation} exited with code {exitCode}; see the command output.")
+{
+    public int ExitCode { get; } = exitCode;
+}
+
+public sealed class ComposeTimeoutException(string operation, TimeSpan timeout)
+    : AgentCommandException(ErrorCode.Timeout, $"{operation} did not finish within {timeout.TotalMinutes:0.#} minutes and was stopped.")
+{
+    public TimeSpan Timeout { get; } = timeout;
+}

@@ -62,6 +62,12 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
             new() { ["compose.yaml"] = "services: {}", ["init.sh"] = "#!/bin/sh" },
             workTree =>
             {
+                // Repeated inside the lambda: the platform analyzer (CA1416) does not see the check above.
+                if (OperatingSystem.IsWindows())
+                {
+                    return;
+                }
+
                 File.SetUnixFileMode(Path.Combine(workTree, "init.sh"), UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
                 File.CreateSymbolicLink(Path.Combine(workTree, "secrets"), "../outside-the-stack");
             });

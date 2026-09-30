@@ -1,11 +1,15 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Common;
+using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
+using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
+using ContainerForest.Aggregator.Domain.Repositories;
 using ContainerForest.Aggregator.Domain.Stacks;
 
 namespace ContainerForest.Aggregator.Application.Tests;
@@ -60,6 +64,42 @@ internal sealed class InMemoryRoleAssignments : InMemoryRepository<RoleAssignmen
         Task.FromResult<IReadOnlyList<RoleAssignment>>(Items.Where(a => a.UserId == userId).ToList());
 }
 
+internal sealed class InMemoryGitRepositories : InMemoryRepository<GitRepository, RepositoryId>, IGitRepositoryRepository
+{
+    public Task<IReadOnlyList<GitRepository>> ListAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<GitRepository>>(Items.OrderBy(r => r.Name).ToList());
+
+    public Task<bool> NameExistsAsync(string name, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.Any(r => string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)));
+}
+
+internal sealed class InMemoryDeployments : InMemoryRepository<Deployment, DeploymentId>, IDeploymentRepository
+{
+    public IReadOnlyList<Deployment> All => Items;
+
+    public Task<bool> HasUnfinishedAsync(StackId stackId, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.Any(d => d.StackId == stackId && !d.IsFinished));
+
+    public Task<IReadOnlyList<Deployment>> ListUnfinishedAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Deployment>>(Items.Where(d => !d.IsFinished).ToList());
+
+    public Task<IReadOnlyList<DeploymentSummary>> ListByStackAsync(StackId stackId, int limit, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<DeploymentSummary>>(Items
+            .Where(d => d.StackId == stackId)
+            .OrderByDescending(d => d.QueuedAt)
+            .Take(limit)
+            .Select(d => new DeploymentSummary(
+                d.Id, d.Status, d.Trigger, d.PullPolicy, d.Commit, d.QueuedAt, d.StartedAt, d.FinishedAt, d.Error))
+            .ToList());
+}
+
+internal sealed class FakeDeploymentQueue : IDeploymentQueue
+{
+    public List<DeploymentId> Queued { get; } = [];
+
+    public void Enqueue(DeploymentId id) => Queued.Add(id);
+}
+
 internal sealed class FakeCurrentUser : ICurrentUser
 {
     public UserId? Id { get; set; }
@@ -85,7 +125,17 @@ internal sealed class FakeAgentChannel : IAgentChannel
 
     public TimeSpan? LastStopTimeout { get; private set; }
 
-    public bool IsOnline(EnvironmentId environmentId) => true;
+    public bool Online { get; set; } = true;
+
+    public StackBundle? LastBundle { get; private set; }
+
+    /// <summary>Compose output the agent reports while deploying.</summary>
+    public List<string> DeployOutput { get; } = [];
+
+    /// <summary>Thrown by the deployment after the output is reported.</summary>
+    public Exception? DeployError { get; set; }
+
+    public bool IsOnline(EnvironmentId environmentId) => Online;
 
     public Task<IReadOnlyList<ContainerSnapshot>> ListContainersAsync(EnvironmentId environmentId, CancellationToken cancellationToken)
     {
@@ -113,5 +163,19 @@ internal sealed class FakeAgentChannel : IAgentChannel
         Calls.Add($"restart {containerId}");
         LastStopTimeout = stopTimeout;
         return Task.CompletedTask;
+    }
+
+    public Task DeployStackAsync(
+        EnvironmentId environmentId, StackBundle bundle, Action<string> onProgress, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        if (!Online)
+        {
+            throw new AgentOfflineException(environmentId);
+        }
+
+        Calls.Add($"deploy {bundle.StackName}");
+        LastBundle = bundle;
+        DeployOutput.ForEach(onProgress);
+        return DeployError is null ? Task.CompletedTask : Task.FromException(DeployError);
     }
 }

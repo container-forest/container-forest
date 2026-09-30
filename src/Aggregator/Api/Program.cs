@@ -16,7 +16,7 @@ builder.Services.AddApplication();
 
 // The build-time OpenAPI generator starts the host, hosted services included; it must not create a database.
 var isOpenApiGeneration = Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider";
-builder.Services.AddInfrastructure(builder.Configuration, migrateDatabase: !isOpenApiGeneration);
+builder.Services.AddInfrastructure(builder.Configuration, runHostedServices: !isOpenApiGeneration);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, ClaimsCurrentUser>();
@@ -52,6 +52,7 @@ if (app.Environment.IsDevelopment())
     // Authentication here is the password-less dev header: never expose these outside local development.
     app.MapDevEnvironmentEndpoints();
     app.MapDevAccessEndpoints();
+    app.MapDevStackEndpoints();
 }
 
 app.Run();

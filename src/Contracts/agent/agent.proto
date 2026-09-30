@@ -164,6 +164,9 @@ message StopContainer {
 
 // Covers both redeploy (PULL_POLICY_MISSING) and redeploy with pull (PULL_POLICY_ALWAYS).
 // The aggregator rejects bundles above its configured size limit before sending.
+// files always contain the stack's compose file as "compose.yaml" at the stack directory root,
+// whatever it is called in the repository; the agent passes it to compose with -f compose.yaml,
+// so other compose files in the directory (e.g. compose.override.yaml) are not merged in.
 message DeployStack {
   string stack_name = 1;
   string commit_sha = 2;

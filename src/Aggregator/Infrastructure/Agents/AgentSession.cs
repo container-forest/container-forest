@@ -18,7 +18,7 @@ public sealed class AgentSession
 
     // gRPC forbids concurrent writes to one stream.
     private readonly SemaphoreSlim writeLock = new(1, 1);
-    private readonly ConcurrentDictionary<string, TaskCompletionSource<CommandResult>> pending = new();
+    private readonly ConcurrentDictionary<string, PendingRequest> pending = new();
     private readonly CancellationTokenSource closed = new();
     private int closing;
 
@@ -48,15 +48,17 @@ public sealed class AgentSession
     public int PendingCount => pending.Count;
 
     /// <summary>Sends a command and waits for its result.</summary>
+    /// <param name="onProgress">Receives the command's output lines (CommandProgress) until the result arrives.</param>
     /// <exception cref="AgentDisconnectedException">The session closed before the result arrived.</exception>
     /// <exception cref="AgentTimeoutException">No result within <paramref name="timeout"/>.</exception>
-    public async Task<CommandResult> RequestAsync(ControllerMessage command, TimeSpan timeout, CancellationToken cancellationToken)
+    public async Task<CommandResult> RequestAsync(
+        ControllerMessage command, TimeSpan timeout, CancellationToken cancellationToken, Action<string>? onProgress = null)
     {
         var requestId = Guid.NewGuid().ToString("N");
         command.RequestId = requestId;
 
         var completion = new TaskCompletionSource<CommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        pending[requestId] = completion;
+        pending[requestId] = new PendingRequest(completion, onProgress);
         try
         {
             // Checked after registering: Close marks the session closed before it fails pending requests,
@@ -115,12 +117,21 @@ public sealed class AgentSession
         }
     }
 
+    /// <summary>Passes an output line to the request it belongs to. Lines of finished requests are dropped.</summary>
+    public void ReportProgress(CommandProgress progress)
+    {
+        if (pending.TryGetValue(progress.RequestId, out var request) && request.OnProgress is { } onProgress)
+        {
+            onProgress(progress.Line);
+        }
+    }
+
     /// <summary>Completes the request the result belongs to. Late results of timed-out requests are dropped.</summary>
     public void Complete(CommandResult result)
     {
-        if (pending.TryRemove(result.RequestId, out var completion))
+        if (pending.TryRemove(result.RequestId, out var request))
         {
-            completion.TrySetResult(result);
+            request.Completion.TrySetResult(result);
         }
         else
         {
@@ -142,12 +153,14 @@ public sealed class AgentSession
             "Agent session {SessionId} of environment {EnvironmentId} closed: {Reason}", SessionId, EnvironmentId, reason);
         closed.Cancel();
 
-        foreach (var (requestId, completion) in pending)
+        foreach (var (requestId, request) in pending)
         {
             if (pending.TryRemove(requestId, out _))
             {
-                completion.TrySetException(new AgentDisconnectedException(EnvironmentId));
+                request.Completion.TrySetException(new AgentDisconnectedException(EnvironmentId));
             }
         }
     }
+
+    private sealed record PendingRequest(TaskCompletionSource<CommandResult> Completion, Action<string>? OnProgress);
 }

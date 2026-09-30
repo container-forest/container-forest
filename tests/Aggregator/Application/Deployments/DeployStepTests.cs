@@ -1,0 +1,178 @@
+using ContainerForest.Aggregator.Application.Agents;
+using ContainerForest.Aggregator.Application.Deployments;
+using ContainerForest.Aggregator.Application.Deployments.Steps;
+using ContainerForest.Aggregator.Domain.Deployments;
+using static ContainerForest.Aggregator.Application.Tests.Deployments.DeployFixtures;
+
+namespace ContainerForest.Aggregator.Application.Tests.Deployments;
+
+public class GitFetchStepTests
+{
+    [Fact]
+    public async Task Reads_the_compose_file_directory_and_pins_the_commit()
+    {
+        var git = new FakeGitSource
+        {
+            Snapshot = new GitSnapshot(Commit, [File("compose.yaml")], ["current-link"]),
+        };
+        var context = Context("apps/web/compose.yaml");
+        context.Deployment.Start(Now);
+
+        await new GitFetchStep(git, new DeploymentOptions()).ExecuteAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Equal("apps/web", git.RequestedDirectory);
+        Assert.Equal(Commit, context.Deployment.Commit);
+        Assert.Single(context.Source.Files);
+        Assert.Contains(Lines(context, DeploymentLogLevel.Warning), l => l.Contains("current-link", StringComparison.Ordinal));
+    }
+}
+
+public class ValidateComposeStepTests
+{
+    [Fact]
+    public async Task Pinned_images_pass_without_warnings()
+    {
+        var context = Fetched(File("compose.yaml"));
+
+        await Run(context, new ComposeService("web", "nginx:1.27", HasBuild: false, Extends: false));
+
+        Assert.Empty(Lines(context, DeploymentLogLevel.Warning));
+    }
+
+    [Theory]
+    [InlineData("nginx")]
+    [InlineData("nginx:latest")]
+    public async Task Floating_latest_is_a_warning_not_an_error(string image)
+    {
+        var context = Fetched(File("compose.yaml"));
+
+        await Run(context, new ComposeService("web", image, HasBuild: false, Extends: false));
+
+        Assert.Contains(Lines(context, DeploymentLogLevel.Warning), l => l.Contains("'web'", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Build_is_rejected()
+    {
+        var context = Fetched(File("compose.yaml"));
+
+        var error = await Assert.ThrowsAsync<DeploymentFailedException>(() =>
+            Run(context, new ComposeService("api", Image: null, HasBuild: true, Extends: false)));
+        Assert.Contains("'api'", error.Message);
+    }
+
+    [Fact]
+    public async Task Service_without_image_is_rejected_unless_it_extends_another()
+    {
+        await Assert.ThrowsAsync<DeploymentFailedException>(() =>
+            Run(Fetched(File("compose.yaml")), new ComposeService("api", Image: null, HasBuild: false, Extends: false)));
+
+        await Run(Fetched(File("compose.yaml")), new ComposeService("api", Image: null, HasBuild: false, Extends: true));
+    }
+
+    [Fact]
+    public async Task Images_with_variables_are_not_checked()
+    {
+        var context = Fetched(File("compose.yaml"));
+
+        await Run(context, new ComposeService("web", "${REGISTRY}/web:${TAG:-latest}", HasBuild: false, Extends: false));
+
+        Assert.Empty(Lines(context, DeploymentLogLevel.Warning));
+    }
+
+    [Fact]
+    public async Task Missing_compose_file_is_an_error()
+    {
+        var context = Fetched("docker-compose.yml", File("compose.yaml"));
+
+        await Assert.ThrowsAsync<DeploymentFailedException>(() =>
+            Run(context, new ComposeService("web", "nginx:1.27", HasBuild: false, Extends: false)));
+    }
+
+    [Fact]
+    public async Task Compose_without_services_is_an_error()
+    {
+        await Assert.ThrowsAsync<DeploymentFailedException>(() => Run(Fetched(File("compose.yaml"))));
+    }
+
+    private static Task Run(DeployContext context, params ComposeService[] services) =>
+        new ValidateComposeStep(new FakeComposeParser(services)).ExecuteAsync(context, TestContext.Current.CancellationToken);
+}
+
+public class BuildBundleStepTests
+{
+    [Fact]
+    public async Task Compose_file_is_renamed_and_modes_are_kept()
+    {
+        var context = Fetched(
+            "docker-compose.prod.yml",
+            File("docker-compose.prod.yml", "services: {}"),
+            File("scripts/init.sh", "#!/bin/sh", executable: true));
+
+        await Run(context);
+
+        var bundle = context.Bundle;
+        Assert.Equal(["compose.yaml", "scripts/init.sh"], bundle.Files.Select(f => f.Path.Value));
+        Assert.Equal([BundleFile.RegularMode, BundleFile.ExecutableMode], bundle.Files.Select(f => f.Mode));
+        Assert.Equal(Commit, bundle.Commit);
+        Assert.Equal("web", bundle.StackName.Value);
+    }
+
+    [Fact]
+    public async Task Another_compose_yaml_next_to_the_compose_file_is_a_conflict()
+    {
+        var context = Fetched("docker-compose.yml", File("docker-compose.yml"), File("compose.yaml"));
+
+        await Assert.ThrowsAsync<DeploymentFailedException>(() => Run(context));
+    }
+
+    [Fact]
+    public async Task Bundle_over_the_limit_is_rejected()
+    {
+        var context = Fetched(File("compose.yaml", new string('x', 2048)));
+
+        await Assert.ThrowsAsync<DeploymentFailedException>(() => Run(context, maxBytes: 1024));
+    }
+
+    private static Task Run(DeployContext context, long maxBytes = 1024 * 1024) =>
+        new BuildBundleStep(new DeploymentOptions { MaxBundleBytes = maxBytes })
+            .ExecuteAsync(context, TestContext.Current.CancellationToken);
+}
+
+public class SendToAgentStepTests
+{
+    [Fact]
+    public async Task Compose_output_goes_to_the_log()
+    {
+        var agent = new FakeAgentChannel { DeployOutput = { "Container web-1 Started" } };
+        var context = Bundled();
+
+        await new SendToAgentStep(agent, new DeploymentOptions()).ExecuteAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Same(context.Bundle, agent.LastBundle);
+        Assert.Contains("Container web-1 Started", Lines(context, DeploymentLogLevel.Info));
+    }
+
+    [Fact]
+    public async Task Output_is_kept_when_the_agent_reports_an_error()
+    {
+        var context = Bundled();
+        var agent = new FakeAgentChannel
+        {
+            DeployOutput = { "Error response from daemon: pull access denied" },
+            DeployError = new AgentCommandFailedException(context.Environment.Id, AgentErrorKind.CommandFailed, "compose up failed"),
+        };
+
+        await Assert.ThrowsAsync<AgentCommandFailedException>(() =>
+            new SendToAgentStep(agent, new DeploymentOptions()).ExecuteAsync(context, TestContext.Current.CancellationToken));
+
+        Assert.Contains("Error response from daemon: pull access denied", Lines(context, DeploymentLogLevel.Info));
+    }
+
+    private static DeployContext Bundled()
+    {
+        var context = Fetched(File("compose.yaml"));
+        context.Bundle = new StackBundle(context.Stack.Name, Commit, [], ImagePullPolicy.Missing);
+        return context;
+    }
+}

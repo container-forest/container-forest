@@ -1,6 +1,8 @@
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Domain.Common;
+using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Contracts.Agent;
+using Google.Protobuf;
 using Microsoft.Extensions.Options;
 using ContainerState = ContainerForest.Aggregator.Application.Agents.ContainerState;
 using ProtoContainerState = ContainerForest.Contracts.Agent.ContainerState;
@@ -48,20 +50,47 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
             WaitFor(stopTimeout),
             cancellationToken);
 
+    public Task DeployStackAsync(
+        EnvironmentId environmentId,
+        StackBundle bundle,
+        Action<string> onProgress,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var command = new DeployStack
+        {
+            StackName = bundle.StackName.Value,
+            CommitSha = bundle.Commit.Value,
+            Pull = bundle.Pull == ImagePullPolicy.Always ? PullPolicy.Always : PullPolicy.Missing,
+        };
+        command.Files.AddRange(bundle.Files.Select(f => new StackFile
+        {
+            Path = f.Path.Value,
+            Content = ByteString.CopyFrom(f.Content),
+            Mode = (uint)f.Mode,
+        }));
+
+        return SendAsync(environmentId, new ControllerMessage { DeployStack = command }, timeout, cancellationToken, onProgress);
+    }
+
     // Docker may wait the whole stop timeout before killing the process; the answer comes after that.
     private TimeSpan WaitFor(TimeSpan stopTimeout) => options.Value.CommandTimeout + stopTimeout;
 
     private static int Seconds(TimeSpan timeout) => (int)Math.Ceiling(timeout.TotalSeconds);
 
     private async Task<CommandResult> SendAsync(
-        EnvironmentId environmentId, ControllerMessage command, TimeSpan timeout, CancellationToken cancellationToken)
+        EnvironmentId environmentId,
+        ControllerMessage command,
+        TimeSpan timeout,
+        CancellationToken cancellationToken,
+        Action<string>? onProgress = null)
     {
         if (!registry.TryGet(environmentId, out var session))
         {
             throw new AgentOfflineException(environmentId);
         }
 
-        var result = await session.RequestAsync(command, timeout, cancellationToken);
+        var result = await session.RequestAsync(command, timeout, cancellationToken, onProgress);
         if (result.Error is { } error)
         {
             throw new AgentCommandFailedException(environmentId, ToErrorKind(error.Code), error.Message);

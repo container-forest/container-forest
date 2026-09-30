@@ -27,6 +27,17 @@ internal sealed class DeploymentConfiguration : IEntityTypeConfiguration<Deploym
         builder.HasOne<Stack>().WithMany().HasForeignKey(d => d.StackId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<User>().WithMany().HasForeignKey(d => d.RequestedBy).OnDelete(DeleteBehavior.Restrict);
 
+        builder.OwnsMany(d => d.Log, log =>
+        {
+            log.ToTable("DeploymentLogLines");
+            log.WithOwner().HasForeignKey("DeploymentId");
+            log.HasKey("DeploymentId", nameof(DeploymentLogLine.Sequence));
+            log.Property(l => l.Sequence).ValueGeneratedNever();
+            log.Property(l => l.Level).HasConversion<string>().HasMaxLength(16);
+            log.Property(l => l.Text).HasMaxLength(Deployment.MaxLogLineLength);
+        });
+        builder.Navigation(d => d.Log).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         builder.Ignore(d => d.IsFinished);
         builder.Ignore(d => d.Duration);
     }

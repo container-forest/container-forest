@@ -44,6 +44,17 @@ service BotGateway {
 
   // Starts, stops or restarts a container. Returns once the agent has done it.
   rpc ControlContainer(ControlContainerRequest) returns (ControlContainerResponse);
+
+  // Notifications for the bot to post. The bot keeps one call open and reopens it with backoff when it
+  // ends; a new call replaces the previous one. Notifications created while no bot was connected are sent
+  // when it connects, unless they are older than an hour: those are expired, not delivered late.
+  // Not on behalf of a user: notifications go to channels, and administrators choose what goes where.
+  // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+  rpc WatchNotifications(WatchNotificationsRequest) returns (stream Notification);
+
+  // The outcome of posting one notification. Every received notification gets exactly one report;
+  // a notification without a report is sent again on the next WatchNotifications call.
+  rpc ReportDelivery(ReportDeliveryRequest) returns (ReportDeliveryResponse);
 }
 
 message GetCallerRequest {
@@ -138,3 +149,69 @@ enum ContainerAction {
   CONTAINER_ACTION_STOP = 2;
   CONTAINER_ACTION_RESTART = 3;
 }
+
+message WatchNotificationsRequest {}
+
+// summary is the same one-line plain text the panel shows in the notification history; the bot may use
+// the structured fields to build a richer message, e.g. a "Restart" button for a container that died.
+message Notification {
+  string id = 1;
+  uint64 discord_channel_id = 2;
+  NotificationKind kind = 3;
+  NotificationSeverity severity = 4;
+  int64 occurred_unix_ms = 5;
+  string environment_id = 6;
+  string environment_name = 7;
+  string summary = 8;
+  // 9-19 are kept for fields shared by all kinds.
+  // Unset for agent events, which concern the environment as a whole.
+  oneof details {
+    DeploymentDetails deployment = 20;
+    ContainerDetails container = 21;
+  }
+}
+
+enum NotificationKind {
+  NOTIFICATION_KIND_UNSPECIFIED = 0;
+  NOTIFICATION_KIND_DEPLOYMENT_SUCCEEDED = 1;
+  NOTIFICATION_KIND_DEPLOYMENT_FAILED = 2;
+  NOTIFICATION_KIND_CONTAINER_DIED = 3;
+  NOTIFICATION_KIND_CONTAINER_UNHEALTHY = 4;
+  NOTIFICATION_KIND_AGENT_OFFLINE = 5;
+  NOTIFICATION_KIND_AGENT_ONLINE = 6;
+}
+
+enum NotificationSeverity {
+  NOTIFICATION_SEVERITY_UNSPECIFIED = 0;
+  NOTIFICATION_SEVERITY_INFO = 1;
+  NOTIFICATION_SEVERITY_WARNING = 2;
+  NOTIFICATION_SEVERITY_ERROR = 3;
+}
+
+// error is the deployment's failure reason (empty on success); it never contains secret values.
+message DeploymentDetails {
+  string deployment_id = 1;
+  string stack_id = 2;
+  string stack_name = 3;
+  string commit_sha = 4;
+  bool pulled_images = 5;  // redeploy with pull
+  string error = 6;
+}
+
+// stack_name and service_name are empty for containers outside compose; exit_code is set for CONTAINER_DIED.
+message ContainerDetails {
+  string container_id = 1;
+  string container_name = 2;
+  string stack_name = 3;
+  string service_name = 4;
+  optional int32 exit_code = 5;
+}
+
+// error explains a failed post (e.g. the bot may not write to the channel); it is shown in the panel.
+message ReportDeliveryRequest {
+  string notification_id = 1;
+  bool delivered = 2;
+  string error = 3;
+}
+
+message ReportDeliveryResponse {}

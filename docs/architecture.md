@@ -135,3 +135,13 @@ services:
       - /opt/container-forest:/opt/container-forest
       - /run/container-forest:/run/container-forest
 ```
+
+## Розгортання Discord-бота
+
+Бот — окремий контейнер без стану: лише вихідні з'єднання з Discord і з gRPC-портом ЦА, без томів і вхідних портів. Приклад — [`deploy/discord-bot/compose.yaml`](../deploy/discord-bot/compose.yaml): образ `container-forest-discord-bot` працює від непривілейованого користувача, з файловою системою лише для читання, без capabilities.
+
+- `CF_BOT__CONTROLLERURL` — gRPC-адреса ЦА (та сама, що для агентів).
+- `CF_BOT__SERVICETOKEN` — сервісний токен бота; ЦА зберігає лише його SHA-256 у `CF_BOTGATEWAY__TOKENHASHES__0`.
+- `CF_DISCORD__TOKEN` — токен бота Discord. Невірний токен зупиняє контейнер з кодом 1 і підказкою в лозі.
+
+⚠️ Обидва токени рівносильні адмінському доступу (інваріант 9). У прикладі вони приходять із `.env` поруч із compose-файлом, який не комітиться і доступний лише root.

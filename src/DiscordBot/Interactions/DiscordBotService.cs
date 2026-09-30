@@ -18,6 +18,8 @@ public sealed class DiscordBotService(
     IHostApplicationLifetime lifetime,
     ILogger<DiscordBotService> logger) : BackgroundService
 {
+    private const int AuthenticationFailedCloseCode = 4004;
+
     private int commandsRegistered;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -32,14 +34,18 @@ public sealed class DiscordBotService(
         try
         {
             await client.LoginAsync(TokenType.Bot, options.Value.Token);
+            // LoginAsync only checks the token's format. Without a real request a rejected token would surface
+            // as endless gateway reconnects, each failing with 401.
+            await client.GetApplicationInfoAsync();
         }
         catch (HttpException ex) when (ex.HttpCode == HttpStatusCode.Unauthorized)
         {
-            logger.LogCritical("Discord rejected the bot token. Check CF_DISCORD__TOKEN (Discord:Token in user secrets).");
-            Environment.ExitCode = 1;
-            lifetime.StopApplication();
+            StopOnRejectedToken();
             return;
         }
+
+        // The token can also be reset in the Developer Portal while the bot runs.
+        client.Disconnected += StopIfTokenRejectedAsync;
 
         // Reconnects on its own after network failures; Ready fires again after each full reconnect.
         await client.StartAsync();
@@ -56,6 +62,25 @@ public sealed class DiscordBotService(
             await client.StopAsync();
             await client.LogoutAsync();
         }
+    }
+
+    /// <summary>Discord closes the gateway with 4004 for a bad token; fetching the gateway URL fails with 401.</summary>
+    private Task StopIfTokenRejectedAsync(Exception exception)
+    {
+        if (exception is HttpException { HttpCode: HttpStatusCode.Unauthorized }
+            || exception is WebSocketClosedException { CloseCode: AuthenticationFailedCloseCode })
+        {
+            StopOnRejectedToken();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void StopOnRejectedToken()
+    {
+        logger.LogCritical("Discord rejected the bot token. Check CF_DISCORD__TOKEN (Discord:Token in user secrets).");
+        Environment.ExitCode = 1;
+        lifetime.StopApplication();
     }
 
     private async Task RegisterCommandsAsync()

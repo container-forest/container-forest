@@ -3,6 +3,7 @@ using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
@@ -39,6 +40,9 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRoleAssignmentRepository, RoleAssignmentRepository>();
         services.AddScoped<IDiscordLinkRepository, DiscordLinkRepository>();
+        services.AddScoped<INotificationChannelRepository, NotificationChannelRepository>();
+        services.AddScoped<INotificationRuleRepository, NotificationRuleRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<IGitRepositoryRepository, GitRepositoryRepository>();
         services.AddScoped<IDeploymentRepository, DeploymentRepository>();
         services.AddScoped<IRegistryCredentialRepository, RegistryCredentialRepository>();

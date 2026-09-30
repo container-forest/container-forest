@@ -100,7 +100,14 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    $env:CF_BOTGATEWAY__TOKENHASHES__0 = -join ([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($token)) | ForEach-Object { $_.ToString('x2') })   # у ЦА, перед dotnet run
    dotnet user-secrets set Bot:ServiceToken $token --project src/DiscordBot
    ```
-   Токен рівносильний адмінському доступу; деталі й ротація — у `CLAUDE.md` (пункт про токен бота). Поки що бот має лише клієнт ЦА, без підключення до Discord.
+   Токен рівносильний адмінському доступу; деталі й ротація — у `CLAUDE.md` (пункт про токен бота).
+
+   Для Discord потрібен власний тестовий застосунок (https://discord.com/developers/applications → Bot → Reset Token) і тестовий сервер, куди бота запрошено зі scope `bot` і `applications.commands` (OAuth2 → URL Generator). Id сервера: у Discord увімкнути Developer Mode, потім ПКМ на сервері → Copy Server ID. У `Development` slash-команди реєструються лише на цьому сервері, де з'являються одразу:
+   ```sh
+   dotnet user-secrets set Discord:Token "<токен бота Discord>" --project src/DiscordBot
+   dotnet user-secrets set Discord:DevGuildId "<id сервера>" --project src/DiscordBot
+   ```
+   Щоб користуватися командами, прив'яжіть Discord-акаунт: отримайте код (`curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/me/discord/link-code`) і виконайте в Discord `/link <код>`. Відповіді бота бачить лише автор команди.
 5. `cd src/Web && npm ci && npm run dev` — панель на `http://localhost:5173`; `/api` і `/hubs` проксюються на ЦА.
 
 Тести: `dotnet test --solution ContainerForest.slnx`. Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.

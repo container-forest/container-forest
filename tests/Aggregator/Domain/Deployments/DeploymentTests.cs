@@ -81,4 +81,49 @@ public class DeploymentTests
 
         Assert.Equal(Deployment.MaxErrorLength, deployment.Error!.Length);
     }
+
+    [Fact]
+    public void Log_keeps_lines_in_order()
+    {
+        var deployment = Deployment.QueueFromWebhook(StackId.New(), Now);
+
+        deployment.AppendLog(DeploymentLogLevel.Info, "first", Now);
+        deployment.AppendLog(DeploymentLogLevel.Warning, "second", Now);
+
+        Assert.Equal(["first", "second"], deployment.Log.Select(l => l.Text));
+        Assert.Equal([0, 1], deployment.Log.Select(l => l.Sequence));
+    }
+
+    [Fact]
+    public void Log_stops_at_the_limit_with_one_note()
+    {
+        var deployment = Deployment.QueueFromWebhook(StackId.New(), Now);
+
+        for (var i = 0; i < Deployment.MaxLogLines + 10; i++)
+        {
+            deployment.AppendLog(DeploymentLogLevel.Info, $"line {i}", Now);
+        }
+
+        Assert.Equal(Deployment.MaxLogLines + 1, deployment.Log.Count);
+        Assert.Equal(DeploymentLogLevel.Warning, deployment.Log[^1].Level);
+    }
+
+    [Fact]
+    public void Log_truncates_long_lines()
+    {
+        var deployment = Deployment.QueueFromWebhook(StackId.New(), Now);
+
+        deployment.AppendLog(DeploymentLogLevel.Info, new string('x', Deployment.MaxLogLineLength + 1), Now);
+
+        Assert.Equal(Deployment.MaxLogLineLength, deployment.Log[0].Text.Length);
+    }
+
+    [Fact]
+    public void Log_of_a_finished_deployment_is_closed()
+    {
+        var deployment = Deployment.QueueFromWebhook(StackId.New(), Now);
+        deployment.Fail("boom", Now);
+
+        Assert.Throws<DomainConflictException>(() => deployment.AppendLog(DeploymentLogLevel.Info, "late", Now));
+    }
 }

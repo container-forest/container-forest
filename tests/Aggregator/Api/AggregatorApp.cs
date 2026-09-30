@@ -4,14 +4,17 @@ using System.Text.Json.Serialization;
 using ContainerForest.Aggregator.Api.Grpc;
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
+using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Contracts.Agent;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace ContainerForest.Aggregator.Api.Tests;
@@ -19,6 +22,7 @@ namespace ContainerForest.Aggregator.Api.Tests;
 /// <summary>
 /// The aggregator in memory with its own SQLite file, plus helpers to act as an agent.
 /// <see cref="WebApplicationFactory{TEntryPoint}.CreateClient()"/> acts as the administrator <see cref="AdminUserName"/>.
+/// Git is replaced by <see cref="Git"/>, so deployments never reach the network.
 /// </summary>
 internal sealed class AggregatorApp : WebApplicationFactory<Program>
 {
@@ -32,6 +36,8 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
 
     private readonly string databasePath = Path.Combine(Path.GetTempPath(), $"cf-test-{Guid.NewGuid():N}.db");
     private GrpcChannel? channel;
+
+    public StubGitSource Git { get; } = new();
 
     public AgentGateway.AgentGatewayClient Gateway
     {
@@ -99,6 +105,7 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         builder.UseEnvironment("Development");
         builder.UseSetting("ConnectionStrings:Aggregator", $"Data Source={databasePath}");
         builder.UseSetting("AgentGateway:CommandTimeout", "00:00:05");
+        builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Singleton<IGitSource>(Git)));
     }
 
     protected override void ConfigureClient(HttpClient client)
@@ -134,6 +141,22 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
     public sealed record CreatedEnvironment(Guid Id, string Name, string EnrollmentToken, DateTimeOffset ExpiresAt);
 
     public sealed record EnvironmentView(Guid Id, string Name, bool IsEnrolled, bool IsOnline, string? AgentHostname, string? AgentVersion);
+}
+
+/// <summary>Returns <see cref="Snapshot"/> for every fetch.</summary>
+internal sealed class StubGitSource : IGitSource
+{
+    public GitSnapshot? Snapshot { get; set; }
+
+    public Task<GitSnapshot> FetchAsync(
+        Domain.Repositories.GitRepository repository,
+        Domain.Stacks.BranchName branch,
+        string directory,
+        long maxBytes,
+        CancellationToken cancellationToken) =>
+        Snapshot is { } snapshot
+            ? Task.FromResult(snapshot)
+            : throw new DeploymentFailedException($"Branch '{branch}' does not exist.");
 }
 
 /// <summary>Plays the agent's side of the Connect stream.</summary>

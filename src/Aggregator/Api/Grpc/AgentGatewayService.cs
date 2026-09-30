@@ -144,13 +144,16 @@ public sealed class AgentGatewayService(
             case AgentMessage.BodyOneofCase.Result:
                 session.Complete(message.Result);
                 break;
+            case AgentMessage.BodyOneofCase.Progress:
+                session.ReportProgress(message.Progress);
+                break;
             case AgentMessage.BodyOneofCase.Heartbeat:
                 break;
             case AgentMessage.BodyOneofCase.Hello:
                 logger.LogWarning("Environment {EnvironmentId} sent a second Hello; ignoring it", session.EnvironmentId);
                 break;
             default:
-                // Container events, command progress and log batches get consumers with live updates and log streaming.
+                // Container events and log batches get consumers with live updates and log streaming.
                 logger.LogTrace("Ignoring {MessageType} from environment {EnvironmentId}", message.BodyCase, session.EnvironmentId);
                 break;
         }

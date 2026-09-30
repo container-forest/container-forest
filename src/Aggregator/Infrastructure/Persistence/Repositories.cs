@@ -1,10 +1,14 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
+using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
+using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
+using ContainerForest.Aggregator.Domain.Repositories;
 using ContainerForest.Aggregator.Domain.Stacks;
 using Microsoft.EntityFrameworkCore;
 
@@ -62,4 +66,36 @@ internal sealed class RoleAssignmentRepository(AggregatorDbContext db)
 {
     public async Task<IReadOnlyList<RoleAssignment>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>
         await Set.Where(a => a.UserId == userId).ToListAsync(cancellationToken);
+}
+
+internal sealed class GitRepositoryRepository(AggregatorDbContext db)
+    : EfRepository<GitRepository, RepositoryId>(db), IGitRepositoryRepository
+{
+    public async Task<IReadOnlyList<GitRepository>> ListAsync(CancellationToken cancellationToken) =>
+        await Set.OrderBy(r => r.Name).ToListAsync(cancellationToken);
+
+    public Task<bool> NameExistsAsync(string name, CancellationToken cancellationToken) =>
+        Set.AnyAsync(r => r.Name == name, cancellationToken);
+}
+
+internal sealed class DeploymentRepository(AggregatorDbContext db)
+    : EfRepository<Deployment, DeploymentId>(db), IDeploymentRepository
+{
+    private static readonly DeploymentStatus[] Unfinished = [DeploymentStatus.Queued, DeploymentStatus.Running];
+
+    public Task<bool> HasUnfinishedAsync(StackId stackId, CancellationToken cancellationToken) =>
+        Set.AnyAsync(d => d.StackId == stackId && Unfinished.Contains(d.Status), cancellationToken);
+
+    public async Task<IReadOnlyList<Deployment>> ListUnfinishedAsync(CancellationToken cancellationToken) =>
+        await Set.Where(d => Unfinished.Contains(d.Status)).ToListAsync(cancellationToken);
+
+    // The projection leaves the log out of the query.
+    public async Task<IReadOnlyList<DeploymentSummary>> ListByStackAsync(
+        StackId stackId, int limit, CancellationToken cancellationToken) =>
+        await Set.Where(d => d.StackId == stackId)
+            .OrderByDescending(d => d.QueuedAt)
+            .Take(limit)
+            .Select(d => new DeploymentSummary(
+                d.Id, d.Status, d.Trigger, d.PullPolicy, d.Commit, d.QueuedAt, d.StartedAt, d.FinishedAt, d.Error))
+            .ToListAsync(cancellationToken);
 }

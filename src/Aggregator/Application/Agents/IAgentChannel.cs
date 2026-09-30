@@ -1,4 +1,6 @@
 using ContainerForest.Aggregator.Domain.Common;
+using ContainerForest.Aggregator.Domain.Deployments;
+using ContainerForest.Aggregator.Domain.Stacks;
 
 namespace ContainerForest.Aggregator.Application.Agents;
 
@@ -24,6 +26,36 @@ public interface IAgentChannel
     /// <param name="stopTimeout">How long Docker waits for the process to exit before killing it.</param>
     Task RestartContainerAsync(
         EnvironmentId environmentId, string containerId, TimeSpan stopTimeout, CancellationToken cancellationToken);
+
+    /// <summary>Writes the stack files on the host and runs docker compose up; returns when compose has finished.</summary>
+    /// <param name="onProgress">
+    /// Receives each line of compose output as it arrives. Called from the connection's receive loop:
+    /// it must be quick and thread-safe.
+    /// </param>
+    /// <param name="timeout">How long to wait for the result; pulling images can take minutes.</param>
+    Task DeployStackAsync(
+        EnvironmentId environmentId,
+        StackBundle bundle,
+        Action<string> onProgress,
+        TimeSpan timeout,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>Everything the agent needs to deploy one stack. It may hold decrypted secrets, so it is never logged.</summary>
+/// <param name="Files">Paths are relative to the stack directory; the compose file is always <see cref="ComposeFileName"/>.</param>
+public sealed record StackBundle(StackName StackName, CommitSha Commit, IReadOnlyList<BundleFile> Files, ImagePullPolicy Pull)
+{
+    /// <summary>Name of the compose file in the stack directory on the host; the agent passes it to compose with -f.</summary>
+    public const string ComposeFileName = "compose.yaml";
+
+    public long TotalBytes => Files.Sum(f => (long)f.Content.Length);
+}
+
+/// <param name="Mode">Unix permission bits, e.g. 0o644.</param>
+public sealed record BundleFile(StackFilePath Path, byte[] Content, int Mode)
+{
+    public const int RegularMode = 0b110_100_100;     // 0644
+    public const int ExecutableMode = 0b111_101_101;  // 0755
 }
 
 /// <summary>Live state of a container as the agent reports it; not stored in the database.</summary>

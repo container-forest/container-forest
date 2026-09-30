@@ -50,6 +50,22 @@ public class AgentSessionTests
     }
 
     [Fact]
+    public async Task Progress_reaches_its_request_until_the_result_arrives()
+    {
+        var lines = new List<string>();
+        var request = session.RequestAsync(ListContainers(), Timeout, Ct, lines.Add);
+        var sent = await writer.NextAsync();
+
+        session.ReportProgress(new CommandProgress { RequestId = sent.RequestId, Line = "Pulling web" });
+        session.ReportProgress(new CommandProgress { RequestId = "someone-else", Line = "not ours" });
+        session.Complete(new CommandResult { RequestId = sent.RequestId });
+        await request;
+        session.ReportProgress(new CommandProgress { RequestId = sent.RequestId, Line = "too late" });
+
+        Assert.Equal(["Pulling web"], lines);
+    }
+
+    [Fact]
     public async Task Close_fails_waiting_requests()
     {
         var request = session.RequestAsync(ListContainers(), Timeout, Ct);

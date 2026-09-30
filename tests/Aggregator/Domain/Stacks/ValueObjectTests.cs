@@ -58,6 +58,17 @@ public class StackFilePathTests
     [InlineData("app\0.yaml")]
     public void Rejects_paths_that_could_escape_or_are_malformed(string value) =>
         Assert.False(StackFilePath.TryParse(value, out _));
+
+    [Theory]
+    [InlineData("compose.yaml", "", "compose.yaml")]
+    [InlineData("apps/web/docker-compose.yml", "apps/web", "docker-compose.yml")]
+    public void Splits_into_directory_and_file_name(string value, string directory, string fileName)
+    {
+        var path = StackFilePath.Parse(value);
+
+        Assert.Equal(directory, path.Directory);
+        Assert.Equal(fileName, path.FileName);
+    }
 }
 
 public class CommitShaTests

@@ -130,3 +130,6 @@ desktop.ini
 *.db
 *.db-shm
 *.db-wal
+
+# Aggregator: bare clones of stack repositories (Git:CacheDirectory)
+git-cache/

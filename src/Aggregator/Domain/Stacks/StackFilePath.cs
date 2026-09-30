@@ -19,6 +19,11 @@ public sealed record StackFilePath
 
     public string Value { get; }
 
+    /// <summary>Directory part without a trailing '/'; empty for a file at the root.</summary>
+    public string Directory => Value.LastIndexOf('/') is var slash and >= 0 ? Value[..slash] : "";
+
+    public string FileName => Value[(Value.LastIndexOf('/') + 1)..];
+
     public static StackFilePath Parse(string value) =>
         TryParse(value, out var path)
             ? path

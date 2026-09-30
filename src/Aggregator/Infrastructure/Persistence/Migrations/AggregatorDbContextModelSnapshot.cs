@@ -324,6 +324,37 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasForeignKey("StackId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.OwnsMany("ContainerForest.Aggregator.Domain.Deployments.DeploymentLogLine", "Log", b1 =>
+                        {
+                            b1.Property<Guid>("DeploymentId")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<int>("Sequence")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<long>("At")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<string>("Level")
+                                .IsRequired()
+                                .HasMaxLength(16)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("Text")
+                                .IsRequired()
+                                .HasMaxLength(2000)
+                                .HasColumnType("TEXT");
+
+                            b1.HasKey("DeploymentId", "Sequence");
+
+                            b1.ToTable("DeploymentLogLines", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("DeploymentId");
+                        });
+
+                    b.Navigation("Log");
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Stacks.Stack", b =>

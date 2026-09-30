@@ -69,6 +69,12 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
             Content = ByteString.CopyFrom(f.Content),
             Mode = (uint)f.Mode,
         }));
+        command.RegistryAuths.AddRange(bundle.RegistryLogins.Select(l => new RegistryAuth
+        {
+            Server = l.Server,
+            Username = l.Username,
+            Password = l.Password,
+        }));
 
         return SendAsync(environmentId, new ControllerMessage { DeployStack = command }, timeout, cancellationToken, onProgress);
     }

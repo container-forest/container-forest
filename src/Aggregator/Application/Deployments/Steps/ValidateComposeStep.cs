@@ -34,6 +34,7 @@ public sealed class ValidateComposeStep(IComposeParser parser) : IDeployStep
             throw new DeploymentFailedException(string.Join(" ", errors));
         }
 
+        context.Compose = compose;
         context.Info($"{compose.Services.Count} service(s): {string.Join(", ", compose.Services.Select(s => s.Name))}.");
         return Task.CompletedTask;
     }

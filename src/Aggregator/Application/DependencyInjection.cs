@@ -4,6 +4,7 @@ using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Deployments.Steps;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<ContainerCommandService>();
         services.AddScoped<ContainerQueryService>();
         services.AddScoped<RepositoryService>();
+        services.AddScoped<RegistryCredentialService>();
         services.AddScoped<StackService>();
         services.AddScoped<DeploymentService>();
         services.AddScoped<DeploymentRunner>();
@@ -31,6 +33,7 @@ public static class DependencyInjection
         services.AddScoped<IDeployStep, GitFetchStep>();
         services.AddScoped<IDeployStep, ValidateComposeStep>();
         services.AddScoped<IDeployStep, BuildBundleStep>();
+        services.AddScoped<IDeployStep, ResolveRegistryAuthStep>();
         services.AddScoped<IDeployStep, SendToAgentStep>();
         services.AddScoped<DeployPipeline>();
         return services;

@@ -133,3 +133,6 @@ desktop.ini
 
 # Aggregator: bare clones of stack repositories (Git:CacheDirectory)
 git-cache/
+
+# Aggregator: Data Protection key ring (DataProtection:KeyDirectory); it decrypts stored secrets
+data-protection-keys/

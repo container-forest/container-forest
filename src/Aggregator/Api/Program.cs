@@ -60,6 +60,7 @@ if (app.Environment.IsDevelopment())
     app.MapDevEnvironmentEndpoints();
     app.MapDevAccessEndpoints();
     app.MapDevStackEndpoints();
+    app.MapDevRegistryEndpoints();
 }
 
 app.Run();

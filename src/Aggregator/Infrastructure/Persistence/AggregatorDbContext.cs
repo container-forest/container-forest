@@ -26,6 +26,8 @@ public sealed class AggregatorDbContext(DbContextOptions<AggregatorDbContext> op
 
     public DbSet<DiscordLink> DiscordLinks => Set<DiscordLink>();
 
+    public DbSet<RegistryCredential> RegistryCredentials => Set<RegistryCredential>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AggregatorDbContext).Assembly);
 
@@ -37,6 +39,7 @@ public sealed class AggregatorDbContext(DbContextOptions<AggregatorDbContext> op
         configurationBuilder.AddStronglyTypedId<DeploymentId>();
         configurationBuilder.AddStronglyTypedId<UserId>();
         configurationBuilder.AddStronglyTypedId<RoleAssignmentId>();
+        configurationBuilder.AddStronglyTypedId<RegistryCredentialId>();
 
         // SQLite has no DateTimeOffset type: stored as text it cannot be compared or ordered in queries.
         configurationBuilder.Properties<DateTimeOffset>().HaveConversion<DateTimeOffsetToBinaryConverter>();

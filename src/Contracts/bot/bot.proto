@@ -6,8 +6,9 @@ option csharp_namespace = "ContainerForest.Contracts.Bot";
 //
 // Authentication:
 // - Every call carries the bot's service token in the metadata "x-bot-token". The aggregator keeps only
-//   its hash. The token is as powerful as an administrator's password: whoever holds it can act as any
-//   linked user (security invariant 9).
+//   its SHA-256 hash, set in its configuration (BotGateway:TokenHashes), never issued by an endpoint.
+//   The token is as powerful as an administrator's password: whoever holds it can act as any linked
+//   user (security invariant 9).
 // - Every request names the Discord user the bot acts for (discord_user_id). The aggregator maps it to the
 //   linked user of the system and checks that user's permissions, exactly as for the panel.
 //

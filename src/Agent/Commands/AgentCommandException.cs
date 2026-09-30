@@ -65,3 +65,10 @@ public sealed class ComposeTimeoutException(string operation, TimeSpan timeout)
 {
     public TimeSpan Timeout { get; } = timeout;
 }
+
+/// <summary>The bundle cannot be written because of what is on the host, e.g. a container created a directory where the bundle has a file.</summary>
+public sealed class StackFileConflictException(string path, string reason)
+    : AgentCommandException(ErrorCode.CommandFailed, $"Cannot write '{path}' in the stack directory: {reason}")
+{
+    public string Path { get; } = path;
+}

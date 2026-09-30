@@ -1,9 +1,11 @@
 using ContainerForest.Agent.Commands;
+using ContainerForest.Agent.Compose;
 using ContainerForest.Agent.Configuration;
 using ContainerForest.Agent.Connection;
 using ContainerForest.Agent.Docker;
 using ContainerForest.Agent.Enrollment;
 using ContainerForest.Agent.Platform;
+using ContainerForest.Agent.Stacks;
 
 namespace ContainerForest.Agent;
 
@@ -29,6 +31,14 @@ public static class DependencyInjection
         services.AddSingleton<IAgentCommandHandler, StartContainerHandler>();
         services.AddSingleton<IAgentCommandHandler, StopContainerHandler>();
         services.AddSingleton<IAgentCommandHandler, RestartContainerHandler>();
+
+        services.AddSingleton<StackLocks>();
+        services.AddSingleton<IStackFileStore, StackFileStore>();
+        services.AddSingleton<IComposeRunner, DockerComposeCli>();
+        services.AddSingleton<RegistryConfigWriter>();
+        services.AddSingleton<IAgentCommandHandler, DeployStackHandler>();
+        services.AddSingleton<IAgentCommandHandler, RestartStackHandler>();
+        services.AddSingleton<IAgentCommandHandler, DownStackHandler>();
         services.AddSingleton<CommandDispatcher>();
 
         services.AddSingleton<CredentialStore>();

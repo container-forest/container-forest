@@ -99,6 +99,68 @@ public class AgentSessionTests
     }
 
     [Fact]
+    public async Task Timed_out_request_is_cancelled_on_the_agent()
+    {
+        var request = session.RequestAsync(ListContainers(), TimeSpan.FromMilliseconds(50), Ct);
+        var sent = await writer.NextAsync();
+
+        await Assert.ThrowsAsync<AgentTimeoutException>(() => request);
+
+        var cancel = await writer.NextAsync();
+        Assert.Equal(ControllerMessage.BodyOneofCase.CancelRequest, cancel.BodyCase);
+        Assert.Equal(sent.RequestId, cancel.CancelRequest.TargetRequestId);
+        Assert.NotEqual(sent.RequestId, cancel.RequestId);
+    }
+
+    [Fact]
+    public async Task Request_the_caller_stops_waiting_for_is_cancelled_on_the_agent()
+    {
+        using var caller = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        var request = session.RequestAsync(ListContainers(), Timeout, caller.Token);
+        var sent = await writer.NextAsync();
+
+        await caller.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request);
+        var cancel = await writer.NextAsync();
+        Assert.Equal(sent.RequestId, cancel.CancelRequest.TargetRequestId);
+    }
+
+    [Fact]
+    public async Task Completed_request_sends_no_cancellation()
+    {
+        var request = session.RequestAsync(ListContainers(), Timeout, Ct);
+        var sent = await writer.NextAsync();
+        session.Complete(new CommandResult { RequestId = sent.RequestId });
+
+        await request;
+
+        Assert.Equal(1, writer.Count);
+    }
+
+    [Fact]
+    public async Task Request_failed_by_a_closed_session_sends_no_cancellation()
+    {
+        var request = session.RequestAsync(ListContainers(), Timeout, Ct);
+        await writer.NextAsync();
+
+        session.Close("test");
+
+        await Assert.ThrowsAsync<AgentDisconnectedException>(() => request);
+        Assert.Equal(1, writer.Count);
+    }
+
+    [Fact]
+    public async Task Timeout_is_reported_even_when_the_cancellation_cannot_be_sent()
+    {
+        var timedOut = session.RequestAsync(ListContainers(), TimeSpan.FromMilliseconds(50), Ct);
+        await writer.NextAsync();
+        writer.FailWrites = true;
+
+        await Assert.ThrowsAsync<AgentTimeoutException>(() => timedOut);
+    }
+
+    [Fact]
     public async Task Concurrent_requests_never_write_to_the_stream_in_parallel()
     {
         writer.WriteDelay = TimeSpan.FromMilliseconds(5);
@@ -144,8 +206,16 @@ internal sealed class RecordingWriter : IAsyncStreamWriter<ControllerMessage>
 
     public Task WriteAsync(ControllerMessage message) => WriteAsync(message, CancellationToken.None);
 
+    /// <summary>When set, every write fails as a write to a finished call does.</summary>
+    public bool FailWrites { get; set; }
+
     public async Task WriteAsync(ControllerMessage message, CancellationToken cancellationToken)
     {
+        if (FailWrites)
+        {
+            throw new InvalidOperationException("The call has finished.");
+        }
+
         if (Interlocked.Increment(ref active) > 1)
         {
             Overlapped = true;

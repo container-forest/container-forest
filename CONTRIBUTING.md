@@ -69,6 +69,14 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers/<container>/restart   # start | stop | restart, ?timeoutSeconds=30; <container> — повний id, ім'я або унікальний префікс id (як у docker)
    ```
    Роль на середовищі для звичайного користувача: `POST /api/dev/users/<userId>/environment-roles` з `{"environmentId":"<id>","role":"Operator"}`.
+   Деплой стеку з публічного git-репозиторію (compose-файл має використовувати готові образи, `build:` відхиляється; поки агент не вміє `DeployStack`, деплой завершиться помилкою на останньому кроці):
+   ```sh
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/repositories -H 'content-type: application/json' -d '{"name":"infra","url":"https://github.com/<org>/<repo>.git"}'
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/stacks -H 'content-type: application/json' -d '{"name":"web","repositoryId":"<repoId>","branch":"main","composePath":"apps/web/compose.yaml"}'
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/stacks/<stackId>/deployments -H 'content-type: application/json' -d '{"pull":false}'   # pull=true — redeploy with pull
+   curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/deployments/<deploymentId>   # статус і лог
+   ```
+   Клони репозиторіїв ЦА тримає в `git-cache/` у робочому каталозі (`CF_GIT__CACHEDIRECTORY`).
 3. `dotnet run --project src/Agent` з `CF_AGENT__ENROLLMENTTOKEN=<токен>` — агент зареєструється, підключиться до ЦА і до локального Docker. У `Development` адреса ЦА вже `http://localhost:5081` (інакше — `CF_AGENT__CONTROLLERURL`). Облікові дані агент зберігає в `agent-credentials.json` у каталозі даних (`CF_AGENT__DATADIRECTORY`; типово `/opt/container-forest`, на Windows `%LOCALAPPDATA%\container-forest`), тож токен потрібен лише для першого запуску. Щоб зареєструвати агента наново, видаліть цей файл. У PowerShell:
    ```powershell
    $env:CF_AGENT__ENROLLMENTTOKEN = "<токен>"

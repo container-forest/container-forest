@@ -176,7 +176,9 @@ message DeployStack {
   PullPolicy pull = 6;
 }
 
-// path is relative to the stack directory; secret files go to the tmpfs secrets directory.
+// path is relative to the stack directory. A secret file is written to the tmpfs secrets directory
+// (/run/container-forest/<stack_name>/<path>), and the stack directory gets a symbolic link to it at
+// <path>, so compose files refer to secrets by ordinary relative paths. Secret content is never logged.
 message StackFile {
   string path = 1;
   bytes content = 2;

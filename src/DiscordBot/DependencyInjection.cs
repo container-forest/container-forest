@@ -2,6 +2,7 @@ using ContainerForest.DiscordBot.Commands;
 using ContainerForest.DiscordBot.Configuration;
 using ContainerForest.DiscordBot.Forest;
 using ContainerForest.DiscordBot.Interactions;
+using ContainerForest.DiscordBot.Notifications;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -42,6 +43,10 @@ public static class DependencyInjection
             LogLevel = LogSeverity.Info,
         }));
         services.AddHostedService<DiscordBotService>();
+
+        services.AddSingleton<INotificationPoster, DiscordNotificationPoster>();
+        services.AddSingleton(_ => new ReconnectBackoff());
+        services.AddHostedService<NotificationWatcher>();
         return services;
     }
 
@@ -59,6 +64,7 @@ public static class DependencyInjection
         services.AddSingleton(sp => CreateChannel(sp.GetRequiredService<IOptions<BotOptions>>().Value.ControllerUrl!));
         services.AddSingleton(sp => new BotGateway.BotGatewayClient(sp.GetRequiredService<GrpcChannel>()));
         services.AddSingleton<IForestClient, GrpcForestClient>();
+        services.AddSingleton<INotificationSource, GrpcNotificationSource>();
         return services;
     }
 
@@ -82,6 +88,10 @@ public static class DependencyInjection
         {
             ConnectTimeout = TimeSpan.FromSeconds(10),
             EnableMultipleHttp2Connections = true,
+
+            // The notification stream can be silent for hours: pings keep proxies from closing it and notice a dead connection.
+            KeepAlivePingDelay = TimeSpan.FromSeconds(30),
+            KeepAlivePingTimeout = TimeSpan.FromSeconds(15),
         },
     });
 }

@@ -1,6 +1,9 @@
-import { Link, Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { Link, Outlet, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { useLogoutMutation } from "../api/auth";
 import { isUnauthorized } from "../api/client";
 import { meQuery } from "../api/queries";
+import { LogOutIcon } from "../components/icons";
+import { Button } from "../components/ui/button";
 
 /**
  * Every page that needs a signed-in user lives under this pathless layout. A 401 from /api/me sends the
@@ -35,10 +38,28 @@ function AuthedLayout() {
           {me.userName}
           {me.isAdmin && " (адміністратор)"}
         </span>
+        <LogoutButton />
       </header>
       <main className="mx-auto max-w-6xl p-6">
         <Outlet />
       </main>
     </div>
+  );
+}
+
+function LogoutButton() {
+  const navigate = useNavigate();
+  const logout = useLogoutMutation();
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      disabled={logout.isPending}
+      onClick={() => logout.mutate(undefined, { onSuccess: () => navigate({ to: "/login" }) })}
+    >
+      <LogOutIcon data-icon="inline-start" />
+      Вийти
+    </Button>
   );
 }

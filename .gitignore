@@ -136,3 +136,8 @@ git-cache/
 
 # Aggregator: Data Protection key ring (DataProtection:KeyDirectory); it decrypts stored secrets
 data-protection-keys/
+
+# DocFX output (docfx.json): the site and generated API pages.
+_site/
+api/*.yml
+api/.manifest

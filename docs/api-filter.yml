@@ -1,0 +1,11 @@
+# Generated code is not documented: protobuf/gRPC types and EF Core migrations.
+apiRules:
+- exclude:
+    uidRegex: ^ContainerForest\.Contracts\.
+    type: Namespace
+- exclude:
+    uidRegex: ^ContainerForest\.Aggregator\.Infrastructure\.Persistence\.Migrations
+    type: Namespace
+- exclude:
+    uidRegex: ^Program$
+    type: Type

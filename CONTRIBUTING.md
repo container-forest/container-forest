@@ -21,9 +21,11 @@
 ContainerForest.slnx
 .editorconfig                    стиль коду (конвенції .NET для C#)
 .github/workflows/ci.yml         CI: збірка й тести на кожен PR
+.github/workflows/docs.yml       сайт документації (DocFX) → GitHub Pages
+docfx.json, toc.yml, index.md    конфігурація сайту документації
 Directory.Build.props            спільні властивості .NET-проєктів
 Directory.Packages.props         версії NuGet-пакетів (central package management)
-dotnet-tools.json                локальні інструменти .NET (dotnet-ef)
+dotnet-tools.json                локальні інструменти .NET (dotnet-ef, docfx)
 buf.yaml                         правила лінтера для .proto (Buf)
 src/
   Contracts/                     .proto-файли; C#-код генерують проєкти-споживачі
@@ -157,6 +159,15 @@ docker run -d --name cf-discord-bot --env-file .env.local \
   -e CF_BOT__CONTROLLERURL=http://host.docker.internal:5081 \
   container-forest-discord-bot:dev
 ```
+
+Сайт документації (DocFX): документи з `docs/` і довідник API з XML-коментарів у `src/`. Згенерований код (protobuf, міграції) у довідник не входить (`docs/api-filter.yml`). Workflow `Docs` збирає сайт на кожен PR і публікує його з `main` на GitHub Pages. Локально:
+
+```sh
+dotnet tool restore
+dotnet docfx docfx.json --serve   # http://localhost:8080
+```
+
+Коментарі `///` пишіть для public-типів і членів: з них складається довідник.
 
 Міграції EF Core (інструмент ставиться з `dotnet-tools.json`):
 

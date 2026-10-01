@@ -71,10 +71,10 @@ flowchart LR
 
 - [docs/architecture.md](docs/architecture.md) — компоненти, протоколи, інваріанти безпеки, модель прав, поведінка при збоях.
 - [docs/project-overview.md](docs/project-overview.md) — мотивація, цільові користувачі, аналіз аналогів, зв'язок із лабораторними.
-- [docs/adr/](docs/adr/) — архітектурні рішення з обґрунтуванням.
+- [docs/adr/](docs/adr/README.md) — архітектурні рішення з обґрунтуванням.
 - [CONTRIBUTING.md](CONTRIBUTING.md) — правила команди, структура репозиторію, локальний запуск.
 - [CONTRIBUTIONS.md](CONTRIBUTIONS.md) — облік внеску учасників для лабораторних робіт.
-- [docs/retro/](docs/retro/) — ретроспективи використання зовнішніх бібліотек.
+- [docs/retro/](docs/retro/README.md) — ретроспективи використання зовнішніх бібліотек.
 - [docs/ai-usage.md](docs/ai-usage.md) — як команда використовує генеративний ШІ.
 
 ## Навчальний проєкт
@@ -84,9 +84,10 @@ flowchart LR
 | Вимога | Де в репозиторії |
 |---|---|
 | Лаби 1–3: класи, ієрархії, поліморфізм, екрани, бібліотеки | [CONTRIBUTIONS.md](CONTRIBUTIONS.md): окремо для кожного учасника, з переліком елементів |
-| Ретроспективи бібліотек (лаба 3) | [docs/retro/](docs/retro/) |
+| Ретроспективи бібліотек (лаба 3) | [docs/retro/](docs/retro/README.md) |
 | Система контролю версій, робота в команді | гілки й PR із рев'ю, [CONTRIBUTING.md](CONTRIBUTING.md#правила-роботи-в-команді) |
 | Unit-тести | `tests/` (xUnit v3), запускаються в [CI](.github/workflows/ci.yml) на кожен PR |
+| Документація з коментарів у коді | [DocFX](https://dotnet.github.io/docfx/): сайт із документацією й довідником API збирає й публікує на GitHub Pages [workflow](.github/workflows/docs.yml) |
 | Логування | `Microsoft.Extensions.Logging` у ЦА, агенті й боті; секрети не логуються ([інваріант 6](docs/architecture.md#інваріанти-безпеки)) |
 | Стиль коду | C# — [конвенції .NET](https://learn.microsoft.com/dotnet/csharp/fundamentals/coding-style/coding-conventions), правила в [.editorconfig](.editorconfig); попередження компілятора й аналізаторів у CI — помилки |
 | Використання LLM | [docs/ai-usage.md](docs/ai-usage.md) |

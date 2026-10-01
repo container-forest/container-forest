@@ -79,8 +79,8 @@ public class AuthTests
     public async Task Deactivated_user_cannot_sign_in()
     {
         await using var app = new AggregatorApp();
-        await app.CreateUserWithPasswordAsync("alice", AlicePassword);
-        await app.DeactivateUserAsync("alice");
+        var alice = await app.CreateUserAsync("alice", isAdmin: false, AlicePassword);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, app.CreateClient().PostAsync($"/api/users/{alice}/deactivate", null, Ct));
 
         var login = await LoginAsync(app.CreateBrowserClient(), "alice", AlicePassword);
 
@@ -91,7 +91,7 @@ public class AuthTests
     public async Task Too_many_failed_sign_ins_lock_the_account()
     {
         await using var app = new AggregatorApp();
-        await app.CreateUserWithPasswordAsync("alice", AlicePassword);
+        await app.CreateUserAsync("alice", isAdmin: false, AlicePassword);
         var browser = app.CreateBrowserClient();
         for (var attempt = 0; attempt < AccountPolicy.MaxFailedSignIns; attempt++)
         {
@@ -120,7 +120,7 @@ public class AuthTests
     public async Task Changing_the_password_ends_other_sessions_but_keeps_this_one()
     {
         await using var app = new AggregatorApp();
-        await app.CreateUserWithPasswordAsync("alice", AlicePassword);
+        await app.CreateUserAsync("alice", isAdmin: false, AlicePassword);
         var laptop = app.CreateBrowserClient();
         var phone = app.CreateBrowserClient();
         await HttpAssert.StatusAsync(HttpStatusCode.OK, LoginAsync(laptop, "alice", AlicePassword));
@@ -139,7 +139,7 @@ public class AuthTests
     public async Task Changing_the_password_needs_the_current_one()
     {
         await using var app = new AggregatorApp();
-        await app.CreateUserWithPasswordAsync("alice", AlicePassword);
+        await app.CreateUserAsync("alice", isAdmin: false, AlicePassword);
         var browser = app.CreateBrowserClient();
         await HttpAssert.StatusAsync(HttpStatusCode.OK, LoginAsync(browser, "alice", AlicePassword));
 
@@ -154,7 +154,7 @@ public class AuthTests
     public async Task Short_new_password_is_rejected_with_the_reason()
     {
         await using var app = new AggregatorApp();
-        await app.CreateUserWithPasswordAsync("alice", AlicePassword);
+        await app.CreateUserAsync("alice", isAdmin: false, AlicePassword);
         var browser = app.CreateBrowserClient();
         await HttpAssert.StatusAsync(HttpStatusCode.OK, LoginAsync(browser, "alice", AlicePassword));
 

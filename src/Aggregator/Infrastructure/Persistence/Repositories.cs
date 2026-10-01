@@ -62,6 +62,13 @@ internal sealed class UserRepository(AggregatorDbContext db) : EfRepository<User
 {
     public Task<User?> FindByUserNameAsync(string userName, CancellationToken cancellationToken) =>
         Set.SingleOrDefaultAsync(u => u.UserName == userName, cancellationToken);
+
+    // The column's NOCASE collation orders names regardless of case.
+    public async Task<IReadOnlyList<User>> ListAsync(CancellationToken cancellationToken) =>
+        await Set.OrderBy(u => u.UserName).ToListAsync(cancellationToken);
+
+    public Task<int> CountActiveAdministratorsAsync(CancellationToken cancellationToken) =>
+        Set.CountAsync(u => u.IsAdmin && u.IsActive, cancellationToken);
 }
 
 internal sealed class DiscordLinkRepository(AggregatorDbContext db) : EfRepository<DiscordLink, UserId>(db), IDiscordLinkRepository

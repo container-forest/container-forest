@@ -60,22 +60,26 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
 Потрібно: .NET 10 SDK, Node.js 22.12+ (у CI і образі — 24, `src/Web/.nvmrc`), Docker (на Windows — Docker Desktop).
 
 1. `dotnet run --project src/Aggregator/Api` — ЦА: REST на `http://localhost:5080`, gRPC для агентів на `http://localhost:5081`. База SQLite створюється й мігрує сама при старті (`src/Aggregator/Api/aggregator.db`).
-   Якщо в базі ще немає користувачів, ЦА створює адміністратора з `CF_BOOTSTRAP__ADMINUSERNAME` і `CF_BOOTSTRAP__ADMINPASSWORD` (пароль від 12 символів), і з ним можна ввійти паролем:
+   Першого адміністратора ЦА створює при старті з `CF_BOOTSTRAP__ADMINUSERNAME` і `CF_BOOTSTRAP__ADMINPASSWORD` (пароль від 12 символів), якщо в базі ще немає користувачів; іншого способу створити його немає. З ним можна ввійти паролем:
    ```sh
    CF_BOOTSTRAP__ADMINUSERNAME=root CF_BOOTSTRAP__ADMINPASSWORD='<пароль>' dotnet run --project src/Aggregator/Api
    curl -c cookies.txt -X POST http://localhost:5080/api/auth/login -H 'content-type: application/json' -d '{"userName":"root","password":"<пароль>","rememberMe":false}'
    curl -b cookies.txt http://localhost:5080/api/me
    ```
-2. Створити середовище й отримати enrollment-токен. Поки немає API керування користувачами й панелі, для цього є тимчасові dev-ендпоінти, доступні лише в оточенні `Development`. Там, крім cookie, заголовок `X-Dev-User` називає користувача, від імені якого йде запит (без пароля):
+2. Створити середовище й отримати enrollment-токен. Поки немає панелі, для цього є тимчасові dev-ендпоінти, доступні лише в оточенні `Development`. Там, крім cookie, заголовок `X-Dev-User` називає користувача, від імені якого йде запит, без пароля: нижче це адміністратор `root` з кроку 1.
    ```sh
-   curl -X POST http://localhost:5080/api/dev/users -H 'content-type: application/json' -d '{"userName":"root","isAdmin":true}'   # без заголовка
    curl -H 'X-Dev-User: root' http://localhost:5080/api/me
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments -H 'content-type: application/json' -d '{"name":"local","isPrivate":false}'
    curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments                   # видимі середовища й статус агентів
    curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers   # видимі контейнери через агента
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers/<container>/restart   # start | stop | restart, ?timeoutSeconds=30; <container> — повний id, ім'я або унікальний префікс id (як у docker)
    ```
-   Роль на середовищі для звичайного користувача: `POST /api/dev/users/<userId>/environment-roles` з `{"environmentId":"<id>","role":"Operator"}`.
+   Користувачі й ролі (API керування користувачами, лише для адміністраторів; повний перелік — `src/Aggregator/Api/Contracts/UserContracts.cs`):
+   ```sh
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/users -H 'content-type: application/json' -d '{"userName":"alice","password":"<від 12 символів>","isAdmin":false}'
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/users/<userId>/role-assignments -H 'content-type: application/json' -d '{"environmentId":"<id>","stackId":null,"role":"Operator"}'   # stackId — роль лише на стеку
+   curl -H 'X-Dev-User: root' http://localhost:5080/api/users/<userId>   # користувач і його ролі
+   ```
    Деплой стеку з публічного git-репозиторію (compose-файл має використовувати готові образи, `build:` відхиляється; для перевірки підходить `https://github.com/dockersamples/example-voting-app.git` з `composePath` = `docker-compose.images.yml`):
    ```sh
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/repositories -H 'content-type: application/json' -d '{"name":"infra","url":"https://github.com/<org>/<repo>.git"}'

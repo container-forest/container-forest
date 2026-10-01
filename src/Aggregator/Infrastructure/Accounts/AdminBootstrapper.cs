@@ -1,6 +1,6 @@
+using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -38,16 +38,16 @@ internal sealed class AdminBootstrapper(
         }
 
         var user = User.CreateAdministrator(bootstrap.AdminUserName!, time.GetUtcNow());
-        db.Set<User>().Add(user);
+        scope.ServiceProvider.GetRequiredService<IUserRepository>().Add(user);
 
-        // The account store saves the context, so the domain user is stored together with its account
-        // and a rejected password leaves nothing behind.
-        var accounts = scope.ServiceProvider.GetRequiredService<UserManager<AccountUser>>();
-        var result = await accounts.CreateAsync(new AccountUser(user), bootstrap.AdminPassword!);
-        if (!result.Succeeded)
+        // Saves the domain user together with its account; a rejected password leaves nothing behind.
+        try
         {
-            throw new InvalidOperationException(
-                $"Cannot create the first administrator: {string.Join(" ", result.Errors.Select(e => e.Description))}");
+            await scope.ServiceProvider.GetRequiredService<IAccountStore>().CreateAsync(user, bootstrap.AdminPassword!, cancellationToken);
+        }
+        catch (PasswordRejectedException rejected)
+        {
+            throw new InvalidOperationException($"Cannot create the first administrator: {rejected.Message}");
         }
 
         logger.LogInformation("Created the first administrator '{UserName}'.", user.UserName);

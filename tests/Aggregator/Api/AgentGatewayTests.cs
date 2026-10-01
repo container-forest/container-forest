@@ -83,10 +83,14 @@ public class AgentGatewayTests
         var environment = await app.CreateEnvironmentAsync();
         var credentials = await app.Gateway.EnrollAsync(new EnrollRequest { EnrollmentToken = environment.EnrollmentToken }, cancellationToken: Ct);
 
-        await using var agent = await FakeAgent.ConnectAsync(
-            app.Gateway, new EnrollResponse { AgentId = credentials.AgentId, AgentSecret = "wrong" }, "boot-1");
-
-        var error = await Assert.ThrowsAsync<RpcException>(agent.ReceiveAsync);
+        // The aggregator can reject the stream before the Hello is written, so the error comes from
+        // either the write or the read.
+        var error = await Assert.ThrowsAsync<RpcException>(async () =>
+        {
+            await using var agent = await FakeAgent.ConnectAsync(
+                app.Gateway, new EnrollResponse { AgentId = credentials.AgentId, AgentSecret = "wrong" }, "boot-1");
+            await agent.ReceiveAsync();
+        });
         Assert.Equal(StatusCode.Unauthenticated, error.StatusCode);
     }
 

@@ -53,6 +53,7 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notif
         builder.Property(n => n.Status).HasConversion<string>().HasMaxLength(16);
         builder.Property(n => n.Summary).HasMaxLength(Notification.MaxSummaryLength);
         builder.Property(n => n.Error).HasMaxLength(Notification.MaxErrorLength);
+        builder.Property(n => n.Details).HasConversion<NotificationDetailsConverter>();
 
         builder.HasIndex(n => new { n.Status, n.CreatedAt });
 

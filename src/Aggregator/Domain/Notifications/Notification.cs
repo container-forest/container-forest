@@ -41,6 +41,7 @@ public sealed class Notification : Entity<NotificationId>
         EnvironmentId = notificationEvent.EnvironmentId;
         StackId = notificationEvent.StackId;
         OccurredAt = notificationEvent.OccurredAt;
+        Details = notificationEvent.Details;
         Summary = summary;
         CreatedAt = createdAt;
         Status = NotificationStatus.Pending;
@@ -67,6 +68,9 @@ public sealed class Notification : Entity<NotificationId>
 
     public DateTimeOffset OccurredAt { get; private init; }
 
+    /// <summary>Snapshot of what the event was about, e.g. the deployment's commit and error; null when kind and scope say it all.</summary>
+    public NotificationDetails? Details { get; private init; }
+
     /// <summary>One line for the history screen, e.g. "Deployment of web on prod failed". No secret values.</summary>
     public string Summary { get; private init; }
 
@@ -84,7 +88,7 @@ public sealed class Notification : Entity<NotificationId>
     /// <summary>Creates the notification a matching rule produces for the event.</summary>
     public static Notification Create(NotificationRule rule, NotificationEvent notificationEvent, string summary, DateTimeOffset now)
     {
-        if (!rule.Matches(notificationEvent))
+        if (!rule.Matches(notificationEvent.EnsureValid()))
         {
             throw new DomainConflictException($"Rule {rule.Id} does not match a {notificationEvent.Kind} event.");
         }

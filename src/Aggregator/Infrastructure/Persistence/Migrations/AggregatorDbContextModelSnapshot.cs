@@ -267,6 +267,9 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.Property<long>("CreatedAt")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Details")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("EnvironmentId")
                         .HasColumnType("TEXT");
 

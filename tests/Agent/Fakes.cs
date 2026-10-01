@@ -168,13 +168,29 @@ internal sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
 }
 
 /// <summary>A progress sink that remembers the reported lines.</summary>
+/// <remarks>Thread-safe: compose output is pumped from stdout and stderr at the same time.</remarks>
 internal sealed class RecordingProgress : ICommandProgress
 {
-    public List<string> Lines { get; } = [];
+    private readonly List<string> lines = [];
+
+    public IReadOnlyList<string> Lines
+    {
+        get
+        {
+            lock (lines)
+            {
+                return [.. lines];
+            }
+        }
+    }
 
     public Task ReportAsync(string line, CancellationToken cancellationToken)
     {
-        Lines.Add(line);
+        lock (lines)
+        {
+            lines.Add(line);
+        }
+
         return Task.CompletedTask;
     }
 }

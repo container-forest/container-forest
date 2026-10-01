@@ -66,6 +66,21 @@ public class UserManagementTests
     }
 
     [Fact]
+    public async Task Easily_guessed_passwords_are_rejected_with_every_reason()
+    {
+        await using var app = new AggregatorApp();
+
+        var response = await app.CreateClient().PostAsJsonAsync(
+            "/api/users", new { userName = "bob", password = "bobbobbobbob", isAdmin = false }, Ct);
+
+        await HttpAssert.StatusAsync(HttpStatusCode.BadRequest, response);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct);
+        Assert.Equal(
+            ["Passwords must not be repeated or sequential characters, such as 'aaaa…', '1234…' or 'qwerty…'.", "Passwords must not contain the user name."],
+            problem.GetProperty("errors").EnumerateArray().Select(e => e.GetString()).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
     public async Task The_last_active_administrator_stays()
     {
         await using var app = new AggregatorApp();

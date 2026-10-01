@@ -7,6 +7,7 @@ using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
+using ContainerForest.Aggregator.Infrastructure.Accounts;
 using ContainerForest.Aggregator.Infrastructure.Agents;
 using ContainerForest.Aggregator.Infrastructure.Deployments;
 using ContainerForest.Aggregator.Infrastructure.Persistence;
@@ -47,6 +48,13 @@ public static class DependencyInjection
         services.AddScoped<IDeploymentRepository, DeploymentRepository>();
         services.AddScoped<IRegistryCredentialRepository, RegistryCredentialRepository>();
 
+        // Accounts for signing in; the Api adds the sign-in manager and the session cookie.
+        services.AddIdentityCore<AccountUser>(AccountPolicy.Configure).AddEntityFrameworkStores<AggregatorDbContext>();
+        services.AddOptions<BootstrapOptions>()
+            .Bind(configuration.GetSection(BootstrapOptions.SectionName))
+            .Validate(o => o.IsValid(), "Bootstrap:AdminUserName and Bootstrap:AdminPassword must be set together.")
+            .ValidateOnStart();
+
         // The key ring must survive restarts: with an in-memory one every stored secret is unreadable after the next start.
         // Generating the OpenAPI document starts the host too; it gets throwaway keys instead of creating a key ring at build time.
         if (runHostedServices)
@@ -65,6 +73,7 @@ public static class DependencyInjection
         {
             // Registration order is start order: the worker reads the database the migrator prepares.
             services.AddHostedService<DatabaseMigrator>();
+            services.AddHostedService<AdminBootstrapper>();
             services.AddHostedService<DeploymentWorker>();
         }
 

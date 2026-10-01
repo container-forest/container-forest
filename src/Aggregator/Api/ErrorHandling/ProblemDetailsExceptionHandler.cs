@@ -14,6 +14,7 @@ internal sealed class ProblemDetailsExceptionHandler(IProblemDetailsService prob
         var (status, title) = exception switch
         {
             DomainValidationException => (StatusCodes.Status400BadRequest, "Invalid request"),
+            PasswordRejectedException => (StatusCodes.Status400BadRequest, "Password rejected"),
             DomainConflictException => (StatusCodes.Status409Conflict, "Conflict"),
             NotFoundException => (StatusCodes.Status404NotFound, "Not found"),
             UnauthenticatedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
@@ -30,12 +31,18 @@ internal sealed class ProblemDetailsExceptionHandler(IProblemDetailsService prob
         }
 
         httpContext.Response.StatusCode = status;
-        return await problemDetails.TryWriteAsync(new ProblemDetailsContext
+        var context = new ProblemDetailsContext
         {
             HttpContext = httpContext,
             Exception = exception,
             ProblemDetails = { Status = status, Title = title, Detail = exception.Message },
-        });
+        };
+        if (exception is PasswordRejectedException rejected)
+        {
+            context.ProblemDetails.Extensions["errors"] = rejected.Reasons;
+        }
+
+        return await problemDetails.TryWriteAsync(context);
     }
 
     private static int StatusFor(AgentErrorKind kind) => kind switch

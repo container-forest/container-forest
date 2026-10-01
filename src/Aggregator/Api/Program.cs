@@ -7,7 +7,6 @@ using ContainerForest.Aggregator.Api.Grpc;
 using ContainerForest.Aggregator.Application;
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Infrastructure;
-using Microsoft.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables(prefix: "CF_");
@@ -20,16 +19,7 @@ builder.Services.AddInfrastructure(builder.Configuration, runHostedServices: !is
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, ClaimsCurrentUser>();
-if (builder.Environment.IsDevelopment())
-{
-    // Stand-in for the login until it exists: the X-Dev-User header names the acting user, without a password.
-    builder.Services.AddAuthentication(DevUserAuthenticationHandler.SchemeName)
-        .AddScheme<AuthenticationSchemeOptions, DevUserAuthenticationHandler>(DevUserAuthenticationHandler.SchemeName, null);
-}
-else
-{
-    builder.Services.AddAuthentication();
-}
+builder.Services.AddSessionAuthentication(builder.Environment);
 
 builder.Services.AddGrpc()
     .AddServiceOptions<BotGatewayService>(options => options.Interceptors.Add<BotGatewayInterceptor>());
@@ -51,6 +41,7 @@ app.UseAuthentication();
 app.MapOpenApi();
 app.MapGrpcService<AgentGatewayService>();
 app.MapGrpcService<BotGatewayService>();
+app.MapAuthEndpoints();
 app.MapMeEndpoints();
 app.MapDiscordLinkEndpoints();
 

@@ -19,6 +19,7 @@
 
 ```
 ContainerForest.slnx
+.editorconfig                    стиль коду (конвенції .NET для C#)
 .github/workflows/ci.yml         CI: збірка й тести на кожен PR
 Directory.Build.props            спільні властивості .NET-проєктів
 Directory.Packages.props         версії NuGet-пакетів (central package management)
@@ -41,6 +42,7 @@ docs/
   project-overview.md            опис проєкту, команда, аналіз аналогів
   adr/                           записи архітектурних рішень
   retro/                         ретроспективи по бібліотеках (лаба 3)
+  ai-usage.md                    використання генеративного ШІ (вимога курсу)
 CONTRIBUTING.md                  цей файл: правила команди
 CONTRIBUTIONS.md                 облік елементів лабораторних для кожного учасника
 ```

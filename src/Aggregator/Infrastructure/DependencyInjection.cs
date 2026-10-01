@@ -12,6 +12,8 @@ using ContainerForest.Aggregator.Infrastructure.Deployments;
 using ContainerForest.Aggregator.Infrastructure.Persistence;
 using ContainerForest.Aggregator.Infrastructure.Security;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.XmlEncryption;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,6 +61,15 @@ public static class DependencyInjection
         }
         else
         {
+            // Covers the whole app, not only ISecretProtector: authentication adds Data Protection too, and its default
+            // key ring in ~/.aspnet/DataProtection-Keys would be created on every build.
+            services.AddDataProtection();
+            services.Configure<KeyManagementOptions>(options =>
+            {
+                options.XmlRepository = new InMemoryXmlRepository();
+                // The keys never leave memory and die with the build, so there is nothing to encrypt them against.
+                options.XmlEncryptor = new NullXmlEncryptor();
+            });
             services.AddSingleton<ISecretProtector>(new DataProtectionSecretProtector(new EphemeralDataProtectionProvider()));
         }
         if (runHostedServices)

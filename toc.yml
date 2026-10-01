@@ -1,0 +1,54 @@
+- name: Огляд
+  href: docs/project-overview.md
+- name: Архітектура
+  href: docs/architecture.md
+- name: ADR
+  items:
+  - name: Перелік
+    href: docs/adr/README.md
+  - name: 0001 Структура рішення
+    href: docs/adr/0001-solution-structure.md
+  - name: 0002 Розташування контрактів
+    href: docs/adr/0002-proto-contracts-layout.md
+  - name: 0003 Секрети в БД
+    href: docs/adr/0003-secrets-at-rest.md
+  - name: 0004 Каталог стеку на місці
+    href: docs/adr/0004-stack-directory-in-place.md
+- name: Команда
+  items:
+  - name: Правила роботи
+    href: CONTRIBUTING.md
+  - name: Облік лабораторних
+    href: CONTRIBUTIONS.md
+  - name: Рішення й домовленості
+    href: CLAUDE.md
+  - name: Використання ШІ
+    href: docs/ai-usage.md
+- name: Ретроспективи
+  items:
+  - name: Перелік
+    href: docs/retro/README.md
+  - name: ASP.NET Core Identity
+    href: docs/retro/aspnet-identity.md
+  - name: Discord.Net
+    href: docs/retro/discord-net.md
+  - name: Docker.DotNet
+    href: docs/retro/docker-dotnet.md
+  - name: EF Core
+    href: docs/retro/ef-core.md
+  - name: gRPC
+    href: docs/retro/grpc.md
+  - name: LibGit2Sharp
+    href: docs/retro/libgit2sharp.md
+  - name: React Hook Form
+    href: docs/retro/react-hook-form.md
+  - name: TanStack Query
+    href: docs/retro/tanstack-query.md
+  - name: TanStack Router
+    href: docs/retro/tanstack-router.md
+  - name: YamlDotNet
+    href: docs/retro/yamldotnet.md
+  - name: Zod
+    href: docs/retro/zod.md
+- name: API
+  href: api/

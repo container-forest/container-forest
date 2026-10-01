@@ -8,6 +8,11 @@ public interface IUserRepository : IRepository<User, UserId>
 {
     /// <summary>Case-insensitive.</summary>
     Task<User?> FindByUserNameAsync(string userName, CancellationToken cancellationToken);
+
+    /// <summary>All users, by user name.</summary>
+    Task<IReadOnlyList<User>> ListAsync(CancellationToken cancellationToken);
+
+    Task<int> CountActiveAdministratorsAsync(CancellationToken cancellationToken);
 }
 
 public interface IRoleAssignmentRepository : IRepository<RoleAssignment, RoleAssignmentId>

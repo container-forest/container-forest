@@ -7,13 +7,11 @@ using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
-using ContainerForest.Aggregator.Infrastructure.Accounts;
 using ContainerForest.Contracts.Bot;
 using ContainerForest.Contracts.Agent;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Mvc.Testing.Handlers;
@@ -34,6 +32,9 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
 {
     public const string AdminUserName = "admin";
     public const string AdminPassword = "correct horse battery staple";
+
+    /// <summary>Password of the users <see cref="CreateUserAsync"/> makes unless a test gives its own.</summary>
+    public const string DefaultPassword = "a long enough password";
     public const string DevUserHeader = "X-Dev-User";
 
     /// <summary>The bot token the aggregator accepts; <see cref="BotGateway"/> sends it with every call.</summary>
@@ -77,25 +78,6 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         return client;
     }
 
-    /// <summary>A regular user with a password, as the user management will create them.</summary>
-    public async Task CreateUserWithPasswordAsync(string userName, string password)
-    {
-        await using var scope = Services.CreateAsyncScope();
-        var user = User.Create(userName, DateTimeOffset.UtcNow);
-        scope.ServiceProvider.GetRequiredService<IUserRepository>().Add(user);
-        var result = await scope.ServiceProvider.GetRequiredService<UserManager<AccountUser>>()
-            .CreateAsync(new AccountUser(user), password);
-        Assert.True(result.Succeeded, string.Join(" ", result.Errors.Select(e => e.Description)));
-    }
-
-    public async Task DeactivateUserAsync(string userName)
-    {
-        await using var scope = Services.CreateAsyncScope();
-        var user = await scope.ServiceProvider.GetRequiredService<IUserRepository>().FindByUserNameAsync(userName, default);
-        user!.Deactivate();
-        await scope.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync();
-    }
-
     public async Task<CreatedEnvironment> CreateEnvironmentAsync(string name = "test")
     {
         var response = await CreateClient().PostAsJsonAsync("/api/dev/environments", new { name, isPrivate = false });
@@ -103,10 +85,13 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         return (await response.Content.ReadFromJsonAsync<CreatedEnvironment>(Json))!;
     }
 
-    public async Task CreateUserAsync(string userName, bool isAdmin)
+    /// <summary>Creates a user through the user management API, as the administrator.</summary>
+    /// <returns>The new user's id.</returns>
+    public async Task<Guid> CreateUserAsync(string userName, bool isAdmin, string password = DefaultPassword)
     {
-        var response = await CreateClient().PostAsJsonAsync("/api/dev/users", new { userName, isAdmin });
-        response.EnsureSuccessStatusCode();
+        var response = await CreateClient().PostAsJsonAsync("/api/users", new { userName, password, isAdmin });
+        await HttpAssert.StatusAsync(System.Net.HttpStatusCode.Created, response);
+        return (await response.Content.ReadFromJsonAsync<JsonElement>(Json)).GetProperty("id").GetGuid();
     }
 
     public async Task<FakeAgent> EnrollAndConnectAsync(string bootId = "boot-1")

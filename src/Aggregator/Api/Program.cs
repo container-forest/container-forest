@@ -43,13 +43,13 @@ app.MapGrpcService<AgentGatewayService>();
 app.MapGrpcService<BotGatewayService>();
 app.MapAuthEndpoints();
 app.MapMeEndpoints();
+app.MapUserEndpoints();
 app.MapDiscordLinkEndpoints();
 
 if (app.Environment.IsDevelopment())
 {
     // Authentication here is the password-less dev header: never expose these outside local development.
     app.MapDevEnvironmentEndpoints();
-    app.MapDevAccessEndpoints();
     app.MapDevStackEndpoints();
     app.MapDevRegistryEndpoints();
 }

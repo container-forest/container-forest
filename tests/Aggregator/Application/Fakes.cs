@@ -36,6 +36,71 @@ internal sealed class InMemoryUsers : InMemoryRepository<User, UserId>, IUserRep
 {
     public Task<User?> FindByUserNameAsync(string userName, CancellationToken cancellationToken) =>
         Task.FromResult(Items.FirstOrDefault(u => string.Equals(u.UserName, userName, StringComparison.OrdinalIgnoreCase)));
+
+    public Task<IReadOnlyList<User>> ListAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<User>>(Items.OrderBy(u => u.UserName, StringComparer.OrdinalIgnoreCase).ToList());
+
+    public Task<int> CountActiveAdministratorsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(Items.Count(u => u.IsAdmin && u.IsActive));
+}
+
+/// <summary>Accounts as passwords in memory; records which users had their sessions ended.</summary>
+internal sealed class FakeAccountStore : IAccountStore
+{
+    public const int MinPasswordLength = 12;
+
+    public Dictionary<UserId, string> Passwords { get; } = [];
+
+    public Dictionary<UserId, string> UserNames { get; } = [];
+
+    public Dictionary<UserId, DateTimeOffset> Lockouts { get; } = [];
+
+    public List<UserId> EndedSessions { get; } = [];
+
+    public Task CreateAsync(User user, string password, CancellationToken cancellationToken)
+    {
+        Validate(password);
+        Passwords[user.Id] = password;
+        UserNames[user.Id] = user.UserName;
+        return Task.CompletedTask;
+    }
+
+    public Task RenameAsync(User user, CancellationToken cancellationToken)
+    {
+        UserNames[user.Id] = user.UserName;
+        return Task.CompletedTask;
+    }
+
+    public Task SetPasswordAsync(User user, string password, CancellationToken cancellationToken)
+    {
+        Validate(password);
+        Passwords[user.Id] = password;
+        EndedSessions.Add(user.Id);
+        return Task.CompletedTask;
+    }
+
+    public Task EndSessionsAsync(UserId userId, CancellationToken cancellationToken)
+    {
+        EndedSessions.Add(userId);
+        return Task.CompletedTask;
+    }
+
+    public Task UnlockAsync(UserId userId, CancellationToken cancellationToken)
+    {
+        Lockouts.Remove(userId);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyDictionary<UserId, DateTimeOffset>> ListLockoutsAsync(DateTimeOffset now, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<UserId, DateTimeOffset>>(Lockouts.Where(l => l.Value > now).ToDictionary());
+
+    private static void Validate(string password)
+    {
+        if (password.Length < MinPasswordLength)
+        {
+            throw new PasswordRejectedException([$"Passwords must be at least {MinPasswordLength} characters."]);
+        }
+    }
 }
 
 internal sealed class InMemoryEnvironments : InMemoryRepository<DockerEnvironment, EnvironmentId>, IEnvironmentRepository

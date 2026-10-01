@@ -52,6 +52,7 @@ public static class DependencyInjection
 
         // Accounts for signing in; the Api adds the sign-in manager and the session cookie.
         services.AddIdentityCore<AccountUser>(AccountPolicy.Configure).AddEntityFrameworkStores<AggregatorDbContext>();
+        services.AddScoped<IAccountStore, IdentityAccountStore>();
         services.AddOptions<BootstrapOptions>()
             .Bind(configuration.GetSection(BootstrapOptions.SectionName))
             .Validate(o => o.IsValid(), "Bootstrap:AdminUserName and Bootstrap:AdminPassword must be set together.")

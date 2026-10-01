@@ -8,8 +8,8 @@ import { defineConfig, type ProxyOptions } from "vite";
 // The aggregator's REST port in local development (see CONTRIBUTING.md).
 const aggregator = process.env.CF_AGGREGATOR_URL ?? "http://localhost:5080";
 
-// Until the login exists, the aggregator accepts X-Dev-User in Development. Setting CF_DEV_USER makes the
-// dev server add it to every proxied request, so the panel acts as that user without any code in the app.
+// In Development the aggregator accepts X-Dev-User next to the session cookie. Setting CF_DEV_USER makes the
+// dev server add it to every proxied request, so the panel acts as that user without signing in.
 const devUser = process.env.CF_DEV_USER;
 
 const proxy: ProxyOptions = {

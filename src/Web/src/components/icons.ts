@@ -15,6 +15,7 @@ export { default as ChevronRightIcon } from "~icons/material-symbols/chevron-rig
 export { default as ChevronUpIcon } from "~icons/material-symbols/keyboard-arrow-up-rounded";
 export { default as CircleIcon } from "~icons/material-symbols/circle";
 export { default as Loader2Icon } from "~icons/material-symbols/progress-activity";
+export { default as LogOutIcon } from "~icons/material-symbols/logout-rounded";
 export { default as MinusIcon } from "~icons/material-symbols/remove-rounded";
 export { default as MoreHorizontalIcon } from "~icons/material-symbols/more-horiz";
 export { default as SearchIcon } from "~icons/material-symbols/search-rounded";

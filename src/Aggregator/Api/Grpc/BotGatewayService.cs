@@ -2,14 +2,18 @@ using System.Security.Claims;
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Contracts.Bot;
 using Grpc.Core;
 using AgentContainerState = ContainerForest.Aggregator.Application.Agents.ContainerState;
 using BotContainerAction = ContainerForest.Contracts.Bot.ContainerAction;
 using BotEnvironment = ContainerForest.Contracts.Bot.Environment;
+using BotStack = ContainerForest.Contracts.Bot.Stack;
+using BotStackAction = ContainerForest.Contracts.Bot.StackAction;
 using ContainerAction = ContainerForest.Aggregator.Application.Containers.ContainerAction;
 using ContainerState = ContainerForest.Contracts.Bot.ContainerState;
+using StackAction = ContainerForest.Aggregator.Application.Stacks.StackAction;
 
 namespace ContainerForest.Aggregator.Api.Grpc;
 
@@ -22,7 +26,9 @@ public sealed class BotGatewayService(
     DiscordLinkService discordLinks,
     EnvironmentService environments,
     ContainerQueryService containerQueries,
-    ContainerCommandService containerCommands) : BotGateway.BotGatewayBase
+    ContainerCommandService containerCommands,
+    StackService stacks,
+    StackCommandService stackCommands) : BotGateway.BotGatewayBase
 {
     public override async Task<GetCallerResponse> GetCaller(GetCallerRequest request, ServerCallContext context)
     {
@@ -90,6 +96,42 @@ public sealed class BotGatewayService(
         await containerCommands.ExecuteAsync(
             ParseEnvironmentId(request.EnvironmentId), request.Container, action, stopTimeout, context.CancellationToken);
         return new ControlContainerResponse();
+    }
+
+    public override async Task<ListStacksResponse> ListStacks(ListStacksRequest request, ServerCallContext context)
+    {
+        await ActAsAsync(request.DiscordUserId, context);
+        var visible = await stacks.ListVisibleAsync(ParseEnvironmentId(request.EnvironmentId), context.CancellationToken);
+
+        var response = new ListStacksResponse();
+        response.Stacks.AddRange(visible.Select(s => new BotStack
+        {
+            Id = s.Id.ToString(),
+            Name = s.Name.Value,
+            IsSystem = s.IsSystem,
+            DeployedCommit = s.DeployedCommit?.Value ?? "",
+            DeployedUnixMs = s.DeployedAt?.ToUnixTimeMilliseconds() ?? 0,
+            // A system stack refuses both; hiding the buttons saves the user a FAILED_PRECONDITION.
+            CanRestart = s.CanRestart && !s.IsSystem,
+            CanTakeDown = s.CanDeploy && !s.IsSystem,
+        }));
+        return response;
+    }
+
+    public override async Task<ControlStackResponse> ControlStack(ControlStackRequest request, ServerCallContext context)
+    {
+        await ActAsAsync(request.DiscordUserId, context);
+        var action = request.Action switch
+        {
+            BotStackAction.Restart => StackAction.Restart,
+            BotStackAction.Down => StackAction.Down,
+            _ => throw new DomainValidationException("Action must be restart or down."),
+        };
+        var stopTimeout = request.HasTimeoutSeconds ? TimeSpan.FromSeconds(request.TimeoutSeconds) : (TimeSpan?)null;
+
+        var result = await stackCommands.ExecuteAsync(
+            ParseEnvironmentId(request.EnvironmentId), request.Stack, action, stopTimeout, context.CancellationToken);
+        return new ControlStackResponse { Error = result.Error ?? "", Output = { result.Output } };
     }
 
     /// <summary>

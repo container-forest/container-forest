@@ -45,6 +45,13 @@ service BotGateway {
   // Starts, stops or restarts a container. Returns once the agent has done it.
   rpc ControlContainer(ControlContainerRequest) returns (ControlContainerResponse);
 
+  // Stacks of an environment the user may see, each with what the user may do with it.
+  rpc ListStacks(ListStacksRequest) returns (ListStacksResponse);
+
+  // Restarts or takes down a deployed stack. Returns once docker compose has finished. A failed compose run
+  // is an answer with error set, not a status, so the bot can show what compose printed.
+  rpc ControlStack(ControlStackRequest) returns (ControlStackResponse);
+
   // Notifications for the bot to post. The bot keeps one call open and reopens it with backoff when it
   // ends; a new call replaces the previous one. Notifications created while no bot was connected are sent
   // when it connects, unless they are older than an hour: those are expired, not delivered late.
@@ -148,6 +155,53 @@ enum ContainerAction {
   CONTAINER_ACTION_START = 1;
   CONTAINER_ACTION_STOP = 2;
   CONTAINER_ACTION_RESTART = 3;
+}
+
+message ListStacksRequest {
+  uint64 discord_user_id = 1;
+  string environment_id = 2;
+}
+
+message ListStacksResponse {
+  repeated Stack stacks = 1;
+}
+
+// can_restart and can_take_down are for hiding buttons, nothing more; the aggregator checks the action itself.
+// A system stack (the aggregator's or the agent's own) allows neither: it is updated through a helper container.
+message Stack {
+  string id = 1;
+  string name = 2;  // compose project name; unique in the environment
+  bool is_system = 3;
+  string deployed_commit = 4;  // empty until the first successful deployment
+  int64 deployed_unix_ms = 5;  // 0 until the first successful deployment
+  bool can_restart = 6;
+  bool can_take_down = 7;
+}
+
+// stack is the stack's name in the environment.
+// Unknown or invisible stack: NOT_FOUND; a system stack or one with a deployment in progress: FAILED_PRECONDITION;
+// a stack the agent has never deployed: NOT_FOUND.
+message ControlStackRequest {
+  uint64 discord_user_id = 1;
+  string environment_id = 2;
+  string stack = 3;
+  StackAction action = 4;
+  // Seconds Docker waits for each container before killing it, 0 = kill at once. Unset means the aggregator's default.
+  optional int32 timeout_seconds = 5;
+}
+
+// error is empty when compose succeeded. output holds the last lines compose printed; it comes from Docker,
+// so escape it before showing it.
+message ControlStackResponse {
+  string error = 1;
+  repeated string output = 2;
+}
+
+// Must be set; STACK_ACTION_UNSPECIFIED is INVALID_ARGUMENT.
+enum StackAction {
+  STACK_ACTION_UNSPECIFIED = 0;
+  STACK_ACTION_RESTART = 1;  // docker compose restart: Operator
+  STACK_ACTION_DOWN = 2;     // docker compose down, volumes stay: Editor
 }
 
 message WatchNotificationsRequest {}

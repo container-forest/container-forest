@@ -5,10 +5,12 @@ using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
+using ContainerForest.Aggregator.Domain.Environments;
+using ContainerForest.Aggregator.Domain.Stacks;
 
 namespace ContainerForest.Aggregator.Application.Stacks;
 
-/// <summary>Entry point for restart and down of a deployed stack, as the current user is allowed to.</summary>
+/// <summary>Entry point for restart and down of a deployed stack from the panel and the bot, as the current user is allowed to.</summary>
 public sealed class StackCommandService(
     CurrentActor currentActor,
     IEnvironmentRepository environments,
@@ -33,6 +35,38 @@ public sealed class StackCommandService(
             throw new NotFoundException("Stack", stackId);
         }
 
+        return await RunAsync(actor, environment, stack, assignments, action, stopTimeout, cancellationToken);
+    }
+
+    /// <summary>The same by the stack's name in the environment, as the bot names it.</summary>
+    public async Task<StackCommandResult> ExecuteAsync(
+        EnvironmentId environmentId, string stackName, StackAction action, TimeSpan? stopTimeout, CancellationToken cancellationToken)
+    {
+        var actor = await currentActor.GetAsync(cancellationToken);
+        var environment = await environments.FindAsync(environmentId, cancellationToken);
+        var stack = environment is not null && StackName.TryParse(stackName.Trim(), out var name)
+            ? await stacks.FindByNameAsync(environment.Id, name, cancellationToken)
+            : null;
+        var assignments = await roleAssignments.ListForUserAsync(actor.Id, cancellationToken);
+
+        // One answer for a missing environment, a missing stack and an invisible one.
+        if (stack is null || environment is null || !AccessPolicy.CanSee(actor, environment, stack, assignments))
+        {
+            throw new NotFoundException("Stack", $"'{stackName.Trim()}'");
+        }
+
+        return await RunAsync(actor, environment, stack, assignments, action, stopTimeout, cancellationToken);
+    }
+
+    private async Task<StackCommandResult> RunAsync(
+        User actor,
+        DockerEnvironment environment,
+        Stack stack,
+        IReadOnlyList<RoleAssignment> assignments,
+        StackAction action,
+        TimeSpan? stopTimeout,
+        CancellationToken cancellationToken)
+    {
         var command = Create(action, stopTimeout ?? StackCommand.DefaultStopTimeout);
         if (!AccessPolicy.CanPerform(actor, environment, stack, assignments, command.Operation))
         {

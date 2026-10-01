@@ -31,4 +31,17 @@ public interface IForestClient
         ContainerAction action,
         int? timeoutSeconds,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ForestStack>> ListStacksAsync(ulong discordUserId, string environmentId, CancellationToken cancellationToken);
+
+    /// <summary>Returns once docker compose has finished; a failed compose run is a result, not an exception.</summary>
+    /// <param name="stack">The stack's name in the environment.</param>
+    /// <param name="timeoutSeconds">Per container: 0 kills at once; null means the aggregator's default.</param>
+    Task<ForestStackResult> ControlStackAsync(
+        ulong discordUserId,
+        string environmentId,
+        string stack,
+        StackAction action,
+        int? timeoutSeconds,
+        CancellationToken cancellationToken);
 }

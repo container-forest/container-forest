@@ -38,3 +38,24 @@ public sealed class ContainerAutocompleteHandler(AutocompleteSource source) : Au
         return AutocompletionResult.FromSuccess(suggestions.Select(s => new AutocompleteResult(s.Name, s.Value)));
     }
 }
+
+/// <summary>Suggests stacks of the environment already chosen in the same command that the user may act on.</summary>
+public sealed class StackAutocompleteHandler(AutocompleteSource source) : AutocompleteHandler
+{
+    public override async Task<AutocompletionResult> GenerateSuggestionsAsync(
+        IInteractionContext context, IAutocompleteInteraction autocompleteInteraction, IParameterInfo parameter, IServiceProvider services)
+    {
+        var data = autocompleteInteraction.Data;
+        var environment = data.Options.FirstOrDefault(o => o.Name == "environment")?.Value as string;
+        StackAction? action = data.CommandName switch
+        {
+            "stack-restart" => StackAction.Restart,
+            "stack-down" => StackAction.Down,
+            _ => null,
+        };
+
+        var suggestions = await source.StacksAsync(
+            new BotUser(context.User.Id, context.User.Username), environment, action, data.Current.Value as string, default);
+        return AutocompletionResult.FromSuccess(suggestions.Select(s => new AutocompleteResult(s.Name, s.Value)));
+    }
+}

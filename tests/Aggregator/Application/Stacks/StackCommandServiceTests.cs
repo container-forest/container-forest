@@ -191,6 +191,46 @@ public class StackCommandServiceTests
         Assert.Equal($"line {StackCommand.MaxOutputLines + 5}", result.Output[^1]);
     }
 
+    [Fact]
+    public async Task Stack_is_found_by_its_name_in_the_environment()
+    {
+        Grant(Role.Operator);
+
+        await service.ExecuteAsync(environment.Id, " web ", StackAction.Restart, null, Ct);
+
+        Assert.Equal(["restart-stack web"], agent.Calls);
+    }
+
+    [Theory]
+    [InlineData("db")]
+    [InlineData("Not a name!")]
+    public async Task Unknown_or_malformed_name_looks_missing(string name)
+    {
+        Grant(Role.Editor);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.ExecuteAsync(environment.Id, name, StackAction.Restart, null, Ct));
+        Assert.Empty(agent.Calls);
+    }
+
+    [Fact]
+    public async Task Name_in_an_invisible_or_missing_environment_looks_missing()
+    {
+        await Assert.ThrowsAsync<NotFoundException>(() => service.ExecuteAsync(environment.Id, "web", StackAction.Restart, null, Ct));
+        await Assert.ThrowsAsync<NotFoundException>(() => service.ExecuteAsync(EnvironmentId.New(), "web", StackAction.Restart, null, Ct));
+        Assert.Empty(agent.Calls);
+    }
+
+    [Fact]
+    public async Task Name_of_a_stack_in_another_environment_looks_missing()
+    {
+        Grant(Role.Editor);
+        var other = DockerEnvironment.Create("lab", isPrivate: false, Now);
+        environments.Add(other);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.ExecuteAsync(other.Id, "web", StackAction.Restart, null, Ct));
+        Assert.Empty(agent.Calls);
+    }
+
     private void Grant(Role role) => roleAssignments.Add(RoleAssignment.ForEnvironment(alice.Id, environment.Id, role, Now));
 
     private Stack AddStack(string name, bool isSystem = false)

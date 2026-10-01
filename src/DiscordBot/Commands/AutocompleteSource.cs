@@ -7,7 +7,7 @@ namespace ContainerForest.DiscordBot.Commands;
 public sealed record Suggestion(string Name, string Value);
 
 /// <summary>
-/// Suggestions for environment and container options. Autocomplete cannot be deferred and must answer within
+/// Suggestions for environment, container and stack options. Autocomplete cannot be deferred and must answer within
 /// 3 seconds, so every lookup has a short budget and a failure means no suggestions, never an error.
 /// Suggestions are only a convenience: the command checks whatever the user sends.
 /// </summary>
@@ -45,6 +45,47 @@ public sealed class AutocompleteSource(IForestClient forest, ILogger<Autocomplet
             cancellationToken);
         return containers is null ? [] : SuggestContainers(containers, action, input);
     }
+
+    /// <param name="environment">What the environment option holds so far: an id from autocomplete or a typed name.</param>
+    /// <param name="action">The command being filled in; null shows every stack the user may restart or take down.</param>
+    public async Task<IReadOnlyList<Suggestion>> StacksAsync(
+        BotUser user, string? environment, StackAction? action, string? input, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(environment))
+        {
+            return [];
+        }
+
+        var stacks = await WithinBudgetAsync(
+            async ct =>
+            {
+                var environments = await forest.ListEnvironmentsAsync(user.Id, ct);
+                var resolved = EnvironmentResolver.Find(environments, environment.Trim());
+                return resolved is null ? [] : await forest.ListStacksAsync(user.Id, resolved.Id, ct);
+            },
+            cancellationToken);
+        return stacks is null ? [] : SuggestStacks(stacks, action, input);
+    }
+
+    /// <summary>
+    /// Deployed stacks the user may run the action on. Hiding the rest is cosmetic; the aggregator decides.
+    /// Stack names are at most 63 characters, so the name is always the value.
+    /// </summary>
+    public static IReadOnlyList<Suggestion> SuggestStacks(IReadOnlyList<ForestStack> stacks, StackAction? action, string? input) =>
+    [
+        .. stacks
+            .Where(s => s.DeployedCommit is not null && Allows(action, s) && Matches(s.Name, input))
+            .OrderBy(s => s.Name, StringComparer.Ordinal)
+            .Take(MaxSuggestions)
+            .Select(s => new Suggestion(s.Name, s.Name)),
+    ];
+
+    private static bool Allows(StackAction? action, ForestStack stack) => action switch
+    {
+        StackAction.Restart => stack.CanRestart,
+        StackAction.Down => stack.CanTakeDown,
+        _ => stack.CanRestart || stack.CanTakeDown,
+    };
 
     public static IReadOnlyList<Suggestion> SuggestEnvironments(IReadOnlyList<ForestEnvironment> environments, string? input) =>
     [

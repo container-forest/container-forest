@@ -38,7 +38,8 @@ internal static class DevStackEndpoints
                 s.IsSystem,
                 s.DeployedCommit?.Value,
                 s.DeployedAt,
-                s.CanDeploy)));
+                s.CanDeploy,
+                s.CanRestart)));
 
         stacks.MapPost(
             "/environments/{id:guid}/stacks",
@@ -57,7 +58,8 @@ internal static class DevStackEndpoints
                         stack.IsSystem,
                         DeployedCommit: null,
                         DeployedAt: null,
-                        CanDeploy: true));
+                        CanDeploy: true,
+                        CanRestart: true));
             });
 
         // Answers 200 also when compose itself failed: the output says why. Errors before compose ran
@@ -130,7 +132,8 @@ internal static class DevStackEndpoints
         bool IsSystem,
         string? DeployedCommit,
         DateTimeOffset? DeployedAt,
-        bool CanDeploy);
+        bool CanDeploy,
+        bool CanRestart);
 
     /// <param name="Error">Why compose failed, or null when it succeeded.</param>
     /// <param name="Output">The last lines of compose output.</param>

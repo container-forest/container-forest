@@ -17,6 +17,14 @@ public sealed class AgentGatewayOptions
     /// </summary>
     public TimeSpan IdleTimeout { get; set; } = TimeSpan.FromSeconds(45);
 
+    /// <summary>
+    /// How long restart and down of a stack wait for the agent. Compose stops containers in dependency order,
+    /// each with its own stop timeout, so this is not derived from it. The agent itself ends compose after its
+    /// Agent:ComposeTimeout (15 min); the extra minute lets that answer arrive first.
+    /// </summary>
+    public TimeSpan StackCommandTimeout { get; set; } = TimeSpan.FromMinutes(16);
+
     internal bool IsValid() =>
-        CommandTimeout > TimeSpan.Zero && HelloTimeout > TimeSpan.Zero && IdleTimeout > TimeSpan.Zero;
+        CommandTimeout > TimeSpan.Zero && HelloTimeout > TimeSpan.Zero && IdleTimeout > TimeSpan.Zero
+        && StackCommandTimeout > TimeSpan.Zero;
 }

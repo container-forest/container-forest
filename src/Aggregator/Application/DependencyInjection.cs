@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<RepositoryService>();
         services.AddScoped<RegistryCredentialService>();
         services.AddScoped<StackService>();
+        services.AddScoped<StackCommandService>();
         services.AddScoped<DeploymentService>();
         services.AddScoped<DeploymentRunner>();
 

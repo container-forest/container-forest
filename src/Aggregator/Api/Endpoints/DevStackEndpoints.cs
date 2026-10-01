@@ -60,6 +60,23 @@ internal static class DevStackEndpoints
                         CanDeploy: true));
             });
 
+        // Answers 200 also when compose itself failed: the output says why. Errors before compose ran
+        // (no access, system stack, agent offline or busy, stack never deployed) are problem responses.
+        stacks.MapPost(
+            "/stacks/{id:guid}/{action}",
+            async (Guid id, string action, int? timeoutSeconds, StackCommandService service, CancellationToken ct) =>
+            {
+                if (!Enum.TryParse<StackAction>(action, ignoreCase: true, out var stackAction) || !Enum.IsDefined(stackAction))
+                {
+                    return Results.Problem(statusCode: StatusCodes.Status400BadRequest, detail: "Action must be restart or down.");
+                }
+
+                var stopTimeout = timeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null;
+                var result = await service.ExecuteAsync(StackId.From(id), stackAction, stopTimeout, ct);
+                return Results.Ok(new StackCommandResponse(result.Succeeded, result.Error, result.Output));
+            })
+            .Produces<StackCommandResponse>();
+
         var deployments = app.MapGroup("/api/dev").WithTags("Dev: deployments");
 
         deployments.MapGet("/stacks/{id:guid}/deployments", async (Guid id, DeploymentService service, CancellationToken ct) =>
@@ -114,6 +131,10 @@ internal static class DevStackEndpoints
         string? DeployedCommit,
         DateTimeOffset? DeployedAt,
         bool CanDeploy);
+
+    /// <param name="Error">Why compose failed, or null when it succeeded.</param>
+    /// <param name="Output">The last lines of compose output.</param>
+    public sealed record StackCommandResponse(bool Succeeded, string? Error, IReadOnlyList<string> Output);
 
     /// <param name="Pull">True for "redeploy with pull": pull every image, not only missing ones.</param>
     public sealed record DeployRequest(bool Pull);

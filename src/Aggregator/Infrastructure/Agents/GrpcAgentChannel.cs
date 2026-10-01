@@ -1,6 +1,7 @@
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
+using ContainerForest.Aggregator.Domain.Stacks;
 using ContainerForest.Contracts.Agent;
 using Google.Protobuf;
 using Microsoft.Extensions.Options;
@@ -78,6 +79,32 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
 
         return SendAsync(environmentId, new ControllerMessage { DeployStack = command }, timeout, cancellationToken, onProgress);
     }
+
+    public Task RestartStackAsync(
+        EnvironmentId environmentId,
+        StackName stackName,
+        TimeSpan stopTimeout,
+        Action<string> onProgress,
+        CancellationToken cancellationToken) =>
+        SendAsync(
+            environmentId,
+            new ControllerMessage { RestartStack = new RestartStack { StackName = stackName.Value, TimeoutSeconds = Seconds(stopTimeout) } },
+            options.Value.StackCommandTimeout,
+            cancellationToken,
+            onProgress);
+
+    public Task DownStackAsync(
+        EnvironmentId environmentId,
+        StackName stackName,
+        TimeSpan stopTimeout,
+        Action<string> onProgress,
+        CancellationToken cancellationToken) =>
+        SendAsync(
+            environmentId,
+            new ControllerMessage { DownStack = new DownStack { StackName = stackName.Value, TimeoutSeconds = Seconds(stopTimeout) } },
+            options.Value.StackCommandTimeout,
+            cancellationToken,
+            onProgress);
 
     // Docker may wait the whole stop timeout before killing the process; the answer comes after that.
     private TimeSpan WaitFor(TimeSpan stopTimeout) => options.Value.CommandTimeout + stopTimeout;

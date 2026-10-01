@@ -7,13 +7,16 @@ using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
+using ContainerForest.Aggregator.Infrastructure.Accounts;
 using ContainerForest.Contracts.Bot;
 using ContainerForest.Contracts.Agent;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Mvc.Testing.Handlers;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -23,12 +26,14 @@ namespace ContainerForest.Aggregator.Api.Tests;
 
 /// <summary>
 /// The aggregator in memory with its own SQLite file, plus helpers to act as an agent.
-/// <see cref="WebApplicationFactory{TEntryPoint}.CreateClient()"/> acts as the administrator <see cref="AdminUserName"/>.
+/// <see cref="WebApplicationFactory{TEntryPoint}.CreateClient()"/> acts as the administrator <see cref="AdminUserName"/>,
+/// whom the aggregator creates at start-up from the Bootstrap settings, so they can also sign in with <see cref="AdminPassword"/>.
 /// Git is replaced by <see cref="Git"/>, so deployments never reach the network.
 /// </summary>
 internal sealed class AggregatorApp : WebApplicationFactory<Program>
 {
     public const string AdminUserName = "admin";
+    public const string AdminPassword = "correct horse battery staple";
     public const string DevUserHeader = "X-Dev-User";
 
     /// <summary>The bot token the aggregator accepts; <see cref="BotGateway"/> sends it with every call.</summary>
@@ -62,6 +67,33 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         }
 
         return client;
+    }
+
+    /// <summary>An anonymous client that keeps cookies, like a browser: for signing in with a password.</summary>
+    public HttpClient CreateBrowserClient()
+    {
+        var client = CreateDefaultClient(new CookieContainerHandler());
+        client.DefaultRequestHeaders.Remove(DevUserHeader);
+        return client;
+    }
+
+    /// <summary>A regular user with a password, as the user management will create them.</summary>
+    public async Task CreateUserWithPasswordAsync(string userName, string password)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var user = User.Create(userName, DateTimeOffset.UtcNow);
+        scope.ServiceProvider.GetRequiredService<IUserRepository>().Add(user);
+        var result = await scope.ServiceProvider.GetRequiredService<UserManager<AccountUser>>()
+            .CreateAsync(new AccountUser(user), password);
+        Assert.True(result.Succeeded, string.Join(" ", result.Errors.Select(e => e.Description)));
+    }
+
+    public async Task DeactivateUserAsync(string userName)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var user = await scope.ServiceProvider.GetRequiredService<IUserRepository>().FindByUserNameAsync(userName, default);
+        user!.Deactivate();
+        await scope.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync();
     }
 
     public async Task<CreatedEnvironment> CreateEnvironmentAsync(string name = "test")
@@ -111,6 +143,8 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         builder.UseSetting("DataProtection:KeyDirectory", keyDirectory);
         builder.UseSetting("AgentGateway:CommandTimeout", "00:00:05");
         builder.UseSetting("BotGateway:TokenHashes:0", SecretToken.Hash(BotToken));
+        builder.UseSetting("Bootstrap:AdminUserName", AdminUserName);
+        builder.UseSetting("Bootstrap:AdminPassword", AdminPassword);
         builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Singleton<IGitSource>(Git)));
     }
 
@@ -118,19 +152,6 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
     {
         base.ConfigureClient(client);
         client.DefaultRequestHeaders.Add(DevUserHeader, AdminUserName);
-    }
-
-    protected override IHost CreateHost(IHostBuilder builder)
-    {
-        var host = base.CreateHost(builder);
-
-        // The host has started, so migrations are applied.
-        using var scope = host.Services.CreateScope();
-        var users = scope.ServiceProvider.GetRequiredService<IUserRepository>();
-        users.Add(User.CreateAdministrator(AdminUserName, DateTimeOffset.UtcNow));
-        scope.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync().GetAwaiter().GetResult();
-
-        return host;
     }
 
     public override async ValueTask DisposeAsync()

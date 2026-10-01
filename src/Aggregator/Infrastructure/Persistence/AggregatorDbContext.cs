@@ -6,12 +6,19 @@ using ContainerForest.Aggregator.Domain.Environments;
 using ContainerForest.Aggregator.Domain.Notifications;
 using ContainerForest.Aggregator.Domain.Repositories;
 using ContainerForest.Aggregator.Domain.Stacks;
+using ContainerForest.Aggregator.Infrastructure.Accounts;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace ContainerForest.Aggregator.Infrastructure.Persistence;
 
-public sealed class AggregatorDbContext(DbContextOptions<AggregatorDbContext> options) : DbContext(options), IUnitOfWork
+/// <summary>
+/// The aggregator's database, including the Identity tables for sign-in (AspNetUsers and its claims, logins and
+/// tokens). Identity's role tables are left out: roles are <see cref="RoleAssignment"/>s.
+/// </summary>
+public sealed class AggregatorDbContext(DbContextOptions<AggregatorDbContext> options)
+    : IdentityUserContext<AccountUser, Guid>(options), IUnitOfWork
 {
     public DbSet<DockerEnvironment> Environments => Set<DockerEnvironment>();
 
@@ -20,8 +27,6 @@ public sealed class AggregatorDbContext(DbContextOptions<AggregatorDbContext> op
     public DbSet<Stack> Stacks => Set<Stack>();
 
     public DbSet<Deployment> Deployments => Set<Deployment>();
-
-    public DbSet<User> Users => Set<User>();
 
     public DbSet<RoleAssignment> RoleAssignments => Set<RoleAssignment>();
 
@@ -35,8 +40,11 @@ public sealed class AggregatorDbContext(DbContextOptions<AggregatorDbContext> op
 
     public DbSet<RegistryCredential> RegistryCredentials => Set<RegistryCredential>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AggregatorDbContext).Assembly);
+    }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {

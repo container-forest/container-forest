@@ -60,7 +60,13 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
 Потрібно: .NET 10 SDK, Node.js 22.12+ (у CI і образі — 24, `src/Web/.nvmrc`), Docker (на Windows — Docker Desktop).
 
 1. `dotnet run --project src/Aggregator/Api` — ЦА: REST на `http://localhost:5080`, gRPC для агентів на `http://localhost:5081`. База SQLite створюється й мігрує сама при старті (`src/Aggregator/Api/aggregator.db`).
-2. Створити середовище й отримати enrollment-токен. Поки немає логіну й панелі, для цього є тимчасові dev-ендпоінти, доступні лише в оточенні `Development`. Замість логіну заголовок `X-Dev-User` називає користувача, від імені якого йде запит (без пароля):
+   Якщо в базі ще немає користувачів, ЦА створює адміністратора з `CF_BOOTSTRAP__ADMINUSERNAME` і `CF_BOOTSTRAP__ADMINPASSWORD` (пароль від 12 символів), і з ним можна ввійти паролем:
+   ```sh
+   CF_BOOTSTRAP__ADMINUSERNAME=root CF_BOOTSTRAP__ADMINPASSWORD='<пароль>' dotnet run --project src/Aggregator/Api
+   curl -c cookies.txt -X POST http://localhost:5080/api/auth/login -H 'content-type: application/json' -d '{"userName":"root","password":"<пароль>","rememberMe":false}'
+   curl -b cookies.txt http://localhost:5080/api/me
+   ```
+2. Створити середовище й отримати enrollment-токен. Поки немає API керування користувачами й панелі, для цього є тимчасові dev-ендпоінти, доступні лише в оточенні `Development`. Там, крім cookie, заголовок `X-Dev-User` називає користувача, від імені якого йде запит (без пароля):
    ```sh
    curl -X POST http://localhost:5080/api/dev/users -H 'content-type: application/json' -d '{"userName":"root","isAdmin":true}'   # без заголовка
    curl -H 'X-Dev-User: root' http://localhost:5080/api/me

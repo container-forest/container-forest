@@ -91,7 +91,7 @@ public sealed class StackCommandTests
             **prod** · 4 stacks
             📦 `api` — deployed `0123456789ab` · restart, down
             📦 `forest` — deployed `0123456789ab` · system stack
-            ⚪ `new` — not deployed yet · restart, down
+            ⚪ `new` — not deployed · restart, down
             📦 `web` — deployed `0123456789ab` · restart
             """.ReplaceLineEndings("\n"),
             interaction.Reply!.Content);

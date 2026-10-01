@@ -40,7 +40,7 @@ public enum ContainerAction
 }
 
 /// <param name="Name">The compose project name; unique in the environment, and what the bot passes back.</param>
-/// <param name="DeployedCommit">Null until the first successful deployment.</param>
+/// <param name="DeployedCommit">Null when nothing is deployed: before the first successful deployment and after down.</param>
 /// <param name="CanRestart">The user may restart it. Use it to hide choices, nothing more.</param>
 /// <param name="CanTakeDown">The user may take it down. Use it to hide choices, nothing more.</param>
 public sealed record ForestStack(

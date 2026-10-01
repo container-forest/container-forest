@@ -20,6 +20,7 @@ public class StackCommandServiceTests
     private readonly InMemoryDeployments deployments = new();
     private readonly FakeAgentChannel agent = new();
     private readonly FakeCurrentUser currentUser = new();
+    private readonly FakeUnitOfWork unitOfWork = new();
     private readonly StackCommandService service;
 
     private readonly User alice = User.Create("alice", Now);
@@ -29,7 +30,7 @@ public class StackCommandServiceTests
     public StackCommandServiceTests()
     {
         service = new StackCommandService(
-            new CurrentActor(currentUser, users), environments, stacks, roleAssignments, deployments, agent);
+            new CurrentActor(currentUser, users), environments, stacks, roleAssignments, deployments, unitOfWork, agent);
         users.Add(alice);
         currentUser.Id = alice.Id;
         environments.Add(environment);
@@ -229,6 +230,42 @@ public class StackCommandServiceTests
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.ExecuteAsync(other.Id, "web", StackAction.Restart, null, Ct));
         Assert.Empty(agent.Calls);
+    }
+
+    [Fact]
+    public async Task Successful_down_forgets_the_deployed_commit()
+    {
+        Grant(Role.Editor);
+        RecordDeployment();
+
+        await service.ExecuteAsync(stack.Id, StackAction.Down, null, Ct);
+
+        Assert.Null(stack.DeployedCommit);
+        Assert.Null(stack.DeployedAt);
+        Assert.Equal(1, unitOfWork.Saves);
+    }
+
+    [Fact]
+    public async Task Failed_down_and_restart_keep_the_deployed_commit()
+    {
+        Grant(Role.Editor);
+        RecordDeployment();
+
+        await service.ExecuteAsync(stack.Id, StackAction.Restart, null, Ct);
+        agent.DeployError = new AgentCommandFailedException(environment.Id, AgentErrorKind.CommandFailed, "compose failed");
+        await service.ExecuteAsync(stack.Id, StackAction.Down, null, Ct);
+
+        Assert.Equal(Commit, stack.DeployedCommit);
+        Assert.Equal(0, unitOfWork.Saves);
+    }
+
+    private void RecordDeployment()
+    {
+        var deployment = Deployment.QueueManual(stack.Id, alice.Id, ImagePullPolicy.Missing, Now);
+        deployment.Start(Now);
+        deployment.ResolveCommit(Commit);
+        deployment.Succeed(Now);
+        stack.RecordDeployment(deployment);
     }
 
     private void Grant(Role role) => roleAssignments.Add(RoleAssignment.ForEnvironment(alice.Id, environment.Id, role, Now));

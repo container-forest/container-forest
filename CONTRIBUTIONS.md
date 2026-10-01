@@ -249,8 +249,8 @@
 | Вимога | Потрібно | Є | Стан |
 |---|---|---|---|
 | Класи та подібні типи | ≥ 9 | 94 (82 класи, з них 6 статичних і 13 record; 8 інтерфейсів; 1 структура; 3 enum) | ✅ |
-| Поля | ≥ 15 | 197 (157 полів стану, 40 констант і статичних полів) | ✅ |
-| Нетривіальні методи | ≥ 25 | 140 | ✅ |
+| Поля | ≥ 15 | 198 (158 полів стану, 40 констант і статичних полів) | ✅ |
+| Нетривіальні методи | ≥ 25 | 141 | ✅ |
 | Ієрархії успадкування | ≥ 2, одна з ≥ 3 класів | 4 (10 класів на трьох рівнях; 13 класів; 3 класи; 3 класи) | ✅ |
 | Поліморфізм | ≥ 3, серед них статичний і динамічний | 11 з клієнтським кодом (10 динамічних, 1 статичний) | ✅ |
 
@@ -346,7 +346,7 @@
 | ЦА: `DataProtectionSecretProtector` | `provider` | |
 | ЦА: `StackCommand` | `agents`, `StopTimeout` | `DefaultStopTimeout`, `MaxStopTimeout`, `MaxOutputLines` |
 | ЦА: `StackCommandResult` | `Error`, `Output` | |
-| ЦА: `StackCommandService` | `currentActor`, `environments`, `stacks`, `roleAssignments`, `deployments`, `agents` | |
+| ЦА: `StackCommandService` | `currentActor`, `environments`, `stacks`, `roleAssignments`, `deployments`, `unitOfWork`, `agents` | |
 | Бот: `ForestStack` | `Id`, `Name`, `IsSystem`, `DeployedCommit`, `DeployedAt`, `CanRestart`, `CanTakeDown` | |
 | Бот: `ForestStackResult` | `Error`, `Output` | |
 | Бот: `StackList`, `StackActionOutcome` | `Environment`, `Stacks`; `Environment`, `Result` | |
@@ -356,7 +356,7 @@
 | ЦА: поля, додані в класи Петренка Б. О. | `DeployContext.compose`, `StackBundle.RegistryLogins`, `AgentGatewayOptions.StackCommandTimeout`, `StackSummary.CanRestart` | `AgentSession.CancelWriteTimeout` |
 | Бот: поля, додані в класи Синенка Д. В. | `BotOptions.StackActionTimeout` | `ForestModule.StackDescription`, `StackTimeoutDescription` |
 
-#### Нетривіальні методи (140)
+#### Нетривіальні методи (141)
 
 | Тип | Методи |
 |---|---|
@@ -403,8 +403,8 @@
 | ЦА: `RegistryCredentialConfiguration` (1) | `Configure` |
 | ЦА: `RegistryCredentialRepository` (2) | `ListByEnvironmentAsync`, `FindByServerAsync` |
 | ЦА: `StackCommand` (3) | `ExecuteAsync` (заборони для стеку, вивід compose і помилка compose як результат, без скасування викликачем), `Collect` (останні рядки виводу), `ValidateTimeout` |
-| ЦА: `StackCommandService` (4) | `ExecuteAsync` за id і `ExecuteAsync` за назвою в середовищі (видимість, однакова відповідь для відсутнього й невидимого стеку), `RunAsync` (роль для операції, незавершений деплой), `Create` |
-| ЦА: методи, додані в класи Петренка Б. О. (5) | `AgentSession.CancelOnAgentAsync`; `GrpcAgentChannel.RestartStackAsync`, `DownStackAsync`; `BotGatewayService.ListStacks` (дії без системних стеків), `ControlStack` |
+| ЦА: `StackCommandService` (4) | `ExecuteAsync` за id і `ExecuteAsync` за назвою в середовищі (видимість, однакова відповідь для відсутнього й невидимого стеку), `RunAsync` (роль для операції, незавершений деплой, коміт забувається лише після успішного down), `Create` |
+| ЦА: методи, додані в класи Петренка Б. О. (6) | `Stack.RecordTakenDown` (заборонено для системного стеку); `AgentSession.CancelOnAgentAsync`; `GrpcAgentChannel.RestartStackAsync`, `DownStackAsync`; `BotGatewayService.ListStacks` (дії без системних стеків), `ControlStack` |
 | Бот: `StacksCommand` (1) | `CallForestAsync` (середовище за назвою чи id, стеки) |
 | Бот: `StackActionCommand` (2) | `CallForestAsync`, `Format` (помилка compose як відповідь-помилка з виводом) |
 | Бот: `StackAutocompleteHandler` (1) | `GenerateSuggestionsAsync` (дія з назви команди) |
@@ -438,7 +438,7 @@
 #### Тести (не входять в облік)
 
 - `tests/Agent`, 166 тестів (частина лише на Linux): зіставлення міток compose і станів контейнерів; обробники — `request_id` у результаті, коди помилок, передача таймауту зупинки, відхилення небезпечних id контейнерів; диспетчер — непідтримувані й невідомі команди, `CancelRequest` без результату; backoff — межі, jitter, скидання після довгої сесії; послідовний запис у стрім; сесія — облікові дані в metadata, Hello першим, відповіді на команди, heartbeat, `Unauthenticated`; збереження облікових даних і реєстрація; boot_id; стеки — ім'я стеку, шляхи поза каталогом стеку, дублікати, режими файлів, аргументи compose без `-f` для restart/down, `BUSY`, `NOT_FOUND`, секрети не потрапляють у прогрес і помилки, тимчасовий `DOCKER_CONFIG`; справжній процес (`/bin/sh` замість docker) — вивід обох потоків, код виходу, тайм-аут, скасування, фільтр `CF_*`; запис файлів — дані контейнерів лишаються, застарілі файли й порожні каталоги прибираються, `.prev`, режими 0644/0755, секрет лежить у каталозі секретів, а в каталозі стеку — посилання на нього, вміст секретів не потрапляє на диск, `.prev` секретів до успішного up, посилання після перезавантаження, підкладене контейнером посилання не використовується для запису й видалення; скасування — `CancelRequest` зупиняє команду з `ERROR_CODE_CANCELLED`, дублікат request_id, скасований деплой лишає `.prev` секретів і звільняє стек.
-- `tests/Aggregator`: правило хоста registry для образів і нормалізація адрес, `RegistryCredential`, сервіс кредів (лише адміністратор, заміна логіну, ізоляція середовищ), крок `ResolveRegistryAuthStep` (лише потрібні креди, `${VAR}`, нерозшифровуваний пароль), Data Protection (перезапуск, пошкоджене значення, втрачений key ring), інтеграційний тест: креди через dev-ендпоінт доходять до агента в `DeployStack`; `AgentSession` надсилає `CancelRequest` після тайм-ауту й скасування викликача, але не після результату чи закриття сесії; restart і down стеку — роль Operator для restart і Editor для down, невидимий стек — 404 без звернення до агента, системний стек і незавершений деплой — 409, межі тайм-ауту зупинки, помилка compose як результат із виводом, лише останні рядки виводу, скасування викликача не доходить до агента, стек за назвою в середовищі (невідома, некоректна назва й стек іншого середовища — 404); інтеграційні тести: `RestartStack`/`DownStack` з тайм-аутом доходять до агента, вивід і помилка compose у відповіді, `NOT_FOUND` агента — 404; шлюз бота — `ListStacks` з правами на дії, `ControlStack` доходить до агента й повертає помилку compose з виводом, Viewer — `PERMISSION_DENIED`, невідомий стек — `NOT_FOUND`.
+- `tests/Aggregator`: правило хоста registry для образів і нормалізація адрес, `RegistryCredential`, сервіс кредів (лише адміністратор, заміна логіну, ізоляція середовищ), крок `ResolveRegistryAuthStep` (лише потрібні креди, `${VAR}`, нерозшифровуваний пароль), Data Protection (перезапуск, пошкоджене значення, втрачений key ring), інтеграційний тест: креди через dev-ендпоінт доходять до агента в `DeployStack`; `AgentSession` надсилає `CancelRequest` після тайм-ауту й скасування викликача, але не після результату чи закриття сесії; restart і down стеку — роль Operator для restart і Editor для down, невидимий стек — 404 без звернення до агента, системний стек і незавершений деплой — 409, межі тайм-ауту зупинки, помилка compose як результат із виводом, лише останні рядки виводу, скасування викликача не доходить до агента, стек за назвою в середовищі (невідома, некоректна назва й стек іншого середовища — 404), успішний down забуває розгорнутий коміт, невдалий down і restart — ні, `Stack.RecordTakenDown` для системного стеку — помилка; інтеграційні тести: `RestartStack`/`DownStack` з тайм-аутом доходять до агента, вивід і помилка compose у відповіді, `NOT_FOUND` агента — 404, після деплою й down у списку стеків немає розгорнутого коміту; шлюз бота — `ListStacks` з правами на дії, `ControlStack` доходить до агента й повертає помилку compose з виводом, Viewer — `PERMISSION_DENIED`, невідомий стек — `NOT_FOUND`.
 - `tests/DiscordBot`: `/stack-restart` і `/stack-down` — defer до виклику, назва стеку й тайм-аут у запиті, вивід compose в блоці коду, помилка compose як відповідь-помилка, відмова ЦА; `/stacks` — рядки зі станом деплою й доступними діями; підказки стеків за дією; вивід у межах 2000 символів зі зміщенням до останніх рядків, compose не може закрити блок коду; `GrpcForestClient` — перетворення `ListStacks`, поля `ControlStack`, тайм-аут не задано, статус → `ForestException`.
 
 ### Лаба 2

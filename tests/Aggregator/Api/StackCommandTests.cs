@@ -1,5 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
+using ContainerForest.Aggregator.Application.Deployments;
+using ContainerForest.Aggregator.Domain.Stacks;
 using ContainerForest.Contracts.Agent;
 
 namespace ContainerForest.Aggregator.Api.Tests;
@@ -30,6 +33,31 @@ public class StackCommandTests
         Assert.True(result!.Succeeded);
         Assert.Null(result.Error);
         Assert.Equal(["Container web-app-1 Started"], result.Output);
+    }
+
+    [Fact]
+    public async Task Successful_down_clears_the_deployed_commit()
+    {
+        const string sha = "0123456789abcdef0123456789abcdef01234567";
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        app.Git.Snapshot = new GitSnapshot(
+            CommitSha.Parse(sha),
+            [new SourceFile(StackFilePath.Parse("compose.yaml"), Encoding.UTF8.GetBytes("services:\n  web:\n    image: nginx:1.27\n"), IsExecutable: false)],
+            []);
+        var stackId = await CreateStackAsync(app, agent);
+        var client = app.CreateClient();
+
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Accepted, client.PostAsJsonAsync($"/api/dev/stacks/{stackId}/deployments", new { pull = false }, Ct));
+        await AnswerAsync(agent, ControllerMessage.BodyOneofCase.DeployStack);
+        await WaitForCommitAsync(app, agent, sha);
+
+        var down = client.PostAsync($"/api/dev/stacks/{stackId}/down", content: null, Ct);
+        await AnswerAsync(agent, ControllerMessage.BodyOneofCase.DownStack);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, down);
+
+        Assert.Null((await ListStacksAsync(app, agent)).Single().DeployedCommit);
     }
 
     [Fact]
@@ -115,7 +143,34 @@ public class StackCommandTests
         return (await stack.Content.ReadFromJsonAsync<IdView>(AggregatorApp.Json, Ct))!.Id;
     }
 
+    private static async Task AnswerAsync(FakeAgent agent, ControllerMessage.BodyOneofCase expected)
+    {
+        var command = await agent.ReceiveAsync();
+        Assert.Equal(expected, command.BodyCase);
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
+    }
+
+    private static async Task WaitForCommitAsync(AggregatorApp app, FakeAgent agent, string sha)
+    {
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            if ((await ListStacksAsync(app, agent)).Single().DeployedCommit == sha)
+            {
+                return;
+            }
+
+            await Task.Delay(50, Ct);
+        }
+
+        Assert.Fail("The deployment did not record its commit.");
+    }
+
+    private static async Task<StackView[]> ListStacksAsync(AggregatorApp app, FakeAgent agent) =>
+        (await app.CreateClient().GetFromJsonAsync<StackView[]>($"/api/dev/environments/{agent.EnvironmentId}/stacks", AggregatorApp.Json, Ct))!;
+
     private sealed record IdView(Guid Id);
+
+    private sealed record StackView(Guid Id, string Name, string? DeployedCommit);
 
     private sealed record ResultView(bool Succeeded, string? Error, string[] Output);
 }

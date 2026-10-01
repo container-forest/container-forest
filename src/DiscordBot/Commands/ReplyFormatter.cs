@@ -57,7 +57,7 @@ public static class ReplyFormatter
     {
         var deployed = stack.DeployedCommit is { } commit
             ? $"deployed {Markdown.Code(commit[..Math.Min(12, commit.Length)])}"
-            : "not deployed yet";
+            : "not deployed";
         var actions = (stack.CanRestart, stack.CanTakeDown) switch
         {
             _ when stack.IsSystem => "system stack",

@@ -17,6 +17,7 @@ public sealed class StackCommandService(
     IStackRepository stacks,
     IRoleAssignmentRepository roleAssignments,
     IDeploymentRepository deployments,
+    IUnitOfWork unitOfWork,
     IAgentChannel agents)
 {
     /// <param name="stopTimeout">Per container; <see cref="StackCommand.DefaultStopTimeout"/> when null.</param>
@@ -80,7 +81,18 @@ public sealed class StackCommandService(
             throw new DomainConflictException($"Stack '{stack.Name}' has a deployment in progress.");
         }
 
-        return await command.ExecuteAsync(environment.Id, stack);
+        var result = await command.ExecuteAsync(environment.Id, stack);
+
+        // After a failed down some containers may still run the deployed commit, so it is kept.
+        if (result.Succeeded && command.Operation == StackOperation.Down)
+        {
+            stack.RecordTakenDown();
+
+            // Not the caller's token, as for the agent call: compose has already taken the stack down.
+            await unitOfWork.SaveChangesAsync(CancellationToken.None);
+        }
+
+        return result;
     }
 
     private StackCommand Create(StackAction action, TimeSpan stopTimeout) => action switch

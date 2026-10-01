@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { useLoginMutation } from "@/api/auth";
 import { isUnauthorized } from "@/api/client";
@@ -10,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import type { MessageKey } from "@/i18n";
 
 const searchSchema = z.object({
   // Where to go after signing in. Only same-site paths: an absolute URL here would be an open redirect.
@@ -26,16 +29,18 @@ export const Route = createFileRoute("/login")({
 });
 
 // Only presence is checked here: the password policy is the aggregator's, and hinting at it before a
-// sign-in would tell nothing useful about an existing password.
+// sign-in would tell nothing useful about an existing password. Messages are translation keys, so a
+// shown error follows a language switch.
 const loginSchema = z.object({
-  userName: z.string().trim().min(1, "Введіть ім'я користувача."),
-  password: z.string().min(1, "Введіть пароль."),
+  userName: z.string().trim().min(1, "login.errors.userNameRequired" satisfies MessageKey),
+  password: z.string().min(1, "login.errors.passwordRequired" satisfies MessageKey),
   rememberMe: z.boolean(),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
 
 function LoginScreen() {
+  const { t } = useTranslation();
   const { redirect } = Route.useSearch();
   const navigate = useNavigate();
   const login = useLoginMutation();
@@ -56,16 +61,19 @@ function LoginScreen() {
   );
 
   return (
-    <main className="grid min-h-svh place-items-center p-6">
+    <main className="relative grid min-h-svh place-items-center p-6">
+      <div className="absolute top-4 right-4">
+        <LanguageSwitcher />
+      </div>
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-xl">Вхід</CardTitle>
-          <CardDescription>container-forest: керування контейнерами на ваших серверах.</CardDescription>
+          <CardTitle className="text-xl">{t("login.title")}</CardTitle>
+          <CardDescription>{t("login.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="grid gap-4" noValidate onSubmit={onSubmit}>
             <div className="grid gap-2">
-              <Label htmlFor="userName">Ім'я користувача</Label>
+              <Label htmlFor="userName">{t("login.userName")}</Label>
               <Input
                 id="userName"
                 autoComplete="username"
@@ -78,7 +86,7 @@ function LoginScreen() {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="password">Пароль</Label>
+              <Label htmlFor="password">{t("login.password")}</Label>
               <Input
                 id="password"
                 type="password"
@@ -105,21 +113,19 @@ function LoginScreen() {
                 )}
               />
               <Label htmlFor="rememberMe" className="font-normal">
-                Запам'ятати мене
+                {t("login.rememberMe")}
               </Label>
             </div>
 
             {login.isError && (
               <p role="alert" className="text-destructive text-sm">
-                {isUnauthorized(login.error)
-                  ? "Неправильне ім'я користувача або пароль."
-                  : "Не вдалося ввійти. Перевірте з'єднання й спробуйте ще раз."}
+                {isUnauthorized(login.error) ? t("login.errors.invalidCredentials") : t("login.errors.failed")}
               </p>
             )}
 
             <Button type="submit" className="w-full" disabled={login.isPending}>
               {login.isPending && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
-              Увійти
+              {t("login.submit")}
             </Button>
           </form>
         </CardContent>
@@ -128,10 +134,13 @@ function LoginScreen() {
   );
 }
 
+/** Shows a field's validation error; the message is a translation key from the schema. */
 function FieldError({ id, message }: { id: string; message: string | undefined }) {
+  const { t } = useTranslation();
+
   return message ? (
     <p id={id} className="text-destructive text-sm">
-      {message}
+      {t(message as MessageKey)}
     </p>
   ) : null;
 }

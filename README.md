@@ -88,6 +88,7 @@ flowchart LR
 | Система контролю версій, робота в команді | гілки й PR із рев'ю, [CONTRIBUTING.md](CONTRIBUTING.md#правила-роботи-в-команді) |
 | Unit-тести | `tests/` (xUnit v3), запускаються в [CI](.github/workflows/ci.yml) на кожен PR |
 | Документація з коментарів у коді | [DocFX](https://dotnet.github.io/docfx/): сайт із документацією й довідником API збирає й публікує на GitHub Pages [workflow](.github/workflows/docs.yml) |
+| Інтернаціоналізація | вебпанель українською й англійською (i18next), перемикач мови в інтерфейсі |
 | Логування | `Microsoft.Extensions.Logging` у ЦА, агенті й боті; секрети не логуються ([інваріант 6](docs/architecture.md#інваріанти-безпеки)) |
 | Стиль коду | C# — [конвенції .NET](https://learn.microsoft.com/dotnet/csharp/fundamentals/coding-style/coding-conventions), правила в [.editorconfig](.editorconfig); попередження компілятора й аналізаторів у CI — помилки |
 | Використання LLM | [docs/ai-usage.md](docs/ai-usage.md) |

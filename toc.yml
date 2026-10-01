@@ -38,6 +38,8 @@
     href: docs/retro/ef-core.md
   - name: gRPC
     href: docs/retro/grpc.md
+  - name: i18next
+    href: docs/retro/i18next.md
   - name: LibGit2Sharp
     href: docs/retro/libgit2sharp.md
   - name: React Hook Form

@@ -1,8 +1,10 @@
 import { Link, Outlet, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useLogoutMutation } from "../api/auth";
 import { isUnauthorized } from "../api/client";
 import { meQuery } from "../api/queries";
 import { LogOutIcon } from "../components/icons";
+import { LanguageSwitcher } from "../components/language-switcher";
 import { Button } from "../components/ui/button";
 
 /**
@@ -25,6 +27,7 @@ export const Route = createFileRoute("/_authed")({
 });
 
 function AuthedLayout() {
+  const { t } = useTranslation();
   const { me } = Route.useRouteContext();
 
   return (
@@ -36,8 +39,9 @@ function AuthedLayout() {
         <nav className="flex flex-1 gap-4 text-sm">{/* Screens add their links here. */}</nav>
         <span className="text-muted-foreground text-sm">
           {me.userName}
-          {me.isAdmin && " (адміністратор)"}
+          {me.isAdmin && ` ${t("layout.administrator")}`}
         </span>
+        <LanguageSwitcher />
         <LogoutButton />
       </header>
       <main className="mx-auto max-w-6xl p-6">
@@ -48,6 +52,7 @@ function AuthedLayout() {
 }
 
 function LogoutButton() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const logout = useLogoutMutation();
 
@@ -59,7 +64,7 @@ function LogoutButton() {
       onClick={() => logout.mutate(undefined, { onSuccess: () => navigate({ to: "/login" }) })}
     >
       <LogOutIcon data-icon="inline-start" />
-      Вийти
+      {t("layout.signOut")}
     </Button>
   );
 }

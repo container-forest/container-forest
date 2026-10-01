@@ -51,7 +51,11 @@ public static class DependencyInjection
         services.AddScoped<IRegistryCredentialRepository, RegistryCredentialRepository>();
 
         // Accounts for signing in; the Api adds the sign-in manager and the session cookie.
-        services.AddIdentityCore<AccountUser>(AccountPolicy.Configure).AddEntityFrameworkStores<AggregatorDbContext>();
+        services.AddIdentityCore<AccountUser>(AccountPolicy.Configure)
+            .AddEntityFrameworkStores<AggregatorDbContext>()
+            .AddPasswordValidator<MaximumLengthRule>()
+            .AddPasswordValidator<RepetitiveOrSequentialRule>()
+            .AddPasswordValidator<ContextWordsRule>();
         services.AddScoped<IAccountStore, IdentityAccountStore>();
         services.AddOptions<BootstrapOptions>()
             .Bind(configuration.GetSection(BootstrapOptions.SectionName))

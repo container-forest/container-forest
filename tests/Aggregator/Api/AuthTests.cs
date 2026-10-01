@@ -7,7 +7,7 @@ namespace ContainerForest.Aggregator.Api.Tests;
 
 public class AuthTests
 {
-    private const string AlicePassword = "alice's long password";
+    private const string AlicePassword = "a passphrase of my own";
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

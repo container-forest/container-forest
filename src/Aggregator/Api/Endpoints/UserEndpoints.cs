@@ -35,28 +35,18 @@ internal static class UserEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status409Conflict);
 
-        group.MapPut("/{id:guid}/user-name", async (Guid id, RenameUserRequest request, UserManagementService service, CancellationToken ct) =>
-                ToResponse(await service.RenameAsync(UserId.From(id), request.UserName, ct)))
-            .WithName("RenameUser")
+        group.MapUserChange<RenameUserRequest>(HttpMethods.Put, "/{id:guid}/user-name", "RenameUser",
+                (service, id, request, ct) => service.RenameAsync(id, request.UserName, ct))
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
 
-        group.MapPost("/{id:guid}/deactivate", async (Guid id, UserManagementService service, CancellationToken ct) =>
-                ToResponse(await service.DeactivateAsync(UserId.From(id), ct)))
-            .WithName("DeactivateUser")
-            .ProducesProblem(StatusCodes.Status404NotFound)
+        group.MapUserChange("/{id:guid}/deactivate", "DeactivateUser", (service, id, ct) => service.DeactivateAsync(id, ct))
             .ProducesProblem(StatusCodes.Status409Conflict);
 
-        group.MapPost("/{id:guid}/activate", async (Guid id, UserManagementService service, CancellationToken ct) =>
-                ToResponse(await service.ActivateAsync(UserId.From(id), ct)))
-            .WithName("ActivateUser")
-            .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapUserChange("/{id:guid}/activate", "ActivateUser", (service, id, ct) => service.ActivateAsync(id, ct));
 
-        group.MapPut("/{id:guid}/admin", async (Guid id, SetAdminRequest request, UserManagementService service, CancellationToken ct) =>
-                ToResponse(await service.SetAdminAsync(UserId.From(id), request.IsAdmin, ct)))
-            .WithName("SetUserAdmin")
-            .ProducesProblem(StatusCodes.Status404NotFound)
+        group.MapUserChange<SetAdminRequest>(HttpMethods.Put, "/{id:guid}/admin", "SetUserAdmin",
+                (service, id, request, ct) => service.SetAdminAsync(id, request.IsAdmin, ct))
             .ProducesProblem(StatusCodes.Status409Conflict);
 
         group.MapPost("/{id:guid}/password", async (Guid id, ResetPasswordRequest request, UserManagementService service, CancellationToken ct) =>
@@ -68,10 +58,7 @@ internal static class UserEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        group.MapPost("/{id:guid}/unlock", async (Guid id, UserManagementService service, CancellationToken ct) =>
-                ToResponse(await service.UnlockAsync(UserId.From(id), ct)))
-            .WithName("UnlockUser")
-            .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapUserChange("/{id:guid}/unlock", "UnlockUser", (service, id, ct) => service.UnlockAsync(id, ct));
 
         group.MapPost("/{id:guid}/role-assignments", async (Guid id, GrantRoleRequest request, UserManagementService service, CancellationToken ct) =>
             {
@@ -106,6 +93,33 @@ internal static class UserEndpoints
 
         return app;
     }
+
+    /// <summary>
+    /// An endpoint that changes one user according to a <typeparamref name="TRequest"/> body and answers with the
+    /// changed user, like every user change but the password reset.
+    /// </summary>
+    private static RouteHandlerBuilder MapUserChange<TRequest>(
+        this RouteGroupBuilder group,
+        string method,
+        string pattern,
+        string name,
+        Func<UserManagementService, UserId, TRequest, CancellationToken, Task<UserSummary>> change)
+        where TRequest : class =>
+        group.MapMethods(pattern, [method], async (Guid id, TRequest request, UserManagementService service, CancellationToken ct) =>
+                ToResponse(await change(service, UserId.From(id), request, ct)))
+            .WithName(name)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+    /// <summary>A POST without a body that changes one user and answers with the changed user.</summary>
+    private static RouteHandlerBuilder MapUserChange(
+        this RouteGroupBuilder group,
+        string pattern,
+        string name,
+        Func<UserManagementService, UserId, CancellationToken, Task<UserSummary>> change) =>
+        group.MapPost(pattern, async (Guid id, UserManagementService service, CancellationToken ct) =>
+                ToResponse(await change(service, UserId.From(id), ct)))
+            .WithName(name)
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
     private static UserResponse ToResponse(UserSummary summary) => new(
         summary.User.Id.Value,

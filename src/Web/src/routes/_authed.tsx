@@ -47,6 +47,14 @@ function AuthedLayout() {
             {t("layout.nav.containers")}
           </Link>
           <Link
+            to="/stacks"
+            className="hover:text-foreground"
+            inactiveProps={{ className: "text-muted-foreground" }}
+            activeProps={{ className: "text-foreground font-medium" }}
+          >
+            {t("layout.nav.stacks")}
+          </Link>
+          <Link
             to="/discord"
             className="hover:text-foreground"
             inactiveProps={{ className: "text-muted-foreground" }}
@@ -55,6 +63,16 @@ function AuthedLayout() {
             {t("layout.nav.discord")}
           </Link>
           {/* Only a convenience: the aggregator refuses non-administrators anyway. */}
+          {me.isAdmin && (
+            <Link
+              to="/repositories"
+              className="hover:text-foreground"
+              inactiveProps={{ className: "text-muted-foreground" }}
+              activeProps={{ className: "text-foreground font-medium" }}
+            >
+              {t("layout.nav.repositories")}
+            </Link>
+          )}
           {me.isAdmin && (
             <Link
               to="/users"

@@ -45,13 +45,13 @@ app.MapAuthEndpoints();
 app.MapMeEndpoints();
 app.MapUserEndpoints();
 app.MapEnvironmentEndpoints();
+app.MapStackEndpoints();
 app.MapDiscordLinkEndpoints();
 
 if (app.Environment.IsDevelopment())
 {
     // Authentication here is the password-less dev header: never expose these outside local development.
     app.MapDevEnvironmentEndpoints();
-    app.MapDevStackEndpoints();
     app.MapDevRegistryEndpoints();
 }
 

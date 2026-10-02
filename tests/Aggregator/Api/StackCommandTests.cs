@@ -18,7 +18,7 @@ public class StackCommandTests
         await using var agent = await app.EnrollAndConnectAsync();
         var stackId = await CreateStackAsync(app, agent);
 
-        var request = app.CreateClient().PostAsync($"/api/dev/stacks/{stackId}/restart?timeoutSeconds=30", content: null, Ct);
+        var request = app.CreateClient().PostAsync($"/api/stacks/{stackId}/restart?timeoutSeconds=30", content: null, Ct);
 
         var command = await agent.ReceiveAsync();
         Assert.Equal(ControllerMessage.BodyOneofCase.RestartStack, command.BodyCase);
@@ -49,11 +49,11 @@ public class StackCommandTests
         var client = app.CreateClient();
 
         await HttpAssert.StatusAsync(
-            HttpStatusCode.Accepted, client.PostAsJsonAsync($"/api/dev/stacks/{stackId}/deployments", new { pull = false }, Ct));
+            HttpStatusCode.Accepted, client.PostAsJsonAsync($"/api/stacks/{stackId}/deployments", new { pull = false }, Ct));
         await AnswerAsync(agent, ControllerMessage.BodyOneofCase.DeployStack);
         await WaitForCommitAsync(app, agent, sha);
 
-        var down = client.PostAsync($"/api/dev/stacks/{stackId}/down", content: null, Ct);
+        var down = client.PostAsync($"/api/stacks/{stackId}/down", content: null, Ct);
         await AnswerAsync(agent, ControllerMessage.BodyOneofCase.DownStack);
         await HttpAssert.StatusAsync(HttpStatusCode.OK, down);
 
@@ -67,7 +67,7 @@ public class StackCommandTests
         await using var agent = await app.EnrollAndConnectAsync();
         var stackId = await CreateStackAsync(app, agent);
 
-        var request = app.CreateClient().PostAsync($"/api/dev/stacks/{stackId}/down", content: null, Ct);
+        var request = app.CreateClient().PostAsync($"/api/stacks/{stackId}/down", content: null, Ct);
 
         var command = await agent.ReceiveAsync();
         Assert.Equal(ControllerMessage.BodyOneofCase.DownStack, command.BodyCase);
@@ -97,7 +97,7 @@ public class StackCommandTests
         await using var agent = await app.EnrollAndConnectAsync();
         var stackId = await CreateStackAsync(app, agent);
 
-        var request = app.CreateClient().PostAsync($"/api/dev/stacks/{stackId}/restart", content: null, Ct);
+        var request = app.CreateClient().PostAsync($"/api/stacks/{stackId}/restart", content: null, Ct);
 
         var command = await agent.ReceiveAsync();
         await agent.SendAsync(new AgentMessage
@@ -113,7 +113,7 @@ public class StackCommandTests
     }
 
     [Fact]
-    public async Task Viewer_may_not_restart_and_unknown_actions_are_rejected()
+    public async Task Viewer_may_not_restart_and_unknown_actions_do_not_exist()
     {
         await using var app = new AggregatorApp();
         await app.CreateUserAsync("alice", isAdmin: false);
@@ -122,21 +122,21 @@ public class StackCommandTests
 
         // Public environments give an implicit Viewer role.
         await HttpAssert.StatusAsync(
-            HttpStatusCode.Forbidden, app.CreateClientAs("alice").PostAsync($"/api/dev/stacks/{stackId}/restart", content: null, Ct));
+            HttpStatusCode.Forbidden, app.CreateClientAs("alice").PostAsync($"/api/stacks/{stackId}/restart", content: null, Ct));
         await HttpAssert.StatusAsync(
-            HttpStatusCode.BadRequest, app.CreateClient().PostAsync($"/api/dev/stacks/{stackId}/remove", content: null, Ct));
+            HttpStatusCode.NotFound, app.CreateClient().PostAsync($"/api/stacks/{stackId}/remove", content: null, Ct));
     }
 
     private static async Task<Guid> CreateStackAsync(AggregatorApp app, FakeAgent agent)
     {
         var client = app.CreateClient();
         var repository = await client.PostAsJsonAsync(
-            "/api/dev/repositories", new { name = "infra", url = "https://git.example.com/infra.git" }, Ct);
+            "/api/repositories", new { name = "infra", url = "https://git.example.com/infra.git" }, Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Created, repository);
         var repositoryId = (await repository.Content.ReadFromJsonAsync<IdView>(AggregatorApp.Json, Ct))!.Id;
 
         var stack = await client.PostAsJsonAsync(
-            $"/api/dev/environments/{agent.EnvironmentId}/stacks",
+            $"/api/environments/{agent.EnvironmentId}/stacks",
             new { name = "web", repositoryId, branch = "main", composePath = "compose.yaml" },
             Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Created, stack);
@@ -166,7 +166,7 @@ public class StackCommandTests
     }
 
     private static async Task<StackView[]> ListStacksAsync(AggregatorApp app, FakeAgent agent) =>
-        (await app.CreateClient().GetFromJsonAsync<StackView[]>($"/api/dev/environments/{agent.EnvironmentId}/stacks", AggregatorApp.Json, Ct))!;
+        (await app.CreateClient().GetFromJsonAsync<StackView[]>($"/api/environments/{agent.EnvironmentId}/stacks", AggregatorApp.Json, Ct))!;
 
     private sealed record IdView(Guid Id);
 

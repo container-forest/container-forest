@@ -39,6 +39,14 @@ function AuthedLayout() {
         <nav className="flex flex-1 gap-4 text-sm">
           {/* Screens add their links here. */}
           <Link
+            to="/containers"
+            className="hover:text-foreground"
+            inactiveProps={{ className: "text-muted-foreground" }}
+            activeProps={{ className: "text-foreground font-medium" }}
+          >
+            {t("layout.nav.containers")}
+          </Link>
+          <Link
             to="/discord"
             className="hover:text-foreground"
             inactiveProps={{ className: "text-muted-foreground" }}

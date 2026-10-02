@@ -22,6 +22,7 @@ import { Route as AuthedUsersIndexRouteImport } from './routes/_authed/users/ind
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
 import { Route as AuthedStacksStackIdIndexRouteImport } from './routes/_authed/stacks/$stackId/index'
 import { Route as AuthedStacksStackIdDeploymentsRouteImport } from './routes/_authed/stacks/$stackId/deployments'
+import { Route as AuthedContainersEnvironmentIdContainerIdLogsRouteImport } from './routes/_authed/containers_.$environmentId.$containerId.logs'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -90,6 +91,12 @@ const AuthedStacksStackIdDeploymentsRoute =
     path: '/stacks/$stackId/deployments',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedContainersEnvironmentIdContainerIdLogsRoute =
+  AuthedContainersEnvironmentIdContainerIdLogsRouteImport.update({
+    id: '/containers_/$environmentId/$containerId/logs',
+    path: '/containers/$environmentId/$containerId/logs',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
@@ -104,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/users/': typeof AuthedUsersIndexRoute
   '/stacks/$stackId/deployments': typeof AuthedStacksStackIdDeploymentsRoute
   '/stacks/$stackId/': typeof AuthedStacksStackIdIndexRoute
+  '/containers/$environmentId/$containerId/logs': typeof AuthedContainersEnvironmentIdContainerIdLogsRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -118,6 +126,7 @@ export interface FileRoutesByTo {
   '/users': typeof AuthedUsersIndexRoute
   '/stacks/$stackId/deployments': typeof AuthedStacksStackIdDeploymentsRoute
   '/stacks/$stackId': typeof AuthedStacksStackIdIndexRoute
+  '/containers/$environmentId/$containerId/logs': typeof AuthedContainersEnvironmentIdContainerIdLogsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,6 +143,7 @@ export interface FileRoutesById {
   '/_authed/users/': typeof AuthedUsersIndexRoute
   '/_authed/stacks/$stackId/deployments': typeof AuthedStacksStackIdDeploymentsRoute
   '/_authed/stacks/$stackId/': typeof AuthedStacksStackIdIndexRoute
+  '/_authed/containers_/$environmentId/$containerId/logs': typeof AuthedContainersEnvironmentIdContainerIdLogsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/users/'
     | '/stacks/$stackId/deployments'
     | '/stacks/$stackId/'
+    | '/containers/$environmentId/$containerId/logs'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/stacks/$stackId/deployments'
     | '/stacks/$stackId'
+    | '/containers/$environmentId/$containerId/logs'
   id:
     | '__root__'
     | '/_authed'
@@ -179,6 +191,7 @@ export interface FileRouteTypes {
     | '/_authed/users/'
     | '/_authed/stacks/$stackId/deployments'
     | '/_authed/stacks/$stackId/'
+    | '/_authed/containers_/$environmentId/$containerId/logs'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -279,6 +292,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedStacksStackIdDeploymentsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/containers_/$environmentId/$containerId/logs': {
+      id: '/_authed/containers_/$environmentId/$containerId/logs'
+      path: '/containers/$environmentId/$containerId/logs'
+      fullPath: '/containers/$environmentId/$containerId/logs'
+      preLoaderRoute: typeof AuthedContainersEnvironmentIdContainerIdLogsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
@@ -294,6 +314,7 @@ interface AuthedRouteChildren {
   AuthedUsersIndexRoute: typeof AuthedUsersIndexRoute
   AuthedStacksStackIdDeploymentsRoute: typeof AuthedStacksStackIdDeploymentsRoute
   AuthedStacksStackIdIndexRoute: typeof AuthedStacksStackIdIndexRoute
+  AuthedContainersEnvironmentIdContainerIdLogsRoute: typeof AuthedContainersEnvironmentIdContainerIdLogsRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -308,6 +329,8 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedUsersIndexRoute: AuthedUsersIndexRoute,
   AuthedStacksStackIdDeploymentsRoute: AuthedStacksStackIdDeploymentsRoute,
   AuthedStacksStackIdIndexRoute: AuthedStacksStackIdIndexRoute,
+  AuthedContainersEnvironmentIdContainerIdLogsRoute:
+    AuthedContainersEnvironmentIdContainerIdLogsRoute,
 }
 
 const AuthedRouteWithChildren =

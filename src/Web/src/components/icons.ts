@@ -27,6 +27,7 @@ export { default as PlayIcon } from "~icons/material-symbols/play-arrow-rounded"
 export { default as PlusIcon } from "~icons/material-symbols/add-rounded";
 export { default as RefreshCwIcon } from "~icons/material-symbols/refresh-rounded";
 export { default as RotateCwIcon } from "~icons/material-symbols/restart-alt-rounded";
+export { default as ScrollTextIcon } from "~icons/material-symbols/article-outline-rounded";
 export { default as SearchIcon } from "~icons/material-symbols/search-rounded";
 export { default as ShieldMinusIcon } from "~icons/material-symbols/remove-moderator-rounded";
 export { default as ShieldPlusIcon } from "~icons/material-symbols/add-moderator-rounded";

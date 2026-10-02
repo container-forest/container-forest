@@ -38,6 +38,9 @@ public sealed class DockerTimeoutException(TimeSpan timeout)
 public sealed class UnsupportedCommandException(string commandName)
     : AgentCommandException(ErrorCode.Unsupported, $"This agent version does not support the {commandName} command.");
 
+public sealed class UnsupportedOptionException(string option)
+    : AgentCommandException(ErrorCode.Unsupported, $"This agent version does not support {option}.");
+
 public sealed class StackNotFoundException(string stackName)
     : AgentCommandException(ErrorCode.NotFound, $"Stack '{stackName}' is not deployed on this host.")
 {

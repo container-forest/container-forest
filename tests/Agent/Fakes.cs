@@ -48,6 +48,31 @@ internal sealed class FakeDockerGateway : IDockerGateway
         await Run($"restart {containerId}", true);
     }
 
+    /// <summary>The lines a log read passes on, in order.</summary>
+    public List<LogLine> LogLines { get; } = [];
+
+    /// <summary>When set, a log read waits for it after its lines, as a long log keeps the read open.</summary>
+    public TaskCompletionSource? LogGate { get; set; }
+
+    public async Task ReadContainerLogsAsync(
+        string containerId,
+        int tailLines,
+        DateTimeOffset? since,
+        Func<LogLine, CancellationToken, Task> onLine,
+        CancellationToken cancellationToken)
+    {
+        await Run($"logs {containerId} tail={tailLines} since={since?.ToUnixTimeMilliseconds()}", true);
+        foreach (var line in LogLines)
+        {
+            await onLine(line, cancellationToken);
+        }
+
+        if (LogGate is { } gate)
+        {
+            await gate.Task.WaitAsync(cancellationToken);
+        }
+    }
+
     private Task<T> Run<T>(string call, T result)
     {
         Calls.Add(call);
@@ -167,11 +192,45 @@ internal sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     public override DateTimeOffset GetUtcNow() => now;
 }
 
-/// <summary>A progress sink that remembers the reported lines.</summary>
+/// <summary>A clock that moves only when the test calls <see cref="Advance"/>.</summary>
+internal sealed class ManualTimeProvider : TimeProvider
+{
+    private long ticks;
+
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+    public override long GetTimestamp() => ticks;
+
+    public void Advance(TimeSpan by) => ticks += by.Ticks;
+}
+
+/// <summary>A progress sink that remembers the reported lines and the log batches.</summary>
 /// <remarks>Thread-safe: compose output is pumped from stdout and stderr at the same time.</remarks>
-internal sealed class RecordingProgress : ICommandProgress
+internal sealed class RecordingProgress : ICommandProgress, ILogSink
 {
     private readonly List<string> lines = [];
+    private readonly List<IReadOnlyList<LogLine>> batches = [];
+
+    public IReadOnlyList<IReadOnlyList<LogLine>> Batches
+    {
+        get
+        {
+            lock (batches)
+            {
+                return [.. batches];
+            }
+        }
+    }
+
+    public Task SendAsync(IReadOnlyCollection<LogLine> lines, CancellationToken cancellationToken)
+    {
+        lock (batches)
+        {
+            batches.Add([.. lines]);
+        }
+
+        return Task.CompletedTask;
+    }
 
     public IReadOnlyList<string> Lines
     {

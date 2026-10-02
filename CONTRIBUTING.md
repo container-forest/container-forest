@@ -22,6 +22,7 @@ ContainerForest.slnx
 .editorconfig                    стиль коду (конвенції .NET для C#)
 .github/workflows/ci.yml         CI: збірка й тести на кожен PR
 .github/workflows/docs.yml       сайт документації (DocFX) → GitHub Pages
+.github/workflows/images.yml     Docker-образи: збірка на PR, публікація в GHCR з main
 docfx.json, toc.yml, index.md    конфігурація сайту документації
 Directory.Build.props            спільні властивості .NET-проєктів
 Directory.Packages.props         версії NuGet-пакетів (central package management)
@@ -38,7 +39,7 @@ src/
   DiscordBot/
   Web/                           Vite + React + TS
 tests/                           дзеркалить src/
-deploy/                          compose-файли для ЦА і агента
+deploy/                          compose-файли для ЦА з панеллю, агента й бота
 docs/
   architecture.md                компоненти, протоколи, безпека, права
   project-overview.md            опис проєкту, команда, аналіз аналогів
@@ -140,7 +141,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    - `src/routeTree.gen.ts` генерує плагін TanStack Router під час `npm run dev`/`build`; обидва згенеровані файли комітяться й руками не редагуються.
    - Текст, який бачить користувач, не пишіть у розмітці: додайте ключ у `src/i18n/locales/uk.ts` і переклад у `en.ts`, а в компоненті — `const { t } = useTranslation()` і `t("screen.key")`. Пропущений переклад або неіснуючий ключ — помилка `npm run typecheck`.
    - Компоненти UI — shadcn/ui: `npm run ui:add -- table` (з `src/Web`) додає компонент у `src/components/ui` і переводить його іконки на Material Symbols; згенеровані файли комітяться. Якщо після цього `npm run typecheck` скаржиться на відсутню іконку, додайте її в `src/components/icons.ts` (назви — як у Lucide, іконки — з https://fonts.google.com/icons).
-   - Docker-образ панелі (nginx зі статичними файлами, проксі `/api` і `/hubs` на `AGGREGATOR_URL`): `docker build -t container-forest-web:dev src/Web`.
+   - Docker-образ панелі (Caddy: статичні файли, проксі `/api`, `/hubs` і gRPC на ЦА, TLS — ADR-0005): `docker build -t container-forest-web:dev src/Web`.
 
 Тести: `dotnet test --solution ContainerForest.slnx`. Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
 
@@ -154,6 +155,13 @@ docker run -d --name cf-agent --hostname my-laptop \
   -e CF_AGENT__CONTROLLERURL=http://host.docker.internal:5081 \
   -e CF_AGENT__ENROLLMENTTOKEN=<токен> \
   container-forest-agent:dev
+```
+
+Розгортання ЦА з панеллю (`deploy/aggregator/compose.yaml`, опис — у [docs/architecture.md](docs/architecture.md#розгортання-ца)) можна перевірити локально без домену й TLS: зберіть образи ЦА й панелі, у `.env` задайте `CF_DOMAIN=:8080` і перший адміністратор, а в `compose.override.yaml` — локальні образи й порт `8080:8080` замість 80 і 443. Агент тоді підключається до `http://<хост>:8080`: Caddy пропускає gRPC і без TLS (h2c).
+
+```sh
+docker build -f src/Aggregator/Api/Dockerfile -t container-forest-aggregator:dev .
+docker build -t container-forest-web:dev src/Web
 ```
 
 Образ Discord-бота збирається так само; приклад розгортання — [`deploy/discord-bot/compose.yaml`](deploy/discord-bot/compose.yaml) (опис — у [docs/architecture.md](docs/architecture.md#розгортання-discord-бота)). Локально токени зручно передати файлом `.env.local` з рядками `CF_DISCORD__TOKEN=…` і `CF_BOT__SERVICETOKEN=…` (він у `.gitignore`), а в `CF_BOT__CONTROLLERURL` вказати `http://host.docker.internal:5081`. Образ не читає user-secrets і стартує в оточенні `Production`, тож команди реєструються глобально; для тестового сервера додайте `-e DOTNET_ENVIRONMENT=Development -e CF_DISCORD__DEVGUILDID=<id сервера>`:

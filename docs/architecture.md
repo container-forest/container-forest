@@ -117,14 +117,31 @@ flowchart LR
 - Власний container registry.
 - Встановлення й оновлення самого Docker Engine.
 
+## Розгортання ЦА
+
+ЦА і панель працюють на одному хості: [`deploy/aggregator/compose.yaml`](../deploy/aggregator/compose.yaml). Єдиний вхід — Caddy в образі панелі (ADR-0005): він віддає SPA, проксює `/api`, `/hubs` і gRPC агентів і бота на ЦА й сам отримує сертифікат Let's Encrypt для домену. ЦА портів назовні не публікує.
+
+```
+Інтернет :443 → container-forest-web (Caddy)
+                  ├─ /             → файли панелі
+                  ├─ /api, /hubs   → aggregator:5080
+                  └─ gRPC          → aggregator:5081 (h2c) ← агенти й бот
+```
+
+- Налаштування — у `.env` поруч із compose-файлом (не комітиться, доступний лише root): `CF_DOMAIN` (DNS-запис має вказувати на хост, порти 80 і 443 відкриті), перший адміністратор `CF_BOOTSTRAP__*`, за потреби хеш токена бота.
+- Дані ЦА — том `aggregator-data` (`/data`: база, key ring Data Protection, git-клони). Бекапити цілком: без key ring збережені креди registry не розшифруються.
+- Сертифікати Caddy — том `caddy-data`.
+- Агенти й бот підключаються до `https://<CF_DOMAIN>`.
+- Образи — `ghcr.io/lepterion/container-forest-*` (workflow `Images` публікує їх з `main`). Поки репозиторій приватний, приватні й образи: на хості потрібен `docker login ghcr.io` з токеном GitHub із правом `read:packages`.
+
 ## Розгортання агента
 
-Каталоги монтуються за **однаковим шляхом** на хості й у контейнері: `docker compose` усередині агента працює через socket хоста, і шляхи bind-mount'ів резолвить daemon на хості.
+Приклад — [`deploy/agent/compose.yaml`](../deploy/agent/compose.yaml). Каталоги монтуються за **однаковим шляхом** на хості й у контейнері: `docker compose` усередині агента працює через socket хоста, і шляхи bind-mount'ів резолвить daemon на хості.
 
 ```yaml
 services:
   container-forest-agent:
-    image: ghcr.io/<org>/container-forest-agent:latest
+    image: ghcr.io/lepterion/container-forest-agent:latest
     restart: unless-stopped
     hostname: <назва хоста>   # агент передає її ЦА при реєстрації; без неї в панелі буде id контейнера
     environment:

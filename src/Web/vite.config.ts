@@ -32,7 +32,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // Same origin as in production, where nginx proxies these paths: cookies stay SameSite=Strict, no CORS.
+    // Same origin as in production, where Caddy proxies these paths: cookies stay SameSite=Strict, no CORS.
     proxy: {
       "/api": proxy,
       "/hubs": { ...proxy, ws: true },

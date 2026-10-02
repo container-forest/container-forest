@@ -117,6 +117,43 @@ public sealed class GrpcForestClient(
         return new ForestStackResult(response.Error is "" ? null : response.Error, [.. response.Output]);
     }
 
+    public async Task<string> DeployStackAsync(
+        ulong discordUserId, string environmentId, string stack, bool pull, CancellationToken cancellationToken)
+    {
+        var request = new Proto.DeployStackRequest
+        {
+            DiscordUserId = discordUserId,
+            EnvironmentId = environmentId,
+            Stack = stack,
+            Pull = pull,
+        };
+
+        // Queuing is quick: the deployment itself runs later in the aggregator.
+        var response = await CallAsync(o => gateway.DeployStackAsync(request, o), options.Value.QueryTimeout, cancellationToken);
+        return response.DeploymentId;
+    }
+
+    public async Task<ForestDeployment> GetDeploymentAsync(
+        ulong discordUserId, string deploymentId, CancellationToken cancellationToken)
+    {
+        var request = new Proto.GetDeploymentRequest { DiscordUserId = discordUserId, DeploymentId = deploymentId };
+        var response = await CallAsync(o => gateway.GetDeploymentAsync(request, o), options.Value.QueryTimeout, cancellationToken);
+        return new ForestDeployment(
+            response.Status switch
+            {
+                Proto.DeploymentStatus.Queued => DeploymentStatus.Queued,
+                Proto.DeploymentStatus.Running => DeploymentStatus.Running,
+                Proto.DeploymentStatus.Succeeded => DeploymentStatus.Succeeded,
+                Proto.DeploymentStatus.Failed => DeploymentStatus.Failed,
+                Proto.DeploymentStatus.Cancelled => DeploymentStatus.Cancelled,
+                _ => DeploymentStatus.Unknown,
+            },
+            response.Commit is "" ? null : response.Commit,
+            response.Error is "" ? null : response.Error,
+            DateTimeOffset.FromUnixTimeMilliseconds(response.QueuedUnixMs),
+            response.FinishedUnixMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(response.FinishedUnixMs) : null);
+    }
+
     /// <summary>Adds the token and a deadline, and turns gRPC failures into <see cref="ForestException"/>.</summary>
     private async Task<TResponse> CallAsync<TResponse>(
         Func<CallOptions, AsyncUnaryCall<TResponse>> call, TimeSpan timeout, CancellationToken cancellationToken)
@@ -165,7 +202,8 @@ public sealed class GrpcForestClient(
         s.DeployedCommit is "" ? null : s.DeployedCommit,
         s.DeployedUnixMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(s.DeployedUnixMs) : null,
         s.CanRestart,
-        s.CanTakeDown);
+        s.CanTakeDown,
+        s.CanDeploy);
 
     private static ContainerState ToState(Proto.ContainerState state) => state switch
     {

@@ -1,19 +1,24 @@
 using System.Security.Claims;
 using ContainerForest.Aggregator.Application.Access;
+using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Containers;
+using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Domain.Common;
+using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Contracts.Bot;
 using Grpc.Core;
 using AgentContainerState = ContainerForest.Aggregator.Application.Agents.ContainerState;
 using BotContainerAction = ContainerForest.Contracts.Bot.ContainerAction;
+using BotDeploymentStatus = ContainerForest.Contracts.Bot.DeploymentStatus;
 using BotEnvironment = ContainerForest.Contracts.Bot.Environment;
 using BotStack = ContainerForest.Contracts.Bot.Stack;
 using BotStackAction = ContainerForest.Contracts.Bot.StackAction;
 using ContainerAction = ContainerForest.Aggregator.Application.Containers.ContainerAction;
 using ContainerState = ContainerForest.Contracts.Bot.ContainerState;
+using DeploymentStatus = ContainerForest.Aggregator.Domain.Deployments.DeploymentStatus;
 using StackAction = ContainerForest.Aggregator.Application.Stacks.StackAction;
 
 namespace ContainerForest.Aggregator.Api.Grpc;
@@ -30,6 +35,7 @@ public sealed class BotGatewayService(
     ContainerCommandService containerCommands,
     StackService stacks,
     StackCommandService stackCommands,
+    DeploymentService deployments,
     NotificationDeliveryService notificationDelivery,
     NotificationFeed notificationFeed,
     IServiceScopeFactory scopeFactory) : BotGateway.BotGatewayBase
@@ -121,6 +127,7 @@ public sealed class BotGatewayService(
             // A system stack refuses both; hiding the buttons saves the user a FAILED_PRECONDITION.
             CanRestart = s.CanRestart && !s.IsSystem,
             CanTakeDown = s.CanDeploy && !s.IsSystem,
+            CanDeploy = s.CanDeploy && !s.IsSystem,
         }));
         return response;
     }
@@ -139,6 +146,48 @@ public sealed class BotGatewayService(
         var result = await stackCommands.ExecuteAsync(
             ParseEnvironmentId(request.EnvironmentId), request.Stack, action, stopTimeout, context.CancellationToken);
         return new ControlStackResponse { Error = result.Error ?? "", Output = { result.Output } };
+    }
+
+    public override async Task<DeployStackResponse> DeployStack(DeployStackRequest request, ServerCallContext context)
+    {
+        await ActAsAsync(request.DiscordUserId, context);
+
+        // The bot names the stack as the user sees it; only a visible stack is found, so an invisible one is the
+        // same NOT_FOUND as a missing one. DeploymentService checks the role, the system flag and the agent.
+        var name = request.Stack.Trim();
+        var stack = (await stacks.ListVisibleAsync(ParseEnvironmentId(request.EnvironmentId), context.CancellationToken))
+            .FirstOrDefault(s => s.Name.Value == name)
+            ?? throw new NotFoundException("Stack", $"'{name}'");
+
+        var deployment = await deployments.QueueAsync(
+            stack.Id, request.Pull ? ImagePullPolicy.Always : ImagePullPolicy.Missing, context.CancellationToken);
+        return new DeployStackResponse { DeploymentId = deployment.Id.ToString() };
+    }
+
+    public override async Task<GetDeploymentResponse> GetDeployment(GetDeploymentRequest request, ServerCallContext context)
+    {
+        await ActAsAsync(request.DiscordUserId, context);
+        var id = Guid.TryParse(request.DeploymentId, out var value)
+            ? DeploymentId.From(value)
+            : throw new DomainValidationException($"'{request.DeploymentId}' is not a deployment id.");
+
+        var deployment = await deployments.GetAsync(id, context.CancellationToken);
+        return new GetDeploymentResponse
+        {
+            Status = deployment.Status switch
+            {
+                DeploymentStatus.Queued => BotDeploymentStatus.Queued,
+                DeploymentStatus.Running => BotDeploymentStatus.Running,
+                DeploymentStatus.Succeeded => BotDeploymentStatus.Succeeded,
+                DeploymentStatus.Failed => BotDeploymentStatus.Failed,
+                DeploymentStatus.Cancelled => BotDeploymentStatus.Cancelled,
+                _ => BotDeploymentStatus.Unspecified,
+            },
+            Commit = deployment.Commit?.Value ?? "",
+            Error = deployment.Error ?? "",
+            QueuedUnixMs = deployment.QueuedAt.ToUnixTimeMilliseconds(),
+            FinishedUnixMs = deployment.FinishedAt?.ToUnixTimeMilliseconds() ?? 0,
+        };
     }
 
     /// <summary>

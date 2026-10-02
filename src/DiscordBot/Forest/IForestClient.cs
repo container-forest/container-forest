@@ -44,4 +44,12 @@ public interface IForestClient
         StackAction action,
         int? timeoutSeconds,
         CancellationToken cancellationToken);
+
+    /// <summary>Queues a deployment of the stack's latest commit; returns the deployment's id at once.</summary>
+    /// <param name="stack">The stack's name in the environment.</param>
+    /// <param name="pull">Pull every image again (redeploy with pull); otherwise only missing ones.</param>
+    Task<string> DeployStackAsync(
+        ulong discordUserId, string environmentId, string stack, bool pull, CancellationToken cancellationToken);
+
+    Task<ForestDeployment> GetDeploymentAsync(ulong discordUserId, string deploymentId, CancellationToken cancellationToken);
 }

@@ -43,6 +43,7 @@ public enum ContainerAction
 /// <param name="DeployedCommit">Null when nothing is deployed: before the first successful deployment and after down.</param>
 /// <param name="CanRestart">The user may restart it. Use it to hide choices, nothing more.</param>
 /// <param name="CanTakeDown">The user may take it down. Use it to hide choices, nothing more.</param>
+/// <param name="CanDeploy">The user may redeploy it. Use it to hide choices, nothing more.</param>
 public sealed record ForestStack(
     string Id,
     string Name,
@@ -50,7 +51,8 @@ public sealed record ForestStack(
     string? DeployedCommit,
     DateTimeOffset? DeployedAt,
     bool CanRestart,
-    bool CanTakeDown);
+    bool CanTakeDown,
+    bool CanDeploy = false);
 
 public enum StackAction
 {
@@ -64,4 +66,25 @@ public enum StackAction
 public sealed record ForestStackResult(string? Error, IReadOnlyList<string> Output)
 {
     public bool Succeeded => Error is null;
+}
+
+/// <summary>One deployment of a stack, as far as it has got.</summary>
+/// <param name="Commit">Null until the deployment has fetched it.</param>
+/// <param name="Error">Why it failed, or null.</param>
+/// <param name="FinishedAt">Null while it is queued or running.</param>
+public sealed record ForestDeployment(
+    DeploymentStatus Status, string? Commit, string? Error, DateTimeOffset QueuedAt, DateTimeOffset? FinishedAt)
+{
+    public bool IsFinished => Status is DeploymentStatus.Succeeded or DeploymentStatus.Failed or DeploymentStatus.Cancelled;
+}
+
+/// <summary>A deployment's state; <see cref="Unknown"/> for a value this bot does not know.</summary>
+public enum DeploymentStatus
+{
+    Unknown,
+    Queued,
+    Running,
+    Succeeded,
+    Failed,
+    Cancelled,
 }

@@ -15,13 +15,18 @@ import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAccountRouteImport } from './routes/_authed/account'
 import { Route as AuthedContainersRouteImport } from './routes/_authed/containers'
 import { Route as AuthedDiscordRouteImport } from './routes/_authed/discord'
+import { Route as AuthedNotificationsRouteRouteImport } from './routes/_authed/notifications/route'
 import { Route as AuthedRepositoriesRouteImport } from './routes/_authed/repositories'
 import { Route as AuthedDeploymentsDeploymentIdRouteImport } from './routes/_authed/deployments/$deploymentId'
 import { Route as AuthedEnvironmentsIndexRouteImport } from './routes/_authed/environments/index'
 import { Route as AuthedEnvironmentsEnvironmentIdRouteImport } from './routes/_authed/environments/$environmentId'
+import { Route as AuthedNotificationsIndexRouteImport } from './routes/_authed/notifications/index'
+import { Route as AuthedNotificationsHistoryRouteImport } from './routes/_authed/notifications/history'
 import { Route as AuthedStacksIndexRouteImport } from './routes/_authed/stacks/index'
 import { Route as AuthedUsersIndexRouteImport } from './routes/_authed/users/index'
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
+import { Route as AuthedNotificationsChannelsIndexRouteImport } from './routes/_authed/notifications/channels/index'
+import { Route as AuthedNotificationsChannelsChannelIdRouteImport } from './routes/_authed/notifications/channels/$channelId'
 import { Route as AuthedStacksStackIdIndexRouteImport } from './routes/_authed/stacks/$stackId/index'
 import { Route as AuthedStacksStackIdDeploymentsRouteImport } from './routes/_authed/stacks/$stackId/deployments'
 import { Route as AuthedContainersEnvironmentIdContainerIdLogsRouteImport } from './routes/_authed/containers_.$environmentId.$containerId.logs'
@@ -55,6 +60,12 @@ const AuthedDiscordRoute = AuthedDiscordRouteImport.update({
   path: '/discord',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedNotificationsRouteRoute =
+  AuthedNotificationsRouteRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedRepositoriesRoute = AuthedRepositoriesRouteImport.update({
   id: '/repositories',
   path: '/repositories',
@@ -77,6 +88,18 @@ const AuthedEnvironmentsEnvironmentIdRoute =
     path: '/environments/$environmentId',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedNotificationsIndexRoute =
+  AuthedNotificationsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthedNotificationsRouteRoute,
+  } as any)
+const AuthedNotificationsHistoryRoute =
+  AuthedNotificationsHistoryRouteImport.update({
+    id: '/history',
+    path: '/history',
+    getParentRoute: () => AuthedNotificationsRouteRoute,
+  } as any)
 const AuthedStacksIndexRoute = AuthedStacksIndexRouteImport.update({
   id: '/stacks/',
   path: '/stacks/',
@@ -92,6 +115,18 @@ const AuthedUsersUserIdRoute = AuthedUsersUserIdRouteImport.update({
   path: '/users/$userId',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedNotificationsChannelsIndexRoute =
+  AuthedNotificationsChannelsIndexRouteImport.update({
+    id: '/channels/',
+    path: '/channels/',
+    getParentRoute: () => AuthedNotificationsRouteRoute,
+  } as any)
+const AuthedNotificationsChannelsChannelIdRoute =
+  AuthedNotificationsChannelsChannelIdRouteImport.update({
+    id: '/channels/$channelId',
+    path: '/channels/$channelId',
+    getParentRoute: () => AuthedNotificationsRouteRoute,
+  } as any)
 const AuthedStacksStackIdIndexRoute =
   AuthedStacksStackIdIndexRouteImport.update({
     id: '/stacks/$stackId/',
@@ -114,17 +149,22 @@ const AuthedContainersEnvironmentIdContainerIdLogsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof AuthedNotificationsRouteRouteWithChildren
   '/account': typeof AuthedAccountRoute
   '/containers': typeof AuthedContainersRoute
   '/discord': typeof AuthedDiscordRoute
   '/repositories': typeof AuthedRepositoriesRoute
   '/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
   '/environments/$environmentId': typeof AuthedEnvironmentsEnvironmentIdRoute
+  '/notifications/history': typeof AuthedNotificationsHistoryRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/environments/': typeof AuthedEnvironmentsIndexRoute
+  '/notifications/': typeof AuthedNotificationsIndexRoute
   '/stacks/': typeof AuthedStacksIndexRoute
   '/users/': typeof AuthedUsersIndexRoute
+  '/notifications/channels/$channelId': typeof AuthedNotificationsChannelsChannelIdRoute
   '/stacks/$stackId/deployments': typeof AuthedStacksStackIdDeploymentsRoute
+  '/notifications/channels/': typeof AuthedNotificationsChannelsIndexRoute
   '/stacks/$stackId/': typeof AuthedStacksStackIdIndexRoute
   '/containers/$environmentId/$containerId/logs': typeof AuthedContainersEnvironmentIdContainerIdLogsRoute
 }
@@ -137,11 +177,15 @@ export interface FileRoutesByTo {
   '/': typeof AuthedIndexRoute
   '/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
   '/environments/$environmentId': typeof AuthedEnvironmentsEnvironmentIdRoute
+  '/notifications/history': typeof AuthedNotificationsHistoryRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
   '/environments': typeof AuthedEnvironmentsIndexRoute
+  '/notifications': typeof AuthedNotificationsIndexRoute
   '/stacks': typeof AuthedStacksIndexRoute
   '/users': typeof AuthedUsersIndexRoute
+  '/notifications/channels/$channelId': typeof AuthedNotificationsChannelsChannelIdRoute
   '/stacks/$stackId/deployments': typeof AuthedStacksStackIdDeploymentsRoute
+  '/notifications/channels': typeof AuthedNotificationsChannelsIndexRoute
   '/stacks/$stackId': typeof AuthedStacksStackIdIndexRoute
   '/containers/$environmentId/$containerId/logs': typeof AuthedContainersEnvironmentIdContainerIdLogsRoute
 }
@@ -149,6 +193,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authed/notifications': typeof AuthedNotificationsRouteRouteWithChildren
   '/_authed/account': typeof AuthedAccountRoute
   '/_authed/containers': typeof AuthedContainersRoute
   '/_authed/discord': typeof AuthedDiscordRoute
@@ -156,11 +201,15 @@ export interface FileRoutesById {
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
   '/_authed/environments/$environmentId': typeof AuthedEnvironmentsEnvironmentIdRoute
+  '/_authed/notifications/history': typeof AuthedNotificationsHistoryRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
   '/_authed/environments/': typeof AuthedEnvironmentsIndexRoute
+  '/_authed/notifications/': typeof AuthedNotificationsIndexRoute
   '/_authed/stacks/': typeof AuthedStacksIndexRoute
   '/_authed/users/': typeof AuthedUsersIndexRoute
+  '/_authed/notifications/channels/$channelId': typeof AuthedNotificationsChannelsChannelIdRoute
   '/_authed/stacks/$stackId/deployments': typeof AuthedStacksStackIdDeploymentsRoute
+  '/_authed/notifications/channels/': typeof AuthedNotificationsChannelsIndexRoute
   '/_authed/stacks/$stackId/': typeof AuthedStacksStackIdIndexRoute
   '/_authed/containers_/$environmentId/$containerId/logs': typeof AuthedContainersEnvironmentIdContainerIdLogsRoute
 }
@@ -169,17 +218,22 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/notifications'
     | '/account'
     | '/containers'
     | '/discord'
     | '/repositories'
     | '/deployments/$deploymentId'
     | '/environments/$environmentId'
+    | '/notifications/history'
     | '/users/$userId'
     | '/environments/'
+    | '/notifications/'
     | '/stacks/'
     | '/users/'
+    | '/notifications/channels/$channelId'
     | '/stacks/$stackId/deployments'
+    | '/notifications/channels/'
     | '/stacks/$stackId/'
     | '/containers/$environmentId/$containerId/logs'
   fileRoutesByTo: FileRoutesByTo
@@ -192,17 +246,22 @@ export interface FileRouteTypes {
     | '/'
     | '/deployments/$deploymentId'
     | '/environments/$environmentId'
+    | '/notifications/history'
     | '/users/$userId'
     | '/environments'
+    | '/notifications'
     | '/stacks'
     | '/users'
+    | '/notifications/channels/$channelId'
     | '/stacks/$stackId/deployments'
+    | '/notifications/channels'
     | '/stacks/$stackId'
     | '/containers/$environmentId/$containerId/logs'
   id:
     | '__root__'
     | '/_authed'
     | '/login'
+    | '/_authed/notifications'
     | '/_authed/account'
     | '/_authed/containers'
     | '/_authed/discord'
@@ -210,11 +269,15 @@ export interface FileRouteTypes {
     | '/_authed/'
     | '/_authed/deployments/$deploymentId'
     | '/_authed/environments/$environmentId'
+    | '/_authed/notifications/history'
     | '/_authed/users/$userId'
     | '/_authed/environments/'
+    | '/_authed/notifications/'
     | '/_authed/stacks/'
     | '/_authed/users/'
+    | '/_authed/notifications/channels/$channelId'
     | '/_authed/stacks/$stackId/deployments'
+    | '/_authed/notifications/channels/'
     | '/_authed/stacks/$stackId/'
     | '/_authed/containers_/$environmentId/$containerId/logs'
   fileRoutesById: FileRoutesById
@@ -268,6 +331,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedDiscordRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/notifications': {
+      id: '/_authed/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AuthedNotificationsRouteRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/repositories': {
       id: '/_authed/repositories'
       path: '/repositories'
@@ -296,6 +366,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedEnvironmentsEnvironmentIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/notifications/': {
+      id: '/_authed/notifications/'
+      path: '/'
+      fullPath: '/notifications/'
+      preLoaderRoute: typeof AuthedNotificationsIndexRouteImport
+      parentRoute: typeof AuthedNotificationsRouteRoute
+    }
+    '/_authed/notifications/history': {
+      id: '/_authed/notifications/history'
+      path: '/history'
+      fullPath: '/notifications/history'
+      preLoaderRoute: typeof AuthedNotificationsHistoryRouteImport
+      parentRoute: typeof AuthedNotificationsRouteRoute
+    }
     '/_authed/stacks/': {
       id: '/_authed/stacks/'
       path: '/stacks'
@@ -316,6 +400,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/users/$userId'
       preLoaderRoute: typeof AuthedUsersUserIdRouteImport
       parentRoute: typeof AuthedRoute
+    }
+    '/_authed/notifications/channels/': {
+      id: '/_authed/notifications/channels/'
+      path: '/channels'
+      fullPath: '/notifications/channels/'
+      preLoaderRoute: typeof AuthedNotificationsChannelsIndexRouteImport
+      parentRoute: typeof AuthedNotificationsRouteRoute
+    }
+    '/_authed/notifications/channels/$channelId': {
+      id: '/_authed/notifications/channels/$channelId'
+      path: '/channels/$channelId'
+      fullPath: '/notifications/channels/$channelId'
+      preLoaderRoute: typeof AuthedNotificationsChannelsChannelIdRouteImport
+      parentRoute: typeof AuthedNotificationsRouteRoute
     }
     '/_authed/stacks/$stackId/': {
       id: '/_authed/stacks/$stackId/'
@@ -341,7 +439,30 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthedNotificationsRouteRouteChildren {
+  AuthedNotificationsHistoryRoute: typeof AuthedNotificationsHistoryRoute
+  AuthedNotificationsIndexRoute: typeof AuthedNotificationsIndexRoute
+  AuthedNotificationsChannelsChannelIdRoute: typeof AuthedNotificationsChannelsChannelIdRoute
+  AuthedNotificationsChannelsIndexRoute: typeof AuthedNotificationsChannelsIndexRoute
+}
+
+const AuthedNotificationsRouteRouteChildren: AuthedNotificationsRouteRouteChildren =
+  {
+    AuthedNotificationsHistoryRoute: AuthedNotificationsHistoryRoute,
+    AuthedNotificationsIndexRoute: AuthedNotificationsIndexRoute,
+    AuthedNotificationsChannelsChannelIdRoute:
+      AuthedNotificationsChannelsChannelIdRoute,
+    AuthedNotificationsChannelsIndexRoute:
+      AuthedNotificationsChannelsIndexRoute,
+  }
+
+const AuthedNotificationsRouteRouteWithChildren =
+  AuthedNotificationsRouteRoute._addFileChildren(
+    AuthedNotificationsRouteRouteChildren,
+  )
+
 interface AuthedRouteChildren {
+  AuthedNotificationsRouteRoute: typeof AuthedNotificationsRouteRouteWithChildren
   AuthedAccountRoute: typeof AuthedAccountRoute
   AuthedContainersRoute: typeof AuthedContainersRoute
   AuthedDiscordRoute: typeof AuthedDiscordRoute
@@ -359,6 +480,7 @@ interface AuthedRouteChildren {
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedNotificationsRouteRoute: AuthedNotificationsRouteRouteWithChildren,
   AuthedAccountRoute: AuthedAccountRoute,
   AuthedContainersRoute: AuthedContainersRoute,
   AuthedDiscordRoute: AuthedDiscordRoute,

@@ -112,6 +112,27 @@ export const deploymentsQuery = (stackId: string) =>
       unwrap(await api.GET("/api/stacks/{id}/deployments", { params: { path: { id: stackId } }, signal })),
   });
 
+/** Notification channels, by name. Administrators only. */
+export const notificationChannelsQuery = queryOptions({
+  queryKey: ["notification-channels"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/notification-channels", { signal })),
+});
+
+/** One channel's rules, oldest first. Administrators only. */
+export const notificationRulesQuery = (channelId: string) =>
+  queryOptions({
+    queryKey: ["notification-channels", channelId, "rules"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/notification-channels/{id}/rules", { params: { path: { id: channelId } }, signal })),
+  });
+
+/** The latest notifications, newest first; `limit` is 1 to 500. Administrators only. */
+export const notificationsQuery = (limit: number) =>
+  queryOptions({
+    queryKey: ["notifications", limit],
+    queryFn: async ({ signal }) => unwrap(await api.GET("/api/notifications", { params: { query: { limit } }, signal })),
+  });
+
 /** One deployment with its log. */
 export const deploymentQuery = (id: string) =>
   queryOptions({

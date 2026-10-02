@@ -91,6 +91,16 @@ function AuthedLayout() {
               {t("layout.nav.users")}
             </Link>
           )}
+          {me.isAdmin && (
+            <Link
+              to="/notifications"
+              className="hover:text-foreground"
+              inactiveProps={{ className: "text-muted-foreground" }}
+              activeProps={{ className: "text-foreground font-medium" }}
+            >
+              {t("layout.nav.notifications")}
+            </Link>
+          )}
         </nav>
         <Link to="/account" className="text-muted-foreground hover:text-foreground text-sm" title={t("layout.nav.account")}>
           {me.userName}

@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<UserManagementService>();
         services.AddScoped<ContainerCommandService>();
         services.AddScoped<ContainerQueryService>();
+        services.AddScoped<ContainerLogService>();
         services.AddScoped<RepositoryService>();
         services.AddScoped<RegistryCredentialService>();
         services.AddScoped<StackService>();

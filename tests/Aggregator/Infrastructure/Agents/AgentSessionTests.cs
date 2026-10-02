@@ -66,6 +66,22 @@ public class AgentSessionTests
     }
 
     [Fact]
+    public async Task Log_batches_reach_their_request_until_the_result_arrives()
+    {
+        var batches = new List<LogBatch>();
+        var request = session.RequestAsync(ListContainers(), Timeout, Ct, onLogs: batches.Add);
+        var sent = await writer.NextAsync();
+
+        session.ReportLogs(new LogBatch { RequestId = sent.RequestId, Lines = { new LogLine { Text = "ready" } } });
+        session.ReportLogs(new LogBatch { RequestId = "someone-else", Lines = { new LogLine { Text = "not ours" } } });
+        session.Complete(new CommandResult { RequestId = sent.RequestId });
+        await request;
+        session.ReportLogs(new LogBatch { RequestId = sent.RequestId, Lines = { new LogLine { Text = "too late" } } });
+
+        Assert.Equal(["ready"], batches.SelectMany(b => b.Lines).Select(l => l.Text));
+    }
+
+    [Fact]
     public async Task Close_fails_waiting_requests()
     {
         var request = session.RequestAsync(ListContainers(), Timeout, Ct);

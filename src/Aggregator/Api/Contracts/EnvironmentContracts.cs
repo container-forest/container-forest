@@ -10,11 +10,13 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 //   POST /api/environments/{id}/containers/{container}/start     -> 204
 //   POST /api/environments/{id}/containers/{container}/stop      -> 204; ?timeoutSeconds=0..300, default 10
 //   POST /api/environments/{id}/containers/{container}/restart   -> 204; ?timeoutSeconds=0..300, default 10
+//   GET  /api/environments/{id}/containers/{container}/logs      -> ContainerLogsResponse; ?tail=1..5000 (default 200), ?since=<ISO 8601>
 //
 // {container} is a full id, an exact name or a unique id prefix, as in the docker CLI.
 // An environment the user may not see is 404, the same as a missing one. Actions return once the agent has
 // done them: 409 when the action makes no sense in the container's state (or the id prefix is ambiguous),
 // 503 when the agent is offline (nothing is queued), 504 when it did not answer in time.
+// Logs are read once, without following: the panel asks again for newer lines (since = the last line's time).
 
 /// <param name="IsOnline">Whether the environment's agent is connected right now.</param>
 /// <param name="Role">The user's role on the environment as a whole; null for administrators and for users who see it only through stack roles.</param>
@@ -42,3 +44,9 @@ public sealed record ContainerResponse(
     string StatusText,
     DateTimeOffset? CreatedAt,
     bool CanControl);
+
+/// <param name="Lines">Oldest first.</param>
+public sealed record ContainerLogsResponse(IReadOnlyList<ContainerLogLineResponse> Lines);
+
+/// <param name="At">When Docker received the line; null when the agent did not report it.</param>
+public sealed record ContainerLogLineResponse(DateTimeOffset? At, LogStream Stream, string Text);

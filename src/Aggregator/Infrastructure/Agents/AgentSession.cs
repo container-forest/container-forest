@@ -56,16 +56,21 @@ public sealed class AgentSession
     /// after the deployment was reported as failed.
     /// </summary>
     /// <param name="onProgress">Receives the command's output lines (CommandProgress) until the result arrives.</param>
+    /// <param name="onLogs">Receives the command's log batches (LogBatch) until the result arrives.</param>
     /// <exception cref="AgentDisconnectedException">The session closed before the result arrived.</exception>
     /// <exception cref="AgentTimeoutException">No result within <paramref name="timeout"/>.</exception>
     public async Task<CommandResult> RequestAsync(
-        ControllerMessage command, TimeSpan timeout, CancellationToken cancellationToken, Action<string>? onProgress = null)
+        ControllerMessage command,
+        TimeSpan timeout,
+        CancellationToken cancellationToken,
+        Action<string>? onProgress = null,
+        Action<LogBatch>? onLogs = null)
     {
         var requestId = Guid.NewGuid().ToString("N");
         command.RequestId = requestId;
 
         var completion = new TaskCompletionSource<CommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        pending[requestId] = new PendingRequest(completion, onProgress);
+        pending[requestId] = new PendingRequest(completion, onProgress, onLogs);
         var sent = false;
         try
         {
@@ -141,6 +146,15 @@ public sealed class AgentSession
         }
     }
 
+    /// <summary>Passes container log lines to the request they belong to. Batches of finished requests are dropped.</summary>
+    public void ReportLogs(LogBatch batch)
+    {
+        if (pending.TryGetValue(batch.RequestId, out var request) && request.OnLogs is { } onLogs)
+        {
+            onLogs(batch);
+        }
+    }
+
     /// <summary>Completes the request the result belongs to. Late results of timed-out requests are dropped.</summary>
     public void Complete(CommandResult result)
     {
@@ -207,5 +221,6 @@ public sealed class AgentSession
         }
     }
 
-    private sealed record PendingRequest(TaskCompletionSource<CommandResult> Completion, Action<string>? OnProgress);
+    private sealed record PendingRequest(
+        TaskCompletionSource<CommandResult> Completion, Action<string>? OnProgress, Action<LogBatch>? OnLogs);
 }

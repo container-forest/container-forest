@@ -77,6 +77,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments                   # видимі середовища й статус агентів
    curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers   # видимі контейнери через агента
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers/<container>/restart   # start | stop | restart, ?timeoutSeconds=30; <container> — повний id, ім'я або унікальний префікс id (як у docker)
+   curl -H 'X-Dev-User: root' 'http://localhost:5080/api/environments/<id>/containers/<container>/logs?tail=100'   # останні рядки логу; ?since=<ISO 8601> — лише новіші
    ```
    Користувачі й ролі (API керування користувачами, лише для адміністраторів; повний перелік — `src/Aggregator/Api/Contracts/UserContracts.cs`):
    ```sh

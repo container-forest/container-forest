@@ -95,6 +95,9 @@ message ContainerInfo {
   string service_name = 6;
   string status_text = 7;       // Docker's human-readable status, e.g. "Up 3 minutes (healthy)"
   int64 created_unix_ms = 8;
+  // Labelled com.container-forest.system=true: a part of container-forest itself (the aggregator, the panel's
+  // Caddy, an agent). The aggregator allows only starting it: stopping it would cut the connection commands use.
+  bool system = 9;
 }
 
 enum ContainerState {

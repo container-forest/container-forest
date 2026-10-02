@@ -215,6 +215,8 @@ const en: Translation = {
       Dead: "dead",
     },
     viewOnly: "view only",
+    system: "system",
+    systemHint: "Part of container-forest itself (the aggregator, the panel or an agent): it can only be started, since stopping it would cut the connection commands travel over.",
     actions: {
       start: "Start",
       stop: "Stop",

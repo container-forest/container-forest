@@ -681,6 +681,7 @@ export interface components {
             /** Format: date-time */
             createdAt: null | string;
             canControl: boolean;
+            isSystem: boolean;
         };
         /** @enum {unknown} */
         ContainerState: "Unknown" | "Created" | "Running" | "Paused" | "Restarting" | "Removing" | "Exited" | "Dead";

@@ -38,7 +38,8 @@ internal static class EnvironmentEndpoints
                         v.Container.ServiceName,
                         v.Container.StatusText,
                         v.Container.CreatedAt,
-                        v.CanControl))
+                        v.CanControl,
+                        v.IsSystem))
                     .ToList())
             .WithName("ListContainers")
             .ProducesProblem(StatusCodes.Status404NotFound)

@@ -181,6 +181,30 @@ public class ContainerCommandServiceTests
         Assert.Contains("start c1", agent.Calls);
     }
 
+    [Theory]
+    [InlineData(ContainerAction.Stop)]
+    [InlineData(ContainerAction.Restart)]
+    public async Task Labelled_system_containers_cannot_be_stopped_or_restarted(ContainerAction action)
+    {
+        // The aggregator and agents are deployed by hand: no managed stack, only the label from their compose file.
+        Grant(Role.Editor);
+        AddContainer("c1", "cf-agent-1", ContainerState.Running, stack: "cf-agent", isSystem: true);
+
+        await Assert.ThrowsAsync<DomainConflictException>(() => Run(action, "c1"));
+        Assert.DoesNotContain(agent.Calls, call => call.StartsWith(action.ToString().ToLowerInvariant(), StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Labelled_system_container_can_be_started()
+    {
+        Grant(Role.Operator);
+        AddContainer("c1", "cf-aggregator-1", ContainerState.Exited, stack: "cf", isSystem: true);
+
+        await Run(ContainerAction.Start, "c1");
+
+        Assert.Contains("start c1", agent.Calls);
+    }
+
     [Fact]
     public async Task Custom_stop_timeout_reaches_the_agent()
     {
@@ -221,6 +245,6 @@ public class ContainerCommandServiceTests
         return stack;
     }
 
-    private void AddContainer(string id, string name, ContainerState state, string? stack = null) =>
-        agent.Containers.Add(new ContainerSnapshot(id, name, state, "nginx:1.27", stack, stack is null ? null : "app", "", null));
+    private void AddContainer(string id, string name, ContainerState state, string? stack = null, bool isSystem = false) =>
+        agent.Containers.Add(new ContainerSnapshot(id, name, state, "nginx:1.27", stack, stack is null ? null : "app", "", null, isSystem));
 }

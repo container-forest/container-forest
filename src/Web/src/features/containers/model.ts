@@ -97,6 +97,12 @@ export function isActionAvailable(action: ContainerAction, container: Container)
     return false;
   }
 
+  // A part of container-forest itself (the aggregator, the panel, an agent) can only be started: stopping it
+  // would cut the connection the commands travel over. The aggregator refuses the rest with 409.
+  if (container.isSystem && action !== "start") {
+    return false;
+  }
+
   const state = container.state;
   if (state === "Unknown") {
     return true;

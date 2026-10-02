@@ -38,6 +38,24 @@ public class EnvironmentEndpointsTests
     }
 
     [Fact]
+    public async Task System_container_is_marked_and_cannot_be_stopped()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+
+        var list = app.CreateClient().GetFromJsonAsync<ContainerView[]>(
+            $"/api/environments/{agent.EnvironmentId}/containers", AggregatorApp.Json, Ct);
+        await AnswerListAsync(agent, system: true);
+        Assert.True(Assert.Single((await list)!).IsSystem);
+
+        var stop = app.CreateClient().PostAsync($"/api/environments/{agent.EnvironmentId}/containers/web-app-1/stop", content: null, Ct);
+        await AnswerListAsync(agent, system: true);
+
+        // Refused before anything is sent to the agent.
+        await HttpAssert.StatusAsync(HttpStatusCode.Conflict, stop);
+    }
+
+    [Fact]
     public async Task Stop_reaches_the_agent_with_the_timeout()
     {
         await using var app = new AggregatorApp();
@@ -118,7 +136,7 @@ public class EnvironmentEndpointsTests
         await HttpAssert.StatusAsync(HttpStatusCode.Unauthorized, app.CreateClientAs(null).GetAsync("/api/environments", Ct));
     }
 
-    private static async Task AnswerListAsync(FakeAgent agent)
+    private static async Task AnswerListAsync(FakeAgent agent, bool system = false)
     {
         var list = await agent.ReceiveAsync();
         Assert.Equal(ControllerMessage.BodyOneofCase.ListContainers, list.BodyCase);
@@ -134,6 +152,7 @@ public class EnvironmentEndpointsTests
                         new ContainerInfo
                         {
                             Id = "c1", Name = "web-app-1", State = ContainerState.Running, Image = "nginx:1.27", StackName = "web", ServiceName = "app",
+                            System = system,
                         },
                     },
                 },
@@ -147,5 +166,5 @@ public class EnvironmentEndpointsTests
 
     private sealed record EnvironmentView(Guid Id, string Name, bool IsOnline);
 
-    private sealed record ContainerView(string Id, string Name, string State, string? StackName, bool CanControl);
+    private sealed record ContainerView(string Id, string Name, string State, string? StackName, bool CanControl, bool IsSystem);
 }

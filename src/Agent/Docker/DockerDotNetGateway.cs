@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Sockets;
 using System.Text.Json;
 using ContainerForest.Agent.Commands;
@@ -77,9 +78,73 @@ public sealed class DockerDotNetGateway : IDockerGateway, IDisposable
             },
             cancellationToken);
 
+    public async Task ReadContainerLogsAsync(
+        string containerId,
+        int tailLines,
+        DateTimeOffset? since,
+        Func<LogLine, CancellationToken, Task> onLine,
+        CancellationToken cancellationToken)
+    {
+        var parameters = new ContainerLogsParameters
+        {
+            ShowStdout = true,
+            ShowStderr = true,
+            Timestamps = true,
+            Follow = false,
+            Tail = tailLines > 0 ? tailLines.ToString(CultureInfo.InvariantCulture) : "all",
+            Since = since is { } from ? FormatSince(from) : null,
+        };
+
+        // Docker.DotNet inspects the container first: with a TTY the stream is not multiplexed and all of it is stdout.
+        using var stream = await CallAsync(
+            containerId,
+            RequestTimeout,
+            ct => client.Containers.GetContainerLogsAsync(containerId, parameters, ct),
+            cancellationToken);
+
+        // The whole log may take longer than one request budget; the aggregator cancels the read when it stops waiting.
+        await CallAsync(
+            containerId,
+            Timeout.InfiniteTimeSpan,
+            async ct =>
+            {
+                var parser = new ContainerLogParser();
+                var buffer = new byte[64 * 1024];
+                while (true)
+                {
+                    var read = await stream.ReadOutputAsync(buffer, 0, buffer.Length, ct);
+                    if (read.EOF)
+                    {
+                        break;
+                    }
+
+                    var target = read.Target == MultiplexedStream.TargetStream.StandardError ? LogStream.Stderr : LogStream.Stdout;
+                    foreach (var line in parser.Append(target, buffer.AsSpan(0, read.Count)))
+                    {
+                        await onLine(line, ct);
+                    }
+                }
+
+                foreach (var line in parser.Flush())
+                {
+                    await onLine(line, ct);
+                }
+
+                return true;
+            },
+            cancellationToken);
+    }
+
     public void Dispose() => client.Dispose();
 
     private static uint Seconds(TimeSpan timeout) => (uint)Math.Ceiling(timeout.TotalSeconds);
+
+    // Docker takes "seconds.nanoseconds" since the epoch, so the bound keeps its milliseconds.
+    public static string FormatSince(DateTimeOffset since)
+    {
+        var ms = Math.Max(0, since.ToUnixTimeMilliseconds());
+        return string.Create(CultureInfo.InvariantCulture, $"{ms / 1000}.{ms % 1000:D3}000000");
+    }
 
     /// <summary>Runs a Docker call with its own time budget and translates Docker.DotNet failures.</summary>
     private static async Task<T> CallAsync<T>(

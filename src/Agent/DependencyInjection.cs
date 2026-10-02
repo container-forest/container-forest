@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddSingleton<IAgentCommandHandler, StartContainerHandler>();
         services.AddSingleton<IAgentCommandHandler, StopContainerHandler>();
         services.AddSingleton<IAgentCommandHandler, RestartContainerHandler>();
+        services.AddSingleton<IAgentCommandHandler, StreamContainerLogsHandler>();
 
         services.AddSingleton<StackLocks>();
         services.AddSingleton<IStackFileStore, StackFileStore>();

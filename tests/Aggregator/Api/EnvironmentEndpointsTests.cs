@@ -83,6 +83,34 @@ public class EnvironmentEndpointsTests
     }
 
     [Fact]
+    public async Task Logs_come_from_the_agent_in_batches()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+
+        var request = app.CreateClient().GetFromJsonAsync<LogsView>(
+            $"/api/environments/{agent.EnvironmentId}/containers/web-app-1/logs?tail=2", AggregatorApp.Json, Ct);
+        await AnswerListAsync(agent);
+        var command = await agent.ReceiveAsync();
+        Assert.Equal(ControllerMessage.BodyOneofCase.StreamContainerLogs, command.BodyCase);
+        Assert.Equal(("c1", 2, false), (command.StreamContainerLogs.ContainerId, command.StreamContainerLogs.TailLines, command.StreamContainerLogs.Follow));
+
+        await agent.SendAsync(new AgentMessage
+        {
+            LogBatch = new LogBatch { RequestId = command.RequestId, Lines = { new LogLine { Stream = LogStream.Stdout, TimestampUnixMs = 1_000, Text = "ready" } } },
+        });
+        await agent.SendAsync(new AgentMessage
+        {
+            LogBatch = new LogBatch { RequestId = command.RequestId, Lines = { new LogLine { Stream = LogStream.Stderr, Text = "warning" } } },
+        });
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
+
+        var logs = (await request)!;
+        Assert.Equal([("Stdout", "ready"), ("Stderr", "warning")], logs.Lines.Select(l => (l.Stream, l.Text)));
+        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1_000), logs.Lines[0].At);
+    }
+
+    [Fact]
     public async Task Anonymous_requests_are_unauthorized()
     {
         await using var app = new AggregatorApp();
@@ -112,6 +140,10 @@ public class EnvironmentEndpointsTests
             },
         });
     }
+
+    private sealed record LogsView(LogLineView[] Lines);
+
+    private sealed record LogLineView(DateTimeOffset? At, string Stream, string Text);
 
     private sealed record EnvironmentView(Guid Id, string Name, bool IsOnline);
 

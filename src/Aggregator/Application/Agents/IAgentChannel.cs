@@ -59,6 +59,12 @@ public interface IAgentChannel
         TimeSpan stopTimeout,
         Action<string> onProgress,
         CancellationToken cancellationToken);
+
+    /// <summary>Reads the end of a container's log without following it; returns once the agent has sent all of it.</summary>
+    /// <param name="containerId">The container's full id.</param>
+    /// <returns>Oldest first, at most <see cref="ContainerLogQuery.TailLines"/> lines.</returns>
+    Task<IReadOnlyList<ContainerLogLine>> ReadContainerLogsAsync(
+        EnvironmentId environmentId, string containerId, ContainerLogQuery query, CancellationToken cancellationToken);
 }
 
 /// <summary>Everything the agent needs to deploy one stack. It may hold decrypted secrets, so it is never logged.</summary>
@@ -110,4 +116,19 @@ public enum ContainerState
     Removing,
     Exited,
     Dead,
+}
+
+/// <summary>Which part of a container's log to read.</summary>
+/// <param name="TailLines">How many of the last lines, at least one.</param>
+/// <param name="Since">Only lines written at or after this moment; null for no lower bound.</param>
+public sealed record ContainerLogQuery(int TailLines, DateTimeOffset? Since);
+
+/// <summary>One line of a container's log. It may hold secrets the application printed itself.</summary>
+/// <param name="At">When Docker received the line; null when the agent did not report it.</param>
+public sealed record ContainerLogLine(DateTimeOffset? At, LogStream Stream, string Text);
+
+public enum LogStream
+{
+    Stdout,
+    Stderr,
 }

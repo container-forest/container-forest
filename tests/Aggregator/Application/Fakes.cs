@@ -262,6 +262,19 @@ internal sealed class FakeAgentChannel : IAgentChannel
         EnvironmentId environmentId, StackName stackName, TimeSpan stopTimeout, Action<string> onProgress, CancellationToken cancellationToken) =>
         RunStackCommand($"down-stack {stackName}", environmentId, stopTimeout, onProgress, cancellationToken);
 
+    /// <summary>Lines the agent returns for any container's log.</summary>
+    public List<ContainerLogLine> LogLines { get; } = [];
+
+    public ContainerLogQuery? LastLogQuery { get; private set; }
+
+    public Task<IReadOnlyList<ContainerLogLine>> ReadContainerLogsAsync(
+        EnvironmentId environmentId, string containerId, ContainerLogQuery query, CancellationToken cancellationToken)
+    {
+        Calls.Add($"logs {containerId}");
+        LastLogQuery = query;
+        return Task.FromResult<IReadOnlyList<ContainerLogLine>>(LogLines.ToList());
+    }
+
     /// <summary>Whether the last stack command got a token that can be cancelled.</summary>
     public bool? LastStackTokenCancellable { get; private set; }
 

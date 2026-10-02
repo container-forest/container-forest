@@ -40,6 +40,19 @@ internal static class EnvironmentEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithAgentProblems();
 
+        group.MapGet(
+                "/{id:guid}/containers/{containerId}/logs",
+                async (Guid id, string containerId, int? tail, DateTimeOffset? since, ContainerLogService logs, CancellationToken ct) =>
+                {
+                    var lines = await logs.ReadAsync(EnvironmentId.From(id), containerId, tail, since, ct);
+                    return new ContainerLogsResponse(lines.Select(l => new ContainerLogLineResponse(l.At, l.Stream, l.Text)).ToList());
+                })
+            .WithName("GetContainerLogs")
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithAgentProblems();
+
         group.MapContainerAction("start", "StartContainer", ContainerAction.Start, hasStopTimeout: false);
         group.MapContainerAction("stop", "StopContainer", ContainerAction.Stop, hasStopTimeout: true);
         group.MapContainerAction("restart", "RestartContainer", ContainerAction.Restart, hasStopTimeout: true);

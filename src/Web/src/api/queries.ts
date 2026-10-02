@@ -14,3 +14,16 @@ export const discordLinkQuery = queryOptions({
   queryKey: ["me", "discord"],
   queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/discord", { signal })),
 });
+
+/** All users, by name. Administrators only. */
+export const usersQuery = queryOptions({
+  queryKey: ["users"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/users", { signal })),
+});
+
+/** One user with their roles. Administrators only. */
+export const userQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["users", id],
+    queryFn: async ({ signal }) => unwrap(await api.GET("/api/users/{id}", { params: { path: { id } }, signal })),
+  });

@@ -142,7 +142,7 @@ public class DeploymentTests
         await using var app = new AggregatorApp();
         await using var agent = await app.EnrollAndConnectAsync();
         var client = app.CreateClient();
-        var path = $"/api/dev/environments/{agent.EnvironmentId}/registry-credentials";
+        var path = $"/api/environments/{agent.EnvironmentId}/registry-credentials";
         await HttpAssert.StatusAsync(
             HttpStatusCode.Created, client.PutAsJsonAsync(path, new { server = "https://ghcr.io", username = "bot", password = "old-token" }, Ct));
         var replaced = await client.PutAsJsonAsync(path, new { server = "ghcr.io", username = "bot", password = "ghcr-token" }, Ct);
@@ -170,7 +170,7 @@ public class DeploymentTests
         await app.CreateUserAsync("alice", isAdmin: false);
         await using var agent = await app.EnrollAndConnectAsync();
         var alice = app.CreateClientAs("alice");
-        var path = $"/api/dev/environments/{agent.EnvironmentId}/registry-credentials";
+        var path = $"/api/environments/{agent.EnvironmentId}/registry-credentials";
 
         await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, alice.GetAsync(path, Ct));
         await HttpAssert.StatusAsync(

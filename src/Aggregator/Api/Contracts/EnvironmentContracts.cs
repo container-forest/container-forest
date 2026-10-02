@@ -17,8 +17,20 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 // done them: 409 when the action makes no sense in the container's state (or the id prefix is ambiguous),
 // 503 when the agent is offline (nothing is queued), 504 when it did not answer in time.
 // Logs are read once, without following: the panel asks again for newer lines (since = the last line's time).
+//
+// Administrators only:
+//   POST   /api/environments                                       -> 201 EnvironmentCreatedResponse with the first enrollment token
+//   PUT    /api/environments/{id}                                  -> EnvironmentResponse; name and privacy
+//   POST   /api/environments/{id}/enrollment-token                 -> EnrollmentTokenResponse; the previous token stops working
+//   POST   /api/environments/{id}/revoke-agent                     -> 204; forgets the agent's credentials and drops its connection
+//   GET    /api/environments/{id}/registry-credentials             -> RegistryCredentialResponse[] (server order); never the password
+//   PUT    /api/environments/{id}/registry-credentials             -> 201 or 200 RegistryCredentialResponse; by server, replaces its login
+//   DELETE /api/environments/{id}/registry-credentials/{credential} -> 204
+//
+// The enrollment token is shown once, in the answer that issues it: the aggregator keeps only its hash.
 
 /// <param name="IsOnline">Whether the environment's agent is connected right now.</param>
+/// <param name="EnrollmentTokenExpiresAt">Until when an issued enrollment token is valid; null when there is none, and for non-administrators.</param>
 /// <param name="Role">The user's role on the environment as a whole; null for administrators and for users who see it only through stack roles.</param>
 public sealed record EnvironmentResponse(
     Guid Id,
@@ -29,7 +41,8 @@ public sealed record EnvironmentResponse(
     string? AgentHostname,
     string? AgentVersion,
     DateTimeOffset? LastSeenAt,
-    Role? Role);
+    Role? Role,
+    DateTimeOffset? EnrollmentTokenExpiresAt);
 
 /// <param name="StackName">The compose project; null for a container outside compose.</param>
 /// <param name="StatusText">Docker's human-readable status, e.g. "Up 3 minutes (healthy)".</param>
@@ -50,3 +63,20 @@ public sealed record ContainerLogsResponse(IReadOnlyList<ContainerLogLineRespons
 
 /// <param name="At">When Docker received the line; null when the agent did not report it.</param>
 public sealed record ContainerLogLineResponse(DateTimeOffset? At, LogStream Stream, string Text);
+
+/// <param name="IsPrivate">Visible only to users with a role on it or on one of its stacks.</param>
+public sealed record CreateEnvironmentRequest(string Name, bool IsPrivate);
+
+public sealed record UpdateEnvironmentRequest(string Name, bool IsPrivate);
+
+/// <param name="EnrollmentToken">Shown only here: the agent's first start takes it (CF_AGENT__ENROLLMENTTOKEN).</param>
+public sealed record EnvironmentCreatedResponse(Guid Id, string Name, string EnrollmentToken, DateTimeOffset ExpiresAt);
+
+/// <param name="EnrollmentToken">Shown only here.</param>
+public sealed record EnrollmentTokenResponse(string EnrollmentToken, DateTimeOffset ExpiresAt);
+
+/// <param name="Server">Registry host, e.g. "ghcr.io", "registry.example.com:5000" or "docker.io".</param>
+/// <param name="Password">Password or access token with read access to the registry; never returned.</param>
+public sealed record SetRegistryCredentialRequest(string Server, string Username, string Password);
+
+public sealed record RegistryCredentialResponse(Guid Id, string Server, string Username, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);

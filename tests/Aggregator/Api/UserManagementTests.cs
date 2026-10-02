@@ -163,7 +163,7 @@ public class UserManagementTests
         await using var app = new AggregatorApp();
         var aliceId = await app.CreateUserAsync("alice", isAdmin: false);
         var admin = app.CreateClient();
-        var created = await admin.PostAsJsonAsync("/api/dev/environments", new { name = "prod", isPrivate = true }, Ct);
+        var created = await admin.PostAsJsonAsync("/api/environments", new { name = "prod", isPrivate = true }, Ct);
         var environmentId = (await created.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct)).GetProperty("id").GetGuid();
         var alice = app.CreateClientAs("alice");
 
@@ -171,12 +171,12 @@ public class UserManagementTests
             $"/api/users/{aliceId}/role-assignments", new { environmentId, stackId = (Guid?)null, role = "Operator" }, Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Created, granted);
         var assignment = await granted.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct);
-        var visible = await alice.GetFromJsonAsync<JsonElement>("/api/dev/environments", AggregatorApp.Json, Ct);
+        var visible = await alice.GetFromJsonAsync<JsonElement>("/api/environments", AggregatorApp.Json, Ct);
 
         await HttpAssert.StatusAsync(
             HttpStatusCode.NoContent,
             admin.DeleteAsync($"/api/users/{aliceId}/role-assignments/{assignment.GetProperty("id").GetGuid()}", Ct));
-        var hidden = await alice.GetFromJsonAsync<JsonElement>("/api/dev/environments", AggregatorApp.Json, Ct);
+        var hidden = await alice.GetFromJsonAsync<JsonElement>("/api/environments", AggregatorApp.Json, Ct);
 
         Assert.Equal("Environment", assignment.GetProperty("scope").GetString());
         Assert.Equal("prod", assignment.GetProperty("environmentName").GetString());

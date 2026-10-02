@@ -16,6 +16,8 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
 {
     public bool IsOnline(EnvironmentId environmentId) => registry.IsOnline(environmentId);
 
+    public void Disconnect(EnvironmentId environmentId, string reason) => registry.Close(environmentId, reason);
+
     public async Task<IReadOnlyList<ContainerSnapshot>> ListContainersAsync(
         EnvironmentId environmentId, CancellationToken cancellationToken)
     {

@@ -80,7 +80,7 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
 
     public async Task<CreatedEnvironment> CreateEnvironmentAsync(string name = "test")
     {
-        var response = await CreateClient().PostAsJsonAsync("/api/dev/environments", new { name, isPrivate = false });
+        var response = await CreateClient().PostAsJsonAsync("/api/environments", new { name, isPrivate = false });
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<CreatedEnvironment>(Json))!;
     }
@@ -109,7 +109,7 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         var client = CreateClient();
         for (var attempt = 0; attempt < 100; attempt++)
         {
-            var environments = await client.GetFromJsonAsync<EnvironmentView[]>("/api/dev/environments", Json);
+            var environments = await client.GetFromJsonAsync<EnvironmentView[]>("/api/environments", Json);
             if (environments!.Single(e => e.Id == environmentId).IsOnline == online)
             {
                 return;

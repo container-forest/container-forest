@@ -53,7 +53,7 @@ public class ContainerCommandTests
     private static Task<HttpResponseMessage> Send(AggregatorApp app, FakeAgent agent, string containerId, string action, string user)
     {
         return app.CreateClientAs(user).PostAsync(
-            $"/api/dev/environments/{agent.EnvironmentId}/containers/{containerId}/{action}", content: null, Ct);
+            $"/api/environments/{agent.EnvironmentId}/containers/{containerId}/{action}", content: null, Ct);
     }
 
     private static async Task AnswerListAsync(FakeAgent agent)

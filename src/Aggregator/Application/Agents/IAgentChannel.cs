@@ -15,6 +15,12 @@ public interface IAgentChannel
 {
     bool IsOnline(EnvironmentId environmentId);
 
+    /// <summary>
+    /// Closes the agent's live connection, if there is one; its waiting commands fail with
+    /// <see cref="AgentDisconnectedException"/>. Used after revoking its credentials, which a live connection would outlast.
+    /// </summary>
+    void Disconnect(EnvironmentId environmentId, string reason);
+
     Task<IReadOnlyList<ContainerSnapshot>> ListContainersAsync(EnvironmentId environmentId, CancellationToken cancellationToken);
 
     Task StartContainerAsync(EnvironmentId environmentId, string containerId, CancellationToken cancellationToken);

@@ -70,13 +70,15 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    curl -c cookies.txt -X POST http://localhost:5080/api/auth/login -H 'content-type: application/json' -d '{"userName":"root","password":"<пароль>","rememberMe":false}'
    curl -b cookies.txt http://localhost:5080/api/me
    ```
-2. Створити середовище й отримати enrollment-токен. Поки немає панелі, для цього є тимчасові dev-ендпоінти, доступні лише в оточенні `Development`. Там, крім cookie, заголовок `X-Dev-User` називає користувача, від імені якого йде запит, без пароля: нижче це адміністратор `root` з кроку 1.
+2. Створити середовище й отримати enrollment-токен (лише адміністратор). В оточенні `Development`, крім cookie, заголовок `X-Dev-User` називає користувача, від імені якого йде запит, без пароля: нижче це адміністратор `root` з кроку 1.
    ```sh
    curl -H 'X-Dev-User: root' http://localhost:5080/api/me
-   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments -H 'content-type: application/json' -d '{"name":"local","isPrivate":false}'
-   curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments                   # видимі середовища й статус агентів
-   curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers   # видимі контейнери через агента
-   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/containers/<container>/restart   # start | stop | restart, ?timeoutSeconds=30; <container> — повний id, ім'я або унікальний префікс id (як у docker)
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/environments -H 'content-type: application/json' -d '{"name":"local","isPrivate":false}'   # у відповіді — enrollmentToken, показується лише раз
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/enrollment-token   # новий токен (попередній перестає діяти)
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/revoke-agent       # забути агента й обірвати з'єднання
+   curl -H 'X-Dev-User: root' http://localhost:5080/api/environments                   # видимі середовища й статус агентів
+   curl -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/containers   # видимі контейнери через агента
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/containers/<container>/restart   # start | stop | restart, ?timeoutSeconds=30; <container> — повний id, ім'я або унікальний префікс id (як у docker)
    curl -H 'X-Dev-User: root' 'http://localhost:5080/api/environments/<id>/containers/<container>/logs?tail=100'   # останні рядки логу; ?since=<ISO 8601> — лише новіші
    ```
    Користувачі й ролі (API керування користувачами, лише для адміністраторів; повний перелік — `src/Aggregator/Api/Contracts/UserContracts.cs`):
@@ -97,9 +99,9 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
 
    Образи з приватного registry: креди задаються на середовищі (лише адміністратор; пароль ніколи не повертається). Повторний `PUT` для того самого `server` замінює логін:
    ```sh
-   curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/registry-credentials -H 'content-type: application/json' -d '{"server":"ghcr.io","username":"<user>","password":"<token>"}'
-   curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/registry-credentials
-   curl -X DELETE -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/registry-credentials/<credentialId>
+   curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/registry-credentials -H 'content-type: application/json' -d '{"server":"ghcr.io","username":"<user>","password":"<token>"}'
+   curl -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/registry-credentials
+   curl -X DELETE -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/registry-credentials/<credentialId>
    ```
    Паролі шифруються ключами з `data-protection-keys/` у робочому каталозі ЦА (`CF_DATAPROTECTION__KEYDIRECTORY`): без цього каталогу збережені креди не розшифруються.
 

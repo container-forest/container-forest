@@ -212,6 +212,10 @@ internal sealed class FakeAgentChannel : IAgentChannel
 
     public bool IsOnline(EnvironmentId environmentId) => Online;
 
+    public List<EnvironmentId> Disconnected { get; } = [];
+
+    public void Disconnect(EnvironmentId environmentId, string reason) => Disconnected.Add(environmentId);
+
     public Task<IReadOnlyList<ContainerSnapshot>> ListContainersAsync(EnvironmentId environmentId, CancellationToken cancellationToken)
     {
         Calls.Add("list");

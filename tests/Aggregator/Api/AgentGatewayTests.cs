@@ -16,7 +16,7 @@ public class AgentGatewayTests
         await using var app = new AggregatorApp();
         await using var agent = await app.EnrollAndConnectAsync();
 
-        var request = app.CreateClient().GetAsync($"/api/dev/environments/{agent.EnvironmentId}/containers", Ct);
+        var request = app.CreateClient().GetAsync($"/api/environments/{agent.EnvironmentId}/containers", Ct);
         var command = await agent.ReceiveAsync();
         Assert.Equal(ControllerMessage.BodyOneofCase.ListContainers, command.BodyCase);
 
@@ -55,7 +55,7 @@ public class AgentGatewayTests
         await using var agent = await app.EnrollAndConnectAsync();
 
         var environments = await app.CreateClient().GetFromJsonAsync<AggregatorApp.EnvironmentView[]>(
-            "/api/dev/environments", AggregatorApp.Json, Ct);
+            "/api/environments", AggregatorApp.Json, Ct);
 
         var environment = Assert.Single(environments!);
         Assert.True(environment.IsEnrolled);
@@ -74,6 +74,31 @@ public class AgentGatewayTests
         var error = await Assert.ThrowsAsync<RpcException>(async () => await app.Gateway.EnrollAsync(request, cancellationToken: Ct));
 
         Assert.Equal(StatusCode.Unauthenticated, error.StatusCode);
+    }
+
+    [Fact]
+    public async Task Revoked_agent_is_disconnected_and_cannot_connect_again()
+    {
+        await using var app = new AggregatorApp();
+        var environment = await app.CreateEnvironmentAsync();
+        var credentials = await app.Gateway.EnrollAsync(new EnrollRequest { EnrollmentToken = environment.EnrollmentToken }, cancellationToken: Ct);
+        await using (await FakeAgent.ConnectAsync(app.Gateway, credentials, "boot-1"))
+        {
+            await app.WaitUntilOnlineAsync(environment.Id);
+
+            await HttpAssert.StatusAsync(
+                HttpStatusCode.NoContent, app.CreateClient().PostAsync($"/api/environments/{environment.Id}/revoke-agent", content: null, Ct));
+            await app.WaitUntilOnlineAsync(environment.Id, online: false);
+        }
+
+        var error = await Assert.ThrowsAsync<RpcException>(async () =>
+        {
+            await using var agent = await FakeAgent.ConnectAsync(app.Gateway, credentials, "boot-1");
+            await agent.ReceiveAsync();
+        });
+        Assert.Equal(StatusCode.Unauthenticated, error.StatusCode);
+        var listed = await app.CreateClient().GetFromJsonAsync<JsonElement>("/api/environments", AggregatorApp.Json, Ct);
+        Assert.False(listed[0].GetProperty("isEnrolled").GetBoolean());
     }
 
     [Fact]
@@ -115,7 +140,7 @@ public class AgentGatewayTests
         var environment = await app.CreateEnvironmentAsync();
 
         var response = await app.CreateClient().GetAsync(
-            $"/api/dev/environments/{environment.Id}/containers", Ct);
+            $"/api/environments/{environment.Id}/containers", Ct);
 
         await HttpAssert.StatusAsync(HttpStatusCode.ServiceUnavailable, response);
     }
@@ -126,7 +151,7 @@ public class AgentGatewayTests
         await using var app = new AggregatorApp();
         await using var agent = await app.EnrollAndConnectAsync();
 
-        var request = app.CreateClient().GetAsync($"/api/dev/environments/{agent.EnvironmentId}/containers", Ct);
+        var request = app.CreateClient().GetAsync($"/api/environments/{agent.EnvironmentId}/containers", Ct);
         var command = await agent.ReceiveAsync();
         await agent.SendAsync(new AgentMessage
         {
@@ -149,7 +174,7 @@ public class AgentGatewayTests
         await using var app = new AggregatorApp();
         await using var agent = await app.EnrollAndConnectAsync();
 
-        var request = app.CreateClient().GetAsync($"/api/dev/environments/{agent.EnvironmentId}/containers", Ct);
+        var request = app.CreateClient().GetAsync($"/api/environments/{agent.EnvironmentId}/containers", Ct);
         var command = await agent.ReceiveAsync();
         await agent.SendAsync(new AgentMessage
         {
@@ -170,7 +195,7 @@ public class AgentGatewayTests
         await using var app = new AggregatorApp();
         var agent = await app.EnrollAndConnectAsync();
 
-        var request = app.CreateClient().GetAsync($"/api/dev/environments/{agent.EnvironmentId}/containers", Ct);
+        var request = app.CreateClient().GetAsync($"/api/environments/{agent.EnvironmentId}/containers", Ct);
         await agent.ReceiveAsync();
         await agent.DisposeAsync();
 

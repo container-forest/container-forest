@@ -43,6 +43,18 @@ public sealed class AgentRegistry(ILogger<AgentRegistry> logger)
         return sessions.TryRemove(KeyValuePair.Create(session.EnvironmentId, session));
     }
 
+    /// <summary>
+    /// Closes the environment's session, if any. It stays registered until its Connect call ends and removes it,
+    /// which records the disconnect as for any other lost connection.
+    /// </summary>
+    public void Close(EnvironmentId environmentId, string reason)
+    {
+        if (sessions.TryGetValue(environmentId, out var session))
+        {
+            session.Close(reason);
+        }
+    }
+
     public bool TryGet(EnvironmentId environmentId, [NotNullWhen(true)] out AgentSession? session) =>
         sessions.TryGetValue(environmentId, out session) && !session.IsClosed;
 

@@ -1,5 +1,6 @@
 using ContainerForest.DiscordBot.Commands;
 using ContainerForest.DiscordBot.Configuration;
+using ContainerForest.DiscordBot.Dashboard;
 using ContainerForest.DiscordBot.Forest;
 using ContainerForest.DiscordBot.Interactions;
 using ContainerForest.DiscordBot.Notifications;
@@ -82,6 +83,7 @@ public static class DependencyInjection
         services.AddSingleton<RestartStackCommand>();
         services.AddSingleton<DownStackCommand>();
         services.AddSingleton<LinkCommand>();
+        services.AddSingleton<DashboardService>();
         return services;
     }
 

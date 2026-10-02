@@ -1,16 +1,20 @@
 using System.Net;
 using System.Net.Http.Json;
+using ContainerForest.Aggregator.Application.Deployments;
+using ContainerForest.Aggregator.Domain.Stacks;
 using ContainerForest.Contracts.Agent;
 using ContainerForest.Contracts.Bot;
 using Grpc.Core;
 using AgentContainerState = ContainerForest.Contracts.Agent.ContainerState;
 using BotContainerState = ContainerForest.Contracts.Bot.ContainerState;
+using DeploymentStatus = ContainerForest.Contracts.Bot.DeploymentStatus;
 
 namespace ContainerForest.Aggregator.Api.Tests;
 
 public class BotGatewayTests
 {
     private const ulong AliceDiscordId = 111_222_333_444_555_666;
+    private const string Sha = "0123456789abcdef0123456789abcdef01234567";
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -206,6 +210,82 @@ public class BotGatewayTests
         Assert.Equal(StatusCode.NotFound, (await ControlStackFailsAsync(app, environmentId, "Not a name!", StackAction.Restart)).StatusCode);
         Assert.Equal(StatusCode.InvalidArgument, (await ControlStackFailsAsync(app, environmentId, "web", StackAction.Unspecified)).StatusCode);
     }
+
+    [Fact]
+    public async Task Linked_admin_deploys_a_stack_and_follows_the_deployment()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        await LinkAsync(app, AggregatorApp.AdminUserName, AliceDiscordId);
+        await CreateStackAsync(app, agent, "web");
+        app.Git.Snapshot = new GitSnapshot(
+            CommitSha.Parse(Sha),
+            [new SourceFile(StackFilePath.Parse("compose.yaml"), "services:\n  web:\n    image: nginx:1.27\n"u8.ToArray(), IsExecutable: false)],
+            []);
+        var environmentId = agent.EnvironmentId.ToString();
+
+        var stacks = await app.BotGateway.ListStacksAsync(
+            new ListStacksRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId }, BotHeaders(), cancellationToken: Ct);
+        Assert.True(Assert.Single(stacks.Stacks).CanDeploy);
+
+        var queued = await app.BotGateway.DeployStackAsync(
+            new DeployStackRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId, Stack = " web ", Pull = true },
+            BotHeaders(),
+            cancellationToken: Ct);
+        var command = await agent.ReceiveAsync();
+        Assert.Equal(ControllerMessage.BodyOneofCase.DeployStack, command.BodyCase);
+        Assert.Equal(("web", PullPolicy.Always), (command.DeployStack.StackName, command.DeployStack.Pull));
+
+        // One deployment per stack at a time, as in the panel.
+        var second = await DeployStackFailsAsync(app, environmentId, "web");
+        Assert.Equal(StatusCode.FailedPrecondition, second.StatusCode);
+
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
+
+        GetDeploymentResponse? deployment = null;
+        for (var attempt = 0; attempt < 100 && deployment?.Status != DeploymentStatus.Succeeded; attempt++)
+        {
+            await Task.Delay(50, Ct);
+            deployment = await app.BotGateway.GetDeploymentAsync(
+                new GetDeploymentRequest { DiscordUserId = AliceDiscordId, DeploymentId = queued.DeploymentId }, BotHeaders(), cancellationToken: Ct);
+        }
+
+        Assert.Equal(DeploymentStatus.Succeeded, deployment!.Status);
+        Assert.Equal((Sha, ""), (deployment.Commit, deployment.Error));
+        Assert.True(deployment.FinishedUnixMs >= deployment.QueuedUnixMs);
+    }
+
+    [Fact]
+    public async Task Viewer_may_not_deploy_and_unknown_stacks_and_deployments_are_not_found()
+    {
+        await using var app = new AggregatorApp();
+        await app.CreateUserAsync("alice", isAdmin: false);
+        await using var agent = await app.EnrollAndConnectAsync();
+        await LinkAsync(app, "alice", AliceDiscordId);
+        await CreateStackAsync(app, agent, "web");
+        var environmentId = agent.EnvironmentId.ToString();
+
+        var stacks = await app.BotGateway.ListStacksAsync(
+            new ListStacksRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId }, BotHeaders(), cancellationToken: Ct);
+        Assert.False(Assert.Single(stacks.Stacks).CanDeploy);
+
+        Assert.Equal(StatusCode.PermissionDenied, (await DeployStackFailsAsync(app, environmentId, "web")).StatusCode);
+        Assert.Equal(StatusCode.NotFound, (await DeployStackFailsAsync(app, environmentId, "nope")).StatusCode);
+        Assert.Equal(StatusCode.NotFound, (await GetDeploymentFailsAsync(app, Guid.NewGuid().ToString())).StatusCode);
+        Assert.Equal(StatusCode.InvalidArgument, (await GetDeploymentFailsAsync(app, "not-an-id")).StatusCode);
+    }
+
+    private static Task<RpcException> DeployStackFailsAsync(AggregatorApp app, string environmentId, string stack) =>
+        Assert.ThrowsAsync<RpcException>(() => app.BotGateway.DeployStackAsync(
+            new DeployStackRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId, Stack = stack },
+            BotHeaders(),
+            cancellationToken: Ct).ResponseAsync);
+
+    private static Task<RpcException> GetDeploymentFailsAsync(AggregatorApp app, string deploymentId) =>
+        Assert.ThrowsAsync<RpcException>(() => app.BotGateway.GetDeploymentAsync(
+            new GetDeploymentRequest { DiscordUserId = AliceDiscordId, DeploymentId = deploymentId },
+            BotHeaders(),
+            cancellationToken: Ct).ResponseAsync);
 
     private static Task<RpcException> ControlStackFailsAsync(AggregatorApp app, string environmentId, string stack, StackAction action) =>
         Assert.ThrowsAsync<RpcException>(() => app.BotGateway.ControlStackAsync(

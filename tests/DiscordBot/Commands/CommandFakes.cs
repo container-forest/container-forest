@@ -89,6 +89,26 @@ internal sealed class StubForestClient : IForestClient
         return StackResult;
     }
 
+    /// <summary>What DeployStack answers with.</summary>
+    public string DeploymentId { get; set; } = "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
+
+    /// <summary>What GetDeployment answers with.</summary>
+    public ForestDeployment Deployment { get; set; } =
+        new(DeploymentStatus.Queued, null, null, DateTimeOffset.FromUnixTimeSeconds(1_790_000_000), null);
+
+    public async Task<string> DeployStackAsync(
+        ulong discordUserId, string environmentId, string stack, bool pull, CancellationToken cancellationToken)
+    {
+        await Enter($"deploy {discordUserId} {environmentId} {stack} {(pull ? "pull" : "missing")}", cancellationToken);
+        return DeploymentId;
+    }
+
+    public async Task<ForestDeployment> GetDeploymentAsync(ulong discordUserId, string deploymentId, CancellationToken cancellationToken)
+    {
+        await Enter($"deployment {discordUserId} {deploymentId}", cancellationToken);
+        return Deployment;
+    }
+
     private async Task Enter(string call, CancellationToken cancellationToken)
     {
         Calls.Add(call);

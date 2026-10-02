@@ -52,6 +52,14 @@ service BotGateway {
   // is an answer with error set, not a status, so the bot can show what compose printed.
   rpc ControlStack(ControlStackRequest) returns (ControlStackResponse);
 
+  // Queues a deployment of the stack's latest commit (redeploy, or redeploy with pull), as the panel's "Deploy".
+  // Returns at once; follow the deployment with GetDeployment. Not queued when the agent is offline (UNAVAILABLE)
+  // or the stack already has one in progress (FAILED_PRECONDITION).
+  rpc DeployStack(DeployStackRequest) returns (DeployStackResponse);
+
+  // The state of one deployment of a stack the user may see.
+  rpc GetDeployment(GetDeploymentRequest) returns (GetDeploymentResponse);
+
   // Notifications for the bot to post. The bot keeps one call open and reopens it with backoff when it
   // ends; a new call replaces the previous one. Notifications created while no bot was connected are sent
   // when it connects, unless they are older than an hour: those are expired, not delivered late.
@@ -177,6 +185,7 @@ message Stack {
   int64 deployed_unix_ms = 5;
   bool can_restart = 6;
   bool can_take_down = 7;
+  bool can_deploy = 8;  // redeploy, with or without pull: Editor
 }
 
 // stack is the stack's name in the environment.
@@ -203,6 +212,43 @@ enum StackAction {
   STACK_ACTION_UNSPECIFIED = 0;
   STACK_ACTION_RESTART = 1;  // docker compose restart: Operator
   STACK_ACTION_DOWN = 2;     // docker compose down, volumes stay: Editor
+}
+
+// stack is the stack's name in the environment, as for ControlStack.
+// Unknown or invisible stack: NOT_FOUND; not Editor: PERMISSION_DENIED; a system stack: FAILED_PRECONDITION.
+message DeployStackRequest {
+  uint64 discord_user_id = 1;
+  string environment_id = 2;
+  string stack = 3;
+  bool pull = 4;  // pull every image again (redeploy with pull); otherwise only missing ones
+}
+
+message DeployStackResponse {
+  string deployment_id = 1;  // UUID, for GetDeployment
+}
+
+// A deployment that does not exist and one of a stack the user may not see are the same NOT_FOUND.
+message GetDeploymentRequest {
+  uint64 discord_user_id = 1;
+  string deployment_id = 2;
+}
+
+// commit is empty until the deployment has fetched it; error is the failure reason, empty otherwise.
+message GetDeploymentResponse {
+  DeploymentStatus status = 1;
+  string commit = 2;
+  string error = 3;
+  int64 queued_unix_ms = 4;
+  int64 finished_unix_ms = 5;  // 0 while unfinished
+}
+
+enum DeploymentStatus {
+  DEPLOYMENT_STATUS_UNSPECIFIED = 0;
+  DEPLOYMENT_STATUS_QUEUED = 1;
+  DEPLOYMENT_STATUS_RUNNING = 2;
+  DEPLOYMENT_STATUS_SUCCEEDED = 3;
+  DEPLOYMENT_STATUS_FAILED = 4;
+  DEPLOYMENT_STATUS_CANCELLED = 5;
 }
 
 message WatchNotificationsRequest {}

@@ -129,6 +129,16 @@ internal sealed class ScriptedBotGateway : Proto.BotGateway.BotGatewayBase
     public override Task<Proto.ControlStackResponse> ControlStack(Proto.ControlStackRequest request, ServerCallContext context) =>
         AnswerAsync(request, context, StackResponse);
 
+    public Proto.DeployStackResponse DeployResponse { get; set; } = new();
+
+    public Proto.GetDeploymentResponse DeploymentResponse { get; set; } = new();
+
+    public override Task<Proto.DeployStackResponse> DeployStack(Proto.DeployStackRequest request, ServerCallContext context) =>
+        AnswerAsync(request, context, DeployResponse);
+
+    public override Task<Proto.GetDeploymentResponse> GetDeployment(Proto.GetDeploymentRequest request, ServerCallContext context) =>
+        AnswerAsync(request, context, DeploymentResponse);
+
     private async Task<T> AnswerAsync<T>(IMessage request, ServerCallContext context, T response)
     {
         lock (Requests)

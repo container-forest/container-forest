@@ -7,10 +7,10 @@
 # Both are as powerful as an administrator's password (security invariant 9): keep .env readable by root only.
 services:
   container-forest-discord-bot:
-    image: ghcr.io/<org>/container-forest-discord-bot:latest
+    image: ghcr.io/lepterion/container-forest-discord-bot:latest
     restart: unless-stopped
     environment:
-      CF_BOT__CONTROLLERURL: https://forest.example.com
+      CF_BOT__CONTROLLERURL: https://forest.example.com   # CF_DOMAIN of deploy/aggregator
       CF_BOT__SERVICETOKEN: ${BOT_SERVICE_TOKEN:?set BOT_SERVICE_TOKEN in .env}
       CF_DISCORD__TOKEN: ${DISCORD_TOKEN:?set DISCORD_TOKEN in .env}
     # The bot keeps no state and only makes outbound connections, so it needs neither privileges nor a writable disk.

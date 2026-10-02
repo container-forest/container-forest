@@ -3,7 +3,7 @@ import type { paths } from "./schema.gen";
 
 /**
  * Typed client for the aggregator's REST API, generated from its OpenAPI document (npm run generate:api).
- * Same origin: the dev server and nginx proxy /api, so the session cookie is sent without CORS.
+ * Same origin: the dev server and Caddy proxy /api, so the session cookie is sent without CORS.
  */
 export const api = createClient<paths>({ baseUrl: "/", credentials: "same-origin" });
 

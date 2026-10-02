@@ -1,0 +1,71 @@
+name: Images
+
+# Builds the four Docker images. Pull requests only check that they build (amd64); main publishes them to
+# GitHub Container Registry as ghcr.io/lepterion/container-forest-<name>, for amd64 and arm64, tagged
+# "latest" and with the commit's SHA. The deploy/ examples pull "latest"; pin a SHA tag to stay on one build.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: Image (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: aggregator
+            context: .
+            file: src/Aggregator/Api/Dockerfile
+          - name: agent
+            context: .
+            file: src/Agent/Dockerfile
+          - name: discord-bot
+            context: .
+            file: src/DiscordBot/Dockerfile
+          - name: web
+            context: src/Web
+            file: src/Web/Dockerfile
+    env:
+      PUBLISH: ${{ github.event_name != 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # arm64 runtime stages (apt-get in the agent's image) run under emulation.
+      - uses: docker/setup-qemu-action@v3
+        if: env.PUBLISH == 'true'
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        if: env.PUBLISH == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: ${{ env.PUBLISH == 'true' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: |
+            ghcr.io/lepterion/container-forest-${{ matrix.name }}:latest
+            ghcr.io/lepterion/container-forest-${{ matrix.name }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max

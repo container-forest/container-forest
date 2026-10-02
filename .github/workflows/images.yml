@@ -38,7 +38,7 @@ jobs:
             context: .
             file: src/DiscordBot/Dockerfile
           - name: web
-            context: src/Web
+            context: .
             file: src/Web/Dockerfile
     env:
       PUBLISH: ${{ github.event_name != 'pull_request' }}

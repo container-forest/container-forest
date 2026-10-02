@@ -6,6 +6,7 @@
 **/bin/
 **/obj/
 **/node_modules/
+src/Web/dist/
 **/*.db
 **/*.db-shm
 **/*.db-wal

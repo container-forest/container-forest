@@ -82,7 +82,7 @@ export function CreateEnvironmentDialog() {
           {t("environments.new")}
         </Button>
       </DialogTrigger>
-      <DialogContent className={created ? "sm:max-w-2xl" : undefined}>
+      <DialogContent className={created ? "max-h-[90svh] overflow-y-auto sm:max-w-2xl" : undefined}>
         {created ? (
           <div className="grid gap-4">
             <DialogHeader>

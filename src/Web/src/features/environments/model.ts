@@ -106,22 +106,20 @@ export const registryCredentialSchema = z.object({
 
 export type RegistryCredentialForm = z.infer<typeof registryCredentialSchema>;
 
-/** What the agent's compose file is built from; the token is added separately and never kept with these. */
+/** What the agent's .env file is filled from besides the token; not secret, editable on the screen. */
 export interface AgentSettings {
-  image: string;
-  controllerUrl: string;
+  /** The aggregator's public name (CF_DOMAIN): the agent connects to https://<domain>. */
+  domain: string;
+  /** The name the panel shows for the host (AGENT_HOSTNAME). */
   hostname: string;
 }
 
-/** Where the agent image will be published; the administrator replaces it with their registry's. */
-export const DEFAULT_AGENT_IMAGE = "ghcr.io/<org>/container-forest-agent:latest";
-
 /**
- * A guess for the agent settings: the aggregator behind the same address as the panel (a reverse proxy passes
- * gRPC through), and a host name from the environment's name. Both are editable on the screen.
+ * A guess for the agent settings: the aggregator behind the same name as the panel (Caddy is the single entry point
+ * and passes gRPC through, ADR-0005), and a host name from the environment's name.
  */
-export function defaultAgentSettings(environmentName: string, panelOrigin: string): AgentSettings {
-  return { image: DEFAULT_AGENT_IMAGE, controllerUrl: panelOrigin, hostname: hostnameFrom(environmentName) };
+export function defaultAgentSettings(environmentName: string, panelHost: string): AgentSettings {
+  return { domain: panelHost, hostname: hostnameFrom(environmentName) };
 }
 
 /** A valid host name label (RFC 1123) from free text: lowercase letters, digits and '-', at most 63 characters. */
@@ -135,37 +133,58 @@ export function hostnameFrom(name: string): string {
   return label === "" ? "docker-host" : label;
 }
 
-/** Whether the aggregator address is an absolute http(s) URL, which the agent requires. */
-export function isControllerUrl(value: string): boolean {
-  try {
-    const url = new URL(value.trim());
-    return (url.protocol === "https:" || url.protocol === "http:") && url.hostname !== "";
-  } catch {
-    return false;
-  }
+const labelPattern = "[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?";
+const domainPattern = new RegExp(`^${labelPattern}(\\.${labelPattern})*(:\\d{1,5})?$`, "i");
+const hostnamePattern = new RegExp(`^${labelPattern}$`, "i");
+
+/** A name with an optional port, without a scheme or path: it goes into https://${CF_DOMAIN}. */
+export function isDomain(value: string): boolean {
+  return value.length <= 253 && domainPattern.test(value.trim());
 }
 
-// Double-quoted YAML scalar: whatever is typed stays one value.
-const yamlString = (value: string) => JSON.stringify(value);
+/** One RFC 1123 label, as Docker accepts for `hostname:`. */
+export function isHostname(value: string): boolean {
+  return hostnamePattern.test(value.trim());
+}
 
 /**
- * The agent's compose file for the host, as in docs/architecture.md ("Розгортання агента"). Directories are mounted
- * at the same path as on the host: compose inside the agent talks to the host's Docker, which resolves the paths.
+ * The agent's compose file, the same as deploy/agent/compose.yaml: the panel's image is built from src/Web alone, so
+ * it cannot read the file. Change both together. Everything specific to a host comes from {@link agentEnvFile}.
  */
-export function agentComposeFile(settings: AgentSettings, enrollmentToken: string): string {
+export const AGENT_COMPOSE_FILE = [
+  "# The agent of container-forest, one per host (environment). See docs/architecture.md, \"Розгортання агента\".",
+  "#",
+  "# Settings come from an .env file next to this one, which is never committed and is readable by root only:",
+  "#   CF_DOMAIN=forest.example.com   the aggregator's public name (deploy/aggregator)",
+  "#   ENROLLMENT_TOKEN=...           issued by an administrator for this environment; needed for the first start only",
+  "#   AGENT_HOSTNAME=web-1           the name the panel shows for this host",
+  "services:",
+  "  container-forest-agent:",
+  "    image: ghcr.io/lepterion/container-forest-agent:latest",
+  "    restart: unless-stopped",
+  "    # Without it the panel shows the container's id instead of the host's name.",
+  "    hostname: ${AGENT_HOSTNAME:?set AGENT_HOSTNAME in .env}",
+  "    environment:",
+  "      CF_AGENT__CONTROLLERURL: https://${CF_DOMAIN:?set CF_DOMAIN in .env}",
+  "      CF_AGENT__ENROLLMENTTOKEN: ${ENROLLMENT_TOKEN:-}",
+  "    # The same paths on the host and in the container: compose runs through the host's daemon,",
+  "    # which resolves the stacks' bind mounts on the host. The agent opens no ports.",
+  "    volumes:",
+  "      - /var/run/docker.sock:/var/run/docker.sock",
+  "      - /opt/container-forest:/opt/container-forest",
+  "      - /run/container-forest:/run/container-forest",
+  "",
+].join("\n");
+
+/**
+ * The .env file next to the compose file. It holds the enrollment token, so it stays on the host, readable by root
+ * only, and is never committed; the token is needed for the first start only.
+ */
+export function agentEnvFile(settings: AgentSettings, enrollmentToken: string): string {
   return [
-    "services:",
-    "  container-forest-agent:",
-    `    image: ${yamlString(settings.image.trim())}`,
-    "    restart: unless-stopped",
-    `    hostname: ${yamlString(settings.hostname.trim())}`,
-    "    environment:",
-    `      CF_AGENT__CONTROLLERURL: ${yamlString(settings.controllerUrl.trim())}`,
-    `      CF_AGENT__ENROLLMENTTOKEN: ${yamlString(enrollmentToken)}`,
-    "    volumes:",
-    "      - /var/run/docker.sock:/var/run/docker.sock",
-    "      - /opt/container-forest:/opt/container-forest",
-    "      - /run/container-forest:/run/container-forest",
+    `CF_DOMAIN=${settings.domain.trim()}`,
+    `ENROLLMENT_TOKEN=${enrollmentToken}`,
+    `AGENT_HOSTNAME=${settings.hostname.trim()}`,
     "",
   ].join("\n");
 }

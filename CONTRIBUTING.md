@@ -71,7 +71,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    curl -c cookies.txt -X POST http://localhost:5080/api/auth/login -H 'content-type: application/json' -d '{"userName":"root","password":"<пароль>","rememberMe":false}'
    curl -b cookies.txt http://localhost:5080/api/me
    ```
-2. Створити середовище й отримати enrollment-токен (лише адміністратор). В оточенні `Development`, крім cookie, заголовок `X-Dev-User` називає користувача, від імені якого йде запит, без пароля: нижче це адміністратор `root` з кроку 1.
+2. Створити середовище й отримати enrollment-токен (лише адміністратор). Найпростіше — у панелі (крок 5): «Середовища» → «Нове середовище» показує токен і готовий compose-файл агента. Те саме через API: В оточенні `Development`, крім cookie, заголовок `X-Dev-User` називає користувача, від імені якого йде запит, без пароля: нижче це адміністратор `root` з кроку 1.
    ```sh
    curl -H 'X-Dev-User: root' http://localhost:5080/api/me
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/environments -H 'content-type: application/json' -d '{"name":"local","isPrivate":false}'   # у відповіді — enrollmentToken, показується лише раз

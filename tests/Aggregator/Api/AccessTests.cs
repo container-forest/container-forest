@@ -36,7 +36,7 @@ public class AccessTests
         await app.CreateUserAsync("alice", isAdmin: false);
 
         var response = await app.CreateClientAs("alice").PostAsJsonAsync(
-            "/api/dev/environments", new { name = "prod", isPrivate = true }, Ct);
+            "/api/environments", new { name = "prod", isPrivate = true }, Ct);
 
         await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, response);
     }
@@ -46,12 +46,12 @@ public class AccessTests
     {
         await using var app = new AggregatorApp();
         await app.CreateUserAsync("alice", isAdmin: false);
-        var created = await app.CreateClient().PostAsJsonAsync("/api/dev/environments", new { name = "prod", isPrivate = true }, Ct);
+        var created = await app.CreateClient().PostAsJsonAsync("/api/environments", new { name = "prod", isPrivate = true }, Ct);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct)).GetProperty("id").GetGuid();
         var alice = app.CreateClientAs("alice");
 
-        var listed = await alice.GetFromJsonAsync<JsonElement>("/api/dev/environments", AggregatorApp.Json, Ct);
-        var containers = await alice.GetAsync($"/api/dev/environments/{id}/containers", Ct);
+        var listed = await alice.GetFromJsonAsync<JsonElement>("/api/environments", AggregatorApp.Json, Ct);
+        var containers = await alice.GetAsync($"/api/environments/{id}/containers", Ct);
 
         Assert.Equal(0, listed.GetArrayLength());
         await HttpAssert.StatusAsync(HttpStatusCode.NotFound, containers);

@@ -49,13 +49,6 @@ app.MapStackEndpoints();
 app.MapNotificationEndpoints();
 app.MapDiscordLinkEndpoints();
 
-if (app.Environment.IsDevelopment())
-{
-    // Authentication here is the password-less dev header: never expose these outside local development.
-    app.MapDevEnvironmentEndpoints();
-    app.MapDevRegistryEndpoints();
-}
-
 app.Run();
 
 // Lets integration tests reference the entry point.

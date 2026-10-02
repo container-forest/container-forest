@@ -15,6 +15,9 @@ public sealed record EnvironmentCreated(EnvironmentId Id, string Name, Enrollmen
 /// The user's role on the environment as a whole; null when the user sees it only through stack roles.
 /// Administrators get null too and rely on <see cref="User.IsAdmin"/>.
 /// </param>
+/// <param name="EnrollmentTokenExpiresAt">
+/// Until when an issued enrollment token can still be used; null when there is none. Shown to administrators only.
+/// </param>
 public sealed record EnvironmentSummary(
     EnvironmentId Id,
     string Name,
@@ -24,9 +27,13 @@ public sealed record EnvironmentSummary(
     string? AgentHostname,
     string? AgentVersion,
     DateTimeOffset? LastSeenAt,
-    Role? Role);
+    Role? Role,
+    DateTimeOffset? EnrollmentTokenExpiresAt = null);
 
-/// <summary>Environments as the current user sees them; creating environments and enrollment tokens (administrators only).</summary>
+/// <summary>
+/// Environments as the current user sees them; creating and changing environments, enrollment tokens and revoking
+/// agents (administrators only).
+/// </summary>
 public sealed class EnvironmentService(
     CurrentActor currentActor,
     IEnvironmentRepository environments,
@@ -63,6 +70,49 @@ public sealed class EnvironmentService(
         return token;
     }
 
+    /// <summary>Renames the environment and makes it private or public.</summary>
+    public async Task<EnvironmentSummary> UpdateAsync(EnvironmentId id, string name, bool isPrivate, CancellationToken cancellationToken)
+    {
+        var admin = await currentActor.GetAdministratorAsync(cancellationToken);
+        var environment = await environments.FindAsync(id, cancellationToken) ?? throw new NotFoundException("Environment", id);
+
+        // Compared with the others after normalizing the name, so the environment does not clash with itself.
+        var all = await environments.ListAsync(cancellationToken);
+        environment.Rename(name);
+        if (all.Any(e => e.Id != environment.Id && string.Equals(e.Name, environment.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new DomainConflictException($"Environment '{environment.Name}' already exists.");
+        }
+
+        if (isPrivate)
+        {
+            environment.MakePrivate();
+        }
+        else
+        {
+            environment.MakePublic();
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return Summarize(admin, environment, await roleAssignments.ListForUserAsync(admin.Id, cancellationToken));
+    }
+
+    /// <summary>
+    /// Forgets the agent's credentials and drops its connection: for a lost or compromised host. The agent cannot
+    /// connect again until it is enrolled with a new token; containers on the host keep running.
+    /// </summary>
+    public async Task RevokeAgentAsync(EnvironmentId id, CancellationToken cancellationToken)
+    {
+        await currentActor.GetAdministratorAsync(cancellationToken);
+        var environment = await environments.FindAsync(id, cancellationToken) ?? throw new NotFoundException("Environment", id);
+
+        environment.RevokeAgent();
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // After saving: a reconnect that slips in between is refused, since the secret is already gone.
+        agents.Disconnect(environment.Id, "agent credentials revoked");
+    }
+
     /// <summary>Environments the current user may see, in name order.</summary>
     public async Task<IReadOnlyList<EnvironmentSummary>> ListVisibleAsync(CancellationToken cancellationToken)
     {
@@ -72,18 +122,21 @@ public sealed class EnvironmentService(
 
         return all
             .Where(e => AccessPolicy.CanSee(user, e, assignments))
-            .Select(e => new EnvironmentSummary(
-                e.Id,
-                e.Name,
-                e.IsPrivate,
-                e.IsEnrolled,
-                agents.IsOnline(e.Id),
-                e.AgentHostname,
-                e.AgentVersion,
-                e.LastSeenAt,
-                AccessPolicy.EffectiveRole(user, e, assignments)))
+            .Select(e => Summarize(user, e, assignments))
             .ToList();
     }
+
+    private EnvironmentSummary Summarize(User user, DockerEnvironment environment, IReadOnlyList<RoleAssignment> assignments) => new(
+        environment.Id,
+        environment.Name,
+        environment.IsPrivate,
+        environment.IsEnrolled,
+        agents.IsOnline(environment.Id),
+        environment.AgentHostname,
+        environment.AgentVersion,
+        environment.LastSeenAt,
+        AccessPolicy.EffectiveRole(user, environment, assignments),
+        user.IsAdmin ? environment.EnrollmentTokenExpiresAt : null);
 
     private static EnrollmentToken IssueToken(DockerEnvironment environment, DateTimeOffset now)
     {

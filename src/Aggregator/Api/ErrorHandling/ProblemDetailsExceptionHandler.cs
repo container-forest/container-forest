@@ -22,6 +22,9 @@ internal sealed class ProblemDetailsExceptionHandler(IProblemDetailsService prob
             AgentOfflineException or AgentDisconnectedException => (StatusCodes.Status503ServiceUnavailable, "Agent unavailable"),
             AgentTimeoutException => (StatusCodes.Status504GatewayTimeout, "Agent timeout"),
             AgentCommandFailedException failed => (StatusFor(failed.Kind), "Agent command failed"),
+
+            // A body or parameter that does not bind (e.g. an object where an id is expected) is the caller's error, not ours.
+            BadHttpRequestException badRequest => (badRequest.StatusCode, "Bad request"),
             _ => (0, null),
         };
 

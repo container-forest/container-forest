@@ -1,3 +1,4 @@
+import agentComposeYaml from "@deploy/agent/compose.yaml?raw";
 import { z } from "zod";
 import { ApiError } from "@/api/client";
 import type { components } from "@/api/schema.gen";
@@ -148,33 +149,10 @@ export function isHostname(value: string): boolean {
 }
 
 /**
- * The agent's compose file, the same as deploy/agent/compose.yaml: the panel's image is built from src/Web alone, so
- * it cannot read the file. Change both together. Everything specific to a host comes from {@link agentEnvFile}.
+ * The agent's compose file: deploy/agent/compose.yaml itself, bundled at build time, so the screen shows exactly what
+ * the repository documents. Everything specific to a host comes from {@link agentEnvFile}.
  */
-export const AGENT_COMPOSE_FILE = [
-  "# The agent of container-forest, one per host (environment). See docs/architecture.md, \"Розгортання агента\".",
-  "#",
-  "# Settings come from an .env file next to this one, which is never committed and is readable by root only:",
-  "#   CF_DOMAIN=forest.example.com   the aggregator's public name (deploy/aggregator)",
-  "#   ENROLLMENT_TOKEN=...           issued by an administrator for this environment; needed for the first start only",
-  "#   AGENT_HOSTNAME=web-1           the name the panel shows for this host",
-  "services:",
-  "  container-forest-agent:",
-  "    image: ghcr.io/lepterion/container-forest-agent:latest",
-  "    restart: unless-stopped",
-  "    # Without it the panel shows the container's id instead of the host's name.",
-  "    hostname: ${AGENT_HOSTNAME:?set AGENT_HOSTNAME in .env}",
-  "    environment:",
-  "      CF_AGENT__CONTROLLERURL: https://${CF_DOMAIN:?set CF_DOMAIN in .env}",
-  "      CF_AGENT__ENROLLMENTTOKEN: ${ENROLLMENT_TOKEN:-}",
-  "    # The same paths on the host and in the container: compose runs through the host's daemon,",
-  "    # which resolves the stacks' bind mounts on the host. The agent opens no ports.",
-  "    volumes:",
-  "      - /var/run/docker.sock:/var/run/docker.sock",
-  "      - /opt/container-forest:/opt/container-forest",
-  "      - /run/container-forest:/run/container-forest",
-  "",
-].join("\n");
+export const AGENT_COMPOSE_FILE: string = agentComposeYaml;
 
 /**
  * The .env file next to the compose file. It holds the enrollment token, so it stays on the host, readable by root

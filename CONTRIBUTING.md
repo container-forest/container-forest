@@ -141,7 +141,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    - `src/routeTree.gen.ts` генерує плагін TanStack Router під час `npm run dev`/`build`; обидва згенеровані файли комітяться й руками не редагуються.
    - Текст, який бачить користувач, не пишіть у розмітці: додайте ключ у `src/i18n/locales/uk.ts` і переклад у `en.ts`, а в компоненті — `const { t } = useTranslation()` і `t("screen.key")`. Пропущений переклад або неіснуючий ключ — помилка `npm run typecheck`.
    - Компоненти UI — shadcn/ui: `npm run ui:add -- table` (з `src/Web`) додає компонент у `src/components/ui` і переводить його іконки на Material Symbols; згенеровані файли комітяться. Якщо після цього `npm run typecheck` скаржиться на відсутню іконку, додайте її в `src/components/icons.ts` (назви — як у Lucide, іконки — з https://fonts.google.com/icons).
-   - Docker-образ панелі (Caddy: статичні файли, проксі `/api`, `/hubs` і gRPC на ЦА, TLS — ADR-0005): `docker build -t container-forest-web:dev src/Web`.
+   - Docker-образ панелі (Caddy: статичні файли, проксі `/api`, `/hubs` і gRPC на ЦА, TLS — ADR-0005): `docker build -f src/Web/Dockerfile -t container-forest-web:dev .` (контекст — корінь репозиторію: панель вбудовує `deploy/agent/compose.yaml`).
 
 Тести: `dotnet test --solution ContainerForest.slnx`. Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
 
@@ -161,7 +161,7 @@ docker run -d --name cf-agent --hostname my-laptop \
 
 ```sh
 docker build -f src/Aggregator/Api/Dockerfile -t container-forest-aggregator:dev .
-docker build -t container-forest-web:dev src/Web
+docker build -f src/Web/Dockerfile -t container-forest-web:dev .
 ```
 
 Образ Discord-бота збирається так само; приклад розгортання — [`deploy/discord-bot/compose.yaml`](deploy/discord-bot/compose.yaml) (опис — у [docs/architecture.md](docs/architecture.md#розгортання-discord-бота)). Локально токени зручно передати файлом `.env.local` з рядками `CF_DISCORD__TOKEN=…` і `CF_BOT__SERVICETOKEN=…` (він у `.gitignore`), а в `CF_BOT__CONTROLLERURL` вказати `http://host.docker.internal:5081`. Образ не читає user-secrets і стартує в оточенні `Production`, тож команди реєструються глобально; для тестового сервера додайте `-e DOTNET_ENVIRONMENT=Development -e CF_DISCORD__DEVGUILDID=<id сервера>`:

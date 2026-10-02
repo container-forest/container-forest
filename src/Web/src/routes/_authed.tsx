@@ -32,11 +32,12 @@ function AuthedLayout() {
 
   return (
     <div className="min-h-svh">
-      <header className="flex items-center gap-6 border-b px-6 py-3">
+      {/* Narrower than xl, the links get a row of their own and scroll sideways instead of widening the page. */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b sm:gap-x-6 px-4 py-3 sm:px-6">
         <Link to="/" className="font-semibold">
           container-forest
         </Link>
-        <nav className="flex flex-1 gap-4 text-sm">
+        <nav className="order-last -mx-4 flex w-full gap-4 overflow-x-auto px-4 pb-1 text-sm whitespace-nowrap sm:-mx-6 sm:px-6 xl:order-none xl:mx-0 xl:w-auto xl:flex-1 xl:overflow-visible xl:px-0 xl:pb-0">
           {/* Screens add their links here. */}
           <Link
             to="/environments"
@@ -102,14 +103,18 @@ function AuthedLayout() {
             </Link>
           )}
         </nav>
-        <Link to="/account" className="text-muted-foreground hover:text-foreground text-sm" title={t("layout.nav.account")}>
+        <Link
+          to="/account"
+          className="text-muted-foreground hover:text-foreground ml-auto max-w-32 truncate text-sm sm:max-w-none"
+          title={t("layout.nav.account")}
+        >
           {me.userName}
-          {me.isAdmin && ` ${t("layout.administrator")}`}
+          {me.isAdmin && <span className="hidden sm:inline"> {t("layout.administrator")}</span>}
         </Link>
         <LanguageSwitcher />
         <LogoutButton />
       </header>
-      <main className="mx-auto max-w-6xl p-6">
+      <main className="mx-auto max-w-6xl p-4 sm:p-6">
         <Outlet />
       </main>
     </div>
@@ -129,7 +134,8 @@ function LogoutButton() {
       onClick={() => logout.mutate(undefined, { onSuccess: () => navigate({ to: "/login" }) })}
     >
       <LogOutIcon data-icon="inline-start" />
-      {t("layout.signOut")}
+      {/* On a phone only the icon fits next to the name; the text stays for screen readers. */}
+      <span className="sr-only sm:not-sr-only">{t("layout.signOut")}</span>
     </Button>
   );
 }

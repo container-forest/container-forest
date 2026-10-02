@@ -22,6 +22,7 @@ public sealed class DashboardServiceTests
     private readonly StubForestClient forest = new();
     private readonly RecordingLogger<DashboardService> logger = new();
     private readonly List<DashboardScreen> progress = [];
+    private readonly InstantTimeProvider time = new();
 
     public DashboardServiceTests()
     {
@@ -41,7 +42,7 @@ public sealed class DashboardServiceTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private DashboardService Service => new(forest, logger);
+    private DashboardService Service => new(forest, time, logger);
 
     [Fact]
     public async Task Environments_AreSortedByName_AndPaged_AndAPageTooFarShowsTheLast()
@@ -172,17 +173,68 @@ public sealed class DashboardServiceTests
     [Theory]
     [InlineData(StackOperation.Redeploy, "missing")]
     [InlineData(StackOperation.RedeployWithPull, "pull")]
-    public async Task Redeploy_QueuesTheDeployment_AndFollowsIt(StackOperation operation, string pull)
+    public async Task Redeploy_QueuesTheDeployment_AndUpdatesTheSameMessageUntilItEnds(StackOperation operation, string pull)
     {
+        forest.DeploymentSequence.Enqueue(Deployment(DeploymentStatus.Queued));
+        forest.DeploymentSequence.Enqueue(Deployment(DeploymentStatus.Queued));
+        forest.DeploymentSequence.Enqueue(Deployment(DeploymentStatus.Running));
+        forest.DeploymentSequence.Enqueue(Deployment(DeploymentStatus.Running));
+        forest.Deployment = Deployment(DeploymentStatus.Succeeded);
+
         var screen = Assert.IsType<StackScreen>(await ShowAsync(new RunRoute(operation, Environment, Stack, 0)));
 
         Assert.Contains($"deploy {User.Id} {EnvironmentId} kokosik-prod {pull}", forest.Calls);
-        Assert.Contains($"deployment {User.Id} {forest.DeploymentId}", forest.Calls);
-        Assert.Equal(Guid.Parse(forest.DeploymentId), screen.DeploymentId);
-        Assert.Equal(NoticeKind.Progress, screen.Notice!.Kind);
+        Assert.Equal(5, forest.Calls.Count(c => c == $"deployment {User.Id} {forest.DeploymentId}"));
 
-        // Queuing returns at once: there is no progress screen to wait behind.
+        // One edit per change of status, not per poll; every button stays disabled meanwhile.
+        Assert.Equal(["Deployment queued…", "Deploying commit 0123456…"], progress.Cast<StackScreen>().Select(s => s.Notice!.Text));
+        Assert.All(progress.Cast<StackScreen>(), s => Assert.True(s.Busy));
+        Assert.Equal(4 * DashboardService.FollowInterval, time.Elapsed);
+
+        Assert.False(screen.Busy);
+        Assert.Equal(Guid.Parse(forest.DeploymentId), screen.DeploymentId);
+        Assert.Equal(new Notice(NoticeKind.Success, "Deployed commit 0123456."), screen.Notice);
+
+        // The finished deployment changed the stack: it is loaded again for the final screen.
+        Assert.Equal(2, forest.Calls.Count(c => c.StartsWith("stacks", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task LongDeployment_IsFollowedOnlyWhileDiscordLetsTheMessageBeEdited()
+    {
+        forest.Deployment = Deployment(DeploymentStatus.Running);
+
+        var screen = Assert.IsType<StackScreen>(await ShowAsync(new RunRoute(StackOperation.Redeploy, Environment, Stack, 0)));
+
+        Assert.Equal(DashboardService.FollowLimit, time.Elapsed);
+        Assert.Single(progress);
+        Assert.False(screen.Busy);
+        Assert.Equal(NoticeKind.Progress, screen.Notice!.Kind);
+        Assert.EndsWith("press Refresh to check again.", screen.Notice.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Refresh_OfAFinishedDeployment_ShowsTheResultAtOnce()
+    {
+        forest.Deployment = Deployment(DeploymentStatus.Succeeded);
+
+        var screen = Assert.IsType<StackScreen>(await ShowAsync(new DeploymentRoute(Environment, Stack, Guid.Parse(forest.DeploymentId), 0)));
+
         Assert.Empty(progress);
+        Assert.Equal(TimeSpan.Zero, time.Elapsed);
+        Assert.Equal(NoticeKind.Success, screen.Notice!.Kind);
+    }
+
+    [Fact]
+    public async Task Refresh_OfARunningDeployment_FollowsItAgain()
+    {
+        forest.DeploymentSequence.Enqueue(Deployment(DeploymentStatus.Running));
+        forest.Deployment = Deployment(DeploymentStatus.Failed) with { Error = "compose failed" };
+
+        var screen = Assert.IsType<StackScreen>(await ShowAsync(new DeploymentRoute(Environment, Stack, Guid.Parse(forest.DeploymentId), 0)));
+
+        Assert.True(Assert.IsType<StackScreen>(Assert.Single(progress)).Busy);
+        Assert.Equal(new Notice(NoticeKind.Failure, "Deployment failed: compose failed"), screen.Notice);
     }
 
     [Fact]
@@ -226,6 +278,10 @@ public sealed class DashboardServiceTests
 
     private Task<DashboardScreen> ShowAsync(DashboardRoute route) =>
         Service.ShowAsync(User, route, s => { progress.Add(s); return Task.CompletedTask; }, Ct);
+
+    private static ForestDeployment Deployment(DeploymentStatus status) =>
+        new(status, status == DeploymentStatus.Queued ? null : Sha, null, DateTimeOffset.UnixEpoch,
+            status is DeploymentStatus.Succeeded or DeploymentStatus.Failed ? DateTimeOffset.UnixEpoch : null);
 
     private static ForestContainer Container(string name, string? stack, ContainerState state) =>
         new(name + "-id", name, state, "nginx:1.27", stack, "web", state == ContainerState.Running ? "Up 3 minutes" : "Exited (1)", CanControl: true);

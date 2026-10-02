@@ -103,10 +103,13 @@ internal sealed class StubForestClient : IForestClient
         return DeploymentId;
     }
 
+    /// <summary>States GetDeployment answers with one by one before falling back to <see cref="Deployment"/>.</summary>
+    public Queue<ForestDeployment> DeploymentSequence { get; } = new();
+
     public async Task<ForestDeployment> GetDeploymentAsync(ulong discordUserId, string deploymentId, CancellationToken cancellationToken)
     {
         await Enter($"deployment {discordUserId} {deploymentId}", cancellationToken);
-        return Deployment;
+        return DeploymentSequence.TryDequeue(out var next) ? next : Deployment;
     }
 
     private async Task Enter(string call, CancellationToken cancellationToken)

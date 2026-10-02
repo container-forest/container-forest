@@ -38,6 +38,7 @@ public sealed class DashboardRoutingTests : IAsyncLifetime
         await interactions.AddModuleAsync<DashboardModule>(new ServiceCollection()
             .AddLogging()
             .AddSingleton<IForestClient>(new StubForestClient())
+            .AddSingleton(TimeProvider.System)
             .AddSingleton<DashboardService>()
             .AddSingleton<IHostApplicationLifetime, StoppedNever>()
             .BuildServiceProvider());

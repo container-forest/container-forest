@@ -6,9 +6,10 @@ namespace ContainerForest.DiscordBot.Dashboard;
 /// <summary>
 /// /dashboard without Discord: turns a route into the screen to show, calling the aggregator as the user who clicked.
 /// Every screen loads fresh data, so a click always shows the current state; the aggregator decides what the user
-/// may see and do (security invariant 4), the buttons only follow its can_* hints.
+/// may see and do (security invariant 4), the buttons only follow its can_* hints. Everything happens in one
+/// message: an operation that takes a while edits it as it goes instead of posting follow-ups.
 /// </summary>
-public sealed class DashboardService(IForestClient forest, ILogger<DashboardService> logger)
+public sealed class DashboardService(IForestClient forest, TimeProvider time, ILogger<DashboardService> logger)
 {
     /// <summary>
     /// Rows per page. A message holds at most 40 components and each row takes four (section, text, button,
@@ -19,9 +20,18 @@ public sealed class DashboardService(IForestClient forest, ILogger<DashboardServ
     /// <summary>Containers listed on the stack screen; the rest are only counted, to stay within the message's text limit.</summary>
     public const int MaxContainerLines = 10;
 
+    /// <summary>How often a running deployment is asked about again.</summary>
+    public static readonly TimeSpan FollowInterval = TimeSpan.FromSeconds(3);
+
     /// <summary>
-    /// The screen for <paramref name="route"/>. For a <see cref="RunRoute"/> that waits for compose,
-    /// <paramref name="showProgress"/> gets the stack with every action disabled before the wait.
+    /// How long a deployment is followed. Discord lets the bot edit the message for 15 minutes after the click, and
+    /// a deployment that takes longer than this is shown as still running, with Refresh to follow it again.
+    /// </summary>
+    public static readonly TimeSpan FollowLimit = TimeSpan.FromMinutes(13);
+
+    /// <summary>
+    /// The screen for <paramref name="route"/>. While an operation runs (compose for restart and down, a deployment
+    /// for redeploy), <paramref name="showProgress"/> gets the stack with every action disabled and how it is going.
     /// </summary>
     public async Task<DashboardScreen> ShowAsync(
         BotUser user, DashboardRoute route, Func<DashboardScreen, Task> showProgress, CancellationToken cancellationToken)
@@ -35,7 +45,7 @@ public sealed class DashboardService(IForestClient forest, ILogger<DashboardServ
                 StackRoute r => await StackAsync(user, r.EnvironmentId, r.StackId, r.StacksPage, cancellationToken),
                 ConfirmRoute r => await ConfirmAsync(user, r, cancellationToken),
                 RunRoute r => await RunAsync(user, r, showProgress, cancellationToken),
-                DeploymentRoute r => await DeploymentAsync(user, r, cancellationToken),
+                DeploymentRoute r => await FollowDeploymentAsync(user, r, showProgress, cancellationToken),
                 _ => throw new ArgumentOutOfRangeException(nameof(route), route, null),
             };
         }
@@ -111,8 +121,7 @@ public sealed class DashboardService(IForestClient forest, ILogger<DashboardServ
         {
             var pull = route.Operation == StackOperation.RedeployWithPull;
             var deploymentId = await forest.DeployStackAsync(user.Id, before.Environment.Id, stack, pull, cancellationToken);
-            return await DeploymentAsync(
-                user, new DeploymentRoute(route.EnvironmentId, route.StackId, Guid.Parse(deploymentId), route.StacksPage), cancellationToken);
+            return await FollowAsync(user, before, Guid.Parse(deploymentId), showProgress, cancellationToken);
         }
 
         // Compose can take minutes; the user sees that it runs instead of a frozen message.
@@ -134,21 +143,59 @@ public sealed class DashboardService(IForestClient forest, ILogger<DashboardServ
         return after with { Notice = notice };
     }
 
-    private async Task<StackScreen> DeploymentAsync(BotUser user, DeploymentRoute route, CancellationToken cancellationToken)
+    /// <summary>"Refresh" on a deployment: follow it again if it is still going.</summary>
+    private async Task<StackScreen> FollowDeploymentAsync(
+        BotUser user, DeploymentRoute route, Func<DashboardScreen, Task> showProgress, CancellationToken cancellationToken)
     {
         var screen = await StackAsync(user, route.EnvironmentId, route.StackId, route.StacksPage, cancellationToken);
-        var deployment = await forest.GetDeploymentAsync(user.Id, route.DeploymentId.ToString(), cancellationToken);
-        return screen with { Notice = DescribeDeployment(deployment), DeploymentId = route.DeploymentId };
+        return await FollowAsync(user, screen, route.DeploymentId, showProgress, cancellationToken);
+    }
+
+    /// <summary>
+    /// Keeps the message showing how the deployment goes until it ends: the status updates by itself, in the same
+    /// message, with every button disabled meanwhile (a click would start a second interaction that this one would
+    /// then overwrite). Stops after <see cref="FollowLimit"/>, within the 15 minutes Discord lets the message be edited.
+    /// </summary>
+    private async Task<StackScreen> FollowAsync(
+        BotUser user, StackScreen stack, Guid deploymentId, Func<DashboardScreen, Task> showProgress, CancellationToken cancellationToken)
+    {
+        var id = deploymentId.ToString();
+        var giveUpAt = time.GetUtcNow() + FollowLimit;
+        var deployment = await forest.GetDeploymentAsync(user.Id, id, cancellationToken);
+        Notice? shown = null;
+        while (!deployment.IsFinished && time.GetUtcNow() < giveUpAt)
+        {
+            // Edit only when something changed: Discord limits how often one message may be edited.
+            var notice = DescribeDeployment(deployment);
+            if (notice != shown)
+            {
+                await showProgress(stack with { Notice = notice, DeploymentId = deploymentId, Busy = true });
+                shown = notice;
+            }
+
+            await Task.Delay(FollowInterval, time, cancellationToken);
+            deployment = await forest.GetDeploymentAsync(user.Id, id, cancellationToken);
+        }
+
+        // A finished deployment changes the deployed commit and the containers.
+        var after = deployment.IsFinished
+            ? await StackAsync(user, Guid.Parse(stack.Environment.Id), Guid.Parse(stack.Stack.Id), stack.StacksPage, cancellationToken)
+            : stack;
+        var final = DescribeDeployment(deployment);
+        if (!deployment.IsFinished)
+        {
+            final = final with { Text = final.Text + " It is taking long: press Refresh to check again." };
+        }
+
+        return after with { Notice = final, DeploymentId = deploymentId, Busy = false };
     }
 
     public static Notice DescribeDeployment(ForestDeployment deployment) => deployment.Status switch
     {
-        DeploymentStatus.Queued => new Notice(NoticeKind.Progress, "Deployment queued. Press Refresh to follow it."),
+        DeploymentStatus.Queued => new Notice(NoticeKind.Progress, "Deployment queued…"),
         DeploymentStatus.Running => new Notice(
             NoticeKind.Progress,
-            deployment.Commit is { } commit
-                ? $"Deploying commit {ShortCommit(commit)}… Press Refresh to follow it."
-                : "Deploying… Press Refresh to follow it."),
+            deployment.Commit is { } commit ? $"Deploying commit {ShortCommit(commit)}…" : "Deploying…"),
         DeploymentStatus.Succeeded => new Notice(
             NoticeKind.Success, $"Deployed commit {ShortCommit(deployment.Commit ?? "")}."),
         DeploymentStatus.Failed => new Notice(NoticeKind.Failure, "Deployment failed: " + (deployment.Error ?? "no reason given.")),

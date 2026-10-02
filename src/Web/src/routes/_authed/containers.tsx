@@ -1,5 +1,5 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useContainerActionMutation } from "@/api/containers";
@@ -10,6 +10,7 @@ import {
   PlayIcon,
   RefreshCwIcon,
   RotateCwIcon,
+  ScrollTextIcon,
   SearchIcon,
   SquareIcon,
 } from "@/components/icons";
@@ -314,6 +315,7 @@ function EnvironmentContainers({
               {shown.map((container) => (
                 <ContainerRow
                   key={container.id}
+                  environmentId={environment.id}
                   container={container}
                   busy={action.isPending && action.variables?.containerId === container.id}
                   locked={action.isPending}
@@ -357,12 +359,14 @@ function EnvironmentContainers({
 const actionIcons = { start: PlayIcon, stop: SquareIcon, restart: RotateCwIcon } as const;
 
 function ContainerRow({
+  environmentId,
   container,
   busy,
   locked,
   language,
   onAction,
 }: {
+  environmentId: string;
   container: Container;
   busy: boolean;
   locked: boolean;
@@ -396,9 +400,20 @@ function ContainerRow({
           new Intl.DateTimeFormat(language, { dateStyle: "short", timeStyle: "short" }).format(new Date(container.createdAt))}
       </TableCell>
       <TableCell className="text-right">
-        {container.canControl ? (
-          <div className="flex justify-end gap-1">
-            {(["start", "stop", "restart"] as const).map((kind) => {
+        <div className="flex items-center justify-end gap-1">
+          {/* Everyone who sees a container may read its log (Viewer and up). The name, not the id, keeps the link
+              working after compose recreates the container. */}
+          <Button asChild variant="ghost" size="icon" title={t("containers.actions.logs")}>
+            <Link
+              to="/containers/$environmentId/$containerId/logs"
+              params={{ environmentId, containerId: container.name }}
+              aria-label={`${t("containers.actions.logs")}: ${container.name}`}
+            >
+              <ScrollTextIcon />
+            </Link>
+          </Button>
+          {container.canControl ? (
+            (["start", "stop", "restart"] as const).map((kind) => {
               const Icon = actionIcons[kind];
               const label = t(`containers.actions.${kind}`);
               return (
@@ -414,11 +429,11 @@ function ContainerRow({
                   {busy ? <Loader2Icon className="animate-spin" /> : <Icon />}
                 </Button>
               );
-            })}
-          </div>
-        ) : (
-          <span className="text-muted-foreground text-sm">{t("containers.viewOnly")}</span>
-        )}
+            })
+          ) : (
+            <span className="text-muted-foreground text-sm">{t("containers.viewOnly")}</span>
+          )}
+        </div>
       </TableCell>
     </TableRow>
   );

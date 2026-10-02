@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+import { type LogLine, MAX_LINES, mergeLines, nextSince, shouldRetryLoad } from "@/features/container-logs/model";
 import { api, unwrap } from "./client";
 
 // The single source of query keys: components use these factories, never inline keys.
@@ -27,6 +28,36 @@ export const containersQuery = (environmentId: string) =>
     queryKey: ["environments", environmentId, "containers"],
     queryFn: async ({ signal }) =>
       unwrap(await api.GET("/api/environments/{id}/containers", { params: { path: { id: environmentId } }, signal })),
+  });
+
+/**
+ * The end of a container's log, oldest first. The first load asks for the last `tail` lines; every refetch asks
+ * only for lines since the newest one already loaded and appends them, so auto-refresh does not reload the tail.
+ * A different `tail` is a different query and starts over.
+ */
+export const containerLogsQuery = (environmentId: string, container: string, tail: number) =>
+  queryOptions({
+    queryKey: ["environments", environmentId, "containers", container, "logs", tail],
+    queryFn: async ({ client, queryKey, signal }): Promise<LogLine[]> => {
+      const path = { id: environmentId, containerId: container };
+      const loaded = client.getQueryData<LogLine[]>(queryKey);
+      const since = loaded === undefined ? null : nextSince(loaded);
+      if (loaded === undefined || since === null) {
+        const response = unwrap(
+          await api.GET("/api/environments/{id}/containers/{containerId}/logs", { params: { path, query: { tail } }, signal }),
+        );
+        return response.lines;
+      }
+
+      const response = unwrap(
+        await api.GET("/api/environments/{id}/containers/{containerId}/logs", {
+          params: { path, query: { tail: MAX_LINES, since } },
+          signal,
+        }),
+      );
+      return mergeLines(loaded, response.lines, since);
+    },
+    retry: shouldRetryLoad,
   });
 
 /** All users, by name. Administrators only. */

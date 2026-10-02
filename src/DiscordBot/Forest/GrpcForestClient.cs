@@ -80,6 +80,43 @@ public sealed class GrpcForestClient(
         await CallAsync(o => gateway.ControlContainerAsync(request, o), options.Value.ActionTimeout, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ForestStack>> ListStacksAsync(
+        ulong discordUserId, string environmentId, CancellationToken cancellationToken)
+    {
+        var request = new Proto.ListStacksRequest { DiscordUserId = discordUserId, EnvironmentId = environmentId };
+        var response = await CallAsync(o => gateway.ListStacksAsync(request, o), options.Value.QueryTimeout, cancellationToken);
+        return [.. response.Stacks.Select(ToStack)];
+    }
+
+    public async Task<ForestStackResult> ControlStackAsync(
+        ulong discordUserId,
+        string environmentId,
+        string stack,
+        StackAction action,
+        int? timeoutSeconds,
+        CancellationToken cancellationToken)
+    {
+        var request = new Proto.ControlStackRequest
+        {
+            DiscordUserId = discordUserId,
+            EnvironmentId = environmentId,
+            Stack = stack,
+            Action = action switch
+            {
+                StackAction.Restart => Proto.StackAction.Restart,
+                StackAction.Down => Proto.StackAction.Down,
+                _ => throw new ArgumentOutOfRangeException(nameof(action), action, null),
+            },
+        };
+        if (timeoutSeconds is { } seconds)
+        {
+            request.TimeoutSeconds = seconds;
+        }
+
+        var response = await CallAsync(o => gateway.ControlStackAsync(request, o), options.Value.StackActionTimeout, cancellationToken);
+        return new ForestStackResult(response.Error is "" ? null : response.Error, [.. response.Output]);
+    }
+
     /// <summary>Adds the token and a deadline, and turns gRPC failures into <see cref="ForestException"/>.</summary>
     private async Task<TResponse> CallAsync<TResponse>(
         Func<CallOptions, AsyncUnaryCall<TResponse>> call, TimeSpan timeout, CancellationToken cancellationToken)
@@ -120,6 +157,15 @@ public sealed class GrpcForestClient(
         c.ServiceName is "" ? null : c.ServiceName,
         c.StatusText,
         c.CanControl);
+
+    private static ForestStack ToStack(Proto.Stack s) => new(
+        s.Id,
+        s.Name,
+        s.IsSystem,
+        s.DeployedCommit is "" ? null : s.DeployedCommit,
+        s.DeployedUnixMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(s.DeployedUnixMs) : null,
+        s.CanRestart,
+        s.CanTakeDown);
 
     private static ContainerState ToState(Proto.ContainerState state) => state switch
     {

@@ -78,6 +78,9 @@ public static class DependencyInjection
         services.AddSingleton<StartContainerCommand>();
         services.AddSingleton<StopContainerCommand>();
         services.AddSingleton<RestartContainerCommand>();
+        services.AddSingleton<StacksCommand>();
+        services.AddSingleton<RestartStackCommand>();
+        services.AddSingleton<DownStackCommand>();
         services.AddSingleton<LinkCommand>();
         return services;
     }

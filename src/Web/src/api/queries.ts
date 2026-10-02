@@ -28,3 +28,16 @@ export const containersQuery = (environmentId: string) =>
     queryFn: async ({ signal }) =>
       unwrap(await api.GET("/api/environments/{id}/containers", { params: { path: { id: environmentId } }, signal })),
   });
+
+/** All users, by name. Administrators only. */
+export const usersQuery = queryOptions({
+  queryKey: ["users"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/users", { signal })),
+});
+
+/** One user with their roles. Administrators only. */
+export const userQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["users", id],
+    queryFn: async ({ signal }) => unwrap(await api.GET("/api/users/{id}", { params: { path: { id } }, signal })),
+  });

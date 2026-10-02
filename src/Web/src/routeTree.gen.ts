@@ -12,8 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as AuthedAccountRouteImport } from './routes/_authed/account'
 import { Route as AuthedContainersRouteImport } from './routes/_authed/containers'
 import { Route as AuthedDiscordRouteImport } from './routes/_authed/discord'
+import { Route as AuthedUsersIndexRouteImport } from './routes/_authed/users/index'
+import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -29,6 +32,11 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedAccountRoute = AuthedAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedContainersRoute = AuthedContainersRouteImport.update({
   id: '/containers',
   path: '/containers',
@@ -39,39 +47,75 @@ const AuthedDiscordRoute = AuthedDiscordRouteImport.update({
   path: '/discord',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedUsersIndexRoute = AuthedUsersIndexRouteImport.update({
+  id: '/users/',
+  path: '/users/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedUsersUserIdRoute = AuthedUsersUserIdRouteImport.update({
+  id: '/users/$userId',
+  path: '/users/$userId',
+  getParentRoute: () => AuthedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
+  '/account': typeof AuthedAccountRoute
   '/containers': typeof AuthedContainersRoute
   '/discord': typeof AuthedDiscordRoute
+  '/users/$userId': typeof AuthedUsersUserIdRoute
+  '/users/': typeof AuthedUsersIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/account': typeof AuthedAccountRoute
   '/containers': typeof AuthedContainersRoute
   '/discord': typeof AuthedDiscordRoute
   '/': typeof AuthedIndexRoute
+  '/users/$userId': typeof AuthedUsersUserIdRoute
+  '/users': typeof AuthedUsersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authed/account': typeof AuthedAccountRoute
   '/_authed/containers': typeof AuthedContainersRoute
   '/_authed/discord': typeof AuthedDiscordRoute
   '/_authed/': typeof AuthedIndexRoute
+  '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
+  '/_authed/users/': typeof AuthedUsersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/containers' | '/discord'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/account'
+    | '/containers'
+    | '/discord'
+    | '/users/$userId'
+    | '/users/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/containers' | '/discord' | '/'
+  to:
+    | '/login'
+    | '/account'
+    | '/containers'
+    | '/discord'
+    | '/'
+    | '/users/$userId'
+    | '/users'
   id:
     | '__root__'
     | '/_authed'
     | '/login'
+    | '/_authed/account'
     | '/_authed/containers'
     | '/_authed/discord'
     | '/_authed/'
+    | '/_authed/users/$userId'
+    | '/_authed/users/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -102,6 +146,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/account': {
+      id: '/_authed/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AuthedAccountRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/containers': {
       id: '/_authed/containers'
       path: '/containers'
@@ -116,19 +167,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedDiscordRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/users/': {
+      id: '/_authed/users/'
+      path: '/users'
+      fullPath: '/users/'
+      preLoaderRoute: typeof AuthedUsersIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/users/$userId': {
+      id: '/_authed/users/$userId'
+      path: '/users/$userId'
+      fullPath: '/users/$userId'
+      preLoaderRoute: typeof AuthedUsersUserIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
 interface AuthedRouteChildren {
+  AuthedAccountRoute: typeof AuthedAccountRoute
   AuthedContainersRoute: typeof AuthedContainersRoute
   AuthedDiscordRoute: typeof AuthedDiscordRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedUsersUserIdRoute: typeof AuthedUsersUserIdRoute
+  AuthedUsersIndexRoute: typeof AuthedUsersIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedAccountRoute: AuthedAccountRoute,
   AuthedContainersRoute: AuthedContainersRoute,
   AuthedDiscordRoute: AuthedDiscordRoute,
   AuthedIndexRoute: AuthedIndexRoute,
+  AuthedUsersUserIdRoute: AuthedUsersUserIdRoute,
+  AuthedUsersIndexRoute: AuthedUsersIndexRoute,
 }
 
 const AuthedRouteWithChildren =

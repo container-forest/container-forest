@@ -204,10 +204,10 @@ internal sealed class FakeAgentChannel : IAgentChannel
 
     public StackBundle? LastBundle { get; private set; }
 
-    /// <summary>Compose output the agent reports while deploying.</summary>
+    /// <summary>Compose output the agent reports while deploying, restarting or taking down a stack.</summary>
     public List<string> DeployOutput { get; } = [];
 
-    /// <summary>Thrown by the deployment after the output is reported.</summary>
+    /// <summary>Thrown by a compose command (deploy, restart, down) after the output is reported.</summary>
     public Exception? DeployError { get; set; }
 
     public bool IsOnline(EnvironmentId environmentId) => Online;
@@ -250,6 +250,32 @@ internal sealed class FakeAgentChannel : IAgentChannel
 
         Calls.Add($"deploy {bundle.StackName}");
         LastBundle = bundle;
+        DeployOutput.ForEach(onProgress);
+        return DeployError is null ? Task.CompletedTask : Task.FromException(DeployError);
+    }
+
+    public Task RestartStackAsync(
+        EnvironmentId environmentId, StackName stackName, TimeSpan stopTimeout, Action<string> onProgress, CancellationToken cancellationToken) =>
+        RunStackCommand($"restart-stack {stackName}", environmentId, stopTimeout, onProgress, cancellationToken);
+
+    public Task DownStackAsync(
+        EnvironmentId environmentId, StackName stackName, TimeSpan stopTimeout, Action<string> onProgress, CancellationToken cancellationToken) =>
+        RunStackCommand($"down-stack {stackName}", environmentId, stopTimeout, onProgress, cancellationToken);
+
+    /// <summary>Whether the last stack command got a token that can be cancelled.</summary>
+    public bool? LastStackTokenCancellable { get; private set; }
+
+    private Task RunStackCommand(
+        string call, EnvironmentId environmentId, TimeSpan stopTimeout, Action<string> onProgress, CancellationToken cancellationToken)
+    {
+        if (!Online)
+        {
+            throw new AgentOfflineException(environmentId);
+        }
+
+        Calls.Add(call);
+        LastStopTimeout = stopTimeout;
+        LastStackTokenCancellable = cancellationToken.CanBeCanceled;
         DeployOutput.ForEach(onProgress);
         return DeployError is null ? Task.CompletedTask : Task.FromException(DeployError);
     }

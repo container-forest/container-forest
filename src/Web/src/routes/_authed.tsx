@@ -54,11 +54,22 @@ function AuthedLayout() {
           >
             {t("layout.nav.discord")}
           </Link>
+          {/* Only a convenience: the aggregator refuses non-administrators anyway. */}
+          {me.isAdmin && (
+            <Link
+              to="/users"
+              className="hover:text-foreground"
+              inactiveProps={{ className: "text-muted-foreground" }}
+              activeProps={{ className: "text-foreground font-medium" }}
+            >
+              {t("layout.nav.users")}
+            </Link>
+          )}
         </nav>
-        <span className="text-muted-foreground text-sm">
+        <Link to="/account" className="text-muted-foreground hover:text-foreground text-sm" title={t("layout.nav.account")}>
           {me.userName}
           {me.isAdmin && ` ${t("layout.administrator")}`}
-        </span>
+        </Link>
         <LanguageSwitcher />
         <LogoutButton />
       </header>

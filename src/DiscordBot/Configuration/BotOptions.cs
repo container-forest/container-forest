@@ -23,10 +23,18 @@ public sealed class BotOptions
     /// </summary>
     public TimeSpan ActionTimeout { get; set; } = TimeSpan.FromMinutes(6);
 
+    /// <summary>
+    /// Deadline for restart and down of a stack. Compose stops containers in dependency order, each with its own stop
+    /// timeout, so this is longer than <see cref="ActionTimeout"/>, but under the 15 minutes of a Discord interaction
+    /// token. The aggregator does not cancel compose when the bot stops waiting.
+    /// </summary>
+    public TimeSpan StackActionTimeout { get; set; } = TimeSpan.FromMinutes(14);
+
     internal bool IsValid() =>
         ControllerUrl is { IsAbsoluteUri: true } url
         && (url.Scheme == Uri.UriSchemeHttp || url.Scheme == Uri.UriSchemeHttps)
         && !string.IsNullOrWhiteSpace(ServiceToken)
         && QueryTimeout > TimeSpan.Zero
-        && ActionTimeout > TimeSpan.Zero;
+        && ActionTimeout > TimeSpan.Zero
+        && StackActionTimeout > TimeSpan.Zero;
 }

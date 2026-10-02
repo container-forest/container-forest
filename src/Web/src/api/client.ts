@@ -12,6 +12,8 @@ export interface ProblemDetails {
   title?: string;
   detail?: string;
   status?: number;
+  /** Reasons a password was rejected (PasswordRejectedException): English texts from the aggregator. */
+  errors?: string[];
 }
 
 /** A non-2xx answer from the aggregator. */
@@ -36,4 +38,8 @@ export function unwrap<T>(result: { data?: T; error?: unknown; response: Respons
 
 export function isUnauthorized(error: unknown): boolean {
   return error instanceof ApiError && error.status === 401;
+}
+
+export function hasStatus(error: unknown, status: number): boolean {
+  return error instanceof ApiError && error.status === status;
 }

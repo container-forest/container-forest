@@ -110,4 +110,15 @@ public sealed class Stack : Entity<StackId>
         DeployedCommit = deployment.Commit;
         DeployedAt = deployment.FinishedAt;
     }
+
+    /// <summary>
+    /// Forgets the deployed commit after a successful docker compose down: the stack has no containers any more,
+    /// so nothing of that commit is running. The files stay on the host; the next deployment records its own commit.
+    /// </summary>
+    public void RecordTakenDown()
+    {
+        EnsureAllows(StackOperation.Down);
+        DeployedCommit = null;
+        DeployedAt = null;
+    }
 }

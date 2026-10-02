@@ -46,6 +46,79 @@ public static class ReplyFormatter
         return WithinLimit(header, lines, "lines");
     }
 
+    public static string Stacks(ForestEnvironment environment, IReadOnlyList<ForestStack> stacks)
+    {
+        var header = $"**{Markdown.Escape(environment.Name)}** · {Count(stacks.Count, "stack")}";
+        var lines = stacks.OrderBy(s => s.Name, StringComparer.Ordinal).Select(StackLine).ToList();
+        return lines.Count == 0 ? header : WithinLimit(header, lines, "stacks");
+    }
+
+    public static string StackLine(ForestStack stack)
+    {
+        var deployed = stack.DeployedCommit is { } commit
+            ? $"deployed {Markdown.Code(commit[..Math.Min(12, commit.Length)])}"
+            : "not deployed";
+        var actions = (stack.CanRestart, stack.CanTakeDown) switch
+        {
+            _ when stack.IsSystem => "system stack",
+            (true, true) => "restart, down",
+            (true, false) => "restart",
+            (false, true) => "down",
+            _ => "view only",
+        };
+        return $"{(stack.DeployedCommit is null ? "⚪" : "📦")} {Markdown.Code(stack.Name)} — {deployed} · {actions}";
+    }
+
+    /// <summary>
+    /// The header followed by the end of the command's output in a code block, as much as fits in one message:
+    /// when compose fails, the last lines say why.
+    /// </summary>
+    public static string WithOutput(string header, IReadOnlyList<string> output)
+    {
+        const string Open = "\n```\n";
+        const string Close = "\n```";
+
+        // A code block cannot escape its own fence; a zero-width space keeps compose output from closing it early.
+        var lines = output
+            .Select(l => l.Trim().Replace("```", "`​``", StringComparison.Ordinal))
+            .Where(l => l.Length > 0)
+            .ToList();
+        var budget = MaxMessageLength - header.Length - Open.Length - Close.Length;
+        if (lines.Count == 0 || budget <= 1)
+        {
+            return header;
+        }
+
+        var kept = new List<string>();
+        var used = 0;
+        for (var i = lines.Count - 1; i >= 0; i--)
+        {
+            // Room for the "… N earlier lines" note while lines are still left out.
+            var note = i > 0 ? $"… {i} earlier lines".Length + 1 : 0;
+            var cost = lines[i].Length + (kept.Count > 0 ? 1 : 0);
+            if (used + cost + note > budget)
+            {
+                break;
+            }
+
+            kept.Insert(0, lines[i]);
+            used += cost;
+        }
+
+        if (kept.Count == 0)
+        {
+            // The last line does not fit together with the note: keep as much of its end as fits.
+            var last = lines[^1];
+            kept.Add("…" + last[^Math.Min(last.Length, budget - 1)..]);
+        }
+        else if (kept.Count < lines.Count)
+        {
+            kept.Insert(0, $"… {lines.Count - kept.Count} earlier lines");
+        }
+
+        return header + Open + string.Join('\n', kept) + Close;
+    }
+
     public static string ContainerLine(ForestContainer container)
     {
         var line = $"{StateIcon(container.State)} {Markdown.Code(container.Name)} — {Markdown.Escape(Status(container))}";

@@ -1,0 +1,144 @@
+using ContainerForest.Aggregator.Api.Contracts;
+using ContainerForest.Aggregator.Application.Deployments;
+using ContainerForest.Aggregator.Application.Repositories;
+using ContainerForest.Aggregator.Application.Stacks;
+using ContainerForest.Aggregator.Domain.Common;
+using ContainerForest.Aggregator.Domain.Deployments;
+using ContainerForest.Aggregator.Domain.Repositories;
+
+namespace ContainerForest.Aggregator.Api.Endpoints;
+
+/// <summary>Repositories, stacks and deployments for the panel (see StackContracts).</summary>
+internal static class StackEndpoints
+{
+    public static IEndpointRouteBuilder MapStackEndpoints(this IEndpointRouteBuilder app)
+    {
+        var repositories = app.MapGroup("/api/repositories")
+            .WithTags("Repositories")
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden);
+
+        repositories.MapGet("/", async (RepositoryService service, CancellationToken ct) =>
+                (await service.ListAsync(ct)).Select(ToResponse).ToList())
+            .WithName("ListRepositories");
+
+        repositories.MapPost("/", async (CreateRepositoryRequest request, RepositoryService service, CancellationToken ct) =>
+            {
+                var repository = await service.CreateAsync(request.Name, request.Url, ct);
+                return TypedResults.Created($"/api/repositories/{repository.Id}", ToResponse(repository));
+            })
+            .WithName("CreateRepository")
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        var api = app.MapGroup("/api")
+            .WithTags("Stacks")
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        api.MapGet("/environments/{id:guid}/stacks", async (Guid id, StackService service, CancellationToken ct) =>
+                (await service.ListVisibleAsync(EnvironmentId.From(id), ct)).Select(ToResponse).ToList())
+            .WithName("ListStacks");
+
+        api.MapPost(
+                "/environments/{id:guid}/stacks",
+                async (Guid id, CreateStackRequest request, StackService service, CancellationToken ct) =>
+                {
+                    var stack = await service.CreateAsync(
+                        EnvironmentId.From(id), request.Name, RepositoryId.From(request.RepositoryId), request.Branch, request.ComposePath, ct);
+                    return TypedResults.Created($"/api/stacks/{stack.Id}", ToResponse(stack));
+                })
+            .WithName("CreateStack")
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        api.MapGet("/stacks/{id:guid}", async (Guid id, StackService service, CancellationToken ct) =>
+                ToResponse(await service.GetAsync(StackId.From(id), ct)))
+            .WithName("GetStack");
+
+        api.MapPut(
+                "/stacks/{id:guid}/source",
+                async (Guid id, ChangeStackSourceRequest request, StackService service, CancellationToken ct) =>
+                    ToResponse(await service.ChangeSourceAsync(
+                        StackId.From(id), RepositoryId.From(request.RepositoryId), request.Branch, request.ComposePath, ct)))
+            .WithName("ChangeStackSource")
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        api.MapStackAction("restart", "RestartStack", StackAction.Restart);
+        api.MapStackAction("down", "DownStack", StackAction.Down);
+
+        api.MapGet("/stacks/{id:guid}/deployments", async (Guid id, DeploymentService service, CancellationToken ct) =>
+                (await service.ListAsync(StackId.From(id), ct))
+                    .Select(d => new DeploymentResponse(
+                        d.Id.Value, d.Status, d.Trigger, d.PullPolicy, d.Commit?.Value, d.QueuedAt, d.StartedAt, d.FinishedAt, d.Error))
+                    .ToList())
+            .WithName("ListDeployments");
+
+        api.MapPost(
+                "/stacks/{id:guid}/deployments",
+                async (Guid id, DeployRequest request, DeploymentService service, CancellationToken ct) =>
+                {
+                    var deployment = await service.QueueAsync(
+                        StackId.From(id), request.Pull ? ImagePullPolicy.Always : ImagePullPolicy.Missing, ct);
+                    return TypedResults.Accepted($"/api/deployments/{deployment.Id}", ToDetails(deployment));
+                })
+            .WithName("DeployStack")
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+
+        api.MapGet("/deployments/{id:guid}", async (Guid id, DeploymentService service, CancellationToken ct) =>
+                ToDetails(await service.GetAsync(DeploymentId.From(id), ct)))
+            .WithName("GetDeployment");
+
+        return app;
+    }
+
+    /// <summary>One endpoint per action, as for containers, so the typed client names them.</summary>
+    private static void MapStackAction(this RouteGroupBuilder api, string verb, string name, StackAction action) =>
+        api.MapPost(
+                $"/stacks/{{id:guid}}/{verb}",
+                async (Guid id, int? timeoutSeconds, StackCommandService service, CancellationToken ct) =>
+                {
+                    var stopTimeout = timeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null;
+                    var result = await service.ExecuteAsync(StackId.From(id), action, stopTimeout, ct);
+                    return new StackCommandResponse(result.Succeeded, result.Error, result.Output);
+                })
+            .WithName(name)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status502BadGateway)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable)
+            .ProducesProblem(StatusCodes.Status504GatewayTimeout);
+
+    private static RepositoryResponse ToResponse(GitRepository repository) =>
+        new(repository.Id.Value, repository.Name, repository.Url.ToString(), repository.CreatedAt);
+
+    private static StackResponse ToResponse(StackSummary s) => new(
+        s.Id.Value,
+        s.EnvironmentId.Value,
+        s.Name.Value,
+        s.RepositoryId.Value,
+        s.RepositoryName,
+        s.Branch.Value,
+        s.ComposePath.Value,
+        s.IsSystem,
+        s.DeployedCommit?.Value,
+        s.DeployedAt,
+        s.CanDeploy,
+        s.CanRestart);
+
+    private static DeploymentDetailsResponse ToDetails(Deployment d) => new(
+        d.Id.Value,
+        d.StackId.Value,
+        d.Status,
+        d.Trigger,
+        d.PullPolicy,
+        d.Commit?.Value,
+        d.QueuedAt,
+        d.StartedAt,
+        d.FinishedAt,
+        d.Error,
+        d.Log.Select(l => new DeploymentLogLineResponse(l.At, l.Level, l.Text)).ToList());
+}

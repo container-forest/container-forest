@@ -27,7 +27,7 @@ public class DeploymentTests
         app.Git.Snapshot = Snapshot(("docker-compose.yml", "services:\n  web:\n    image: nginx\n"), ("conf/site.conf", "x"));
         var stack = await CreateStackAsync(app, agent, "apps/web/docker-compose.yml");
 
-        var response = await app.CreateClient().PostAsJsonAsync($"/api/dev/stacks/{stack.Id}/deployments", new { pull = true }, Ct);
+        var response = await app.CreateClient().PostAsJsonAsync($"/api/stacks/{stack.Id}/deployments", new { pull = true }, Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Accepted, response);
         var queued = await response.Content.ReadFromJsonAsync<DeploymentView>(AggregatorApp.Json, Ct);
 
@@ -48,7 +48,7 @@ public class DeploymentTests
         Assert.Contains(deployment.Log, l => l.Level == "Warning" && l.Text.Contains("nginx", StringComparison.Ordinal));
 
         var stacks = await app.CreateClient().GetFromJsonAsync<StackView[]>(
-            $"/api/dev/environments/{agent.EnvironmentId}/stacks", AggregatorApp.Json, Ct);
+            $"/api/environments/{agent.EnvironmentId}/stacks", AggregatorApp.Json, Ct);
         Assert.Equal(Sha, stacks!.Single().DeployedCommit);
     }
 
@@ -132,7 +132,7 @@ public class DeploymentTests
         await QueueAsync(app, stack.Id);
         await agent.ReceiveAsync();
 
-        var second = await app.CreateClient().PostAsJsonAsync($"/api/dev/stacks/{stack.Id}/deployments", new { pull = false }, Ct);
+        var second = await app.CreateClient().PostAsJsonAsync($"/api/stacks/{stack.Id}/deployments", new { pull = false }, Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Conflict, second);
     }
 
@@ -190,12 +190,12 @@ public class DeploymentTests
         var alice = app.CreateClientAs("alice");
 
         // Public environments give an implicit Viewer role.
-        await HttpAssert.StatusAsync(HttpStatusCode.OK, alice.GetAsync($"/api/dev/stacks/{stack.Id}/deployments", Ct));
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, alice.GetAsync($"/api/stacks/{stack.Id}/deployments", Ct));
         await HttpAssert.StatusAsync(
-            HttpStatusCode.Forbidden, alice.PostAsJsonAsync($"/api/dev/stacks/{stack.Id}/deployments", new { pull = false }, Ct));
+            HttpStatusCode.Forbidden, alice.PostAsJsonAsync($"/api/stacks/{stack.Id}/deployments", new { pull = false }, Ct));
         await HttpAssert.StatusAsync(
             HttpStatusCode.Forbidden,
-            alice.PostAsJsonAsync("/api/dev/repositories", new { name = "mine", url = "https://git.example.com/mine.git" }, Ct));
+            alice.PostAsJsonAsync("/api/repositories", new { name = "mine", url = "https://git.example.com/mine.git" }, Ct));
     }
 
     /// <summary>A Discord channel that receives every event of the environment.</summary>
@@ -220,12 +220,12 @@ public class DeploymentTests
     {
         var client = app.CreateClient();
         var repository = await client.PostAsJsonAsync(
-            "/api/dev/repositories", new { name = $"infra-{Guid.NewGuid():N}", url = "https://git.example.com/infra.git" }, Ct);
+            "/api/repositories", new { name = $"infra-{Guid.NewGuid():N}", url = "https://git.example.com/infra.git" }, Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Created, repository);
         var repositoryId = (await repository.Content.ReadFromJsonAsync<IdView>(AggregatorApp.Json, Ct))!.Id;
 
         var stack = await client.PostAsJsonAsync(
-            $"/api/dev/environments/{agent.EnvironmentId}/stacks",
+            $"/api/environments/{agent.EnvironmentId}/stacks",
             new { name = "web", repositoryId, branch = "main", composePath },
             Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Created, stack);
@@ -234,7 +234,7 @@ public class DeploymentTests
 
     private static async Task<DeploymentView> QueueAsync(AggregatorApp app, Guid stackId)
     {
-        var response = await app.CreateClient().PostAsJsonAsync($"/api/dev/stacks/{stackId}/deployments", new { pull = false }, Ct);
+        var response = await app.CreateClient().PostAsJsonAsync($"/api/stacks/{stackId}/deployments", new { pull = false }, Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Accepted, response);
         return (await response.Content.ReadFromJsonAsync<DeploymentView>(AggregatorApp.Json, Ct))!;
     }
@@ -262,7 +262,7 @@ public class DeploymentTests
         DeploymentView? deployment = null;
         for (var attempt = 0; attempt < 100; attempt++)
         {
-            deployment = await client.GetFromJsonAsync<DeploymentView>($"/api/dev/deployments/{deploymentId}", AggregatorApp.Json, Ct);
+            deployment = await client.GetFromJsonAsync<DeploymentView>($"/api/deployments/{deploymentId}", AggregatorApp.Json, Ct);
             if (deployment!.Status is "Succeeded" or "Failed" or "Cancelled")
             {
                 return deployment;

@@ -41,3 +41,39 @@ export const userQuery = (id: string) =>
     queryKey: ["users", id],
     queryFn: async ({ signal }) => unwrap(await api.GET("/api/users/{id}", { params: { path: { id } }, signal })),
   });
+
+/** Git repositories stacks are deployed from, by name. Administrators and editors only. */
+export const repositoriesQuery = queryOptions({
+  queryKey: ["repositories"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/repositories", { signal })),
+});
+
+/** Stacks of one environment the signed-in user may see, by name. */
+export const stacksQuery = (environmentId: string) =>
+  queryOptions({
+    queryKey: ["environments", environmentId, "stacks"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/environments/{id}/stacks", { params: { path: { id: environmentId } }, signal })),
+  });
+
+/** One stack with what the user may do with it. */
+export const stackQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["stacks", id],
+    queryFn: async ({ signal }) => unwrap(await api.GET("/api/stacks/{id}", { params: { path: { id } }, signal })),
+  });
+
+/** The stack's latest deployments, newest first (at most 50). */
+export const deploymentsQuery = (stackId: string) =>
+  queryOptions({
+    queryKey: ["stacks", stackId, "deployments"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/stacks/{id}/deployments", { params: { path: { id: stackId } }, signal })),
+  });
+
+/** One deployment with its log. */
+export const deploymentQuery = (id: string) =>
+  queryOptions({
+    queryKey: ["deployments", id],
+    queryFn: async ({ signal }) => unwrap(await api.GET("/api/deployments/{id}", { params: { path: { id } }, signal })),
+  });

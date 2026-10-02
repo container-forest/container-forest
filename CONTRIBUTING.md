@@ -87,11 +87,11 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    ```
    Деплой стеку з публічного git-репозиторію (compose-файл має використовувати готові образи, `build:` відхиляється; для перевірки підходить `https://github.com/dockersamples/example-voting-app.git` з `composePath` = `docker-compose.images.yml`):
    ```sh
-   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/repositories -H 'content-type: application/json' -d '{"name":"infra","url":"https://github.com/<org>/<repo>.git"}'
-   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/environments/<id>/stacks -H 'content-type: application/json' -d '{"name":"web","repositoryId":"<repoId>","branch":"main","composePath":"apps/web/compose.yaml"}'
-   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/stacks/<stackId>/deployments -H 'content-type: application/json' -d '{"pull":false}'   # pull=true — redeploy with pull
-   curl -H 'X-Dev-User: root' http://localhost:5080/api/dev/deployments/<deploymentId>   # статус і лог
-   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/dev/stacks/<stackId>/restart?timeoutSeconds=10   # restart | down; у відповіді — вивід compose
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/repositories -H 'content-type: application/json' -d '{"name":"infra","url":"https://github.com/<org>/<repo>.git"}'
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/stacks -H 'content-type: application/json' -d '{"name":"web","repositoryId":"<repoId>","branch":"main","composePath":"apps/web/compose.yaml"}'
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/stacks/<stackId>/deployments -H 'content-type: application/json' -d '{"pull":false}'   # pull=true — redeploy with pull
+   curl -H 'X-Dev-User: root' http://localhost:5080/api/deployments/<deploymentId>   # статус і лог
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/stacks/<stackId>/restart?timeoutSeconds=10   # restart | down; у відповіді — вивід compose
    ```
    Клони репозиторіїв ЦА тримає в `git-cache/` у робочому каталозі (`CF_GIT__CACHEDIRECTORY`).
 

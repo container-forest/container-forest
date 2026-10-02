@@ -217,14 +217,14 @@ public class BotGatewayTests
     {
         var client = app.CreateClient();
         var repository = await client.PostAsJsonAsync(
-            "/api/dev/repositories", new { name = "infra", url = "https://git.example.com/infra.git" }, Ct);
+            "/api/repositories", new { name = "infra", url = "https://git.example.com/infra.git" }, Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Created, repository);
         var repositoryId = (await repository.Content.ReadFromJsonAsync<IdView>(AggregatorApp.Json, Ct))!.Id;
 
         await HttpAssert.StatusAsync(
             HttpStatusCode.Created,
             client.PostAsJsonAsync(
-                $"/api/dev/environments/{agent.EnvironmentId}/stacks",
+                $"/api/environments/{agent.EnvironmentId}/stacks",
                 new { name, repositoryId, branch = "main", composePath = "compose.yaml" },
                 Ct));
     }

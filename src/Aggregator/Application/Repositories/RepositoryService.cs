@@ -1,5 +1,6 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
+using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Repositories;
 
@@ -14,9 +15,16 @@ public interface IGitRepositoryRepository : IRepository<GitRepository, Repositor
     Task<bool> NameExistsAsync(string name, CancellationToken cancellationToken);
 }
 
-/// <summary>Git repositories stacks are deployed from. Administrators only: a repository may hold every environment's stacks.</summary>
+/// <summary>
+/// Git repositories stacks are deployed from. Only administrators add them: a repository may hold every
+/// environment's stacks. Editors may list them, to choose one for a stack.
+/// </summary>
 public sealed class RepositoryService(
-    CurrentActor currentActor, IGitRepositoryRepository repositories, IUnitOfWork unitOfWork, TimeProvider time)
+    CurrentActor currentActor,
+    IGitRepositoryRepository repositories,
+    IRoleAssignmentRepository roleAssignments,
+    IUnitOfWork unitOfWork,
+    TimeProvider time)
 {
     /// <summary>Adds a public repository. Private repositories need an access token, which is not supported yet.</summary>
     public async Task<GitRepository> CreateAsync(string name, string url, CancellationToken cancellationToken)
@@ -34,9 +42,16 @@ public sealed class RepositoryService(
         return repository;
     }
 
+    /// <summary>In name order; for administrators and for users with the Editor role on any environment or stack.</summary>
     public async Task<IReadOnlyList<GitRepository>> ListAsync(CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
+        var actor = await currentActor.GetAsync(cancellationToken);
+        if (!actor.IsAdmin
+            && !(await roleAssignments.ListForUserAsync(actor.Id, cancellationToken)).Any(a => a.Role >= Role.Editor))
+        {
+            throw new AccessDeniedException("Only administrators and editors may list repositories.");
+        }
+
         return await repositories.ListAsync(cancellationToken);
     }
 }

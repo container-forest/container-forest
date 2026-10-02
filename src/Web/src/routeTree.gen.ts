@@ -15,8 +15,13 @@ import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAccountRouteImport } from './routes/_authed/account'
 import { Route as AuthedContainersRouteImport } from './routes/_authed/containers'
 import { Route as AuthedDiscordRouteImport } from './routes/_authed/discord'
+import { Route as AuthedRepositoriesRouteImport } from './routes/_authed/repositories'
+import { Route as AuthedDeploymentsDeploymentIdRouteImport } from './routes/_authed/deployments/$deploymentId'
+import { Route as AuthedStacksIndexRouteImport } from './routes/_authed/stacks/index'
 import { Route as AuthedUsersIndexRouteImport } from './routes/_authed/users/index'
 import { Route as AuthedUsersUserIdRouteImport } from './routes/_authed/users/$userId'
+import { Route as AuthedStacksStackIdIndexRouteImport } from './routes/_authed/stacks/$stackId/index'
+import { Route as AuthedStacksStackIdDeploymentsRouteImport } from './routes/_authed/stacks/$stackId/deployments'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -47,6 +52,22 @@ const AuthedDiscordRoute = AuthedDiscordRouteImport.update({
   path: '/discord',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedRepositoriesRoute = AuthedRepositoriesRouteImport.update({
+  id: '/repositories',
+  path: '/repositories',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedDeploymentsDeploymentIdRoute =
+  AuthedDeploymentsDeploymentIdRouteImport.update({
+    id: '/deployments/$deploymentId',
+    path: '/deployments/$deploymentId',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedStacksIndexRoute = AuthedStacksIndexRouteImport.update({
+  id: '/stacks/',
+  path: '/stacks/',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedUsersIndexRoute = AuthedUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
@@ -57,6 +78,18 @@ const AuthedUsersUserIdRoute = AuthedUsersUserIdRouteImport.update({
   path: '/users/$userId',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedStacksStackIdIndexRoute =
+  AuthedStacksStackIdIndexRouteImport.update({
+    id: '/stacks/$stackId/',
+    path: '/stacks/$stackId/',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedStacksStackIdDeploymentsRoute =
+  AuthedStacksStackIdDeploymentsRouteImport.update({
+    id: '/stacks/$stackId/deployments',
+    path: '/stacks/$stackId/deployments',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
@@ -64,17 +97,27 @@ export interface FileRoutesByFullPath {
   '/account': typeof AuthedAccountRoute
   '/containers': typeof AuthedContainersRoute
   '/discord': typeof AuthedDiscordRoute
+  '/repositories': typeof AuthedRepositoriesRoute
+  '/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
+  '/stacks/': typeof AuthedStacksIndexRoute
   '/users/': typeof AuthedUsersIndexRoute
+  '/stacks/$stackId/deployments': typeof AuthedStacksStackIdDeploymentsRoute
+  '/stacks/$stackId/': typeof AuthedStacksStackIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/account': typeof AuthedAccountRoute
   '/containers': typeof AuthedContainersRoute
   '/discord': typeof AuthedDiscordRoute
+  '/repositories': typeof AuthedRepositoriesRoute
   '/': typeof AuthedIndexRoute
+  '/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
   '/users/$userId': typeof AuthedUsersUserIdRoute
+  '/stacks': typeof AuthedStacksIndexRoute
   '/users': typeof AuthedUsersIndexRoute
+  '/stacks/$stackId/deployments': typeof AuthedStacksStackIdDeploymentsRoute
+  '/stacks/$stackId': typeof AuthedStacksStackIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -83,9 +126,14 @@ export interface FileRoutesById {
   '/_authed/account': typeof AuthedAccountRoute
   '/_authed/containers': typeof AuthedContainersRoute
   '/_authed/discord': typeof AuthedDiscordRoute
+  '/_authed/repositories': typeof AuthedRepositoriesRoute
   '/_authed/': typeof AuthedIndexRoute
+  '/_authed/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
   '/_authed/users/$userId': typeof AuthedUsersUserIdRoute
+  '/_authed/stacks/': typeof AuthedStacksIndexRoute
   '/_authed/users/': typeof AuthedUsersIndexRoute
+  '/_authed/stacks/$stackId/deployments': typeof AuthedStacksStackIdDeploymentsRoute
+  '/_authed/stacks/$stackId/': typeof AuthedStacksStackIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -95,17 +143,27 @@ export interface FileRouteTypes {
     | '/account'
     | '/containers'
     | '/discord'
+    | '/repositories'
+    | '/deployments/$deploymentId'
     | '/users/$userId'
+    | '/stacks/'
     | '/users/'
+    | '/stacks/$stackId/deployments'
+    | '/stacks/$stackId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/account'
     | '/containers'
     | '/discord'
+    | '/repositories'
     | '/'
+    | '/deployments/$deploymentId'
     | '/users/$userId'
+    | '/stacks'
     | '/users'
+    | '/stacks/$stackId/deployments'
+    | '/stacks/$stackId'
   id:
     | '__root__'
     | '/_authed'
@@ -113,9 +171,14 @@ export interface FileRouteTypes {
     | '/_authed/account'
     | '/_authed/containers'
     | '/_authed/discord'
+    | '/_authed/repositories'
     | '/_authed/'
+    | '/_authed/deployments/$deploymentId'
     | '/_authed/users/$userId'
+    | '/_authed/stacks/'
     | '/_authed/users/'
+    | '/_authed/stacks/$stackId/deployments'
+    | '/_authed/stacks/$stackId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -167,6 +230,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedDiscordRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/repositories': {
+      id: '/_authed/repositories'
+      path: '/repositories'
+      fullPath: '/repositories'
+      preLoaderRoute: typeof AuthedRepositoriesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/deployments/$deploymentId': {
+      id: '/_authed/deployments/$deploymentId'
+      path: '/deployments/$deploymentId'
+      fullPath: '/deployments/$deploymentId'
+      preLoaderRoute: typeof AuthedDeploymentsDeploymentIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/stacks/': {
+      id: '/_authed/stacks/'
+      path: '/stacks'
+      fullPath: '/stacks/'
+      preLoaderRoute: typeof AuthedStacksIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/users/': {
       id: '/_authed/users/'
       path: '/users'
@@ -181,6 +265,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedUsersUserIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/stacks/$stackId/': {
+      id: '/_authed/stacks/$stackId/'
+      path: '/stacks/$stackId'
+      fullPath: '/stacks/$stackId/'
+      preLoaderRoute: typeof AuthedStacksStackIdIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/stacks/$stackId/deployments': {
+      id: '/_authed/stacks/$stackId/deployments'
+      path: '/stacks/$stackId/deployments'
+      fullPath: '/stacks/$stackId/deployments'
+      preLoaderRoute: typeof AuthedStacksStackIdDeploymentsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
@@ -188,18 +286,28 @@ interface AuthedRouteChildren {
   AuthedAccountRoute: typeof AuthedAccountRoute
   AuthedContainersRoute: typeof AuthedContainersRoute
   AuthedDiscordRoute: typeof AuthedDiscordRoute
+  AuthedRepositoriesRoute: typeof AuthedRepositoriesRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedDeploymentsDeploymentIdRoute: typeof AuthedDeploymentsDeploymentIdRoute
   AuthedUsersUserIdRoute: typeof AuthedUsersUserIdRoute
+  AuthedStacksIndexRoute: typeof AuthedStacksIndexRoute
   AuthedUsersIndexRoute: typeof AuthedUsersIndexRoute
+  AuthedStacksStackIdDeploymentsRoute: typeof AuthedStacksStackIdDeploymentsRoute
+  AuthedStacksStackIdIndexRoute: typeof AuthedStacksStackIdIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAccountRoute: AuthedAccountRoute,
   AuthedContainersRoute: AuthedContainersRoute,
   AuthedDiscordRoute: AuthedDiscordRoute,
+  AuthedRepositoriesRoute: AuthedRepositoriesRoute,
   AuthedIndexRoute: AuthedIndexRoute,
+  AuthedDeploymentsDeploymentIdRoute: AuthedDeploymentsDeploymentIdRoute,
   AuthedUsersUserIdRoute: AuthedUsersUserIdRoute,
+  AuthedStacksIndexRoute: AuthedStacksIndexRoute,
   AuthedUsersIndexRoute: AuthedUsersIndexRoute,
+  AuthedStacksStackIdDeploymentsRoute: AuthedStacksStackIdDeploymentsRoute,
+  AuthedStacksStackIdIndexRoute: AuthedStacksStackIdIndexRoute,
 }
 
 const AuthedRouteWithChildren =

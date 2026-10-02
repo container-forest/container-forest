@@ -28,28 +28,45 @@ internal sealed class LibGit2SharpGitSource(IOptions<GitOptions> options) : IGit
     // LibGit2Sharp must not write to one repository from two threads.
     private readonly ConcurrentDictionary<string, SemaphoreSlim> locks = new();
 
-    public Task<GitSnapshot> FetchAsync(
-        GitRepository repository, BranchName branch, string directory, long maxBytes, CancellationToken cancellationToken)
+    public Task<CommitSha> FetchAsync(GitRepository repository, BranchName branch, CancellationToken cancellationToken)
+    {
+        EnsureSupported(repository);
+        return FetchAsync(repository.Id.ToString(), repository.Url.ToString(), branch, cancellationToken);
+    }
+
+    public Task<GitSnapshot> ReadAsync(
+        GitRepository repository, CommitSha commit, string directory, long maxBytes, CancellationToken cancellationToken)
+    {
+        EnsureSupported(repository);
+        return ReadAsync(repository.Id.ToString(), commit, directory, maxBytes, cancellationToken);
+    }
+
+    /// <param name="cacheKey">Name of the bare clone's directory; one per repository.</param>
+    /// <param name="url">Any URL or path libgit2 accepts; tests use local paths.</param>
+    internal Task<CommitSha> FetchAsync(string cacheKey, string url, BranchName branch, CancellationToken cancellationToken) =>
+        WithLockAsync(cacheKey, () => Fetch(cacheKey, url, branch, cancellationToken), cancellationToken);
+
+    /// <param name="cacheKey">Name of the bare clone's directory, as passed to <see cref="FetchAsync(string, string, BranchName, CancellationToken)"/>.</param>
+    internal Task<GitSnapshot> ReadAsync(
+        string cacheKey, CommitSha commit, string directory, long maxBytes, CancellationToken cancellationToken) =>
+        WithLockAsync(cacheKey, () => Read(cacheKey, commit, directory, maxBytes, cancellationToken), cancellationToken);
+
+    private static void EnsureSupported(GitRepository repository)
     {
         if (repository.ProtectedAccessToken is not null)
         {
             throw new DeploymentFailedException(
                 $"Repository '{repository.Name}' has an access token; private repositories are not supported yet.");
         }
-
-        return FetchAsync(repository.Id.ToString(), repository.Url.ToString(), branch, directory, maxBytes, cancellationToken);
     }
 
-    /// <param name="cacheKey">Name of the bare clone's directory; one per repository.</param>
-    /// <param name="url">Any URL or path libgit2 accepts; tests use local paths.</param>
-    internal async Task<GitSnapshot> FetchAsync(
-        string cacheKey, string url, BranchName branch, string directory, long maxBytes, CancellationToken cancellationToken)
+    private async Task<T> WithLockAsync<T>(string cacheKey, Func<T> work, CancellationToken cancellationToken)
     {
         var gate = locks.GetOrAdd(cacheKey, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken);
         try
         {
-            return await Task.Run(() => Fetch(cacheKey, url, branch, directory, maxBytes, cancellationToken), cancellationToken);
+            return await Task.Run(work, cancellationToken);
         }
         finally
         {
@@ -57,10 +74,11 @@ internal sealed class LibGit2SharpGitSource(IOptions<GitOptions> options) : IGit
         }
     }
 
-    private GitSnapshot Fetch(
-        string cacheKey, string url, BranchName branch, string directory, long maxBytes, CancellationToken cancellationToken)
+    private string CachePath(string cacheKey) => Path.GetFullPath(Path.Combine(options.Value.CacheDirectory, cacheKey));
+
+    private CommitSha Fetch(string cacheKey, string url, BranchName branch, CancellationToken cancellationToken)
     {
-        var path = Path.GetFullPath(Path.Combine(options.Value.CacheDirectory, cacheKey));
+        var path = CachePath(cacheKey);
         if (!Repository.IsValid(path))
         {
             Directory.CreateDirectory(path);
@@ -104,6 +122,20 @@ internal sealed class LibGit2SharpGitSource(IOptions<GitOptions> options) : IGit
 
         var commit = repository.Refs[trackingRef]?.ResolveToDirectReference()?.Target as Commit
             ?? throw new DeploymentFailedException($"Branch '{branch}' does not exist in {url}.");
+        return CommitSha.Parse(commit.Sha);
+    }
+
+    private GitSnapshot Read(string cacheKey, CommitSha sha, string directory, long maxBytes, CancellationToken cancellationToken)
+    {
+        var path = CachePath(cacheKey);
+        if (!Repository.IsValid(path))
+        {
+            throw new DeploymentFailedException($"Commit {sha.Short} has not been fetched.");
+        }
+
+        using var repository = new Repository(path);
+        var commit = repository.Lookup<Commit>(sha.Value)
+            ?? throw new DeploymentFailedException($"Commit {sha.Short} has not been fetched.");
 
         var tree = commit.Tree;
         if (directory.Length > 0)
@@ -114,7 +146,7 @@ internal sealed class LibGit2SharpGitSource(IOptions<GitOptions> options) : IGit
 
         var reader = new TreeReader(maxBytes, directory, cancellationToken);
         reader.Read(tree, prefix: "");
-        return new GitSnapshot(CommitSha.Parse(commit.Sha), reader.Files, reader.Skipped);
+        return new GitSnapshot(sha, reader.Files, reader.Skipped);
     }
 
     private sealed class TreeReader(long maxBytes, string directory, CancellationToken cancellationToken)

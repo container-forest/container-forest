@@ -9,9 +9,11 @@ public sealed class GitFetchStep(IGitSource git, DeploymentOptions options) : ID
     {
         var stack = context.Stack;
         var directory = stack.ComposePath.Directory;
-        var source = await git.FetchAsync(context.Repository, stack.Branch, directory, options.MaxBundleBytes, cancellationToken);
+        var commit = await git.FetchAsync(context.Repository, stack.Branch, cancellationToken);
 
-        context.Deployment.ResolveCommit(source.Commit);
+        // Before reading: a deployment that fails on the files still shows which commit it was.
+        context.Deployment.ResolveCommit(commit);
+        var source = await git.ReadAsync(context.Repository, commit, directory, options.MaxBundleBytes, cancellationToken);
         context.Source = source;
 
         var where = directory.Length == 0 ? "repository root" : $"'{directory}'";

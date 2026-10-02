@@ -56,11 +56,17 @@ internal sealed class FakeGitSource : IGitSource
 
     public string? RequestedDirectory { get; private set; }
 
-    public Task<GitSnapshot> FetchAsync(
-        GitRepository repository, BranchName branch, string directory, long maxBytes, CancellationToken cancellationToken)
+    /// <summary>Thrown by <see cref="ReadAsync"/>, after the commit has been fetched.</summary>
+    public Exception? ReadError { get; set; }
+
+    public Task<CommitSha> FetchAsync(GitRepository repository, BranchName branch, CancellationToken cancellationToken) =>
+        Task.FromResult(Snapshot.Commit);
+
+    public Task<GitSnapshot> ReadAsync(
+        GitRepository repository, CommitSha commit, string directory, long maxBytes, CancellationToken cancellationToken)
     {
         RequestedDirectory = directory;
-        return Task.FromResult(Snapshot);
+        return ReadError is null ? Task.FromResult(Snapshot) : Task.FromException<GitSnapshot>(ReadError);
     }
 }
 

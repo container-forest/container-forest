@@ -25,6 +25,19 @@ public class GitFetchStepTests
         Assert.Single(context.Source.Files);
         Assert.Contains(Lines(context, DeploymentLogLevel.Warning), l => l.Contains("current-link", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public async Task Commit_stays_pinned_when_reading_its_files_fails()
+    {
+        var git = new FakeGitSource { ReadError = new DeploymentFailedException("Directory 'apps/web' does not exist.") };
+        var context = Context("apps/web/compose.yaml");
+        context.Deployment.Start(Now);
+
+        await Assert.ThrowsAsync<DeploymentFailedException>(() =>
+            new GitFetchStep(git, new DeploymentOptions()).ExecuteAsync(context, TestContext.Current.CancellationToken));
+
+        Assert.Equal(Commit, context.Deployment.Commit);
+    }
 }
 
 public class ValidateComposeStepTests

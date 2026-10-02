@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { isUnauthorized } from "./api/client";
+import { ApiError } from "./api/client";
 import "./i18n";
 import { routeTree } from "./routeTree.gen";
 import "./styles.css";
@@ -10,8 +10,10 @@ import "./styles.css";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // A 401 means the session is gone; repeating the request will not bring it back.
-      retry: (failureCount, error) => !isUnauthorized(error) && failureCount < 2,
+      // Only a lost connection or a server fault may pass on a second try. A 4xx answer (no session, no access,
+      // not found, invalid) stays the same, and retrying it would only delay the error: Query also pauses
+      // retries in a hidden tab, so a page loading in the background stayed blank until it was shown.
+      retry: (failureCount, error) => !(error instanceof ApiError && error.status < 500) && failureCount < 2,
     },
   },
 });

@@ -8,7 +8,8 @@ using ContainerForest.Aggregator.Domain.Stacks;
 
 namespace ContainerForest.Aggregator.Application.Stacks;
 
-/// <param name="CanDeploy">Whether the current user may deploy the stack; the panel uses it to show the button.</param>
+/// <param name="CanDeploy">Whether the current user may deploy the stack or take it down; the panel uses it to show the buttons.</param>
+/// <param name="CanRestart">Whether the current user may restart the stack.</param>
 public sealed record StackSummary(
     StackId Id,
     StackName Name,
@@ -18,7 +19,8 @@ public sealed record StackSummary(
     bool IsSystem,
     CommitSha? DeployedCommit,
     DateTimeOffset? DeployedAt,
-    bool CanDeploy);
+    bool CanDeploy,
+    bool CanRestart);
 
 /// <summary>Stacks of an environment as the current user sees them; adding stacks (Editor on the environment).</summary>
 public sealed class StackService(
@@ -97,7 +99,8 @@ public sealed class StackService(
                 s.IsSystem,
                 s.DeployedCommit,
                 s.DeployedAt,
-                AccessPolicy.CanPerform(actor, environment, s, assignments, Permission.Deploy)))
+                AccessPolicy.CanPerform(actor, environment, s, assignments, Permission.Deploy),
+                AccessPolicy.CanPerform(actor, environment, s, assignments, StackOperation.Restart)))
             .ToList();
     }
 }

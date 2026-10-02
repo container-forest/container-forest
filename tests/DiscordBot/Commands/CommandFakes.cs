@@ -15,6 +15,11 @@ internal sealed class StubForestClient : IForestClient
 
     public Dictionary<string, List<ForestContainer>> Containers { get; } = [];
 
+    public Dictionary<string, List<ForestStack>> Stacks { get; } = [];
+
+    /// <summary>What a stack command answers with.</summary>
+    public ForestStackResult StackResult { get; set; } = new(Error: null, []);
+
     public List<string> Calls { get; } = [];
 
     public Exception? Failure { get; set; }
@@ -61,6 +66,27 @@ internal sealed class StubForestClient : IForestClient
         await Enter(
             $"{action.ToString().ToLowerInvariant()} {discordUserId} {environmentId} {container} {timeoutSeconds?.ToString() ?? "default"}",
             cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ForestStack>> ListStacksAsync(
+        ulong discordUserId, string environmentId, CancellationToken cancellationToken)
+    {
+        await Enter($"stacks {discordUserId} {environmentId}", cancellationToken);
+        return Stacks.TryGetValue(environmentId, out var stacks) ? stacks : [];
+    }
+
+    public async Task<ForestStackResult> ControlStackAsync(
+        ulong discordUserId,
+        string environmentId,
+        string stack,
+        StackAction action,
+        int? timeoutSeconds,
+        CancellationToken cancellationToken)
+    {
+        await Enter(
+            $"stack-{action.ToString().ToLowerInvariant()} {discordUserId} {environmentId} {stack} {timeoutSeconds?.ToString() ?? "default"}",
+            cancellationToken);
+        return StackResult;
     }
 
     private async Task Enter(string call, CancellationToken cancellationToken)

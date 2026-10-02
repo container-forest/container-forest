@@ -38,3 +38,30 @@ public enum ContainerAction
     Stop,
     Restart,
 }
+
+/// <param name="Name">The compose project name; unique in the environment, and what the bot passes back.</param>
+/// <param name="DeployedCommit">Null when nothing is deployed: before the first successful deployment and after down.</param>
+/// <param name="CanRestart">The user may restart it. Use it to hide choices, nothing more.</param>
+/// <param name="CanTakeDown">The user may take it down. Use it to hide choices, nothing more.</param>
+public sealed record ForestStack(
+    string Id,
+    string Name,
+    bool IsSystem,
+    string? DeployedCommit,
+    DateTimeOffset? DeployedAt,
+    bool CanRestart,
+    bool CanTakeDown);
+
+public enum StackAction
+{
+    Restart,
+    Down,
+}
+
+/// <summary>What docker compose did with a stack.</summary>
+/// <param name="Error">Why compose failed, or null when it succeeded.</param>
+/// <param name="Output">The last lines compose printed; they come from Docker, so escape them before showing them.</param>
+public sealed record ForestStackResult(string? Error, IReadOnlyList<string> Output)
+{
+    public bool Succeeded => Error is null;
+}

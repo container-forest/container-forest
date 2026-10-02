@@ -65,6 +65,31 @@ public class StackTests
     }
 
     [Fact]
+    public void Taking_the_stack_down_forgets_its_commit_until_the_next_deployment()
+    {
+        var stack = Stack(EnvironmentId.New());
+        stack.RecordDeployment(SucceededDeployment(stack, CommitA, Now));
+
+        stack.RecordTakenDown();
+
+        Assert.Null(stack.DeployedCommit);
+        Assert.Null(stack.DeployedAt);
+
+        stack.RecordDeployment(SucceededDeployment(stack, CommitB, Now.AddMinutes(1)));
+        Assert.Equal(CommitB, stack.DeployedCommit);
+    }
+
+    [Fact]
+    public void System_stack_cannot_record_being_taken_down()
+    {
+        var stack = Stack(EnvironmentId.New(), isSystem: true);
+        stack.RecordDeployment(SucceededDeployment(stack, CommitA, Now));
+
+        Assert.Throws<DomainConflictException>(stack.RecordTakenDown);
+        Assert.Equal(CommitA, stack.DeployedCommit);
+    }
+
+    [Fact]
     public void Rejects_a_failed_deployment_or_one_of_another_stack()
     {
         var stack = Stack(EnvironmentId.New());

@@ -60,6 +60,16 @@ export const containerLogsQuery = (environmentId: string, container: string, tai
     retry: shouldRetryLoad,
   });
 
+/** Registry logins of one environment, by server; never the passwords. Administrators only. */
+export const registryCredentialsQuery = (environmentId: string) =>
+  queryOptions({
+    queryKey: ["environments", environmentId, "registry-credentials"],
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await api.GET("/api/environments/{id}/registry-credentials", { params: { path: { id: environmentId } }, signal }),
+      ),
+  });
+
 /** All users, by name. Administrators only. */
 export const usersQuery = queryOptions({
   queryKey: ["users"],

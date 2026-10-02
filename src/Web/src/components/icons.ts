@@ -19,10 +19,12 @@ export { default as FilterXIcon } from "~icons/material-symbols/filter-alt-off-r
 export { default as KeyIcon } from "~icons/material-symbols/key-rounded";
 export { default as LinkIcon } from "~icons/material-symbols/link-rounded";
 export { default as Loader2Icon } from "~icons/material-symbols/progress-activity";
+export { default as LockIcon } from "~icons/material-symbols/lock-outline";
 export { default as LockOpenIcon } from "~icons/material-symbols/lock-open-rounded";
 export { default as LogOutIcon } from "~icons/material-symbols/logout-rounded";
 export { default as MinusIcon } from "~icons/material-symbols/remove-rounded";
 export { default as MoreHorizontalIcon } from "~icons/material-symbols/more-horiz";
+export { default as PencilIcon } from "~icons/material-symbols/edit-outline-rounded";
 export { default as PlayIcon } from "~icons/material-symbols/play-arrow-rounded";
 export { default as PlusIcon } from "~icons/material-symbols/add-rounded";
 export { default as RefreshCwIcon } from "~icons/material-symbols/refresh-rounded";

@@ -146,6 +146,91 @@ public class BotGatewayTests
         Assert.Equal(StatusCode.InvalidArgument, malformed.StatusCode);
     }
 
+    [Fact]
+    public async Task Linked_admin_lists_stacks_and_restarts_one_through_the_agent()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        await LinkAsync(app, AggregatorApp.AdminUserName, AliceDiscordId);
+        await CreateStackAsync(app, agent, "web");
+        var environmentId = agent.EnvironmentId.ToString();
+
+        var stacks = await app.BotGateway.ListStacksAsync(
+            new ListStacksRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId }, BotHeaders(), cancellationToken: Ct);
+        var stack = Assert.Single(stacks.Stacks);
+        Assert.Equal(("web", false, "", true, true), (stack.Name, stack.IsSystem, stack.DeployedCommit, stack.CanRestart, stack.CanTakeDown));
+
+        var restart = app.BotGateway.ControlStackAsync(
+            new ControlStackRequest
+            {
+                DiscordUserId = AliceDiscordId, EnvironmentId = environmentId, Stack = "web", Action = StackAction.Restart, TimeoutSeconds = 0,
+            },
+            BotHeaders(),
+            cancellationToken: Ct);
+        var command = await agent.ReceiveAsync();
+        Assert.Equal(ControllerMessage.BodyOneofCase.RestartStack, command.BodyCase);
+        Assert.Equal(("web", 0), (command.RestartStack.StackName, command.RestartStack.TimeoutSeconds));
+        await agent.SendAsync(new AgentMessage { Progress = new CommandProgress { RequestId = command.RequestId, Line = "Container web-app-1 Started" } });
+        await agent.SendAsync(new AgentMessage
+        {
+            Result = new CommandResult
+            {
+                RequestId = command.RequestId,
+                Error = new CommandError { Code = ErrorCode.CommandFailed, Message = "docker compose restart exited with code 1; see the command output." },
+            },
+        });
+
+        var response = await restart;
+        Assert.Equal("docker compose restart exited with code 1; see the command output.", response.Error);
+        Assert.Equal(["Container web-app-1 Started"], response.Output);
+    }
+
+    [Fact]
+    public async Task Viewer_may_not_restart_a_stack_and_unknown_stacks_are_not_found()
+    {
+        await using var app = new AggregatorApp();
+        await app.CreateUserAsync("alice", isAdmin: false);
+        await using var agent = await app.EnrollAndConnectAsync();
+        await LinkAsync(app, "alice", AliceDiscordId);
+        await CreateStackAsync(app, agent, "web");
+        var environmentId = agent.EnvironmentId.ToString();
+
+        var stacks = await app.BotGateway.ListStacksAsync(
+            new ListStacksRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId }, BotHeaders(), cancellationToken: Ct);
+        var stack = Assert.Single(stacks.Stacks);
+        Assert.False(stack.CanRestart);
+        Assert.False(stack.CanTakeDown);
+
+        Assert.Equal(StatusCode.PermissionDenied, (await ControlStackFailsAsync(app, environmentId, "web", StackAction.Down)).StatusCode);
+        Assert.Equal(StatusCode.NotFound, (await ControlStackFailsAsync(app, environmentId, "nope", StackAction.Restart)).StatusCode);
+        Assert.Equal(StatusCode.NotFound, (await ControlStackFailsAsync(app, environmentId, "Not a name!", StackAction.Restart)).StatusCode);
+        Assert.Equal(StatusCode.InvalidArgument, (await ControlStackFailsAsync(app, environmentId, "web", StackAction.Unspecified)).StatusCode);
+    }
+
+    private static Task<RpcException> ControlStackFailsAsync(AggregatorApp app, string environmentId, string stack, StackAction action) =>
+        Assert.ThrowsAsync<RpcException>(() => app.BotGateway.ControlStackAsync(
+            new ControlStackRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId, Stack = stack, Action = action },
+            BotHeaders(),
+            cancellationToken: Ct).ResponseAsync);
+
+    private static async Task CreateStackAsync(AggregatorApp app, FakeAgent agent, string name)
+    {
+        var client = app.CreateClient();
+        var repository = await client.PostAsJsonAsync(
+            "/api/dev/repositories", new { name = "infra", url = "https://git.example.com/infra.git" }, Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.Created, repository);
+        var repositoryId = (await repository.Content.ReadFromJsonAsync<IdView>(AggregatorApp.Json, Ct))!.Id;
+
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Created,
+            client.PostAsJsonAsync(
+                $"/api/dev/environments/{agent.EnvironmentId}/stacks",
+                new { name, repositoryId, branch = "main", composePath = "compose.yaml" },
+                Ct));
+    }
+
+    private sealed record IdView(Guid Id);
+
     private static async Task LinkAsync(AggregatorApp app, string userName, ulong discordUserId)
     {
         var response = await app.CreateClientAs(userName).PostAsync("/api/me/discord/link-code", content: null, Ct);

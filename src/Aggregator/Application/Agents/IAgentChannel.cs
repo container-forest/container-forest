@@ -39,6 +39,26 @@ public interface IAgentChannel
         Action<string> onProgress,
         TimeSpan timeout,
         CancellationToken cancellationToken);
+
+    /// <summary>Runs docker compose restart for a deployed stack; returns when compose has finished.</summary>
+    /// <param name="stopTimeout">How long Docker waits for each container's process to exit before killing it.</param>
+    /// <param name="onProgress">Receives each line of compose output, as in <see cref="DeployStackAsync"/>.</param>
+    Task RestartStackAsync(
+        EnvironmentId environmentId,
+        StackName stackName,
+        TimeSpan stopTimeout,
+        Action<string> onProgress,
+        CancellationToken cancellationToken);
+
+    /// <summary>Runs docker compose down for a deployed stack: containers and networks go, volumes and files stay.</summary>
+    /// <param name="stopTimeout">How long Docker waits for each container's process to exit before killing it.</param>
+    /// <param name="onProgress">Receives each line of compose output, as in <see cref="DeployStackAsync"/>.</param>
+    Task DownStackAsync(
+        EnvironmentId environmentId,
+        StackName stackName,
+        TimeSpan stopTimeout,
+        Action<string> onProgress,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>Everything the agent needs to deploy one stack. It may hold decrypted secrets, so it is never logged.</summary>

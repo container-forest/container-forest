@@ -90,6 +90,10 @@ internal sealed class ScriptedBotGateway : Proto.BotGateway.BotGatewayBase
 
     public List<Proto.Container> Containers { get; } = [];
 
+    public List<Proto.Stack> Stacks { get; } = [];
+
+    public Proto.ControlStackResponse StackResponse { get; set; } = new();
+
     public static RpcException Fail(StatusCode code, string detail, string? reason = null)
     {
         var trailers = new Metadata();
@@ -118,6 +122,12 @@ internal sealed class ScriptedBotGateway : Proto.BotGateway.BotGatewayBase
     public override Task<Proto.ControlContainerResponse> ControlContainer(
         Proto.ControlContainerRequest request, ServerCallContext context) =>
         AnswerAsync(request, context, new Proto.ControlContainerResponse());
+
+    public override Task<Proto.ListStacksResponse> ListStacks(Proto.ListStacksRequest request, ServerCallContext context) =>
+        AnswerAsync(request, context, new Proto.ListStacksResponse { Stacks = { Stacks } });
+
+    public override Task<Proto.ControlStackResponse> ControlStack(Proto.ControlStackRequest request, ServerCallContext context) =>
+        AnswerAsync(request, context, StackResponse);
 
     private async Task<T> AnswerAsync<T>(IMessage request, ServerCallContext context, T response)
     {

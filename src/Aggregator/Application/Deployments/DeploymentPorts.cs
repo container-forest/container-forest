@@ -12,12 +12,19 @@ public sealed class DeploymentFailedException(string message) : Exception(messag
 /// <summary>Reads stack sources from git. Implemented with LibGit2Sharp in the infrastructure layer.</summary>
 public interface IGitSource
 {
-    /// <summary>Fetches the branch and reads the files under <paramref name="directory"/> at its head commit.</summary>
+    /// <summary>
+    /// Fetches the branch and returns its head commit. Reading is a separate call, so the deployment is pinned to the
+    /// commit even when its files turn out to be unusable.
+    /// </summary>
+    /// <exception cref="DeploymentFailedException">The repository or the branch is unavailable.</exception>
+    Task<CommitSha> FetchAsync(GitRepository repository, BranchName branch, CancellationToken cancellationToken);
+
+    /// <summary>Reads the files under <paramref name="directory"/> at a commit <see cref="FetchAsync"/> returned.</summary>
     /// <param name="directory">Directory inside the repository, '/'-separated; empty for the root.</param>
     /// <param name="maxBytes">Stops reading and fails when the files are larger in total.</param>
-    /// <exception cref="DeploymentFailedException">The repository, branch or directory is unavailable, or the files are too large.</exception>
-    Task<GitSnapshot> FetchAsync(
-        GitRepository repository, BranchName branch, string directory, long maxBytes, CancellationToken cancellationToken);
+    /// <exception cref="DeploymentFailedException">The directory does not exist at the commit, or the files are too large.</exception>
+    Task<GitSnapshot> ReadAsync(
+        GitRepository repository, CommitSha commit, string directory, long maxBytes, CancellationToken cancellationToken);
 }
 
 /// <param name="Files">Paths are relative to the requested directory.</param>

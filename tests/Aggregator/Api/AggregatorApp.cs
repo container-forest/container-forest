@@ -160,20 +160,24 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
     public sealed record EnvironmentView(Guid Id, string Name, bool IsEnrolled, bool IsOnline, string? AgentHostname, string? AgentVersion);
 }
 
-/// <summary>Returns <see cref="Snapshot"/> for every fetch.</summary>
+/// <summary>Returns <see cref="Snapshot"/> for every fetch; without one, the branch does not exist.</summary>
 internal sealed class StubGitSource : IGitSource
 {
     public GitSnapshot? Snapshot { get; set; }
 
-    public Task<GitSnapshot> FetchAsync(
+    public Task<Domain.Stacks.CommitSha> FetchAsync(
+        Domain.Repositories.GitRepository repository, Domain.Stacks.BranchName branch, CancellationToken cancellationToken) =>
+        Snapshot is { } snapshot
+            ? Task.FromResult(snapshot.Commit)
+            : throw new DeploymentFailedException($"Branch '{branch}' does not exist.");
+
+    public Task<GitSnapshot> ReadAsync(
         Domain.Repositories.GitRepository repository,
-        Domain.Stacks.BranchName branch,
+        Domain.Stacks.CommitSha commit,
         string directory,
         long maxBytes,
         CancellationToken cancellationToken) =>
-        Snapshot is { } snapshot
-            ? Task.FromResult(snapshot)
-            : throw new DeploymentFailedException($"Branch '{branch}' does not exist.");
+        Task.FromResult(Snapshot!);
 }
 
 /// <summary>Plays the agent's side of the Connect stream.</summary>

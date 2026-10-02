@@ -85,7 +85,7 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
         Commit(new() { ["compose.yaml"] = "" });
 
         var error = await Assert.ThrowsAsync<DeploymentFailedException>(() =>
-            source.FetchAsync("repo", origin, BranchName.Parse("release"), "", 1024 * 1024, Ct));
+            source.FetchAsync("repo", origin, BranchName.Parse("release"), Ct));
         Assert.Contains("release", error.Message);
     }
 
@@ -98,14 +98,14 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
             repository.Branches.Add("feature", repository.Head.Tip);
         }
 
-        await source.FetchAsync("repo", origin, BranchName.Parse("feature"), "", 1024 * 1024, Ct);
+        await source.FetchAsync("repo", origin, BranchName.Parse("feature"), Ct);
         using (var repository = new Repository(origin))
         {
             repository.Branches.Remove("feature");
         }
 
         await Assert.ThrowsAsync<DeploymentFailedException>(() =>
-            source.FetchAsync("repo", origin, BranchName.Parse("feature"), "", 1024 * 1024, Ct));
+            source.FetchAsync("repo", origin, BranchName.Parse("feature"), Ct));
     }
 
     [Fact]
@@ -121,15 +121,14 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
     {
         Commit(new() { ["compose.yaml"] = "", ["big.bin"] = new string('x', 4096) });
 
-        await Assert.ThrowsAsync<DeploymentFailedException>(() =>
-            source.FetchAsync("repo", origin, Main, "", maxBytes: 1024, Ct));
+        await Assert.ThrowsAsync<DeploymentFailedException>(() => Fetch("", maxBytes: 1024));
     }
 
     [Fact]
     public async Task Unreachable_repository_is_an_error()
     {
         await Assert.ThrowsAsync<DeploymentFailedException>(() =>
-            source.FetchAsync("repo", Path.Combine(root, "missing"), Main, "", 1024, Ct));
+            source.FetchAsync("repo", Path.Combine(root, "missing"), Main, Ct));
     }
 
     public void Dispose()
@@ -147,8 +146,31 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
         Directory.Delete(root, recursive: true);
     }
 
-    private Task<GitSnapshot> Fetch(string directory) =>
-        source.FetchAsync("repo", origin, Main, directory, 1024 * 1024, Ct);
+    [Fact]
+    public async Task Missing_directory_names_the_fetched_commit()
+    {
+        var sha = Commit(new() { ["compose.yaml"] = "" });
+
+        var commit = await source.FetchAsync("repo", origin, Main, Ct);
+        var error = await Assert.ThrowsAsync<DeploymentFailedException>(() => source.ReadAsync("repo", commit, "apps/web", 1024, Ct));
+
+        Assert.Equal(sha, commit.Value);
+        Assert.Contains(commit.Short, error.Message);
+    }
+
+    [Fact]
+    public async Task Reading_a_commit_that_was_never_fetched_is_an_error()
+    {
+        var sha = CommitSha.Parse(Commit(new() { ["compose.yaml"] = "" }));
+
+        await Assert.ThrowsAsync<DeploymentFailedException>(() => source.ReadAsync("repo", sha, "", 1024, Ct));
+    }
+
+    private async Task<GitSnapshot> Fetch(string directory, long maxBytes = 1024 * 1024)
+    {
+        var commit = await source.FetchAsync("repo", origin, Main, Ct);
+        return await source.ReadAsync("repo", commit, directory, maxBytes, Ct);
+    }
 
     /// <summary>Writes the files into the origin's work tree and commits everything on "main".</summary>
     private string Commit(Dictionary<string, string> files, Action<string>? prepare = null)

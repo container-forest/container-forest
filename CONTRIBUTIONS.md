@@ -19,8 +19,8 @@
 | Вимога | Потрібно | Є | Стан |
 |---|---|---|---|
 | Класи та подібні типи | ≥ 9 | 185 (141 клас, 20 інтерфейсів, 9 структур, 15 enum) | ✅ |
-| Поля | ≥ 15 | 300 (254 поля стану, 46 констант і статичних полів) | ✅ |
-| Нетривіальні методи | ≥ 25 | 229 | ✅ |
+| Поля | ≥ 15 | 301 (255 полів стану, 46 констант і статичних полів) | ✅ |
+| Нетривіальні методи | ≥ 25 | 230 | ✅ |
 | Ієрархії успадкування | ≥ 2, одна з ≥ 3 класів | 5 (13, 3, 5, 11 і 5 класів) | ✅ |
 | Поліморфізм | ≥ 3, серед них статичний і динамічний | 6 з клієнтським кодом (4 динамічні, 2 статичні) | ✅ |
 
@@ -116,14 +116,14 @@
 | `DeploymentSummary`, `StackSummary`, `DeploymentService.VisibleStack` | 9 + 9 + 4 | `DeploymentService.HistoryLimit` |
 | `DeploymentOptions`, `GitOptions` | `MaxBundleBytes`, `AgentTimeout`, `MaxConcurrentDeployments`; `CacheDirectory` | `SectionName` в обох |
 | `DeployContext` | `source`, `bundle`, `Deployment`, `Stack`, `Environment`, `Repository` | |
-| `DeployPipeline` | `steps` | |
+| `DeployPipeline` | `steps`, `observers` | |
 | `StackBundle`, `BundleFile` | `StackName`, `Commit`, `Files`, `Pull`; `Path`, `Content`, `Mode` | `ComposeFileName`; `RegularMode`, `ExecutableMode` |
 | `LibGit2SharpGitSource`, `TreeReader` | `locks`; `totalBytes`, `Files`, `Skipped` | `RemoteName` |
 | `YamlComposeParser`, `DeploymentRepository` | | `MergeKey`; `Unfinished` |
 | `DeploymentQueue`, `AgentSession.PendingRequest` | `channel`; `Completion`, `OnProgress` | |
 | `InMemoryXmlRepository` (PR #29) | `elements` | |
 
-#### Нетривіальні методи (181)
+#### Нетривіальні методи (230)
 
 | Тип | Методи |
 |---|---|
@@ -173,7 +173,7 @@
 | `CurrentActor` (2) | `GetAsync`, `GetAdministratorAsync` |
 | `ContainerQueryService` (2) | `ListAsync`, `Can` |
 | `ContainerLookup` (1) | `Find`: повний id, точне ім'я, унікальний префікс id |
-| `DeployPipeline` (2) | `RunAsync`, `Describe` |
+| `DeployPipeline` (3) | `RunAsync`, `Describe`, `NotifyObserversAsync` (спостерігачі після збереження результату; помилка одного не зупиняє інших) |
 | `GitFetchStep`, `BuildBundleStep`, `SendToAgentStep` (3) | `ExecuteAsync` у кожному |
 | `ValidateComposeStep` (3) | `ExecuteAsync`, `Check`, `Decode` |
 | `DeploymentService` (4) | `QueueAsync`, `ListAsync`, `GetAsync`, `LoadVisibleStackAsync` |
@@ -462,15 +462,15 @@
 
 | Вимога | Потрібно | Є | Стан |
 |---|---|---|---|
-| Класи та подібні типи | ≥ 9 | 43 (38 класів, з них 8 record і 4 статичні; 2 інтерфейси; 1 структура; 2 enum) | ✅ |
-| Поля | ≥ 15 | 80 (66 полів стану, 14 констант і статичних полів) | ✅ |
-| Нетривіальні методи | ≥ 25 | 44 | ✅ |
-| Ієрархії успадкування | ≥ 2, одна з ≥ 3 класів | 2 (8 класів на трьох рівнях; 8 класів) | ✅ |
-| Поліморфізм | ≥ 3, серед них статичний і динамічний | 5 з клієнтським кодом (4 динамічні, 1 статичний) | ✅ |
+| Класи та подібні типи | ≥ 9 | 69 (59 класів, з них 17 record і 6 статичних; 5 інтерфейсів; 1 структура; 4 enum) | ✅ |
+| Поля | ≥ 15 | 160 (146 полів стану, 28 констант і статичних полів) | ✅ |
+| Нетривіальні методи | ≥ 25 | 79 | ✅ |
+| Ієрархії успадкування | ≥ 2, одна з ≥ 3 класів | 3 (8 класів на трьох рівнях; 8 класів; 2 класи) | ✅ |
+| Поліморфізм | ≥ 3, серед них статичний і динамічний | 9, з них 8 з клієнтським кодом (8 динамічних, 1 статичний) | ✅ |
 
-Код: `src/DiscordBot` — клієнт ЦА по gRPC (PR #19); Discord-частина: slash-команди, автодоповнення, прив'язка акаунта (PR #20); Docker-образ бота (PR #25).
+Код: `src/DiscordBot` — клієнт ЦА по gRPC (PR #19); Discord-частина: slash-команди, автодоповнення, прив'язка акаунта (PR #20); Docker-образ бота (PR #25). Сповіщення (PR #38): у ЦА — диспетчер, доставка через бота, деталі сповіщення; у боті — споживач потоку й повідомлення в Discord.
 
-Не враховано: `Program.cs`, згенерований з proto код.
+Не враховано: `Program.cs`, згенерований з proto код і міграції.
 
 #### Класи та подібні типи
 
@@ -480,7 +480,17 @@
 | `Configuration` | `BotOptions`, `DiscordOptions` |
 | `Forest` | `IForestClient` (інтерфейс), `ForestCaller`, `ForestEnvironment`, `ForestContainer` (record), `ContainerState`, `ContainerAction` (enum), `ForestException` (абстрактний клас), `AccountNotLinkedException`, `ForestAccessDeniedException`, `ForestNotFoundException`, `ForestRequestRejectedException`, `AgentUnavailableException`, `AgentFailedException`, `ForestUnavailableException`, `RpcErrorMapper` (статичний клас), `GrpcForestClient` |
 | `Commands` | `ICommandInteraction` (інтерфейс), `BotUser`, `BotReply`, `ContainerList`, `ContainerActionArgs`, `Suggestion` (record), `NoArgs` (структура), `BotCommand<TArgs, TResult>` (абстрактний клас), `EnvironmentsCommand`, `ContainersCommand`, `ContainerActionCommand` (абстрактний клас), `StartContainerCommand`, `StopContainerCommand`, `RestartContainerCommand`, `LinkCommand`, `EnvironmentResolver`, `AutocompleteSource`, `ReplyFormatter`, `Markdown` (статичні класи) |
-| `Interactions` | `DiscordBotService`, `ForestModule`, `DiscordInteraction`, `EnvironmentAutocompleteHandler`, `ContainerAutocompleteHandler` |
+| `Interactions` | `DiscordBotService`, `ForestModule`, `DiscordInteraction`, `EnvironmentAutocompleteHandler`, `ContainerAutocompleteHandler`, `NotificationEmbed` (статичний клас), `DiscordNotificationPoster` |
+| `Forest` (сповіщення) | `ForestNotification`, `DeploymentEvent`, `ContainerEvent` (record), `NotificationKind`, `NotificationSeverity` (enum), `INotificationSource` (інтерфейс), `GrpcNotificationSource` |
+| `Notifications` | `DeliveryResult` (record), `INotificationPoster` (інтерфейс), `ReconnectBackoff`, `NotificationWatcher` |
+
+| Простір імен `ContainerForest.Aggregator.*` (сповіщення) | Типи |
+|---|---|
+| `Domain.Notifications` | `NotificationDetails` (абстрактний record), `DeploymentNotificationDetails` (record) |
+| `Application.Deployments` | `IDeploymentObserver` (інтерфейс), `DeploymentOutcome` (record) |
+| `Application.Notifications` | `NotificationFeed`, `NotificationFeed.Subscription`, `NotificationDispatcher`, `DeploymentNotifier`, `OutgoingNotification` (record), `NotificationDeliveryService` |
+| `Infrastructure.Persistence` | `NotificationDetailsConverter`, `NotificationDetailsConverter.StoredDetails` (record) |
+| `Api.Grpc` | `NotificationMessages` (статичний клас) |
 
 #### Поля
 
@@ -508,8 +518,25 @@
 | `ForestModule` | `environments`, `containers`, `start`, `stop`, `restart`, `link`, `lifetime` | `EnvironmentDescription`, `ContainerDescription`, `TimeoutDescription` |
 | `EnvironmentAutocompleteHandler`, `ContainerAutocompleteHandler` | `source` у кожному | |
 | `DiscordBotService` | `client`, `interactions`, `services`, `options`, `environment`, `lifetime`, `logger`, `commandsRegistered` | |
+| `ForestNotification` | `Id`, `DiscordChannelId`, `Kind`, `Severity`, `OccurredAt`, `EnvironmentId`, `EnvironmentName`, `Summary`, `Deployment`, `Container` | |
+| `DeploymentEvent`, `ContainerEvent` | `DeploymentId`, `StackId`, `StackName`, `CommitSha`, `PulledImages`, `Error`; `ContainerId`, `ContainerName`, `StackName`, `ServiceName`, `ExitCode` | |
+| `GrpcNotificationSource` | `gateway`, `options`, `time`, `logger` | |
+| `DeliveryResult` | `Error` | `Delivered` |
+| `ReconnectBackoff` | `failures`, `Initial`, `Max` | `HealthyStreamAge` |
+| `NotificationWatcher` | `source`, `poster`, `backoff`, `time`, `logger` | `BotFailureError` |
+| `NotificationEmbed` | | `MaxFieldLength` |
+| `DiscordNotificationPoster` | `client`, `ready` | `UnknownChannel`, `MissingAccess`, `CannotSendInNonTextChannel`, `MissingPermissions` |
+| ЦА: `DeploymentNotificationDetails` | `DeploymentId`, `StackId`, `StackName`, `Commit`, `PulledImages`, `Error` | |
+| ЦА: `DeploymentOutcome` | `Deployment`, `Stack`, `Environment` | |
+| ЦА: `NotificationFeed`, `Subscription` | `gate`, `current`; `feed`, `ended`, `signals`, `closed`, `WasReplaced` | |
+| ЦА: `NotificationDispatcher` | `rules`, `notifications`, `unitOfWork`, `feed`, `time` | |
+| ЦА: `DeploymentNotifier` | `dispatcher`, `logger` | |
+| ЦА: `OutgoingNotification` | `Notification`, `DiscordChannelId`, `EnvironmentName` | |
+| ЦА: `NotificationDeliveryService` | `notifications`, `channels`, `environments`, `unitOfWork`, `time`, `logger` | `ChannelDeletedError`, `ChannelDisabledError`, `UnknownBotError` |
+| ЦА: `NotificationDetailsConverter`, `StoredDetails` | `Type`, `DeploymentId`, `StackId`, `StackName`, `Commit`, `PulledImages`, `Error` | `DeploymentType`, `Options` |
+| ЦА: поля, додані в класи Петренка Б. О. | `Notification.Details`, `NotificationEvent.Details`; `BotGatewayService.notificationDelivery`, `notificationFeed`, `scopeFactory` | `BotGatewayService.NotificationRescanInterval` |
 
-#### Нетривіальні методи (44)
+#### Нетривіальні методи (79)
 
 | Тип | Методи |
 |---|---|
@@ -528,13 +555,27 @@
 | `DiscordInteraction` (1) | `RespondAsync` (без згадок користувачів) |
 | `EnvironmentAutocompleteHandler`, `ContainerAutocompleteHandler` (2) | `GenerateSuggestionsAsync` у кожному |
 | `DiscordBotService` (4) | `ExecuteAsync` (вхід, невірний токен), `RegisterCommandsAsync` (тестовий сервер або глобально, один раз), `ReportFailureAsync`, `LogAsync` |
+| `GrpcNotificationSource` (6) | `WatchAsync` (потік без дедлайну, заміна іншим потоком — тихе завершення), `ReportAsync`, `Translate`, `ToNotification` (деталі з `oneof`), `ToKind`, `ToSeverity` |
+| `ReconnectBackoff` (1) | `Next` (подвоєння до межі, jitter, скидання після здорового потоку) |
+| `NotificationWatcher` (3) | `ExecuteAsync` (очікування Discord, повторне відкриття потоку), `WatchOnceAsync` (помилки потоку в лог), `DeliverAsync` (помилка бота — звіт про невдачу, невдалий звіт не зупиняє доставку) |
+| `NotificationEmbed` (4) | `Build` (поля за видом деталей, екранування), `Title`, `ColorOf`, `CodeBlock` (ліміт поля 1024, захист від закриття блоку) |
+| `DiscordNotificationPoster` (2) | `PostAsync` (канал не існує або не текстовий, відмова Discord як причина), `Describe` (коди помилок Discord → підказка про права) |
+| ЦА: `DeploymentNotificationDetails` (2) | `Of` (лише успішний чи невдалий деплой свого стеку), `Fits` |
+| ЦА: `NotificationFeed`, `Subscription` (3) | `Subscribe` (новий підписник завершує попереднього), `Leave`, `WaitAsync` (сигнал або тайм-аут) |
+| ЦА: `NotificationDispatcher` (2) | `DispatchAsync` (правила → одне сповіщення на канал → збереження → пробудження потоку), `Specificity` |
+| ЦА: `DeploymentNotifier` (2) | `DeploymentFinishedAsync` (подія з деталями, помилки лише в лог), `Summarize` (один рядок) |
+| ЦА: `NotificationDeliveryService` (2) | `TakePendingAsync` (пропуск надісланих, прострочені → Expired, видалений чи вимкнений канал → Failed, назва середовища), `ReportAsync` (повторний звіт ігнорується) |
+| ЦА: `NotificationDetailsConverter` (2) | `Serialize`, `Deserialize` |
+| ЦА: `NotificationMessages` (3) | `ToMessage`, `ToKind`, `ToSeverity` |
+| ЦА: методи, додані в класи Петренка Б. О. (3) | `NotificationEvent.EnsureValid` (деталі відповідають виду й стеку); `BotGatewayService.WatchNotifications` (скан у власному DI-scope, пробудження, заміна потоку — `Aborted`), `ReportDelivery` |
 
-Не враховано як тривіальні: `CallForestAsync` і `Format` у `EnvironmentsCommand` і `LinkCommand` (лише делегують), перевизначення `Action`, `Done`, `StopTimeout`, `Name`, `BotReply.Success` і `Error`, `Markdown.Code`, `ReplyFormatter.Count`, `AutocompleteSource.Matches`, `DependencyInjection.AddCommands` (лише реєстрація), `DiscordInteraction.DeferAsync`, `DiscordBotService.HandleInteractionAsync`, методи slash-команд у `ForestModule` (лише передають опції команді).
+Не враховано як тривіальні: `CallForestAsync` і `Format` у `EnvironmentsCommand` і `LinkCommand` (лише делегують), перевизначення `Action`, `Done`, `StopTimeout`, `Name`, `BotReply.Success` і `Error`, `Markdown.Code`, `ReplyFormatter.Count`, `AutocompleteSource.Matches`, `DependencyInjection.AddCommands` (лише реєстрація), `DiscordInteraction.DeferAsync`, `DiscordBotService.HandleInteractionAsync`, методи slash-команд у `ForestModule` (лише передають опції команді), `DeliveryResult.Failed` і `IsDelivered`, `DiscordNotificationPoster.WaitUntilReadyAsync`, `NotificationFeed.Publish`, `Subscription.Signal`, `Replace`, `Close` і `Dispose`, `DeploymentNotificationDetails.Succeeded`, перевизначення в `BotGatewayInterceptor` для потокових викликів (лише передають у спільну перевірку токена).
 
 #### Ієрархії успадкування
 
 1. `ForestException` → `AccountNotLinkedException`, `ForestAccessDeniedException`, `ForestNotFoundException`, `ForestRequestRejectedException`, `AgentUnavailableException`, `AgentFailedException`, `ForestUnavailableException`. Це 8 класів.
 2. `BotCommand<TArgs, TResult>` → `EnvironmentsCommand`, `ContainersCommand`, `LinkCommand`, `ContainerActionCommand` → `StartContainerCommand`, `StopContainerCommand`, `RestartContainerCommand`. Це 8 класів на трьох рівнях.
+3. ЦА: `NotificationDetails` → `DeploymentNotificationDetails`. Це 2 класи; деталі подій контейнерів додадуться разом із самими подіями.
 
 #### Поліморфізм
 
@@ -545,25 +586,46 @@
 | 3 | Динамічний (адаптер) | `IForestClient`: `GrpcForestClient` (і stub у тестах) | команди, `EnvironmentResolver` і `AutocompleteSource` працюють із ЦА, не знаючи про gRPC ✅ |
 | 4 | Динамічний (адаптер) | `ICommandInteraction`: `DiscordInteraction` (і запис взаємодії в тестах) | `BotCommand.ExecuteAsync` відповідає користувачу, не знаючи про Discord.Net ✅ |
 | 5 | Динамічний (віртуальні члени) | `ContainerActionCommand.Action`, `Done`, `StopTimeout` | `ContainerActionCommand.CallForestAsync` і `Format` однакові для старту, зупинки й перезапуску; старт не надсилає таймаут зупинки ✅ |
+| 6 | Динамічний (адаптер) | `INotificationSource`: `GrpcNotificationSource` (і фейк у тестах) | `NotificationWatcher` отримує сповіщення й звітує про них, не знаючи про gRPC ✅ |
+| 7 | Динамічний (адаптер) | `INotificationPoster`: `DiscordNotificationPoster` (і фейк у тестах) | `NotificationWatcher` публікує сповіщення, не знаючи про Discord.Net ✅ |
+| 8 | Динамічний (абстрактний член) | ЦА: `NotificationDetails.Fits` | `NotificationEvent.EnsureValid` перевіряє, що деталі описують подію, для будь-якого виду деталей; через нього — `NotificationDispatcher` і `Notification.Create` ✅ |
+| 9 | Динамічний (спостерігач) | ЦА: `IDeploymentObserver`: `DeploymentNotifier` | `DeployPipeline` після збереження результату повідомляє всі зареєстровані `IDeploymentObserver`, не знаючи їхніх типів (виклик — Петренко Б. О., PR #40) ✅ |
 
 #### Тести (не входять в облік)
 
-- `tests/DiscordBot`, 78 тестів.
+- `tests/DiscordBot`, 93 тести.
+  - Сповіщення: `GrpcNotificationSource` проти сервера в пам'яті (поля й деталі з `oneof`, токен, тихе завершення при заміні потоку, відхилений токен, звіти); `NotificationWatcher` з фейками (публікація й звіт, очікування Discord, помилка бота як невдача, повторне відкриття потоку, невдалий звіт не зупиняє доставку); embed (поля, екранування, обрізання помилки до ліміту поля, кольори); backoff.
   - `GrpcForestClient` проти справжнього gRPC-сервера `BotGateway` у пам'яті (`TestServer`) із заготовленими відповідями: токен у metadata `x-bot-token`, поля запитів, перетворення відповідей, кожен код помилки ЦА → свій виняток; невірний токен і недоступний ЦА — у лог, користувачу загальне повідомлення, токен не потрапляє ні в лог, ні у виняток; скасування.
   - Команди зі stub-реалізацією `IForestClient`: defer до виклику ЦА, пошук середовища за ім'ям і id, дії з таймаутом і без, помилки ЦА → читабельна відповідь, непередбачена помилка → у лог і загальне повідомлення, скасування без відповіді, `/link`.
   - Форматування: групування за стеками, ліміт 2000 символів, екранування markdown. Автодоповнення: фільтр за введеним текстом і станом, ліміти 25 варіантів і 100 символів, бюджет часу, помилки ЦА.
   - Конфігурація: `ValidateOnStart` для ЦА й Discord, тестовий сервер у `Development`, токен Discord лише з ASCII без пробілів.
+- `tests/Aggregator`, 33 тести сповіщень: деталі деплою (лише успішний і невдалий деплой свого стеку, відповідність виду й стеку); диспетчер (одне сповіщення на канал від найконкретнішого правила, вимкнені канали й інші середовища, пробудження потоку); `DeploymentNotifier` (підсумок в один рядок, скасований деплой без сповіщення, помилка не доходить до пайплайну); доставка (порядок, переміщений канал, без повторного надсилання, прострочені, видалений і вимкнений канал, видалене середовище, звіти); `NotificationFeed` (сигнал, тайм-аут, заміна); інтеграційні тести шлюзу: потік без токена відхиляється, збережені й нові сповіщення з деталями, звіти, повторне надсилання новим потоком і `Aborted` для старого.
 
 ### Лаба 2
 
-Ще немає. Заплановано: прив'язка Discord-акаунта, канали сповіщень, правила сповіщень, історія сповіщень.
+| Вимога | Потрібно | Є | Стан |
+|---|---|---|---|
+| Екрани | ≥ 4 | 1 | ⏳ |
+| Елементи керування | ≥ 20 | 6 | ⏳ |
+| Контейнерні елементи | ≥ 1 | 0 | ⏳ |
+| Обробники подій | ≥ 10 | 5 | ⏳ |
+| Логіка окремо від GUI | так | так | ✅ |
+
+Код: `src/Web` (PR #39).
+
+- **Екрани:** прив'язка Discord (`src/routes/_authed/discord.tsx`, `/discord`).
+- **Елементи керування:** кнопки «Відв'язати», «Так, відв'язати», «Скасувати», «Отримати код» / «Новий код», «Копіювати команду»; посилання «Discord» у шапці (`src/routes/_authed.tsx`).
+- **Обробники подій:** натискання «Відв'язати» (показ підтвердження), «Так, відв'язати» (відв'язка й оновлення стану), «Скасувати», «Отримати код» (новий код, запам'ятовується поточний стан прив'язки), «Копіювати команду» (буфер обміну, позначка «Скопійовано» на 2 с).
+- **Логіка окремо від GUI:** запити — `src/api/queries.ts` (`discordLinkQuery`) і `src/api/discord.ts` (`useIssueDiscordLinkCodeMutation`, `useUnlinkDiscordMutation` з інвалідацією кешу); відлік часу дії коду — `src/hooks/use-seconds-left.ts`. Екран лише показує стан; поки код дійсний, стан перезапитується кожні 3 с, тож прив'язка через бота з'являється без перезавантаження.
+
+Заплановано: канали сповіщень, правила сповіщень (форми й таблиці — контейнерні елементи), історія сповіщень (таблиця з фільтрами).
 
 ### Лаба 3
 
 | Бібліотека | Що використано | Ретроспектива |
 |---|---|---|
-| Discord.Net 3.20.1 | `DiscordSocketClient` лише з інтентом `Guilds`; `InteractionService` з модулями через DI (`InteractionModuleBase`, `[SlashCommand]`, `[Summary]`, `[MinValue]`, `[MaxValue]`); автодоповнення (`AutocompleteHandler`, `[Autocomplete]`); `RunMode.Async`; реєстрація команд на тестовому сервері або глобально; відкладені ephemeral-відповіді (`DeferAsync`, `ModifyOriginalResponseAsync`), `AllowedMentions.None`; події `Log`, `Ready`, `InteractionCreated`, `InteractionExecuted` | [docs/retro/discord-net.md](docs/retro/discord-net.md) |
-| gRPC для .NET (`Grpc.Net.Client`, `Grpc.Tools`, `Google.Protobuf`; `Grpc.AspNetCore` у тестах) | Генерація клієнта з `bot.proto`; metadata виклику (`x-bot-token`); дедлайни й скасування через `CallOptions`; коди статусу й трейлери (`x-cf-reason`); `Status.DebugException`, щоб відрізнити помилку клієнта від відповіді сервера; сервер у пам'яті на `TestServer` у тестах, розведення згенерованих типів через `extern alias` | [docs/retro/grpc.md](docs/retro/grpc.md) |
+| Discord.Net 3.20.1 | `DiscordSocketClient` лише з інтентом `Guilds`; `InteractionService` з модулями через DI (`InteractionModuleBase`, `[SlashCommand]`, `[Summary]`, `[MinValue]`, `[MaxValue]`); автодоповнення (`AutocompleteHandler`, `[Autocomplete]`); `RunMode.Async`; реєстрація команд на тестовому сервері або глобально; відкладені ephemeral-відповіді (`DeferAsync`, `ModifyOriginalResponseAsync`), `AllowedMentions.None`; події `Log`, `Ready`, `InteractionCreated`, `InteractionExecuted`; сповіщення — `GetChannelAsync`, `IMessageChannel.SendMessageAsync` з embed (`EmbedBuilder`), коди помилок Discord у `HttpException.DiscordCode` | [docs/retro/discord-net.md](docs/retro/discord-net.md) |
+| gRPC для .NET (`Grpc.Net.Client`, `Grpc.Tools`, `Google.Protobuf`; `Grpc.AspNetCore` у тестах) | Генерація клієнта з `bot.proto`; metadata виклику (`x-bot-token`); дедлайни й скасування через `CallOptions`; коди статусу й трейлери (`x-cf-reason`); `Status.DebugException`, щоб відрізнити помилку клієнта від відповіді сервера; сервер у пам'яті на `TestServer` у тестах, розведення згенерованих типів через `extern alias`; server streaming `WatchNotifications` з обох боків (сервер у ЦА, клієнт у боті), HTTP/2 keepalive-пінги, перехоплювач (`Interceptor`) для потокових викликів | [docs/retro/grpc.md](docs/retro/grpc.md) | [docs/retro/grpc.md](docs/retro/grpc.md) |
 
 ## Денисенко Любов Володимирівна (@denysenkoliubov)
 

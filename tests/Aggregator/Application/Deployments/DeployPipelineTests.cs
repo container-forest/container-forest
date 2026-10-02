@@ -86,8 +86,69 @@ public class DeployPipelineTests
         Assert.Equal(4, unitOfWork.Saves);
     }
 
-    private DeployPipeline Pipeline(params IDeployStep[] steps) =>
-        new(steps, unitOfWork, NullLogger<DeployPipeline>.Instance);
+    [Fact]
+    public async Task Observers_hear_the_saved_outcome_of_a_successful_run()
+    {
+        var context = Context();
+        var observer = new RecordingObserver(unitOfWork);
+
+        await Pipeline([observer], new PinCommitStep()).RunAsync(context, Ct);
+
+        var (outcome, savesBefore) = Assert.Single(observer.Outcomes);
+        Assert.Same(context.Deployment, outcome.Deployment);
+        Assert.Same(context.Stack, outcome.Stack);
+        Assert.Same(context.Environment, outcome.Environment);
+        Assert.Equal(DeploymentStatus.Succeeded, outcome.Deployment.Status);
+        Assert.Equal(3, savesBefore);
+    }
+
+    [Fact]
+    public async Task Observers_hear_a_failed_run_too()
+    {
+        var context = Context();
+        var observer = new RecordingObserver(unitOfWork);
+
+        await Pipeline([observer], new RecordingStep("a", journal, new DeploymentFailedException("no compose file"))).RunAsync(context, Ct);
+
+        var (outcome, _) = Assert.Single(observer.Outcomes);
+        Assert.Equal(DeploymentStatus.Failed, outcome.Deployment.Status);
+        Assert.Equal("no compose file", outcome.Deployment.Error);
+    }
+
+    [Fact]
+    public async Task A_throwing_observer_changes_nothing_for_the_run_or_the_next_observer()
+    {
+        var context = Context();
+        var next = new RecordingObserver(unitOfWork);
+
+        await Pipeline([new ThrowingObserver(), next], new PinCommitStep()).RunAsync(context, Ct);
+
+        Assert.Equal(DeploymentStatus.Succeeded, context.Deployment.Status);
+        Assert.Single(next.Outcomes);
+    }
+
+    private DeployPipeline Pipeline(params IDeployStep[] steps) => Pipeline([], steps);
+
+    private DeployPipeline Pipeline(IDeploymentObserver[] observers, params IDeployStep[] steps) =>
+        new(steps, observers, unitOfWork, NullLogger<DeployPipeline>.Instance);
+
+    /// <summary>Records each outcome with how many saves happened before it arrived.</summary>
+    private sealed class RecordingObserver(FakeUnitOfWork unitOfWork) : IDeploymentObserver
+    {
+        public List<(DeploymentOutcome Outcome, int SavesBefore)> Outcomes { get; } = [];
+
+        public Task DeploymentFinishedAsync(DeploymentOutcome outcome, CancellationToken cancellationToken)
+        {
+            Outcomes.Add((outcome, unitOfWork.Saves));
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingObserver : IDeploymentObserver
+    {
+        public Task DeploymentFinishedAsync(DeploymentOutcome outcome, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("observer bug");
+    }
 
     private sealed class PinCommitStep : IDeployStep
     {

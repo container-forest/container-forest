@@ -34,11 +34,13 @@ public enum NotificationSeverity
 /// (<see cref="NotificationRule.Matches"/>); the text is written when the notification is created.
 /// </summary>
 /// <param name="StackId">Null for events not tied to a managed stack, e.g. an agent going offline.</param>
+/// <param name="Details">What the event is about, for the message; null when kind and scope say it all.</param>
 public sealed record NotificationEvent(
     NotificationEventKinds Kind,
     EnvironmentId EnvironmentId,
     StackId? StackId,
-    DateTimeOffset OccurredAt)
+    DateTimeOffset OccurredAt,
+    NotificationDetails? Details = null)
 {
     public NotificationSeverity Severity => Kind switch
     {
@@ -55,4 +57,21 @@ public sealed record NotificationEvent(
         && (Kind & ~NotificationEventKinds.All) == 0
             ? this
             : throw new DomainValidationException($"A notification event has exactly one kind, not '{Kind}'.");
+
+    /// <summary>Throws unless the event has one kind and its <see cref="Details"/>, if any, describe that kind and stack.</summary>
+    public NotificationEvent EnsureValid()
+    {
+        EnsureSingleKind();
+        if (Details is not null && !Details.Fits(Kind))
+        {
+            throw new DomainValidationException($"{Details.GetType().Name} does not describe a {Kind} event.");
+        }
+
+        if (Details is DeploymentNotificationDetails deployment && deployment.StackId != StackId)
+        {
+            throw new DomainValidationException($"The deployment details are of stack {deployment.StackId}, not {StackId}.");
+        }
+
+        return this;
+    }
 }

@@ -17,11 +17,17 @@ public interface IDeployStep
 
 /// <summary>
 /// Runs the steps of a deployment in order and records the outcome: the first failing step ends the run.
-/// New stages (SOPS decryption, registry credentials) are added as steps without changing the pipeline.
+/// New stages (SOPS decryption, registry credentials) are added as steps without changing the pipeline, and
+/// whatever reacts to the outcome (notifications) as an <see cref="IDeploymentObserver"/>.
 /// </summary>
-public sealed class DeployPipeline(IEnumerable<IDeployStep> steps, IUnitOfWork unitOfWork, ILogger<DeployPipeline> logger)
+public sealed class DeployPipeline(
+    IEnumerable<IDeployStep> steps,
+    IEnumerable<IDeploymentObserver> observers,
+    IUnitOfWork unitOfWork,
+    ILogger<DeployPipeline> logger)
 {
     private readonly IReadOnlyList<IDeployStep> steps = steps.ToList();
+    private readonly IReadOnlyList<IDeploymentObserver> observers = observers.ToList();
 
     /// <summary>Moves a queued deployment to Succeeded or Failed. Saves after each step so progress is visible.</summary>
     public async Task RunAsync(DeployContext context, CancellationToken cancellationToken)
@@ -55,6 +61,27 @@ public sealed class DeployPipeline(IEnumerable<IDeployStep> steps, IUnitOfWork u
 
         // The run is over either way; its outcome is saved even when the aggregator is stopping.
         await unitOfWork.SaveChangesAsync(CancellationToken.None);
+        await NotifyObserversAsync(new DeploymentOutcome(deployment, context.Stack, context.Environment));
+    }
+
+    /// <summary>
+    /// Tells every observer about the saved outcome. Not cancellable, like the save: a run cut short by a stopping
+    /// aggregator is still worth a notification. An observer that throws despite its contract is logged and
+    /// skipped, so it can neither change the outcome nor silence the others.
+    /// </summary>
+    private async Task NotifyObserversAsync(DeploymentOutcome outcome)
+    {
+        foreach (var observer in observers)
+        {
+            try
+            {
+                await observer.DeploymentFinishedAsync(outcome, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Deployment observer {Observer} failed for deployment {DeploymentId}", observer.GetType().Name, outcome.Deployment.Id);
+            }
+        }
     }
 
     private string Describe(Exception exception, CancellationToken cancellationToken)

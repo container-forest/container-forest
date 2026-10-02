@@ -23,6 +23,7 @@ public sealed class DependencyInjectionTests
         using var services = Build(Environments.Production, [.. ValidBot, ("Discord:Token", "discord-token")]);
 
         Assert.IsType<GrpcForestClient>(services.GetRequiredService<IForestClient>());
+        Assert.IsType<GrpcNotificationSource>(services.GetRequiredService<INotificationSource>());
         Assert.NotNull(services.GetRequiredService<EnvironmentsCommand>());
         Assert.NotNull(services.GetRequiredService<ContainersCommand>());
         Assert.NotNull(services.GetRequiredService<StartContainerCommand>());

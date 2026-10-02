@@ -4,6 +4,7 @@ using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Deployments.Steps;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
@@ -38,6 +39,11 @@ public static class DependencyInjection
         services.AddScoped<IDeployStep, ResolveRegistryAuthStep>();
         services.AddScoped<IDeployStep, SendToAgentStep>();
         services.AddScoped<DeployPipeline>();
+
+        services.AddSingleton<NotificationFeed>();
+        services.AddScoped<NotificationDispatcher>();
+        services.AddScoped<NotificationDeliveryService>();
+        services.AddScoped<IDeploymentObserver, DeploymentNotifier>();
         return services;
     }
 }

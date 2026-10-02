@@ -14,9 +14,13 @@ export { default as ChevronLeftIcon } from "~icons/material-symbols/chevron-left
 export { default as ChevronRightIcon } from "~icons/material-symbols/chevron-right-rounded";
 export { default as ChevronUpIcon } from "~icons/material-symbols/keyboard-arrow-up-rounded";
 export { default as CircleIcon } from "~icons/material-symbols/circle";
+export { default as CopyIcon } from "~icons/material-symbols/content-copy-rounded";
 export { default as Loader2Icon } from "~icons/material-symbols/progress-activity";
+export { default as LinkIcon } from "~icons/material-symbols/link-rounded";
 export { default as LogOutIcon } from "~icons/material-symbols/logout-rounded";
 export { default as MinusIcon } from "~icons/material-symbols/remove-rounded";
 export { default as MoreHorizontalIcon } from "~icons/material-symbols/more-horiz";
+export { default as RefreshCwIcon } from "~icons/material-symbols/refresh-rounded";
 export { default as SearchIcon } from "~icons/material-symbols/search-rounded";
+export { default as UnlinkIcon } from "~icons/material-symbols/link-off-rounded";
 export { default as XIcon } from "~icons/material-symbols/close-rounded";

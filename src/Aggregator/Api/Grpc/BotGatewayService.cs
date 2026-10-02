@@ -3,6 +3,7 @@ using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Stacks;
+using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Contracts.Bot;
 using Grpc.Core;
@@ -28,8 +29,14 @@ public sealed class BotGatewayService(
     ContainerQueryService containerQueries,
     ContainerCommandService containerCommands,
     StackService stacks,
-    StackCommandService stackCommands) : BotGateway.BotGatewayBase
+    StackCommandService stackCommands,
+    NotificationDeliveryService notificationDelivery,
+    NotificationFeed notificationFeed,
+    IServiceScopeFactory scopeFactory) : BotGateway.BotGatewayBase
 {
+    /// <summary>How often an idle notification stream rescans anyway, e.g. to expire what nobody reported.</summary>
+    private static readonly TimeSpan NotificationRescanInterval = TimeSpan.FromMinutes(1);
+
     public override async Task<GetCallerResponse> GetCaller(GetCallerRequest request, ServerCallContext context)
     {
         var user = await discordLinks.FindLinkedUserAsync(request.DiscordUserId, context.CancellationToken);
@@ -132,6 +139,52 @@ public sealed class BotGatewayService(
         var result = await stackCommands.ExecuteAsync(
             ParseEnvironmentId(request.EnvironmentId), request.Stack, action, stopTimeout, context.CancellationToken);
         return new ControlStackResponse { Error = result.Error ?? "", Output = { result.Output } };
+    }
+
+    /// <summary>
+    /// Sends what is pending, then each new notification as it is created. Sent notifications are not sent
+    /// again on this call; one that is never reported goes out again on the next call.
+    /// </summary>
+    public override async Task WatchNotifications(
+        WatchNotificationsRequest request, IServerStreamWriter<Notification> responseStream, ServerCallContext context)
+    {
+        using var subscription = notificationFeed.Subscribe(context.CancellationToken);
+        var awaitingReport = new HashSet<NotificationId>();
+        try
+        {
+            while (true)
+            {
+                IReadOnlyList<OutgoingNotification> batch;
+
+                // A scope per scan: one DbContext for a call that lasts days would keep stale entities.
+                await using (var scope = scopeFactory.CreateAsyncScope())
+                {
+                    batch = await scope.ServiceProvider.GetRequiredService<NotificationDeliveryService>()
+                        .TakePendingAsync(awaitingReport, subscription.Ended);
+                }
+
+                foreach (var outgoing in batch)
+                {
+                    await responseStream.WriteAsync(NotificationMessages.ToMessage(outgoing), subscription.Ended);
+                    awaitingReport.Add(outgoing.Notification.Id);
+                }
+
+                await subscription.WaitAsync(NotificationRescanInterval);
+            }
+        }
+        catch (OperationCanceledException) when (subscription.WasReplaced)
+        {
+            throw new RpcException(new Status(StatusCode.Aborted, "A newer WatchNotifications call replaced this one."));
+        }
+    }
+
+    public override async Task<ReportDeliveryResponse> ReportDelivery(ReportDeliveryRequest request, ServerCallContext context)
+    {
+        var id = Guid.TryParse(request.NotificationId, out var value)
+            ? NotificationId.From(value)
+            : throw new DomainValidationException($"'{request.NotificationId}' is not a notification id.");
+        await notificationDelivery.ReportAsync(id, request.Delivered, request.Error, context.CancellationToken);
+        return new ReportDeliveryResponse();
     }
 
     /// <summary>

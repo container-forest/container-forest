@@ -1,9 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
+using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
+using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Notifications;
+using ContainerForest.Aggregator.Domain.Common;
+using ContainerForest.Aggregator.Domain.Notifications;
 using ContainerForest.Aggregator.Domain.Stacks;
 using ContainerForest.Contracts.Agent;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ContainerForest.Aggregator.Api.Tests;
 
@@ -68,6 +74,36 @@ public class DeploymentTests
         var deployment = await WaitUntilFinishedAsync(app, queued.Id);
         Assert.Equal("Failed", deployment.Status);
         Assert.Equal("pull access denied for nginx", deployment.Error);
+    }
+
+    [Fact]
+    public async Task Finished_deployment_becomes_a_notification_for_matching_channels()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        await SubscribeChannelAsync(app, EnvironmentId.From(agent.EnvironmentId));
+        app.Git.Snapshot = Snapshot(("compose.yaml", "services:\n  web:\n    image: nginx:1.27\n"));
+        var stack = await CreateStackAsync(app, agent, "compose.yaml");
+
+        var queued = await QueueAsync(app, stack.Id);
+        var command = await agent.ReceiveAsync();
+        await agent.SendAsync(new AgentMessage
+        {
+            Result = new CommandResult
+            {
+                RequestId = command.RequestId,
+                Error = new CommandError { Code = ErrorCode.CommandFailed, Message = "pull access denied for nginx" },
+            },
+        });
+        await WaitUntilFinishedAsync(app, queued.Id);
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var notification = Assert.Single(await scope.ServiceProvider.GetRequiredService<INotificationRepository>().ListPendingAsync(Ct));
+        Assert.Equal(NotificationEventKinds.DeploymentFailed, notification.Kind);
+        Assert.Equal(StackId.From(stack.Id), notification.StackId);
+        var details = Assert.IsType<DeploymentNotificationDetails>(notification.Details);
+        Assert.Equal("pull access denied for nginx", details.Error);
+        Assert.Contains("pull access denied for nginx", notification.Summary, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -160,6 +196,19 @@ public class DeploymentTests
         await HttpAssert.StatusAsync(
             HttpStatusCode.Forbidden,
             alice.PostAsJsonAsync("/api/dev/repositories", new { name = "mine", url = "https://git.example.com/mine.git" }, Ct));
+    }
+
+    /// <summary>A Discord channel that receives every event of the environment.</summary>
+    private static async Task SubscribeChannelAsync(AggregatorApp app, EnvironmentId environmentId)
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var environment = await services.GetRequiredService<IEnvironmentRepository>().GetAsync(environmentId, Ct);
+        var channel = NotificationChannel.CreateDiscord("ops", 1_234_567_890_123_456_789, DateTimeOffset.UtcNow);
+        services.GetRequiredService<INotificationChannelRepository>().Add(channel);
+        services.GetRequiredService<INotificationRuleRepository>().Add(
+            NotificationRule.ForEnvironment(channel, environment, NotificationEventKinds.All, DateTimeOffset.UtcNow));
+        await services.GetRequiredService<IUnitOfWork>().SaveChangesAsync(Ct);
     }
 
     private static GitSnapshot Snapshot(params (string Path, string Content)[] files) => new(

@@ -35,8 +35,38 @@ public sealed class BotGatewayInterceptor(IOptions<BotGatewayOptions> options, I
     public const string InvalidBotToken = "invalid-bot-token";
     public const string AccountNotLinked = "account-not-linked";
 
-    public override async Task<TResponse> UnaryServerHandler<TRequest, TResponse>(
-        TRequest request, ServerCallContext context, UnaryServerMethod<TRequest, TResponse> continuation)
+    public override Task<TResponse> UnaryServerHandler<TRequest, TResponse>(
+        TRequest request, ServerCallContext context, UnaryServerMethod<TRequest, TResponse> continuation) =>
+        GuardAsync(context, () => continuation(request, context));
+
+    // Every kind of call is guarded: the base class would pass the streaming ones through without a token.
+    public override Task ServerStreamingServerHandler<TRequest, TResponse>(
+        TRequest request,
+        IServerStreamWriter<TResponse> responseStream,
+        ServerCallContext context,
+        ServerStreamingServerMethod<TRequest, TResponse> continuation) =>
+        GuardAsync(context, async () =>
+        {
+            await continuation(request, responseStream, context);
+            return true;
+        });
+
+    public override Task<TResponse> ClientStreamingServerHandler<TRequest, TResponse>(
+        IAsyncStreamReader<TRequest> requestStream, ServerCallContext context, ClientStreamingServerMethod<TRequest, TResponse> continuation) =>
+        GuardAsync(context, () => continuation(requestStream, context));
+
+    public override Task DuplexStreamingServerHandler<TRequest, TResponse>(
+        IAsyncStreamReader<TRequest> requestStream,
+        IServerStreamWriter<TResponse> responseStream,
+        ServerCallContext context,
+        DuplexStreamingServerMethod<TRequest, TResponse> continuation) =>
+        GuardAsync(context, async () =>
+        {
+            await continuation(requestStream, responseStream, context);
+            return true;
+        });
+
+    private async Task<T> GuardAsync<T>(ServerCallContext context, Func<Task<T>> call)
     {
         var token = context.RequestHeaders.GetValue(TokenHeader);
         if (string.IsNullOrEmpty(token) || !options.Value.TokenHashes.Any(hash => SecretToken.Matches(token, hash)))
@@ -47,7 +77,7 @@ public sealed class BotGatewayInterceptor(IOptions<BotGatewayOptions> options, I
 
         try
         {
-            return await continuation(request, context);
+            return await call();
         }
         catch (UnauthenticatedException)
         {

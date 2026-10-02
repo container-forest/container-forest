@@ -46,6 +46,7 @@ app.MapMeEndpoints();
 app.MapUserEndpoints();
 app.MapEnvironmentEndpoints();
 app.MapStackEndpoints();
+app.MapNotificationEndpoints();
 app.MapDiscordLinkEndpoints();
 
 if (app.Environment.IsDevelopment())

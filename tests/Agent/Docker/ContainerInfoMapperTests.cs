@@ -34,6 +34,25 @@ public class ContainerInfoMapperTests
         Assert.Equal(new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero).ToUnixTimeMilliseconds(), info.CreatedUnixMs);
     }
 
+    [Theory]
+    [InlineData("true", true)]
+    [InlineData("TRUE", true)]
+    [InlineData("false", false)]
+    [InlineData("yes", false)]
+    [InlineData(null, false)]
+    public void System_label_marks_containers_of_container_forest(string? value, bool system)
+    {
+        var labels = new Dictionary<string, string>();
+        if (value is not null)
+        {
+            labels[ContainerInfoMapper.SystemLabel] = value;
+        }
+
+        var info = ContainerInfoMapper.ToContainerInfo(new ContainerListResponse { ID = "c1", Names = ["/agent"], Labels = labels });
+
+        Assert.Equal(system, info.System);
+    }
+
     [Fact]
     public void Container_outside_compose_has_no_stack()
     {

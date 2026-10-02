@@ -9,6 +9,9 @@ public static class ContainerInfoMapper
     public const string ProjectLabel = "com.docker.compose.project";
     public const string ServiceLabel = "com.docker.compose.service";
 
+    /// <summary>Set to "true" in deploy/*.yaml on the containers of container-forest itself.</summary>
+    public const string SystemLabel = "com.container-forest.system";
+
     public static ContainerInfo ToContainerInfo(ContainerListResponse container) => new()
     {
         Id = container.ID ?? "",
@@ -19,6 +22,7 @@ public static class ContainerInfoMapper
         ServiceName = Label(container.Labels, ServiceLabel),
         StatusText = container.Status ?? "",
         CreatedUnixMs = ToUnixMilliseconds(container.Created),
+        System = IsTrue(Label(container.Labels, SystemLabel)),
     };
 
     public static ContainerState ToState(string? state) => state?.ToLowerInvariant() switch
@@ -39,6 +43,9 @@ public static class ContainerInfoMapper
 
     private static string Label(IDictionary<string, string>? labels, string key) =>
         labels is not null && labels.TryGetValue(key, out var value) ? value : "";
+
+    // Compose writes label values as given; "true" in any case counts, anything else does not.
+    private static bool IsTrue(string value) => string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
 
     private static long ToUnixMilliseconds(DateTime created)
     {

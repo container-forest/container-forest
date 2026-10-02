@@ -378,8 +378,16 @@ function ContainerRow({
 
   return (
     <TableRow>
-      <TableCell>
-        <div className="font-medium">{container.name}</div>
+      {/* Compose names can be long (project-service-index); they wrap at the hyphens instead of widening the table. */}
+      <TableCell className="max-w-72 whitespace-normal">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
+          {container.name}
+          {container.isSystem && (
+            <Badge variant="outline" title={t("containers.systemHint")}>
+              {t("containers.system")}
+            </Badge>
+          )}
+        </div>
         <div className="text-muted-foreground font-mono text-xs">{container.id.slice(0, 12)}</div>
       </TableCell>
       <TableCell>
@@ -392,7 +400,7 @@ function ContainerRow({
         </Badge>
         <div className="text-muted-foreground mt-1 text-xs">{container.statusText}</div>
       </TableCell>
-      <TableCell className="max-w-64 truncate font-mono text-xs" title={container.image}>
+      <TableCell className="max-w-52 truncate font-mono text-xs" title={container.image}>
         {container.image}
       </TableCell>
       <TableCell className="text-sm whitespace-nowrap">

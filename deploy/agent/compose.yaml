@@ -8,6 +8,9 @@ services:
   container-forest-agent:
     image: ghcr.io/lepterion/container-forest-agent:latest
     restart: unless-stopped
+    # The panel lets users only start this container: stopping the agent would cut the host off.
+    labels:
+      com.container-forest.system: "true"
     # Without it the panel shows the container's id instead of the host's name.
     hostname: ${AGENT_HOSTNAME:?set AGENT_HOSTNAME in .env}
     environment:

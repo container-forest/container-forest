@@ -3790,7 +3790,8 @@
           "serviceName",
           "statusText",
           "createdAt",
-          "canControl"
+          "canControl",
+          "isSystem"
         ],
         "type": "object",
         "properties": {
@@ -3829,6 +3830,9 @@
             "format": "date-time"
           },
           "canControl": {
+            "type": "boolean"
+          },
+          "isSystem": {
             "type": "boolean"
           }
         }

@@ -30,6 +30,14 @@ public abstract class ContainerCommand(IAgentChannel agents) : IContainerCommand
                 $"Cannot {Name} container '{context.Container.Name}' of system stack '{stack.Name}'.");
         }
 
+        // The aggregator, the panel's Caddy and the agents are deployed by hand, outside managed stacks; their
+        // compose files label them instead. Without this, any operator could cut the system off its own hosts.
+        if (context.Container.IsSystem && !AllowedOnSystemStack)
+        {
+            throw new DomainConflictException(
+                $"Cannot {Name} container '{context.Container.Name}': it is part of container-forest itself.");
+        }
+
         await SendAsync(agents, context.Environment.Id, context.Container.Id, cancellationToken);
     }
 

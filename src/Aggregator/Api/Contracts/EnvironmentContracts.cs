@@ -47,6 +47,7 @@ public sealed record EnvironmentResponse(
 /// <param name="StackName">The compose project; null for a container outside compose.</param>
 /// <param name="StatusText">Docker's human-readable status, e.g. "Up 3 minutes (healthy)".</param>
 /// <param name="CanControl">Whether the user may start, stop and restart it; for hiding buttons only, every action is checked again.</param>
+/// <param name="IsSystem">A part of container-forest itself (the aggregator, the panel, an agent): it can only be started.</param>
 public sealed record ContainerResponse(
     string Id,
     string Name,
@@ -56,7 +57,8 @@ public sealed record ContainerResponse(
     string? ServiceName,
     string StatusText,
     DateTimeOffset? CreatedAt,
-    bool CanControl);
+    bool CanControl,
+    bool IsSystem);
 
 /// <param name="Lines">Oldest first.</param>
 public sealed record ContainerLogsResponse(IReadOnlyList<ContainerLogLineResponse> Lines);

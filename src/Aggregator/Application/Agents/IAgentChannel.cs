@@ -102,6 +102,10 @@ public sealed record BundleFile(StackFilePath Path, byte[] Content, int Mode)
 }
 
 /// <summary>Live state of a container as the agent reports it; not stored in the database.</summary>
+/// <param name="IsSystem">
+/// Labelled as a part of container-forest itself (the aggregator, the panel's Caddy, an agent) in its compose file.
+/// Such containers are deployed by hand, not as managed stacks, so the label is how the aggregator knows them.
+/// </param>
 public sealed record ContainerSnapshot(
     string Id,
     string Name,
@@ -110,7 +114,8 @@ public sealed record ContainerSnapshot(
     string? StackName,
     string? ServiceName,
     string StatusText,
-    DateTimeOffset? CreatedAt);
+    DateTimeOffset? CreatedAt,
+    bool IsSystem = false);
 
 public enum ContainerState
 {

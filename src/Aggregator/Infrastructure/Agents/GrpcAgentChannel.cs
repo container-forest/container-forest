@@ -165,7 +165,8 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
         NullIfEmpty(info.StackName),
         NullIfEmpty(info.ServiceName),
         info.StatusText,
-        info.CreatedUnixMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(info.CreatedUnixMs) : null);
+        info.CreatedUnixMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(info.CreatedUnixMs) : null,
+        info.System);
 
     private static ContainerState ToState(ProtoContainerState state) => state switch
     {

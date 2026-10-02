@@ -97,8 +97,8 @@ public class DeploymentTests
         });
         await WaitUntilFinishedAsync(app, queued.Id);
 
-        await using var scope = app.Services.CreateAsyncScope();
-        var notification = Assert.Single(await scope.ServiceProvider.GetRequiredService<INotificationRepository>().ListPendingAsync(Ct));
+        // Observers run after the outcome is saved, so the finished status can be seen before the notification exists.
+        var notification = Assert.Single(await WaitForPendingNotificationsAsync(app));
         Assert.Equal(NotificationEventKinds.DeploymentFailed, notification.Kind);
         Assert.Equal(StackId.From(stack.Id), notification.StackId);
         var details = Assert.IsType<DeploymentNotificationDetails>(notification.Details);
@@ -237,6 +237,23 @@ public class DeploymentTests
         var response = await app.CreateClient().PostAsJsonAsync($"/api/dev/stacks/{stackId}/deployments", new { pull = false }, Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Accepted, response);
         return (await response.Content.ReadFromJsonAsync<DeploymentView>(AggregatorApp.Json, Ct))!;
+    }
+
+    private static async Task<IReadOnlyList<Notification>> WaitForPendingNotificationsAsync(AggregatorApp app)
+    {
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            await using var scope = app.Services.CreateAsyncScope();
+            var pending = await scope.ServiceProvider.GetRequiredService<INotificationRepository>().ListPendingAsync(Ct);
+            if (pending.Count > 0)
+            {
+                return pending;
+            }
+
+            await Task.Delay(50, Ct);
+        }
+
+        return [];
     }
 
     private static async Task<DeploymentView> WaitUntilFinishedAsync(AggregatorApp app, Guid deploymentId)

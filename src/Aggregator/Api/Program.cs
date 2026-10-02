@@ -44,6 +44,7 @@ app.MapGrpcService<BotGatewayService>();
 app.MapAuthEndpoints();
 app.MapMeEndpoints();
 app.MapUserEndpoints();
+app.MapEnvironmentEndpoints();
 app.MapDiscordLinkEndpoints();
 
 if (app.Environment.IsDevelopment())

@@ -55,6 +55,12 @@ public sealed class Stack : Entity<StackId>
 
     public DateTimeOffset? DeployedAt { get; private set; }
 
+    /// <summary>
+    /// The deployed commit had SOPS-decrypted files, which the agent keeps on tmpfs: a reboot of the host loses them,
+    /// and the stack is deployed again when its agent reports one.
+    /// </summary>
+    public bool DeployedWithSecrets { get; private set; }
+
     public static Stack Create(
         EnvironmentId environmentId,
         StackName name,
@@ -89,7 +95,8 @@ public sealed class Stack : Entity<StackId>
         IsSystem && operation is StackOperation.Restart or StackOperation.Redeploy or StackOperation.RedeployWithPull;
 
     /// <summary>Remembers the commit of a successful deployment of this stack.</summary>
-    public void RecordDeployment(Deployment deployment)
+    /// <param name="withSecrets">The deployment sent secret files to the agent.</param>
+    public void RecordDeployment(Deployment deployment, bool withSecrets)
     {
         if (deployment.StackId != Id)
         {
@@ -109,7 +116,14 @@ public sealed class Stack : Entity<StackId>
 
         DeployedCommit = deployment.Commit;
         DeployedAt = deployment.FinishedAt;
+        DeployedWithSecrets = withSecrets;
     }
+
+    /// <summary>
+    /// True when a reboot of the host took files this stack needs: it is deployed with secrets and is not a system
+    /// stack, which the pipeline does not deploy (<see cref="RequiresUpdateHelper"/>).
+    /// </summary>
+    public bool NeedsRehydration => DeployedCommit is not null && DeployedWithSecrets && !IsSystem;
 
     /// <summary>
     /// Forgets the deployed commit after a successful docker compose down: the stack has no containers any more,
@@ -120,5 +134,6 @@ public sealed class Stack : Entity<StackId>
         EnsureAllows(StackOperation.Down);
         DeployedCommit = null;
         DeployedAt = null;
+        DeployedWithSecrets = false;
     }
 }

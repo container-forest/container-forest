@@ -46,7 +46,7 @@ public class StackTests
     {
         var stack = Stack(EnvironmentId.New());
 
-        stack.RecordDeployment(SucceededDeployment(stack, CommitA, Now));
+        stack.RecordDeployment(SucceededDeployment(stack, CommitA, Now), withSecrets: false);
 
         Assert.Equal(CommitA, stack.DeployedCommit);
     }
@@ -58,8 +58,8 @@ public class StackTests
         var older = SucceededDeployment(stack, CommitA, Now);
         var newer = SucceededDeployment(stack, CommitB, Now.AddMinutes(1));
 
-        stack.RecordDeployment(newer);
-        stack.RecordDeployment(older);
+        stack.RecordDeployment(newer, withSecrets: false);
+        stack.RecordDeployment(older, withSecrets: false);
 
         Assert.Equal(CommitB, stack.DeployedCommit);
     }
@@ -68,22 +68,49 @@ public class StackTests
     public void Taking_the_stack_down_forgets_its_commit_until_the_next_deployment()
     {
         var stack = Stack(EnvironmentId.New());
-        stack.RecordDeployment(SucceededDeployment(stack, CommitA, Now));
+        stack.RecordDeployment(SucceededDeployment(stack, CommitA, Now), withSecrets: false);
 
         stack.RecordTakenDown();
 
         Assert.Null(stack.DeployedCommit);
         Assert.Null(stack.DeployedAt);
 
-        stack.RecordDeployment(SucceededDeployment(stack, CommitB, Now.AddMinutes(1)));
+        stack.RecordDeployment(SucceededDeployment(stack, CommitB, Now.AddMinutes(1)), withSecrets: false);
         Assert.Equal(CommitB, stack.DeployedCommit);
+    }
+
+    [Fact]
+    public void Only_a_deployed_stack_with_secrets_needs_rehydration()
+    {
+        var stack = Stack(EnvironmentId.New());
+        Assert.False(stack.NeedsRehydration);
+
+        stack.RecordDeployment(SucceededDeployment(stack, CommitA, Now), withSecrets: false);
+        Assert.False(stack.NeedsRehydration);
+
+        stack.RecordDeployment(SucceededDeployment(stack, CommitB, Now.AddMinutes(1)), withSecrets: true);
+        Assert.True(stack.NeedsRehydration);
+
+        stack.RecordTakenDown();
+        Assert.False(stack.NeedsRehydration);
+        Assert.False(stack.DeployedWithSecrets);
+    }
+
+    [Fact]
+    public void System_stack_is_never_rehydrated_by_the_pipeline()
+    {
+        var stack = Stack(EnvironmentId.New(), isSystem: true);
+
+        stack.RecordDeployment(SucceededDeployment(stack, CommitA, Now), withSecrets: true);
+
+        Assert.False(stack.NeedsRehydration);
     }
 
     [Fact]
     public void System_stack_cannot_record_being_taken_down()
     {
         var stack = Stack(EnvironmentId.New(), isSystem: true);
-        stack.RecordDeployment(SucceededDeployment(stack, CommitA, Now));
+        stack.RecordDeployment(SucceededDeployment(stack, CommitA, Now), withSecrets: false);
 
         Assert.Throws<DomainConflictException>(stack.RecordTakenDown);
         Assert.Equal(CommitA, stack.DeployedCommit);
@@ -97,8 +124,8 @@ public class StackTests
         failed.Fail("boom", Now);
         var foreign = SucceededDeployment(Stack(stack.EnvironmentId, "other"), CommitA, Now);
 
-        Assert.Throws<DomainConflictException>(() => stack.RecordDeployment(failed));
-        Assert.Throws<DomainConflictException>(() => stack.RecordDeployment(foreign));
+        Assert.Throws<DomainConflictException>(() => stack.RecordDeployment(failed, withSecrets: false));
+        Assert.Throws<DomainConflictException>(() => stack.RecordDeployment(foreign, withSecrets: false));
     }
 
     private static Deployment SucceededDeployment(Stack stack, CommitSha commit, DateTimeOffset finishedAt)

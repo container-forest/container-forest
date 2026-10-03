@@ -610,6 +610,7 @@ const en: Translation = {
     trigger: {
       Manual: "Manual",
       Webhook: "Webhook",
+      Rehydrate: "Secret rehydration",
     },
     withPull: "with image pull",
     duration: "{{minutes}} min {{seconds}} s",

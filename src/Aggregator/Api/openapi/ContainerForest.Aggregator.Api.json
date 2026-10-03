@@ -4585,7 +4585,8 @@
       "DeploymentTrigger": {
         "enum": [
           "Manual",
-          "Webhook"
+          "Webhook",
+          "Rehydrate"
         ]
       },
       "DeployRequest": {

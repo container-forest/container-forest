@@ -612,6 +612,7 @@ const uk = {
     trigger: {
       Manual: "Вручну",
       Webhook: "Webhook",
+      Rehydrate: "Відновлення секретів",
     },
     withPull: "з оновленням образів",
     duration: "{{minutes}} хв {{seconds}} с",

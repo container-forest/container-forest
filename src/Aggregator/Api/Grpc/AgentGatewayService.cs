@@ -1,4 +1,5 @@
 using ContainerForest.Aggregator.Application.Agents;
+using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Infrastructure.Agents;
 using ContainerForest.Contracts.Agent;
@@ -58,8 +59,8 @@ public sealed class AgentGatewayService(
             hello.AgentVersion, environmentId, session.SessionId, hello.DockerVersion);
         if (rebooted)
         {
-            // File secrets live on tmpfs and are gone after a reboot. Re-sending them arrives with SOPS deployments.
-            logger.LogWarning("Host of environment {EnvironmentId} rebooted; secret rehydration is not implemented yet", environmentId);
+            // After the session is open: the rehydrating deployments go to this agent and need it online.
+            await RehydrateAsync(environmentId, callAborted);
         }
 
         var reason = "connection closed";
@@ -159,6 +160,25 @@ public sealed class AgentGatewayService(
                 // Container events get a consumer with live updates.
                 logger.LogTrace("Ignoring {MessageType} from environment {EnvironmentId}", message.BodyCase, session.EnvironmentId);
                 break;
+        }
+    }
+
+    /// <summary>File secrets live on tmpfs and are gone after a reboot; the stacks that had them are deployed again.</summary>
+    private async Task RehydrateAsync(EnvironmentId environmentId, CancellationToken callAborted)
+    {
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var queued = await scope.ServiceProvider.GetRequiredService<SecretRehydrationService>()
+                .RehydrateAsync(environmentId, callAborted);
+            logger.LogInformation(
+                "Host of environment {EnvironmentId} rebooted; {Count} stack(s) with secrets queued for redeployment",
+                environmentId, queued.Count);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The connection itself is fine: the stacks can still be deployed by hand.
+            logger.LogError(ex, "Failed to queue secret rehydration for environment {EnvironmentId}", environmentId);
         }
     }
 

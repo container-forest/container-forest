@@ -61,17 +61,26 @@ internal sealed class FakeGitSource : IGitSource
 
     public GitCredentials? FetchedWith { get; private set; }
 
+    public BranchName? FetchedBranch { get; private set; }
+
+    /// <summary>Thrown by <see cref="FetchAsync"/>, as when the git server is unreachable.</summary>
+    public Exception? FetchError { get; set; }
+
+    public CommitSha? ReadCommit { get; private set; }
+
     public Task<CommitSha> FetchAsync(
         GitRepository repository, GitCredentials? credentials, BranchName branch, CancellationToken cancellationToken)
     {
         FetchedWith = credentials;
-        return Task.FromResult(Snapshot.Commit);
+        FetchedBranch = branch;
+        return FetchError is null ? Task.FromResult(Snapshot.Commit) : Task.FromException<CommitSha>(FetchError);
     }
 
     public Task<GitSnapshot> ReadAsync(
         GitRepository repository, CommitSha commit, string directory, long maxBytes, CancellationToken cancellationToken)
     {
         RequestedDirectory = directory;
+        ReadCommit = commit;
         return ReadError is null ? Task.FromResult(Snapshot) : Task.FromException<GitSnapshot>(ReadError);
     }
 }

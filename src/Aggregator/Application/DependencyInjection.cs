@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<StackCommandService>();
         services.AddScoped<DeploymentService>();
         services.AddScoped<DeploymentRunner>();
+        services.AddScoped<SecretRehydrationService>();
 
         // Steps run in this order.
         services.AddScoped<IDeployStep, GitFetchStep>();

@@ -182,13 +182,19 @@ internal sealed class StubGitSource : IGitSource
             ? Task.FromResult(snapshot.Commit)
             : throw new DeploymentFailedException($"Branch '{branch}' does not exist.");
 
+    /// <summary>The commits files were read at, in order.</summary>
+    public List<string> ReadCommits { get; } = [];
+
     public Task<GitSnapshot> ReadAsync(
         Domain.Repositories.GitRepository repository,
         Domain.Stacks.CommitSha commit,
         string directory,
         long maxBytes,
-        CancellationToken cancellationToken) =>
-        Task.FromResult(Snapshot!);
+        CancellationToken cancellationToken)
+    {
+        ReadCommits.Add(commit.Value);
+        return Task.FromResult(Snapshot!);
+    }
 }
 
 /// <summary>
@@ -227,13 +233,17 @@ internal sealed class FakeAgent : IAsyncDisposable
 {
     private readonly AsyncDuplexStreamingCall<AgentMessage, ControllerMessage> call;
 
-    private FakeAgent(Guid environmentId, AsyncDuplexStreamingCall<AgentMessage, ControllerMessage> call)
+    private FakeAgent(EnrollResponse enrollment, AsyncDuplexStreamingCall<AgentMessage, ControllerMessage> call)
     {
-        EnvironmentId = environmentId;
+        Enrollment = enrollment;
+        EnvironmentId = Guid.Parse(enrollment.AgentId);
         this.call = call;
     }
 
     public Guid EnvironmentId { get; }
+
+    /// <summary>The agent's saved credentials, to connect again as the same agent (e.g. after a "reboot").</summary>
+    public EnrollResponse Enrollment { get; }
 
     public static Metadata Credentials(string agentId, string secret) => new()
     {
@@ -248,7 +258,7 @@ internal sealed class FakeAgent : IAsyncDisposable
         {
             Hello = new Hello { AgentVersion = "0.0.1", DockerVersion = "29.8.0", BootId = bootId },
         });
-        return new FakeAgent(Guid.Parse(credentials.AgentId), call);
+        return new FakeAgent(credentials, call);
     }
 
     public async Task<ControllerMessage> ReceiveAsync()

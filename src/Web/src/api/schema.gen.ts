@@ -832,7 +832,7 @@ export interface components {
         /** @enum {unknown} */
         DeploymentStatus: "Queued" | "Running" | "Succeeded" | "Failed" | "Cancelled";
         /** @enum {unknown} */
-        DeploymentTrigger: "Manual" | "Webhook";
+        DeploymentTrigger: "Manual" | "Webhook" | "Rehydrate";
         DeployRequest: {
             pull: boolean;
         };

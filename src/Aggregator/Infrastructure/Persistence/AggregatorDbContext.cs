@@ -40,6 +40,8 @@ public sealed class AggregatorDbContext(DbContextOptions<AggregatorDbContext> op
 
     public DbSet<RegistryCredential> RegistryCredentials => Set<RegistryCredential>();
 
+    public DbSet<AgeKey> AgeKeys => Set<AgeKey>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -58,6 +60,7 @@ public sealed class AggregatorDbContext(DbContextOptions<AggregatorDbContext> op
         configurationBuilder.AddStronglyTypedId<NotificationRuleId>();
         configurationBuilder.AddStronglyTypedId<NotificationId>();
         configurationBuilder.AddStronglyTypedId<RegistryCredentialId>();
+        configurationBuilder.AddStronglyTypedId<AgeKeyId>();
 
         // SQLite has no DateTimeOffset type: stored as text it cannot be compared or ordered in queries.
         configurationBuilder.Properties<DateTimeOffset>().HaveConversion<DateTimeOffsetToBinaryConverter>();

@@ -5,6 +5,7 @@ public enum SecretPurpose
 {
     RegistryPassword,
     GitAccessToken,
+    AgeIdentity,
 }
 
 /// <summary>Encrypts secrets the aggregator keeps in its database, such as registry passwords.</summary>

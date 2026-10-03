@@ -40,7 +40,8 @@ public sealed record GitCredentials(string UserName, string Token)
 /// <param name="SkippedPaths">Entries that cannot be deployed as files: symbolic links, submodules, unsupported names.</param>
 public sealed record GitSnapshot(CommitSha Commit, IReadOnlyList<SourceFile> Files, IReadOnlyList<string> SkippedPaths);
 
-public sealed record SourceFile(StackFilePath Path, byte[] Content, bool IsExecutable);
+/// <param name="IsSecret">Decrypted from SOPS: the agent keeps it in memory (tmpfs), never on the host's disk.</param>
+public sealed record SourceFile(StackFilePath Path, byte[] Content, bool IsExecutable, bool IsSecret = false);
 
 /// <summary>Reads the parts of a compose file the pipeline checks. Implemented with YamlDotNet.</summary>
 public interface IComposeParser

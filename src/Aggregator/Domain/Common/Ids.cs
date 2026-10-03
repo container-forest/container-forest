@@ -81,3 +81,10 @@ public readonly record struct RegistryCredentialId(Guid Value) : IStronglyTypedI
     public static RegistryCredentialId From(Guid value) => new(value);
     public override string ToString() => Value.ToString();
 }
+
+public readonly record struct AgeKeyId(Guid Value) : IStronglyTypedId<AgeKeyId>
+{
+    public static AgeKeyId New() => new(Guid.CreateVersion7());
+    public static AgeKeyId From(Guid value) => new(value);
+    public override string ToString() => Value.ToString();
+}

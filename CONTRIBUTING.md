@@ -24,6 +24,7 @@ ContainerForest.slnx
 .github/workflows/docs.yml       сайт документації (DocFX) → GitHub Pages
 .github/workflows/images.yml     Docker-образи: збірка на PR, публікація в GHCR з main
 docfx.json, toc.yml, index.md    конфігурація сайту документації
+scripts/install-sops.sh          sops і age-keygen для образу ЦА й CI (версії й контрольні суми)
 Directory.Build.props            спільні властивості .NET-проєктів
 Directory.Packages.props         версії NuGet-пакетів (central package management)
 dotnet-tools.json                локальні інструменти .NET (dotnet-ef, docfx)
@@ -104,6 +105,13 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    ```
    Клони репозиторіїв ЦА тримає в `git-cache/` у робочому каталозі (`CF_GIT__CACHEDIRECTORY`).
 
+   Секрети SOPS (опис — у [docs/architecture.md](docs/architecture.md#секрети-в-git-sops)): ЦА потрібні `sops` і `age-keygen` у `PATH`; без них деплой стеку із зашифрованими файлами й створення ключа не вдаються, а решта працює. Поставити ті самі версії, що в образі: `scripts/install-sops.sh ~/.local/bin`. Ключі середовища (лише адміністратор; у відповіді — тільки публічний ключ):
+   ```sh
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/age-keys
+   curl -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/age-keys
+   sops encrypt --age <recipient>,<ваш ключ> --in-place .env   # або правило в .sops.yaml
+   ```
+
    Образи з приватного registry: креди задаються на середовищі (лише адміністратор; пароль ніколи не повертається). Повторний `PUT` для того самого `server` замінює логін:
    ```sh
    curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/registry-credentials -H 'content-type: application/json' -d '{"server":"ghcr.io","username":"<user>","password":"<token>"}'
@@ -149,7 +157,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    - Компоненти UI — shadcn/ui: `npm run ui:add -- table` (з `src/Web`) додає компонент у `src/components/ui` і переводить його іконки на Material Symbols; згенеровані файли комітяться. Якщо після цього `npm run typecheck` скаржиться на відсутню іконку, додайте її в `src/components/icons.ts` (назви — як у Lucide, іконки — з https://fonts.google.com/icons).
    - Docker-образ панелі (Caddy: статичні файли, проксі `/api`, `/hubs` і gRPC на ЦА, TLS — ADR-0005): `docker build -f src/Web/Dockerfile -t container-forest-web:dev .` (контекст — корінь репозиторію: панель вбудовує `deploy/agent/compose.yaml`).
 
-Тести: `dotnet test --solution ContainerForest.slnx`. Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
+Тести: `dotnet test --solution ContainerForest.slnx`. Тести зі справжніми `sops` і `age-keygen` без них у `PATH` пропускаються (у CI — обов'язкові, `CF_TEST_REQUIRE_SOPS=1`). Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
 
 Docker-образ агента збирається з кореня репозиторію (контексту потрібні `src/Contracts` і `Directory.*.props`), а запускається так само, як у [прикладі розгортання](docs/architecture.md#розгортання-агента). Щоб підключити його до ЦА, запущеного локально через `dotnet run`, використовуйте `http://host.docker.internal:5081`:
 

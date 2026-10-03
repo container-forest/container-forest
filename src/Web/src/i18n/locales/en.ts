@@ -16,6 +16,7 @@ const en: Translation = {
       containers: "Containers",
       stacks: "Stacks",
       repositories: "Repositories",
+      keys: "Keys",
       discord: "Discord",
       users: "Users",
       notifications: "Notifications",
@@ -626,6 +627,46 @@ const en: Translation = {
       follow: "Follow new lines",
       empty: "The log is empty.",
       noProblems: "No warnings or errors.",
+    },
+  },
+  keys: {
+    title: "Environment keys",
+    description:
+      "Stack secrets live in git encrypted with SOPS. The aggregator decrypts them at deployment with the key of the environment the stack goes to: other environments' keys and private keys are never sent anywhere.",
+    environment: "Environment",
+    noEnvironments: "There are no environments yet.",
+    loading: "Loading keys…",
+    loadFailed: "Could not load the keys.",
+    listTitle: "Keys of environment {{name}}",
+    empty: "There are no keys yet. Without one, deploying a stack with encrypted files fails.",
+    create: "New key",
+    createFailed: "Could not create the key.",
+    rotateTitle: "New key for {{name}}?",
+    rotateDescription:
+      "Encrypt new files for the new key. Older keys keep decrypting the existing files until you delete them: re-encrypt the files first (sops updatekeys).",
+    current: "Current",
+    previous: "Previous",
+    copy: "Copy",
+    delete: "Delete",
+    deleteTitle: "Delete the key?",
+    deleteDescription:
+      "Files encrypted only for {{recipient}} can no longer be decrypted, and deployments with them will fail. The private key cannot be recovered.",
+    deleteFailed: "Could not delete the key.",
+    columns: {
+      recipient: "Public key",
+      createdAt: "Created",
+      actions: "Actions",
+    },
+    howTo: {
+      title: "How to encrypt secrets",
+      description: "You need sops and age on your computer. The environment's private key exists only on the aggregator.",
+      config:
+        "Add a rule to .sops.yaml at the repository root. Keep your own age public key as well: otherwise only the aggregator can decrypt the file, not you.",
+      copyConfig: "Copy .sops.yaml",
+      encrypt: "Encrypt the file (the format follows the extension: .env, .yaml, .json, anything else as binary) and commit it:",
+      deploy:
+        "Deploy the stack. The aggregator finds the encrypted files itself; the agent keeps them in memory only (tmpfs), never on the host's disk.",
+      rotate: "After a new key, re-encrypt the files for it, and only then delete the old one:",
     },
   },
   repositories: {

@@ -6,11 +6,13 @@ using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
+using ContainerForest.Aggregator.Application.Secrets;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Infrastructure.Accounts;
 using ContainerForest.Aggregator.Infrastructure.Agents;
 using ContainerForest.Aggregator.Infrastructure.Deployments;
 using ContainerForest.Aggregator.Infrastructure.Persistence;
+using ContainerForest.Aggregator.Infrastructure.Secrets;
 using ContainerForest.Aggregator.Infrastructure.Security;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
@@ -49,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<IGitRepositoryRepository, GitRepositoryRepository>();
         services.AddScoped<IDeploymentRepository, DeploymentRepository>();
         services.AddScoped<IRegistryCredentialRepository, RegistryCredentialRepository>();
+        services.AddScoped<IAgeKeyRepository, AgeKeyRepository>();
 
         // Accounts for signing in; the Api adds the sign-in manager and the session cookie.
         services.AddIdentityCore<AccountUser>(AccountPolicy.Configure)
@@ -108,6 +111,12 @@ public static class DependencyInjection
         services.AddOptions<GitOptions>().Bind(configuration.GetSection(GitOptions.SectionName));
         services.AddSingleton<IGitSource, LibGit2SharpGitSource>();
         services.AddSingleton<IComposeParser, YamlComposeParser>();
+        services.AddOptions<SopsOptions>()
+            .Bind(configuration.GetSection(SopsOptions.SectionName))
+            .Validate(o => o.IsValid(), "Sops paths must be set and Sops:Timeout must be positive.")
+            .ValidateOnStart();
+        services.AddSingleton<ISopsDecryptor, SopsCli>();
+        services.AddSingleton<IAgeKeyGenerator, AgeKeygenCli>();
         services.AddSingleton<DeploymentQueue>();
         services.AddSingleton<IDeploymentQueue>(sp => sp.GetRequiredService<DeploymentQueue>());
 

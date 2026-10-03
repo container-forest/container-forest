@@ -15,6 +15,7 @@ import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAccountRouteImport } from './routes/_authed/account'
 import { Route as AuthedContainersRouteImport } from './routes/_authed/containers'
 import { Route as AuthedDiscordRouteImport } from './routes/_authed/discord'
+import { Route as AuthedKeysRouteImport } from './routes/_authed/keys'
 import { Route as AuthedNotificationsRouteRouteImport } from './routes/_authed/notifications/route'
 import { Route as AuthedRepositoriesRouteImport } from './routes/_authed/repositories'
 import { Route as AuthedDeploymentsDeploymentIdRouteImport } from './routes/_authed/deployments/$deploymentId'
@@ -58,6 +59,11 @@ const AuthedContainersRoute = AuthedContainersRouteImport.update({
 const AuthedDiscordRoute = AuthedDiscordRouteImport.update({
   id: '/discord',
   path: '/discord',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedKeysRoute = AuthedKeysRouteImport.update({
+  id: '/keys',
+  path: '/keys',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedNotificationsRouteRoute =
@@ -153,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AuthedAccountRoute
   '/containers': typeof AuthedContainersRoute
   '/discord': typeof AuthedDiscordRoute
+  '/keys': typeof AuthedKeysRoute
   '/repositories': typeof AuthedRepositoriesRoute
   '/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
   '/environments/$environmentId': typeof AuthedEnvironmentsEnvironmentIdRoute
@@ -173,6 +180,7 @@ export interface FileRoutesByTo {
   '/account': typeof AuthedAccountRoute
   '/containers': typeof AuthedContainersRoute
   '/discord': typeof AuthedDiscordRoute
+  '/keys': typeof AuthedKeysRoute
   '/repositories': typeof AuthedRepositoriesRoute
   '/': typeof AuthedIndexRoute
   '/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
@@ -197,6 +205,7 @@ export interface FileRoutesById {
   '/_authed/account': typeof AuthedAccountRoute
   '/_authed/containers': typeof AuthedContainersRoute
   '/_authed/discord': typeof AuthedDiscordRoute
+  '/_authed/keys': typeof AuthedKeysRoute
   '/_authed/repositories': typeof AuthedRepositoriesRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
@@ -222,6 +231,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/containers'
     | '/discord'
+    | '/keys'
     | '/repositories'
     | '/deployments/$deploymentId'
     | '/environments/$environmentId'
@@ -242,6 +252,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/containers'
     | '/discord'
+    | '/keys'
     | '/repositories'
     | '/'
     | '/deployments/$deploymentId'
@@ -265,6 +276,7 @@ export interface FileRouteTypes {
     | '/_authed/account'
     | '/_authed/containers'
     | '/_authed/discord'
+    | '/_authed/keys'
     | '/_authed/repositories'
     | '/_authed/'
     | '/_authed/deployments/$deploymentId'
@@ -329,6 +341,13 @@ declare module '@tanstack/react-router' {
       path: '/discord'
       fullPath: '/discord'
       preLoaderRoute: typeof AuthedDiscordRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/keys': {
+      id: '/_authed/keys'
+      path: '/keys'
+      fullPath: '/keys'
+      preLoaderRoute: typeof AuthedKeysRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/notifications': {
@@ -466,6 +485,7 @@ interface AuthedRouteChildren {
   AuthedAccountRoute: typeof AuthedAccountRoute
   AuthedContainersRoute: typeof AuthedContainersRoute
   AuthedDiscordRoute: typeof AuthedDiscordRoute
+  AuthedKeysRoute: typeof AuthedKeysRoute
   AuthedRepositoriesRoute: typeof AuthedRepositoriesRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedDeploymentsDeploymentIdRoute: typeof AuthedDeploymentsDeploymentIdRoute
@@ -484,6 +504,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAccountRoute: AuthedAccountRoute,
   AuthedContainersRoute: AuthedContainersRoute,
   AuthedDiscordRoute: AuthedDiscordRoute,
+  AuthedKeysRoute: AuthedKeysRoute,
   AuthedRepositoriesRoute: AuthedRepositoriesRoute,
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedDeploymentsDeploymentIdRoute: AuthedDeploymentsDeploymentIdRoute,

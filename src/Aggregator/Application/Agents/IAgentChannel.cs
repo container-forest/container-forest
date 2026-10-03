@@ -95,7 +95,8 @@ public sealed record RegistryLogin(string Server, string Username, string Passwo
 }
 
 /// <param name="Mode">Unix permission bits, e.g. 0o644.</param>
-public sealed record BundleFile(StackFilePath Path, byte[] Content, int Mode)
+/// <param name="IsSecret">Decrypted from SOPS: the agent writes it to tmpfs and links it into the stack directory.</param>
+public sealed record BundleFile(StackFilePath Path, byte[] Content, int Mode, bool IsSecret = false)
 {
     public const int RegularMode = 0b110_100_100;     // 0644
     public const int ExecutableMode = 0b111_101_101;  // 0755

@@ -60,6 +60,14 @@ export const containerLogsQuery = (environmentId: string, container: string, tai
     retry: shouldRetryLoad,
   });
 
+/** Age keys of one environment, newest first; only the public parts. */
+export const ageKeysQuery = (environmentId: string) =>
+  queryOptions({
+    queryKey: ["environments", environmentId, "age-keys"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/environments/{id}/age-keys", { params: { path: { id: environmentId } }, signal })),
+  });
+
 /** Registry logins of one environment, by server; never the passwords. Administrators only. */
 export const registryCredentialsQuery = (environmentId: string) =>
   queryOptions({

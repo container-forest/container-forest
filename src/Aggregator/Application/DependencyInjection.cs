@@ -7,6 +7,7 @@ using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
+using ContainerForest.Aggregator.Application.Secrets;
 using ContainerForest.Aggregator.Application.Stacks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -29,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<NotificationSettingsService>();
         services.AddScoped<RepositoryService>();
         services.AddScoped<RegistryCredentialService>();
+        services.AddScoped<AgeKeyService>();
         services.AddScoped<StackService>();
         services.AddScoped<StackCommandService>();
         services.AddScoped<DeploymentService>();
@@ -36,6 +38,7 @@ public static class DependencyInjection
 
         // Steps run in this order.
         services.AddScoped<IDeployStep, GitFetchStep>();
+        services.AddScoped<IDeployStep, SopsDecryptStep>();
         services.AddScoped<IDeployStep, ValidateComposeStep>();
         services.AddScoped<IDeployStep, BuildBundleStep>();
         services.AddScoped<IDeployStep, ResolveRegistryAuthStep>();

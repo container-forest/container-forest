@@ -1,4 +1,5 @@
 using ContainerForest.Aggregator.Application.Common;
+using ContainerForest.Aggregator.Application.Live;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
@@ -10,6 +11,7 @@ using ContainerForest.Aggregator.Infrastructure.Accounts;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ContainerForest.Aggregator.Infrastructure.Persistence;
 
@@ -17,9 +19,27 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence;
 /// The aggregator's database, including the Identity tables for sign-in (AspNetUsers and its claims, logins and
 /// tokens). Identity's role tables are left out: roles are <see cref="RoleAssignment"/>s.
 /// </summary>
-public sealed class AggregatorDbContext(DbContextOptions<AggregatorDbContext> options)
-    : IdentityUserContext<AccountUser, Guid>(options), IUnitOfWork
+/// <remarks>
+/// After a successful save it tells open panels what changed (<see cref="ILiveUpdates"/>): environments, stacks,
+/// deployments and role assignments. Every service then gets live updates without publishing them itself.
+/// </remarks>
+public sealed class AggregatorDbContext : IdentityUserContext<AccountUser, Guid>, IUnitOfWork
 {
+    private readonly ILiveUpdates live;
+
+    /// <summary>For tools (migrations at design time): no live updates.</summary>
+    public AggregatorDbContext(DbContextOptions<AggregatorDbContext> options)
+        : this(options, new NullLiveUpdates())
+    {
+    }
+
+    [ActivatorUtilitiesConstructor]
+    public AggregatorDbContext(DbContextOptions<AggregatorDbContext> options, ILiveUpdates live)
+        : base(options)
+    {
+        this.live = live;
+    }
+
     public DbSet<DockerEnvironment> Environments => Set<DockerEnvironment>();
 
     public DbSet<GitRepository> Repositories => Set<GitRepository>();
@@ -41,6 +61,18 @@ public sealed class AggregatorDbContext(DbContextOptions<AggregatorDbContext> op
     public DbSet<RegistryCredential> RegistryCredentials => Set<RegistryCredential>();
 
     public DbSet<AgeKey> AgeKeys => Set<AgeKey>();
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        var changes = LiveChanges.Collect(ChangeTracker);
+        var saved = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        if (!changes.IsEmpty)
+        {
+            await changes.PublishAsync(live, Stacks);
+        }
+
+        return saved;
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

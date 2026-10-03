@@ -3,6 +3,7 @@ using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Live;
 using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
@@ -20,6 +21,7 @@ using Microsoft.AspNetCore.DataProtection.XmlEncryption;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace ContainerForest.Aggregator.Infrastructure;
@@ -38,6 +40,8 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString(ConnectionStringName)
             ?? throw new InvalidOperationException($"Connection string '{ConnectionStringName}' is not configured.");
 
+        // The Api replaces it with SignalR; without it nothing is sent.
+        services.TryAddSingleton<ILiveUpdates, NullLiveUpdates>();
         services.AddDbContext<AggregatorDbContext>(options => options.UseSqlite(connectionString));
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AggregatorDbContext>());
         services.AddScoped<IEnvironmentRepository, EnvironmentRepository>();

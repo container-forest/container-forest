@@ -21,6 +21,8 @@ import {
   splitDuration,
 } from "@/features/stacks/model";
 import { formatDateTime } from "@/lib/format";
+import { useLiveStatus } from "@/components/live/hub-provider";
+import { pollingInterval } from "@/features/live/model";
 
 const statusFilters = ["all", "unfinished", "Succeeded", "Failed", "Cancelled"] as const;
 type StatusFilter = (typeof statusFilters)[number];
@@ -51,9 +53,11 @@ function DeploymentHistoryScreen() {
   const { status = "all" } = Route.useSearch();
   const navigate = Route.useNavigate();
   const { data: stack } = useSuspenseQuery(stackQuery(stackId));
+  const live = useLiveStatus();
   const { data: deployments, isFetching, refetch } = useSuspenseQuery({
     ...deploymentsQuery(stackId),
-    refetchInterval: (query) => (query.state.data && hasUnfinished(query.state.data) ? DEPLOYMENT_POLL_MS : false),
+    refetchInterval: (query) =>
+      query.state.data && hasUnfinished(query.state.data) ? pollingInterval(live, DEPLOYMENT_POLL_MS) : false,
   });
   const shown = deployments.filter((d) => matches(d, status));
   const now = new Date();

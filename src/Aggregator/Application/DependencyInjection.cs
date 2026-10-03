@@ -29,7 +29,9 @@ public static class DependencyInjection
         services.AddScoped<ContainerQueryService>();
         services.AddScoped<ContainerLogService>();
         services.AddScoped<NotificationSettingsService>();
+        services.AddScoped<RepositoryAccess>();
         services.AddScoped<RepositoryService>();
+        services.AddScoped<GitConnectionService>();
         services.AddScoped<RegistryCredentialService>();
         services.AddScoped<AgeKeyService>();
         services.AddScoped<StackService>();

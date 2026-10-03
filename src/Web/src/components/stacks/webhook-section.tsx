@@ -1,23 +1,37 @@
+import type { UseMutationResult } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useCreateWebhookSecretMutation, useRemoveWebhookSecretMutation } from "@/api/stacks";
 import { ConfirmAction } from "@/components/confirm-action";
 import { CopyButton } from "@/components/copy-button";
 import { ErrorText } from "@/components/form-messages";
 import { Loader2Icon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import { type Repository, describeError, webhookUrl } from "@/features/stacks/model";
+import { describeError } from "@/features/stacks/model";
 
 /**
- * The repository's webhook in the edit dialog: create or renew the secret, or turn the webhook off.
- * The secret is shown once: only this component's state holds it, and the dialog unmounts it when closed.
+ * A webhook in an edit dialog, of a repository or of a git connection (an organization-wide one): create or renew
+ * the secret, or turn the webhook off. The secret is shown once: only this component's state holds it, and the
+ * dialog unmounts it when closed.
  */
-export function WebhookSection({ repository }: { repository: Repository }) {
+export function WebhookSection({
+  name,
+  hasWebhook,
+  url,
+  description,
+  create,
+  remove,
+}: {
+  /** The repository's or connection's name, for the confirmations. */
+  name: string;
+  hasWebhook: boolean;
+  /** The Payload URL to paste into the git server. */
+  url: string;
+  description: string;
+  create: UseMutationResult<{ secret: string }, Error, void>;
+  remove: UseMutationResult<unknown, Error, void>;
+}) {
   const { t } = useTranslation();
-  const create = useCreateWebhookSecretMutation(repository.id);
-  const remove = useRemoveWebhookSecretMutation(repository.id);
   const [secret, setSecret] = useState<string>();
-  const url = webhookUrl(window.location.origin, repository.id);
 
   const onCreate = () => {
     setSecret(undefined);
@@ -39,17 +53,17 @@ export function WebhookSection({ repository }: { repository: Repository }) {
 
   const createError = create.error ? describeError(create.error) : undefined;
   const removeError = remove.error ? describeError(remove.error) : undefined;
-  const createLabel = repository.hasWebhook ? t("repositories.webhook.renew") : t("repositories.webhook.create");
+  const createLabel = hasWebhook ? t("repositories.webhook.renew") : t("repositories.webhook.create");
   const createIcon = create.isPending && <Loader2Icon data-icon="inline-start" className="animate-spin" />;
 
   return (
-    <section aria-labelledby="repository-webhook-title" className="grid gap-4 border-t pt-4">
+    <section aria-labelledby="webhook-title" className="grid gap-4 border-t pt-4">
       <div>
-        <h3 id="repository-webhook-title" className="font-heading font-semibold">
+        <h3 id="webhook-title" className="font-heading font-semibold">
           {t("repositories.webhook.title")}
         </h3>
-        <p className="text-muted-foreground mt-1 text-sm">{t("repositories.webhook.description")}</p>
-        <p className="mt-1 text-sm">{repository.hasWebhook ? t("repositories.webhook.on") : t("repositories.webhook.off")}</p>
+        <p className="text-muted-foreground mt-1 text-sm">{description}</p>
+        <p className="mt-1 text-sm">{hasWebhook ? t("repositories.webhook.on") : t("repositories.webhook.off")}</p>
       </div>
 
       {secret !== undefined && (
@@ -74,10 +88,10 @@ export function WebhookSection({ repository }: { repository: Repository }) {
       )}
 
       <div className="flex flex-wrap gap-2">
-        {repository.hasWebhook ? (
+        {hasWebhook ? (
           <ConfirmAction
             variant="default"
-            title={t("repositories.webhook.renewTitle", { name: repository.name })}
+            title={t("repositories.webhook.renewTitle", { name })}
             description={t("repositories.webhook.renewDescription")}
             confirmLabel={createLabel}
             disabled={create.isPending}
@@ -92,9 +106,9 @@ export function WebhookSection({ repository }: { repository: Repository }) {
             {createLabel}
           </Button>
         )}
-        {repository.hasWebhook && (
+        {hasWebhook && (
           <ConfirmAction
-            title={t("repositories.webhook.removeTitle", { name: repository.name })}
+            title={t("repositories.webhook.removeTitle", { name })}
             description={t("repositories.webhook.removeDescription")}
             confirmLabel={t("repositories.webhook.remove")}
             disabled={remove.isPending}

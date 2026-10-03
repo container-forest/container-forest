@@ -25,7 +25,10 @@ public enum WebhookEventKind
 /// <summary>A push as the git server described it.</summary>
 /// <param name="Branch">Null when the push was to a tag or another non-branch ref.</param>
 /// <param name="After">The ref's new commit; null when the branch was deleted.</param>
-public sealed record PushEvent(BranchName? Branch, CommitSha? After);
+/// <param name="RepositoryUrls">
+/// The pushed repository's https addresses as the payload gives them; an organization-wide webhook finds the repository by them.
+/// </param>
+public sealed record PushEvent(BranchName? Branch, CommitSha? After, IReadOnlyList<Uri> RepositoryUrls);
 
 /// <summary>The body is not the JSON the git server should have sent.</summary>
 public sealed class WebhookPayloadException(string message) : Exception(message);
@@ -55,12 +58,17 @@ public abstract class GitWebhookProvider
     {
         string? gitRef;
         string? after;
+        List<Uri> urls;
         try
         {
             using var json = JsonDocument.Parse(delivery.Body);
             var root = json.RootElement;
             gitRef = root.TryGetProperty("ref", out var refElement) ? refElement.GetString() : null;
             after = root.TryGetProperty("after", out var afterElement) ? afterElement.GetString() : null;
+            urls = RepositoryUrls(root)
+                .Select(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps ? uri : null)
+                .OfType<Uri>()
+                .ToList();
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
@@ -79,8 +87,18 @@ public abstract class GitWebhookProvider
 
         // A deleted branch moves to the all-zero commit.
         var commit = CommitSha.TryParse(after, out var sha) && sha.Value.Any(c => c != '0') ? sha : null;
-        return new PushEvent(branch, commit);
+        return new PushEvent(branch, commit, urls);
     }
+
+    /// <summary>The repository's addresses in the payload. GitHub and Gitea put them in "repository".</summary>
+    protected virtual IEnumerable<string?> RepositoryUrls(JsonElement root) =>
+        root.TryGetProperty("repository", out var repository) && repository.ValueKind == JsonValueKind.Object
+            ? [String(repository, "clone_url"), String(repository, "html_url")]
+            : [];
+
+    /// <summary>The string property of an object, or null when it is missing or not a string.</summary>
+    protected static string? String(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     /// <summary>Compares two strings in constant time; hashing first hides their lengths as well.</summary>
     protected static bool FixedTimeEquals(string actual, string expected) =>
@@ -158,4 +176,18 @@ public sealed class GitLabWebhook : GitWebhookProvider
 
     public override WebhookEventKind EventKind(WebhookDelivery delivery) =>
         delivery.Header("X-Gitlab-Event") == "Push Hook" ? WebhookEventKind.Push : WebhookEventKind.Other;
+
+    protected override IEnumerable<string?> RepositoryUrls(JsonElement root)
+    {
+        foreach (var (section, names) in new[] { ("project", new[] { "git_http_url", "web_url" }), ("repository", ["git_http_url", "homepage"]) })
+        {
+            if (root.TryGetProperty(section, out var element) && element.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var name in names)
+                {
+                    yield return String(element, name);
+                }
+            }
+        }
+    }
 }

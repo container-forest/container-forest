@@ -61,6 +61,9 @@ internal sealed class StackRepository(AggregatorDbContext db) : EfRepository<Sta
     public async Task<IReadOnlyList<Stack>> ListDeployedOnPushAsync(
         RepositoryId repositoryId, BranchName branch, CancellationToken cancellationToken) =>
         await Set.Where(s => s.RepositoryId == repositoryId && s.Branch == branch && s.DeployOnPush).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Stack>> ListByRepositoryAsync(RepositoryId repositoryId, CancellationToken cancellationToken) =>
+        await Set.Where(s => s.RepositoryId == repositoryId).ToListAsync(cancellationToken);
 }
 
 internal sealed class UserRepository(AggregatorDbContext db) : EfRepository<User, UserId>(db), IUserRepository
@@ -98,8 +101,18 @@ internal sealed class GitRepositoryRepository(AggregatorDbContext db)
     public async Task<IReadOnlyList<GitRepository>> ListAsync(CancellationToken cancellationToken) =>
         await Set.OrderBy(r => r.Name).ToListAsync(cancellationToken);
 
-    public Task<bool> NameExistsAsync(string name, RepositoryId? except, CancellationToken cancellationToken) =>
-        Set.AnyAsync(r => r.Name == name && r.Id != except, cancellationToken);
+    public async Task<IReadOnlyList<GitRepository>> ListByConnectionAsync(GitConnectionId connectionId, CancellationToken cancellationToken) =>
+        await Set.Where(r => r.ConnectionId == connectionId).ToListAsync(cancellationToken);
+}
+
+internal sealed class GitConnectionRepository(AggregatorDbContext db)
+    : EfRepository<GitConnection, GitConnectionId>(db), IGitConnectionRepository
+{
+    public async Task<IReadOnlyList<GitConnection>> ListAsync(CancellationToken cancellationToken) =>
+        await Set.OrderBy(c => c.Name).ToListAsync(cancellationToken);
+
+    public Task<bool> NameExistsAsync(string name, GitConnectionId? except, CancellationToken cancellationToken) =>
+        Set.AnyAsync(c => c.Name == name && (except == null || c.Id != except), cancellationToken);
 }
 
 internal sealed class DeploymentRepository(AggregatorDbContext db)

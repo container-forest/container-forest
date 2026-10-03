@@ -42,6 +42,41 @@ public class WebhookTests
     }
 
     [Fact]
+    public async Task Organization_webhook_of_a_connection_deploys_the_pushed_repository()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        var client = app.CreateClient();
+        var connection = await client.PostAsJsonAsync(
+            "/api/git-connections",
+            new { name = "team", urlPrefix = "https://gitea.example.com/team/", allEnvironments = true },
+            Ct);
+        var connectionId = (await connection.Content.ReadFromJsonAsync<IdView>(AggregatorApp.Json, Ct))!.Id;
+        var secret = (await (await client.PostAsync($"/api/git-connections/{connectionId}/webhook", null, Ct))
+            .Content.ReadFromJsonAsync<ConnectionSecretView>(AggregatorApp.Json, Ct))!.Secret;
+        var repository = await client.PostAsJsonAsync(
+            "/api/repositories", new { name = "app", url = "https://gitea.example.com/team/app.git", connectionId }, Ct);
+        var repositoryId = (await repository.Content.ReadFromJsonAsync<IdView>(AggregatorApp.Json, Ct))!.Id;
+        await CreateStackAsync(client, agent.EnvironmentId, repositoryId, "app", deployOnPush: true);
+        app.Git.Snapshot = Snapshot(First);
+
+        var body = Encoding.UTF8.GetBytes(
+            $$$"""{"ref":"refs/heads/main","after":"{{{First}}}","repository":{"clone_url":"https://gitea.example.com/team/app.git"}}""");
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/webhooks/connections/{connectionId}") { Content = new ByteArrayContent(body) };
+        request.Content.Headers.ContentType = new("application/json");
+        request.Headers.Add("X-Gitea-Event", "push");
+        request.Headers.Add("X-Gitea-Signature", Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), body)));
+        var response = await app.CreateClientAs(null).SendAsync(request, Ct);
+
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, response);
+        var result = await response.Content.ReadFromJsonAsync<WebhookView>(AggregatorApp.Json, Ct);
+        Assert.Equal(("Gitea", "Push", "Queued"), (result!.Provider, result.Outcome, Assert.Single(result.Stacks).Outcome));
+        var command = await agent.ReceiveAsync();
+        Assert.Equal(("app", First), (command.DeployStack.StackName, command.DeployStack.CommitSha));
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
+    }
+
+    [Fact]
     public async Task Push_during_a_deployment_is_deployed_after_it()
     {
         await using var app = new AggregatorApp();
@@ -103,7 +138,7 @@ public class WebhookTests
         var (repositoryId, oldSecret) = await CreateRepositoryWithWebhookAsync(client);
 
         var renewed = await client.PostAsync($"/api/repositories/{repositoryId}/webhook", null, Ct);
-        var newSecret = (await renewed.Content.ReadFromJsonAsync<SecretView>(AggregatorApp.Json, Ct))!.Secret;
+        var newSecret = (await renewed.Content.ReadFromJsonAsync<ConnectionSecretView>(AggregatorApp.Json, Ct))!.Secret;
         await HttpAssert.StatusAsync(HttpStatusCode.Unauthorized, SendPingAsync(app, repositoryId, oldSecret));
         await HttpAssert.StatusAsync(HttpStatusCode.OK, SendPingAsync(app, repositoryId, newSecret));
 
@@ -216,6 +251,10 @@ public class WebhookTests
     private sealed record SecretView(RepositoryView Repository, string Secret);
 
     private sealed record StackView(Guid Id, bool DeployOnPush);
+
+    private sealed record IdView(Guid Id);
+
+    private sealed record ConnectionSecretView(string Secret);
 
     private sealed record WebhookView(string Provider, string Outcome, string? Detail, IReadOnlyList<WebhookStackView> Stacks);
 

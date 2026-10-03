@@ -16,10 +16,10 @@ public interface IGitSource
     /// Fetches the branch and returns its head commit. Reading is a separate call, so the deployment is pinned to the
     /// commit even when its files turn out to be unusable.
     /// </summary>
-    /// <param name="credentials">The repository's decrypted token; null for a public repository.</param>
+    /// <param name="access">How to reach the repository: the connection's decrypted token, and whether its host is trusted.</param>
     /// <exception cref="DeploymentFailedException">The repository or the branch is unavailable.</exception>
     Task<CommitSha> FetchAsync(
-        GitRepository repository, GitCredentials? credentials, BranchName branch, CancellationToken cancellationToken);
+        GitRepository repository, GitAccess access, BranchName branch, CancellationToken cancellationToken);
 
     /// <summary>Reads the files under <paramref name="directory"/> at a commit <see cref="FetchAsync"/> returned.</summary>
     /// <param name="directory">Directory inside the repository, '/'-separated; empty for the root.</param>
@@ -30,10 +30,22 @@ public interface IGitSource
 }
 
 /// <summary>A decrypted access token for HTTPS basic authentication.</summary>
-public sealed record GitCredentials(string UserName, string Token)
+/// <param name="Scope">The connection's URL prefix: the token is sent only to URLs under it.</param>
+public sealed record GitCredentials(string UserName, string Token, Uri Scope)
 {
     // Records print every property; the token must not reach a log through ToString.
-    public override string ToString() => $"{nameof(GitCredentials)} {{ UserName = {UserName} }}";
+    public override string ToString() => $"{nameof(GitCredentials)} {{ UserName = {UserName}, Scope = {Scope} }}";
+}
+
+/// <summary>How the aggregator reaches a repository (ADR-0006).</summary>
+/// <param name="Credentials">Null for anonymous access.</param>
+/// <param name="IsTrustedHost">
+/// The repository belongs to a connection an administrator set up, so its host may be on a private network. Otherwise
+/// anyone with the Editor role could have added it, and private addresses are refused unless configured otherwise.
+/// </param>
+public sealed record GitAccess(GitCredentials? Credentials, bool IsTrustedHost)
+{
+    public static readonly GitAccess Public = new(null, IsTrustedHost: false);
 }
 
 /// <param name="Files">Paths are relative to the requested directory.</param>

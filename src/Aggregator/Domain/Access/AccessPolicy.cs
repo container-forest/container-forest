@@ -1,3 +1,4 @@
+using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Environments;
 using ContainerForest.Aggregator.Domain.Stacks;
 
@@ -50,6 +51,28 @@ public static class AccessPolicy
     public static bool CanPerform(
         User user, DockerEnvironment environment, Stack stack, IEnumerable<RoleAssignment> assignments, StackOperation operation) =>
         CanPerform(user, environment, stack, assignments, RolePermissions.RequiredFor(operation));
+
+    /// <summary>
+    /// Environments where the user is an Editor of the environment or of at least one of its stacks: where they may
+    /// add stacks or point stacks at repositories. Administrators are not special here; callers check them first.
+    /// </summary>
+    public static IReadOnlySet<EnvironmentId> EditorEnvironments(User user, IEnumerable<RoleAssignment> assignments)
+    {
+        if (!user.IsActive)
+        {
+            return new HashSet<EnvironmentId>();
+        }
+
+        return OwnAssignments(user, assignments)
+            .Where(a => a.Role >= Role.Editor)
+            .Select(a => a switch
+            {
+                EnvironmentRoleAssignment e => e.EnvironmentId,
+                StackRoleAssignment s => s.EnvironmentId,
+                _ => throw new InvalidOperationException($"Unknown role assignment {a.GetType().Name}."),
+            })
+            .ToHashSet();
+    }
 
     private static Role? Highest(User user, DockerEnvironment environment, IEnumerable<RoleAssignment> applicable)
     {

@@ -59,38 +59,63 @@ public class StackEndpointsTests
     }
 
     [Fact]
-    public async Task Access_token_is_write_only_and_stays_on_its_host()
+    public async Task Editor_adds_a_repository_under_a_connection_of_their_environment_without_a_token()
     {
         await using var app = new AggregatorApp();
-        var client = app.CreateClient();
+        var aliceId = await app.CreateUserAsync("alice", isAdmin: false);
+        await using var agent = await app.EnrollAndConnectAsync();
+        var other = await app.CreateEnvironmentAsync("other");
+        var admin = app.CreateClient();
 
-        var created = await client.PostAsJsonAsync(
-            "/api/repositories",
-            new { name = "private", url = "https://git.example.com/team/private.git", accessToken = new { userName = (string?)null, token = "ghp_secret" } },
+        var created = await admin.PostAsJsonAsync(
+            "/api/git-connections",
+            new
+            {
+                name = "team",
+                urlPrefix = "https://gitea.example.com/team/",
+                accessToken = new { userName = "forest-team", token = "gitea_secret" },
+                allEnvironments = false,
+                environmentIds = new[] { agent.EnvironmentId },
+            },
             Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Created, created);
         var body = await created.Content.ReadAsStringAsync(Ct);
-        Assert.DoesNotContain("ghp_secret", body, StringComparison.Ordinal);
-        var repository = JsonSerializer.Deserialize<RepositoryView>(body, AggregatorApp.Json)!;
-        Assert.Equal((true, null), (repository.HasAccessToken, repository.AccessUserName));
+        Assert.DoesNotContain("gitea_secret", body, StringComparison.Ordinal);
+        var connection = JsonSerializer.Deserialize<ConnectionView>(body, AggregatorApp.Json)!;
+        Assert.Equal((true, "forest-team"), (connection.HasAccessToken, connection.AccessUserName));
+
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Created,
+            admin.PostAsJsonAsync($"/api/users/{aliceId}/role-assignments", new { environmentId = agent.EnvironmentId, stackId = (Guid?)null, role = "Editor" }, Ct));
+        var alice = app.CreateClientAs("alice");
+
+        var connections = (await alice.GetFromJsonAsync<ConnectionView[]>("/api/git-connections", AggregatorApp.Json, Ct))!;
+        Assert.Equal([agent.EnvironmentId], Assert.Single(connections).EnvironmentIds);
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Forbidden,
+            alice.PutAsJsonAsync($"/api/git-connections/{connection.Id}", new { name = "mine", urlPrefix = "https://gitea.example.com/", allEnvironments = true }, Ct));
 
         await HttpAssert.StatusAsync(
             HttpStatusCode.BadRequest,
-            client.PutAsJsonAsync($"/api/repositories/{repository.Id}", new { name = "private", url = "https://evil.example.com/private.git" }, Ct));
+            alice.PostAsJsonAsync("/api/repositories", new { name = "ledger", url = "https://gitea.example.com/billing/ledger.git", connectionId = connection.Id }, Ct));
+        var repository = await alice.PostAsJsonAsync(
+            "/api/repositories", new { name = "app", url = "https://gitea.example.com/team/app.git", connectionId = connection.Id }, Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.Created, repository);
+        var view = (await repository.Content.ReadFromJsonAsync<RepositoryView>(AggregatorApp.Json, Ct))!;
+        Assert.Equal((connection.Id, "team", true), (view.ConnectionId, view.ConnectionName, view.CanManage));
 
-        var replaced = await client.PutAsJsonAsync(
-            $"/api/repositories/{repository.Id}/access-token", new { userName = "gitlab+deploy-token-1", token = "gldt-secret" }, Ct);
-        await HttpAssert.StatusAsync(HttpStatusCode.OK, replaced);
-        Assert.Equal("gitlab+deploy-token-1", (await replaced.Content.ReadFromJsonAsync<RepositoryView>(AggregatorApp.Json, Ct))!.AccessUserName);
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Created,
+            alice.PostAsJsonAsync(
+                $"/api/environments/{agent.EnvironmentId}/stacks", new { name = "app", repositoryId = view.Id, branch = "main", composePath = "compose.yaml" }, Ct));
 
-        var removed = await client.DeleteAsync($"/api/repositories/{repository.Id}/access-token", Ct);
-        await HttpAssert.StatusAsync(HttpStatusCode.OK, removed);
-        Assert.False((await removed.Content.ReadFromJsonAsync<RepositoryView>(AggregatorApp.Json, Ct))!.HasAccessToken);
+        // The administrator may use the repository anywhere they may add stacks, but not where its connection is not allowed.
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.NotFound,
+            admin.PostAsJsonAsync(
+                $"/api/environments/{other.Id}/stacks", new { name = "app", repositoryId = view.Id, branch = "main", composePath = "compose.yaml" }, Ct));
 
-        var moved = await client.PutAsJsonAsync(
-            $"/api/repositories/{repository.Id}", new { name = "moved", url = "https://other.example.com/private.git" }, Ct);
-        await HttpAssert.StatusAsync(HttpStatusCode.OK, moved);
-        Assert.Equal("https://other.example.com/private.git", (await moved.Content.ReadFromJsonAsync<RepositoryView>(AggregatorApp.Json, Ct))!.Url);
+        await HttpAssert.StatusAsync(HttpStatusCode.Conflict, admin.DeleteAsync($"/api/git-connections/{connection.Id}", Ct));
     }
 
     private static async Task<Guid> CreateRepositoryAsync(HttpClient client, string name)
@@ -100,7 +125,9 @@ public class StackEndpointsTests
         return (await response.Content.ReadFromJsonAsync<StackView>(AggregatorApp.Json, Ct))!.Id;
     }
 
-    private sealed record RepositoryView(Guid Id, string Name, string Url, bool HasAccessToken, string? AccessUserName);
+    private sealed record RepositoryView(Guid Id, string Name, string Url, Guid? ConnectionId, string? ConnectionName, bool CanManage);
+
+    private sealed record ConnectionView(Guid Id, string Name, bool HasAccessToken, string? AccessUserName, Guid[] EnvironmentIds);
 
     private sealed record StackView(
         Guid Id, Guid EnvironmentId, string? RepositoryName, string Branch, string ComposePath, bool CanDeploy, bool CanRestart);

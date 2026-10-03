@@ -20,6 +20,7 @@ public class PushWebhookServiceTests
     private static readonly CommitSha Pushed = CommitSha.Parse(new string('b', 40));
 
     private readonly InMemoryGitRepositories repositories = new();
+    private readonly InMemoryGitConnections connections = new();
     private readonly InMemoryStacks stacks = new();
     private readonly InMemoryDeployments deployments = new();
     private readonly FakeAgentChannel agents = new();
@@ -27,7 +28,7 @@ public class PushWebhookServiceTests
     private readonly FakeDeploymentQueue queue = new();
     private readonly FakeSecretProtector protector = new();
     private readonly PushDeploymentGate gate = new();
-    private readonly GitRepository repository = GitRepository.Create("infra", "https://git.example.com/infra.git", Now);
+    private readonly GitRepository repository = GitRepository.Create("infra", "https://git.example.com/infra.git", null, Now);
     private readonly EnvironmentId environmentId = EnvironmentId.New();
     private readonly PushWebhookService service;
 
@@ -38,6 +39,7 @@ public class PushWebhookServiceTests
         service = new PushWebhookService(
             [new GiteaWebhook(), new GitHubWebhook(), new GitLabWebhook()],
             repositories,
+            connections,
             stacks,
             deployments,
             agents,
@@ -75,7 +77,7 @@ public class PushWebhookServiceTests
     public async Task Wrong_signature_unknown_repository_and_repository_without_webhook_are_rejected_alike()
     {
         AddStack("web");
-        var withoutWebhook = GitRepository.Create("plain", "https://git.example.com/plain.git", Now);
+        var withoutWebhook = GitRepository.Create("plain", "https://git.example.com/plain.git", null, Now);
         repositories.Add(withoutWebhook);
 
         await Assert.ThrowsAsync<WebhookRejectedException>(() => service.ReceiveAsync(repository.Id, Push("main", secret: "guess"), Ct));
@@ -236,6 +238,102 @@ public class PushWebhookServiceTests
 
     private DeploymentOutcome Outcome(Deployment deployment, Stack stack) =>
         new(deployment, stack, DockerEnvironment.Create("prod", isPrivate: false, Now));
+
+    [Fact]
+    public async Task Organization_webhook_deploys_the_stacks_of_the_pushed_repository_only()
+    {
+        var (connection, app, tools) = AddConnection();
+        var appStack = AddStack("app", repositoryId: app.Id);
+        AddStack("tools", repositoryId: tools.Id);
+
+        var result = await service.ReceiveForConnectionAsync(
+            connection.Id, GiteaPush("https://gitea.example.com/Team/App.git", ConnectionSecret), Ct);
+
+        Assert.Equal(("Gitea", WebhookOutcome.Push), (result.Provider, result.Outcome));
+        Assert.Equal([("app", PushStackOutcome.Queued)], result.Stacks.Select(s => (s.Name.Value, s.Outcome)).ToList());
+        Assert.Equal([appStack.Id], deployments.All.Select(d => d.StackId));
+    }
+
+    [Fact]
+    public async Task Organization_webhook_needs_the_connection_s_own_secret()
+    {
+        var (connection, app, _) = AddConnection();
+        AddStack("app", repositoryId: app.Id);
+
+        await Assert.ThrowsAsync<WebhookRejectedException>(() =>
+            service.ReceiveForConnectionAsync(connection.Id, GiteaPush("https://gitea.example.com/team/app.git", Secret), Ct));
+        await Assert.ThrowsAsync<WebhookRejectedException>(() =>
+            service.ReceiveForConnectionAsync(GitConnectionId.New(), GiteaPush("https://gitea.example.com/team/app.git", ConnectionSecret), Ct));
+
+        // A repository's own webhook does not accept the connection's secret either.
+        app.SetWebhookSecret(protector.Protect(SecretPurpose.WebhookSecret, Secret));
+        await Assert.ThrowsAsync<WebhookRejectedException>(() =>
+            service.ReceiveAsync(app.Id, GiteaPush("https://gitea.example.com/team/app.git", ConnectionSecret), Ct));
+        Assert.Empty(deployments.All);
+    }
+
+    [Fact]
+    public async Task Organization_webhook_for_a_repository_nobody_added_is_ignored()
+    {
+        var (connection, app, _) = AddConnection();
+        AddStack("app", repositoryId: app.Id);
+
+        var result = await service.ReceiveForConnectionAsync(
+            connection.Id, GiteaPush("https://gitea.example.com/team/unknown.git", ConnectionSecret), Ct);
+
+        Assert.Equal(WebhookOutcome.Ignored, result.Outcome);
+        Assert.Empty(deployments.All);
+    }
+
+    [Fact]
+    public async Task Stack_of_an_environment_taken_off_the_connection_is_not_deployed()
+    {
+        var (connection, app, _) = AddConnection();
+        connection.AllowEnvironments(false, [EnvironmentId.New()]);
+        AddStack("app", repositoryId: app.Id);
+
+        var result = await service.ReceiveForConnectionAsync(
+            connection.Id, GiteaPush("https://gitea.example.com/team/app.git", ConnectionSecret), Ct);
+
+        Assert.Equal([PushStackOutcome.NotAllowed], result.Stacks.Select(s => s.Outcome));
+        Assert.Empty(deployments.All);
+    }
+
+    [Fact]
+    public async Task GitLab_payload_names_the_repository_in_project()
+    {
+        var provider = new GitLabWebhook();
+        var body = Encoding.UTF8.GetBytes(
+            """{"ref":"refs/heads/main","after":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","project":{"git_http_url":"https://gitlab.example.com/team/app.git","web_url":"https://gitlab.example.com/team/app"}}""");
+
+        var push = provider.ReadPush(Delivery(body, ("X-Gitlab-Event", "Push Hook"), ("X-Gitlab-Token", Secret)));
+
+        Assert.Equal(
+            ["https://gitlab.example.com/team/app.git", "https://gitlab.example.com/team/app"],
+            push.RepositoryUrls.Select(u => u.ToString()));
+    }
+
+    private const string ConnectionSecret = "connection-secret";
+
+    private (GitConnection Connection, GitRepository App, GitRepository Tools) AddConnection()
+    {
+        var connection = GitConnection.Create("team", "https://gitea.example.com/team/", Now);
+        connection.AllowEnvironments(false, [environmentId]);
+        connection.SetWebhookSecret(protector.Protect(SecretPurpose.WebhookSecret, ConnectionSecret));
+        connections.Add(connection);
+        var app = GitRepository.Create("app", "https://gitea.example.com/team/app.git", connection, Now);
+        var tools = GitRepository.Create("tools", "https://gitea.example.com/team/tools.git", connection, Now);
+        repositories.Add(app);
+        repositories.Add(tools);
+        return (connection, app, tools);
+    }
+
+    private static WebhookDelivery GiteaPush(string cloneUrl, string secret)
+    {
+        var body = Encoding.UTF8.GetBytes(
+            $$$"""{"ref":"refs/heads/main","after":"{{{Pushed.Value}}}","repository":{"clone_url":"{{{cloneUrl}}}","html_url":"https://gitea.example.com/x"}}""");
+        return Delivery(body, ("X-Gitea-Event", "push"), ("X-Gitea-Signature", Hmac(body, secret)), ("X-GitHub-Event", "push"));
+    }
 
     private Stack AddStack(string name, bool deployOnPush = true, string branch = "main", RepositoryId? repositoryId = null)
     {

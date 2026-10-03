@@ -127,6 +127,9 @@ internal sealed class InMemoryStacks : InMemoryRepository<Stack, StackId>, IStac
     public Task<IReadOnlyList<Stack>> ListDeployedOnPushAsync(
         RepositoryId repositoryId, BranchName branch, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<Stack>>(Items.Where(s => s.RepositoryId == repositoryId && s.Branch == branch && s.DeployOnPush).ToList());
+
+    public Task<IReadOnlyList<Stack>> ListByRepositoryAsync(RepositoryId repositoryId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Stack>>(Items.Where(s => s.RepositoryId == repositoryId).ToList());
 }
 
 internal sealed class InMemoryDiscordLinks : InMemoryRepository<DiscordLink, UserId>, IDiscordLinkRepository
@@ -149,8 +152,17 @@ internal sealed class InMemoryGitRepositories : InMemoryRepository<GitRepository
     public Task<IReadOnlyList<GitRepository>> ListAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<GitRepository>>(Items.OrderBy(r => r.Name).ToList());
 
-    public Task<bool> NameExistsAsync(string name, RepositoryId? except, CancellationToken cancellationToken) =>
-        Task.FromResult(Items.Any(r => r.Id != except && string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)));
+    public Task<IReadOnlyList<GitRepository>> ListByConnectionAsync(GitConnectionId connectionId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<GitRepository>>(Items.Where(r => r.ConnectionId == connectionId).ToList());
+}
+
+internal sealed class InMemoryGitConnections : InMemoryRepository<GitConnection, GitConnectionId>, IGitConnectionRepository
+{
+    public Task<IReadOnlyList<GitConnection>> ListAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<GitConnection>>(Items.OrderBy(c => c.Name).ToList());
+
+    public Task<bool> NameExistsAsync(string name, GitConnectionId? except, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.Any(c => c.Id != except && string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase)));
 }
 
 internal sealed class InMemoryDeployments : InMemoryRepository<Deployment, DeploymentId>, IDeploymentRepository

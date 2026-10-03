@@ -44,6 +44,8 @@ public sealed class AggregatorDbContext : IdentityUserContext<AccountUser, Guid>
 
     public DbSet<GitRepository> Repositories => Set<GitRepository>();
 
+    public DbSet<GitConnection> GitConnections => Set<GitConnection>();
+
     public DbSet<Stack> Stacks => Set<Stack>();
 
     public DbSet<Deployment> Deployments => Set<Deployment>();
@@ -84,6 +86,7 @@ public sealed class AggregatorDbContext : IdentityUserContext<AccountUser, Guid>
     {
         configurationBuilder.AddStronglyTypedId<EnvironmentId>();
         configurationBuilder.AddStronglyTypedId<RepositoryId>();
+        configurationBuilder.AddStronglyTypedId<GitConnectionId>();
         configurationBuilder.AddStronglyTypedId<StackId>();
         configurationBuilder.AddStronglyTypedId<DeploymentId>();
         configurationBuilder.AddStronglyTypedId<UserId>();

@@ -281,7 +281,8 @@ function SourceCard({ stack }: { stack: Stack }) {
                   <SelectContent>
                     {(repositories.data ?? []).map((repository) => (
                       <SelectItem key={repository.id} value={repository.id}>
-                        {repository.name}
+                        {/* Names need not be unique (ADR-0006): the address tells them apart. */}
+                        {repository.name} — {repository.url}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -1,11 +1,12 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { type ErrorComponentProps, createFileRoute } from "@tanstack/react-router";
+import { type ErrorComponentProps, Link, createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { hasStatus } from "@/api/client";
 import { repositoriesQuery } from "@/api/queries";
 import { ErrorText } from "@/components/form-messages";
 import { LockIcon, LockOpenIcon, SearchIcon, WebhookIcon } from "@/components/icons";
+import { Button } from "@/components/ui/button";
 import { AddRepositoryDialog } from "@/components/stacks/add-repository-dialog";
 import { EditRepositoryDialog } from "@/components/stacks/edit-repository-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +26,10 @@ export const Route = createFileRoute("/_authed/repositories")({
   errorComponent: RepositoriesLoadError,
 });
 
-/** Git repositories stacks are deployed from. Editors see them to choose one; administrators add them. */
+/**
+ * Git repositories stacks are deployed from: all of them for administrators, those their environments may deploy
+ * from for editors, who add and change them too (ADR-0006).
+ */
 function RepositoriesScreen() {
   const { t, i18n } = useTranslation();
   const { me } = Route.useRouteContext();
@@ -42,7 +46,15 @@ function RepositoriesScreen() {
           <h1 className="font-heading text-2xl font-semibold">{t("repositories.title")}</h1>
           <p className="text-muted-foreground mt-1">{t("repositories.description")}</p>
         </div>
-        {me.isAdmin && <AddRepositoryDialog />}
+        <div className="flex flex-wrap gap-2">
+          {/* Only a convenience: the aggregator refuses non-administrators anyway. */}
+          {me.isAdmin && (
+            <Button variant="outline" asChild>
+              <Link to="/git-connections">{t("repositories.connections")}</Link>
+            </Button>
+          )}
+          <AddRepositoryDialog />
+        </div>
       </div>
 
       <div className="grid max-w-sm gap-1.5">
@@ -69,7 +81,7 @@ function RepositoriesScreen() {
               <TableHead>{t("repositories.columns.url")}</TableHead>
               <TableHead>{t("repositories.columns.access")}</TableHead>
               <TableHead>{t("repositories.columns.createdAt")}</TableHead>
-              {me.isAdmin && <TableHead className="sr-only">{t("repositories.columns.actions")}</TableHead>}
+              <TableHead className="sr-only">{t("repositories.columns.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -79,10 +91,10 @@ function RepositoriesScreen() {
                 <TableCell className="font-mono text-sm">{repository.url}</TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
-                    {repository.hasAccessToken ? (
-                      <Badge variant="secondary">
+                    {repository.connectionName ? (
+                      <Badge variant="secondary" title={t("repositories.access.connectionHint")}>
                         <LockIcon data-icon="inline-start" />
-                        {t("repositories.access.token")}
+                        {repository.connectionName}
                       </Badge>
                     ) : (
                       <Badge variant="outline">
@@ -99,11 +111,9 @@ function RepositoriesScreen() {
                   </div>
                 </TableCell>
                 <TableCell className="text-sm">{formatDate(repository.createdAt, i18n.resolvedLanguage)}</TableCell>
-                {me.isAdmin && (
-                  <TableCell className="text-right">
-                    <EditRepositoryDialog repository={repository} />
-                  </TableCell>
-                )}
+                <TableCell className="text-right">
+                  {repository.canManage && <EditRepositoryDialog repository={repository} />}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

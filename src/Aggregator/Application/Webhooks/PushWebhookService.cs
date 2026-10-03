@@ -5,14 +5,15 @@ using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
+using ContainerForest.Aggregator.Domain.Repositories;
 using ContainerForest.Aggregator.Domain.Stacks;
 using Microsoft.Extensions.Logging;
 
 namespace ContainerForest.Aggregator.Application.Webhooks;
 
 /// <summary>
-/// The delivery is not from the repository's git server: no such repository, no webhook secret, an unknown sender or
-/// a wrong signature. Deliberately one answer for all of them, so the endpoint does not tell which repositories exist.
+/// The delivery is not from the git server: no such repository or connection, no webhook secret, an unknown sender or
+/// a wrong signature. Deliberately one answer for all of them, so the endpoint does not tell which ones exist.
 /// </summary>
 public sealed class WebhookRejectedException() : Exception("The webhook delivery could not be authenticated.");
 
@@ -47,6 +48,9 @@ public enum PushStackOutcome
 
     /// <summary>The agent is offline; nothing is queued (invariant 7).</summary>
     AgentOffline,
+
+    /// <summary>The stack's environment may no longer deploy from the repository's connection (ADR-0006).</summary>
+    NotAllowed,
 }
 
 /// <param name="DeploymentId">The queued deployment, for <see cref="PushStackOutcome.Queued"/>.</param>
@@ -59,18 +63,19 @@ public sealed record WebhookResult(
     string Provider, WebhookOutcome Outcome, string? Detail, IReadOnlyList<PushStackResult> Stacks);
 
 /// <summary>
-/// Receives push webhooks: checks the delivery against the repository's secret and queues a deployment of each stack
-/// that deploys the pushed branch on push. Anonymous: the signature is the authentication. The deployment always
-/// fetches the branch head instead of trusting the pushed commit, so a replayed old delivery redeploys the current
-/// head rather than rolling the stack back.
+/// Receives push webhooks: checks the delivery against the secret of the repository, or of its connection for an
+/// organization-wide webhook (ADR-0006), and queues a deployment of each stack that deploys the pushed branch on push.
+/// Anonymous: the signature is the authentication. The deployment always fetches the branch head instead of trusting
+/// the pushed commit, so a replayed old delivery redeploys the current head rather than rolling the stack back.
 /// </summary>
 /// <remarks>
-/// Not a user action, like rehydration: an administrator set the secret and an editor of the stack turned
+/// Not a user action, like rehydration: an administrator or editor set the secret and an editor of the stack turned
 /// <see cref="Stack.DeployOnPush"/> on; the push only says when.
 /// </remarks>
 public sealed partial class PushWebhookService(
     IEnumerable<GitWebhookProvider> providers,
     IGitRepositoryRepository repositories,
+    IGitConnectionRepository connections,
     IStackRepository stacks,
     IDeploymentRepository deployments,
     IAgentChannel agents,
@@ -81,13 +86,78 @@ public sealed partial class PushWebhookService(
     TimeProvider time,
     ILogger<PushWebhookService> logger)
 {
+    /// <summary>A delivery of the repository's own webhook.</summary>
     /// <exception cref="WebhookRejectedException">The delivery is not authentic.</exception>
     /// <exception cref="WebhookPayloadException">An authentic push that cannot be read.</exception>
     public async Task<WebhookResult> ReceiveAsync(RepositoryId repositoryId, WebhookDelivery delivery, CancellationToken cancellationToken)
     {
         var repository = await repositories.FindAsync(repositoryId, cancellationToken);
+        var provider = Authenticate(repository?.ProtectedWebhookSecret, delivery, $"repository {repositoryId}");
+        if (Ignore(provider, delivery) is { } ignored)
+        {
+            return ignored;
+        }
+
+        var push = provider.ReadPush(delivery);
+        if (IgnorePush(provider, push) is { } ignoredPush)
+        {
+            return ignoredPush;
+        }
+
+        var connection = repository!.ConnectionId is { } connectionId ? await connections.FindAsync(connectionId, cancellationToken) : null;
+        var results = await DeployRepositoryAsync(repository, connection, push, cancellationToken);
+        LogPush(provider.Name, repository.Name, push.Branch!.Value, push.After!.Short, results.Count);
+        return new WebhookResult(provider.Name, WebhookOutcome.Push, null, results);
+    }
+
+    /// <summary>
+    /// A delivery of an organization-wide webhook: the payload names the pushed repository, which is looked up among
+    /// the connection's repositories by its address. The payload can be trusted only because its signature is checked first.
+    /// </summary>
+    /// <exception cref="WebhookRejectedException">The delivery is not authentic.</exception>
+    /// <exception cref="WebhookPayloadException">An authentic push that cannot be read.</exception>
+    public async Task<WebhookResult> ReceiveForConnectionAsync(
+        GitConnectionId connectionId, WebhookDelivery delivery, CancellationToken cancellationToken)
+    {
+        var connection = await connections.FindAsync(connectionId, cancellationToken);
+        var provider = Authenticate(connection?.ProtectedWebhookSecret, delivery, $"connection {connectionId}");
+        if (Ignore(provider, delivery) is { } ignored)
+        {
+            return ignored;
+        }
+
+        var push = provider.ReadPush(delivery);
+        if (IgnorePush(provider, push) is { } ignoredPush)
+        {
+            return ignoredPush;
+        }
+
+        var keys = push.RepositoryUrls.Select(GitUrl.Key).ToHashSet();
+        var pushed = (await repositories.ListByConnectionAsync(connectionId, cancellationToken))
+            .Where(r => keys.Contains(GitUrl.Key(r.Url)))
+            .ToList();
+        if (pushed.Count == 0)
+        {
+            return new WebhookResult(
+                provider.Name, WebhookOutcome.Ignored, "No repository of this connection has the pushed repository's address.", []);
+        }
+
+        var results = new List<PushStackResult>();
+        foreach (var repository in pushed)
+        {
+            var deployed = await DeployRepositoryAsync(repository, connection, push, cancellationToken);
+            LogPush(provider.Name, repository.Name, push.Branch!.Value, push.After!.Short, deployed.Count);
+            results.AddRange(deployed);
+        }
+
+        return new WebhookResult(provider.Name, WebhookOutcome.Push, null, results);
+    }
+
+    /// <summary>Checks the delivery against the protected secret; any failure is the same rejection.</summary>
+    private GitWebhookProvider Authenticate(string? protectedSecret, WebhookDelivery delivery, string target)
+    {
         var provider = providers.FirstOrDefault(p => p.Recognizes(delivery));
-        if (repository?.ProtectedWebhookSecret is not { } protectedSecret || provider is null)
+        if (protectedSecret is null || provider is null)
         {
             throw new WebhookRejectedException();
         }
@@ -99,44 +169,44 @@ public sealed partial class PushWebhookService(
         }
         catch (SecretUnreadableException)
         {
-            LogSecretUnreadable(repositoryId.Value);
+            LogSecretUnreadable(target);
             throw new WebhookRejectedException();
         }
 
         if (!provider.IsAuthentic(delivery, secret))
         {
-            LogRejected(provider.Name, repositoryId.Value);
+            LogRejected(provider.Name, target);
             throw new WebhookRejectedException();
         }
 
-        switch (provider.EventKind(delivery))
-        {
-            case WebhookEventKind.Ping:
-                return new WebhookResult(provider.Name, WebhookOutcome.Pong, null, []);
-            case WebhookEventKind.Other:
-                return new WebhookResult(provider.Name, WebhookOutcome.Ignored, "Only push events deploy.", []);
-        }
+        return provider;
+    }
 
-        var push = provider.ReadPush(delivery);
-        if (push.Branch is null)
-        {
-            return new WebhookResult(provider.Name, WebhookOutcome.Ignored, "Not a push to a branch.", []);
-        }
+    private static WebhookResult? Ignore(GitWebhookProvider provider, WebhookDelivery delivery) => provider.EventKind(delivery) switch
+    {
+        WebhookEventKind.Ping => new WebhookResult(provider.Name, WebhookOutcome.Pong, null, []),
+        WebhookEventKind.Other => new WebhookResult(provider.Name, WebhookOutcome.Ignored, "Only push events deploy.", []),
+        _ => null,
+    };
 
-        if (push.After is null)
-        {
-            return new WebhookResult(provider.Name, WebhookOutcome.Ignored, "The branch was deleted.", []);
-        }
+    private static WebhookResult? IgnorePush(GitWebhookProvider provider, PushEvent push) =>
+        push.Branch is null ? new WebhookResult(provider.Name, WebhookOutcome.Ignored, "Not a push to a branch.", [])
+        : push.After is null ? new WebhookResult(provider.Name, WebhookOutcome.Ignored, "The branch was deleted.", [])
+        : null;
 
+    private async Task<List<PushStackResult>> DeployRepositoryAsync(
+        GitRepository repository, GitConnection? connection, PushEvent push, CancellationToken cancellationToken)
+    {
         var results = new List<PushStackResult>();
-        foreach (var stack in await stacks.ListDeployedOnPushAsync(repository.Id, push.Branch, cancellationToken))
+        foreach (var stack in await stacks.ListDeployedOnPushAsync(repository.Id, push.Branch!, cancellationToken))
         {
-            var (outcome, deployment) = await DeployAsync(stack, push.After, cancellationToken);
+            var (outcome, deployment) = repository.IsUsableIn(stack.EnvironmentId, connection)
+                ? await DeployAsync(stack, push.After!, cancellationToken)
+                : (PushStackOutcome.NotAllowed, null);
             results.Add(new PushStackResult(stack.Id, stack.EnvironmentId, stack.Name, outcome, deployment?.Id));
         }
 
-        LogPush(provider.Name, repository.Name, push.Branch.Value, push.After.Short, results.Count);
-        return new WebhookResult(provider.Name, WebhookOutcome.Push, null, results);
+        return results;
     }
 
     private async Task<(PushStackOutcome Outcome, Deployment? Deployment)> DeployAsync(
@@ -177,11 +247,11 @@ public sealed partial class PushWebhookService(
         return (PushStackOutcome.Queued, deployment);
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Rejected a {Provider} webhook delivery for repository {RepositoryId}: wrong secret or signature")]
-    private partial void LogRejected(string provider, Guid repositoryId);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Rejected a {Provider} webhook delivery for {Target}: wrong secret or signature")]
+    private partial void LogRejected(string provider, string target);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "The webhook secret of repository {RepositoryId} cannot be decrypted; set a new one")]
-    private partial void LogSecretUnreadable(Guid repositoryId);
+    [LoggerMessage(Level = LogLevel.Error, Message = "The webhook secret of {Target} cannot be decrypted; set a new one")]
+    private partial void LogSecretUnreadable(string target);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "{Provider} push to {Repository}@{Branch} ({Commit}) for {Stacks} stack(s)")]
     private partial void LogPush(string provider, string repository, string branch, string commit, int stacks);

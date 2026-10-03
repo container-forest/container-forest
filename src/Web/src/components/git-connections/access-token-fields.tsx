@@ -4,7 +4,7 @@ import { FieldError } from "@/components/form-messages";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-/** User name and token of a private repository; shared by "Add repository" and the repository's token form. */
+/** User name and token of a git connection; shared by "New connection" and the connection's token form. */
 export function AccessTokenFields({
   idPrefix,
   userName,
@@ -21,7 +21,7 @@ export function AccessTokenFields({
   return (
     <>
       <div className="grid gap-1.5">
-        <Label htmlFor={`${idPrefix}-token`}>{t("repositories.token.token")}</Label>
+        <Label htmlFor={`${idPrefix}-token`}>{t("gitConnections.token.token")}</Label>
         <Input
           id={`${idPrefix}-token`}
           type="password"
@@ -32,12 +32,12 @@ export function AccessTokenFields({
           {...token}
         />
         <p id={`${idPrefix}-token-hint`} className="text-muted-foreground text-sm">
-          {t("repositories.token.tokenHint")}
+          {t("gitConnections.token.tokenHint")}
         </p>
         <FieldError id={`${idPrefix}-token-error`} message={errors.token} />
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor={`${idPrefix}-user`}>{t("repositories.token.userName")}</Label>
+        <Label htmlFor={`${idPrefix}-user`}>{t("gitConnections.token.userName")}</Label>
         <Input
           id={`${idPrefix}-user`}
           autoComplete="off"
@@ -47,7 +47,7 @@ export function AccessTokenFields({
           {...userName}
         />
         <p id={`${idPrefix}-user-hint`} className="text-muted-foreground text-sm">
-          {t("repositories.token.userNameHint")}
+          {t("gitConnections.token.userNameHint")}
         </p>
         <FieldError id={`${idPrefix}-user-error`} message={errors.userName} />
       </div>

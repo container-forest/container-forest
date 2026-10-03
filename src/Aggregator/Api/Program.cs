@@ -55,6 +55,7 @@ app.MapMeEndpoints();
 app.MapUserEndpoints();
 app.MapEnvironmentEndpoints();
 app.MapAgeKeyEndpoints();
+app.MapGitConnectionEndpoints();
 app.MapStackEndpoints();
 app.MapWebhookEndpoints();
 app.MapNotificationEndpoints();

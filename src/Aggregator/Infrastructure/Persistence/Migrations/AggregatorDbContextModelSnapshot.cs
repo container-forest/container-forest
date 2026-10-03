@@ -414,7 +414,7 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.ToTable("NotificationRules", (string)null);
                 });
 
-            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Repositories.GitRepository", b =>
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Repositories.GitConnection", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
@@ -422,6 +422,9 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.Property<string>("AccessUserName")
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("AllowsAllEnvironments")
+                        .HasColumnType("INTEGER");
 
                     b.Property<long>("CreatedAt")
                         .HasColumnType("INTEGER");
@@ -438,7 +441,7 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.Property<string>("ProtectedWebhookSecret")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Url")
+                    b.Property<string>("UrlPrefix")
                         .IsRequired()
                         .HasMaxLength(2048)
                         .HasColumnType("TEXT");
@@ -447,6 +450,40 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Name")
                         .IsUnique();
+
+                    b.ToTable("GitConnections", (string)null);
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Repositories.GitRepository", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ConnectionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<string>("ProtectedWebhookSecret")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConnectionId");
+
+                    b.HasIndex("Name");
 
                     b.ToTable("Repositories", (string)null);
                 });
@@ -769,6 +806,43 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("StackId")
                         .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Repositories.GitConnection", b =>
+                {
+                    b.OwnsMany("ContainerForest.Aggregator.Domain.Repositories.GitConnectionEnvironment", "environments", b1 =>
+                        {
+                            b1.Property<Guid>("GitConnectionId")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<Guid>("EnvironmentId")
+                                .HasColumnType("TEXT");
+
+                            b1.HasKey("GitConnectionId", "EnvironmentId");
+
+                            b1.HasIndex("EnvironmentId");
+
+                            b1.ToTable("GitConnectionEnvironments", (string)null);
+
+                            b1.HasOne("ContainerForest.Aggregator.Domain.Environments.DockerEnvironment", null)
+                                .WithMany()
+                                .HasForeignKey("EnvironmentId")
+                                .OnDelete(DeleteBehavior.Cascade)
+                                .IsRequired();
+
+                            b1.WithOwner()
+                                .HasForeignKey("GitConnectionId");
+                        });
+
+                    b.Navigation("environments");
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Repositories.GitRepository", b =>
+                {
+                    b.HasOne("ContainerForest.Aggregator.Domain.Repositories.GitConnection", null)
+                        .WithMany()
+                        .HasForeignKey("ConnectionId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Stacks.Stack", b =>

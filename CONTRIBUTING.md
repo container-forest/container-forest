@@ -91,18 +91,19 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    ```
    Деплой стеку з git-репозиторію (compose-файл має використовувати готові образи, `build:` відхиляється; для перевірки підходить `https://github.com/dockersamples/example-voting-app.git` з `composePath` = `docker-compose.images.yml`):
    ```sh
-   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/repositories -H 'content-type: application/json' -d '{"name":"infra","url":"https://github.com/<org>/<repo>.git"}'
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/repositories -H 'content-type: application/json' -d '{"name":"infra","url":"https://github.com/<org>/<repo>.git","connectionId":null}'
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/stacks -H 'content-type: application/json' -d '{"name":"web","repositoryId":"<repoId>","branch":"main","composePath":"apps/web/compose.yaml"}'
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/stacks/<stackId>/deployments -H 'content-type: application/json' -d '{"pull":false}'   # pull=true — redeploy with pull
    curl -H 'X-Dev-User: root' http://localhost:5080/api/deployments/<deploymentId>   # статус і лог
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/stacks/<stackId>/restart?timeoutSeconds=10   # restart | down; у відповіді — вивід compose
    ```
-   Приватний репозиторій — з токеном доступу лише на читання (GitHub: fine-grained token з `Contents: Read-only`; GitLab: deploy token з `read_repository`, тоді `userName` — ім'я токена). Токен лише записується: відповідь каже тільки `hasAccessToken`:
+   Приватний репозиторій — через підключення до git-сервера (ADR-0006, лише адміністратор): префікс адреси, токен лише на читання (Gitea: токен службового користувача зі scope `read:repository`; GitHub: fine-grained token з `Contents: Read-only`; GitLab: deploy token з `read_repository`, тоді `userName` — ім'я токена) і середовища, яким дозволено з нього деплоїти. Токен лише записується: відповідь каже тільки `hasAccessToken`. Репозиторії під підключенням додає будь-хто з роллю Editor у дозволеному середовищі, без токена:
    ```sh
-   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/repositories -H 'content-type: application/json' -d '{"name":"private","url":"https://github.com/<org>/<repo>.git","accessToken":{"userName":null,"token":"<токен>"}}'
-   curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/repositories/<repoId>/access-token -H 'content-type: application/json' -d '{"userName":null,"token":"<новий токен>"}'
-   curl -X DELETE -H 'X-Dev-User: root' http://localhost:5080/api/repositories/<repoId>/access-token
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/git-connections -H 'content-type: application/json' -d '{"name":"team","urlPrefix":"https://gitea.example.com/team/","accessToken":{"userName":null,"token":"<токен>"},"allEnvironments":false,"environmentIds":["<id>"]}'
+   curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/git-connections/<connectionId>/access-token -H 'content-type: application/json' -d '{"userName":null,"token":"<новий токен>"}'
+   curl -X POST -H 'X-Dev-User: alice' http://localhost:5080/api/repositories -H 'content-type: application/json' -d '{"name":"app","url":"https://gitea.example.com/team/app.git","connectionId":"<connectionId>"}'
    ```
+   Публічний репозиторій ЦА не тягне з приватних адрес мережі (loopback, RFC 1918, link-local); для внутрішнього git-сервера створіть підключення (можна без токена) або задайте `CF_GIT__ALLOWPRIVATEHOSTS=true`.
    Клони репозиторіїв ЦА тримає в `git-cache/` у робочому каталозі (`CF_GIT__CACHEDIRECTORY`).
 
    Деплой після push (опис — у [docs/architecture.md](docs/architecture.md#деплой-після-push-webhook)). Git-сервер має досягати ЦА, тож локально webhook зручно перевіряти підписаним запитом вручну:

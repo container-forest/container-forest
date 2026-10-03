@@ -175,7 +175,7 @@ internal sealed class StubGitSource : IGitSource
 
     public Task<Domain.Stacks.CommitSha> FetchAsync(
         Domain.Repositories.GitRepository repository,
-        GitCredentials? credentials,
+        GitAccess access,
         Domain.Stacks.BranchName branch,
         CancellationToken cancellationToken) =>
         Snapshot is { } snapshot

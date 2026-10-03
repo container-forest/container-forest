@@ -139,6 +139,14 @@ export function movesTokenToAnotherHost(repository: Pick<Repository, "url" | "ha
   }
 }
 
+/**
+ * Where the git server sends pushes of a repository. The panel's own origin: Caddy is the only entrance and proxies
+ * /api to the aggregator (ADR-0005).
+ */
+export function webhookUrl(origin: string, repositoryId: string): string {
+  return `${origin.replace(/\/+$/, "")}/api/webhooks/${repositoryId}`;
+}
+
 export function isFinished(status: DeploymentStatus): boolean {
   return status === "Succeeded" || status === "Failed" || status === "Cancelled";
 }

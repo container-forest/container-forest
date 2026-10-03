@@ -10,6 +10,8 @@ namespace ContainerForest.Aggregator.Domain.Repositories;
 /// The access token is stored already encrypted by the application layer; the domain never sees it in plain text.
 /// The token belongs to the URL's host: a URL on another host is accepted only after the token is removed, so a
 /// changed URL cannot send the token to a server it was not issued for.
+/// The webhook secret, also stored encrypted, authenticates push notifications from the git server; with it set, a
+/// push deploys the stacks of the pushed branch that opted in (<see cref="Stacks.Stack.DeployOnPush"/>).
 /// </remarks>
 public sealed class GitRepository : Entity<RepositoryId>
 {
@@ -50,6 +52,11 @@ public sealed class GitRepository : Entity<RepositoryId>
 
     public bool HasAccessToken => ProtectedAccessToken is not null;
 
+    /// <summary>Encrypted secret the git server signs webhook deliveries with; null when pushes are not received.</summary>
+    public string? ProtectedWebhookSecret { get; private set; }
+
+    public bool HasWebhook => ProtectedWebhookSecret is not null;
+
     public DateTimeOffset CreatedAt { get; private init; }
 
     public static GitRepository Create(string name, string url, DateTimeOffset now) =>
@@ -87,6 +94,20 @@ public sealed class GitRepository : Entity<RepositoryId>
         ProtectedAccessToken = null;
         AccessUserName = null;
     }
+
+    /// <summary>Sets or replaces the webhook secret; deliveries signed with the previous one are rejected from now on.</summary>
+    public void SetWebhookSecret(string protectedSecret)
+    {
+        if (string.IsNullOrWhiteSpace(protectedSecret))
+        {
+            throw new DomainValidationException("Webhook secret must not be empty; use RemoveWebhookSecret to stop receiving pushes.");
+        }
+
+        ProtectedWebhookSecret = protectedSecret;
+    }
+
+    /// <summary>Stops receiving pushes: every delivery is rejected.</summary>
+    public void RemoveWebhookSecret() => ProtectedWebhookSecret = null;
 
     private static Uri ParseUrl(string url)
     {

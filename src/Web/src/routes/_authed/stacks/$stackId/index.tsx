@@ -6,7 +6,12 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { hasStatus } from "@/api/client";
 import { deploymentsQuery, repositoriesQuery, stackQuery } from "@/api/queries";
-import { useChangeStackSourceMutation, useDeployStackMutation, useStackActionMutation } from "@/api/stacks";
+import {
+  useChangeStackSourceMutation,
+  useDeployStackMutation,
+  useSetDeployOnPushMutation,
+  useStackActionMutation,
+} from "@/api/stacks";
 import { ConfirmAction } from "@/components/confirm-action";
 import { ErrorText, FieldError } from "@/components/form-messages";
 import { ArrowLeftIcon, ArrowRightIcon, Loader2Icon, PlayIcon, RefreshCwIcon, RotateCwIcon, SquareIcon } from "@/components/icons";
@@ -17,6 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   DEPLOYMENT_POLL_MS,
   type Stack,
@@ -71,6 +77,7 @@ function StackScreen() {
 
       <ActionsCard stack={stack} />
       <SourceCard key={`${stack.repositoryId}/${stack.branch}/${stack.composePath}`} stack={stack} />
+      {stack.canDeploy && !stack.isSystem && <DeployOnPushCard stack={stack} />}
       <RecentDeploymentsCard stack={stack} />
     </div>
   );
@@ -343,6 +350,45 @@ function SourceCard({ stack }: { stack: Stack }) {
             </Button>
           </div>
         </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Deploying on push: the stack's switch; the repository's webhook is the administrator's (repositories screen). */
+function DeployOnPushCard({ stack }: { stack: Stack }) {
+  const { t } = useTranslation();
+  const repositories = useQuery(repositoriesQuery);
+  const change = useSetDeployOnPushMutation(stack.id);
+  const repository = repositories.data?.find((r) => r.id === stack.repositoryId);
+  const changeError = change.error ? describeError(change.error) : undefined;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("stack.push.title")}</CardTitle>
+        <CardDescription>{t("stack.push.description", { branch: stack.branch })}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <div className="flex items-center gap-3">
+          <Switch
+            id="deploy-on-push"
+            checked={change.isPending ? change.variables : stack.deployOnPush}
+            disabled={change.isPending}
+            onCheckedChange={(enabled) => change.mutate(enabled)}
+          />
+          <Label htmlFor="deploy-on-push">{t("stack.push.label")}</Label>
+        </div>
+        <div aria-live="polite">
+          {stack.deployOnPush && repository !== undefined && !repository.hasWebhook && (
+            <p className="text-muted-foreground text-sm">{t("stack.push.noWebhook")}</p>
+          )}
+          {changeError && (
+            <ErrorText>
+              {t("stack.push.failed")} {t(changeError.key)} {changeError.detail}
+            </ErrorText>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

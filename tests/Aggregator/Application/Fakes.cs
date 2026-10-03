@@ -123,6 +123,10 @@ internal sealed class InMemoryStacks : InMemoryRepository<Stack, StackId>, IStac
 
     public Task<IReadOnlyList<Stack>> ListByEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<Stack>>(Items.Where(s => s.EnvironmentId == environmentId).ToList());
+
+    public Task<IReadOnlyList<Stack>> ListDeployedOnPushAsync(
+        RepositoryId repositoryId, BranchName branch, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Stack>>(Items.Where(s => s.RepositoryId == repositoryId && s.Branch == branch && s.DeployOnPush).ToList());
 }
 
 internal sealed class InMemoryDiscordLinks : InMemoryRepository<DiscordLink, UserId>, IDiscordLinkRepository
@@ -155,6 +159,9 @@ internal sealed class InMemoryDeployments : InMemoryRepository<Deployment, Deplo
 
     public Task<bool> HasUnfinishedAsync(StackId stackId, CancellationToken cancellationToken) =>
         Task.FromResult(Items.Any(d => d.StackId == stackId && !d.IsFinished));
+
+    public Task<Deployment?> FindUnfinishedAsync(StackId stackId, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.FirstOrDefault(d => d.StackId == stackId && !d.IsFinished));
 
     public Task<IReadOnlyList<Deployment>> ListUnfinishedAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<Deployment>>(Items.Where(d => !d.IsFinished).ToList());

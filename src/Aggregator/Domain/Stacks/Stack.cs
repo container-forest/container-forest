@@ -61,6 +61,12 @@ public sealed class Stack : Entity<StackId>
     /// </summary>
     public bool DeployedWithSecrets { get; private set; }
 
+    /// <summary>
+    /// A push to <see cref="Branch"/> deploys the stack, when its repository has a webhook. Off by default: whoever
+    /// set the stack up decides whether the branch is ready to go live on every push.
+    /// </summary>
+    public bool DeployOnPush { get; private set; }
+
     public static Stack Create(
         EnvironmentId environmentId,
         StackName name,
@@ -76,6 +82,18 @@ public sealed class Stack : Entity<StackId>
         RepositoryId = repositoryId;
         Branch = branch;
         ComposePath = composePath;
+    }
+
+    /// <exception cref="DomainConflictException">Turning it on for a system stack, which the pipeline does not deploy.</exception>
+    public void SetDeployOnPush(bool enabled)
+    {
+        if (enabled && RequiresUpdateHelper(StackOperation.Redeploy))
+        {
+            throw new DomainConflictException(
+                $"System stack '{Name}' can only be updated through the helper container, so a push cannot deploy it.");
+        }
+
+        DeployOnPush = enabled;
     }
 
     /// <summary>Throws when the operation is never allowed for this stack.</summary>

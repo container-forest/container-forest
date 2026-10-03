@@ -18,5 +18,6 @@ internal sealed class RepositoryConfiguration : IEntityTypeConfiguration<GitRepo
         builder.Property(r => r.Url).HasConversion(url => url.ToString(), value => new Uri(value)).HasMaxLength(2048);
         builder.Property(r => r.AccessUserName).HasMaxLength(GitRepository.MaxAccessUserNameLength);
         builder.Ignore(r => r.HasAccessToken);
+        builder.Ignore(r => r.HasWebhook);
     }
 }

@@ -38,4 +38,5 @@ export { default as Trash2Icon } from "~icons/material-symbols/delete-outline-ro
 export { default as UnlinkIcon } from "~icons/material-symbols/link-off-rounded";
 export { default as UserCheckIcon } from "~icons/material-symbols/person-check-rounded";
 export { default as UserXIcon } from "~icons/material-symbols/person-off-rounded";
+export { default as WebhookIcon } from "~icons/material-symbols/webhook-rounded";
 export { default as XIcon } from "~icons/material-symbols/close-rounded";

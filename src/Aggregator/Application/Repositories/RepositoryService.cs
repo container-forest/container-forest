@@ -96,6 +96,33 @@ public sealed class RepositoryService(
         return repository;
     }
 
+    /// <summary>
+    /// Generates a new webhook secret, replacing the previous one: deliveries signed with it are rejected from now on.
+    /// The secret is returned only here, to paste into the git server's webhook settings.
+    /// </summary>
+    public async Task<(GitRepository Repository, string Secret)> CreateWebhookSecretAsync(
+        RepositoryId id, CancellationToken cancellationToken)
+    {
+        await currentActor.GetAdministratorAsync(cancellationToken);
+
+        var repository = await repositories.GetAsync(id, cancellationToken);
+        var secret = SecretToken.Generate();
+        repository.SetWebhookSecret(protector.Protect(SecretPurpose.WebhookSecret, secret));
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return (repository, secret);
+    }
+
+    /// <summary>Stops deploying on push: every delivery for the repository is rejected.</summary>
+    public async Task<GitRepository> RemoveWebhookSecretAsync(RepositoryId id, CancellationToken cancellationToken)
+    {
+        await currentActor.GetAdministratorAsync(cancellationToken);
+
+        var repository = await repositories.GetAsync(id, cancellationToken);
+        repository.RemoveWebhookSecret();
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return repository;
+    }
+
     /// <summary>In name order; for administrators and for users with the Editor role on any environment or stack.</summary>
     public async Task<IReadOnlyList<GitRepository>> ListAsync(CancellationToken cancellationToken)
     {

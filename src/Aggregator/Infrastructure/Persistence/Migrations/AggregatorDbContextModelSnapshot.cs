@@ -435,6 +435,9 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.Property<string>("ProtectedAccessToken")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ProtectedWebhookSecret")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Url")
                         .IsRequired()
                         .HasMaxLength(2048)
@@ -464,6 +467,9 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("DeployOnPush")
                         .HasColumnType("INTEGER");
 
                     b.Property<long?>("DeployedAt")

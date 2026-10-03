@@ -105,6 +105,15 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    ```
    Клони репозиторіїв ЦА тримає в `git-cache/` у робочому каталозі (`CF_GIT__CACHEDIRECTORY`).
 
+   Деплой після push (опис — у [docs/architecture.md](docs/architecture.md#деплой-після-push-webhook)). Git-сервер має досягати ЦА, тож локально webhook зручно перевіряти підписаним запитом вручну:
+   ```sh
+   SECRET=$(curl -s -X POST -H 'X-Dev-User: root' http://localhost:5080/api/repositories/<repoId>/webhook | jq -r .secret)   # показується лише раз
+   curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/stacks/<stackId>/deploy-on-push -H 'content-type: application/json' -d '{"enabled":true}'
+   BODY='{"ref":"refs/heads/main","after":"<sha коміту>"}'
+   curl -X POST http://localhost:5080/api/webhooks/<repoId> -H 'content-type: application/json' -H 'X-GitHub-Event: push' \
+     -H "X-Hub-Signature-256: sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -r | cut -d' ' -f1)" -d "$BODY"
+   ```
+
    Секрети SOPS (опис — у [docs/architecture.md](docs/architecture.md#секрети-в-git-sops)): ЦА потрібні `sops` і `age-keygen` у `PATH`; без них деплой стеку із зашифрованими файлами й створення ключа не вдаються, а решта працює. Поставити ті самі версії, що в образі: `scripts/install-sops.sh ~/.local/bin`. Ключі середовища (лише адміністратор; у відповіді — тільки публічний ключ):
    ```sh
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/age-keys

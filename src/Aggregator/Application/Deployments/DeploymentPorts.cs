@@ -68,6 +68,9 @@ public interface IDeploymentRepository : IRepository<Deployment, DeploymentId>
     /// <summary>True when the stack has a queued or running deployment.</summary>
     Task<bool> HasUnfinishedAsync(StackId stackId, CancellationToken cancellationToken);
 
+    /// <summary>The stack's queued or running deployment; there is at most one.</summary>
+    Task<Deployment?> FindUnfinishedAsync(StackId stackId, CancellationToken cancellationToken);
+
     /// <summary>Queued and running deployments of all stacks, e.g. those interrupted by a restart.</summary>
     Task<IReadOnlyList<Deployment>> ListUnfinishedAsync(CancellationToken cancellationToken);
 

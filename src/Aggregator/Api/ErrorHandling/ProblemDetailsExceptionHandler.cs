@@ -1,6 +1,7 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Common;
+using ContainerForest.Aggregator.Application.Webhooks;
 using ContainerForest.Aggregator.Domain.Common;
 using Microsoft.AspNetCore.Diagnostics;
 
@@ -21,6 +22,8 @@ internal sealed class ProblemDetailsExceptionHandler(IProblemDetailsService prob
             AccessDeniedException => (StatusCodes.Status403Forbidden, "Forbidden"),
             AgentOfflineException or AgentDisconnectedException => (StatusCodes.Status503ServiceUnavailable, "Agent unavailable"),
             AgentTimeoutException => (StatusCodes.Status504GatewayTimeout, "Agent timeout"),
+            WebhookRejectedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
+            WebhookPayloadException => (StatusCodes.Status400BadRequest, "Invalid payload"),
             AgentCommandFailedException failed => (StatusFor(failed.Kind), "Agent command failed"),
 
             // A body or parameter that does not bind (e.g. an object where an id is expected) is the caller's error, not ours.

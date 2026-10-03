@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { GrantRoleForm } from "@/components/users/grant-role-form";
 import { ResetPasswordDialog } from "@/components/users/reset-password-dialog";
 import { UserKindBadge, UserStatusBadge } from "@/components/users/user-badges";
 import type { MessageKey } from "@/i18n";
@@ -349,6 +350,7 @@ function RolesCard({ user, assignments }: { user: User; assignments: RoleAssignm
           </TableBody>
         </Table>
         {(changeRole.isError || revokeRole.isError) && <ErrorText>{t("user.roles.failed")}</ErrorText>}
+        <GrantRoleForm userId={user.id} assignments={assignments} />
       </CardContent>
     </Card>
   );

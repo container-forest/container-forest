@@ -5,7 +5,7 @@ import { z } from "zod";
 import { hasStatus } from "@/api/client";
 import { repositoriesQuery } from "@/api/queries";
 import { ErrorText } from "@/components/form-messages";
-import { LockIcon, LockOpenIcon, SearchIcon } from "@/components/icons";
+import { LockIcon, LockOpenIcon, SearchIcon, WebhookIcon } from "@/components/icons";
 import { AddRepositoryDialog } from "@/components/stacks/add-repository-dialog";
 import { EditRepositoryDialog } from "@/components/stacks/edit-repository-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -78,17 +78,25 @@ function RepositoriesScreen() {
                 <TableCell className="font-medium">{repository.name}</TableCell>
                 <TableCell className="font-mono text-sm">{repository.url}</TableCell>
                 <TableCell>
-                  {repository.hasAccessToken ? (
-                    <Badge variant="secondary">
-                      <LockIcon data-icon="inline-start" />
-                      {t("repositories.access.token")}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline">
-                      <LockOpenIcon data-icon="inline-start" />
-                      {t("repositories.access.public")}
-                    </Badge>
-                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {repository.hasAccessToken ? (
+                      <Badge variant="secondary">
+                        <LockIcon data-icon="inline-start" />
+                        {t("repositories.access.token")}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">
+                        <LockOpenIcon data-icon="inline-start" />
+                        {t("repositories.access.public")}
+                      </Badge>
+                    )}
+                    {repository.hasWebhook && (
+                      <Badge variant="secondary">
+                        <WebhookIcon data-icon="inline-start" />
+                        {t("repositories.access.webhook")}
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="text-sm">{formatDate(repository.createdAt, i18n.resolvedLanguage)}</TableCell>
                 {me.isAdmin && (

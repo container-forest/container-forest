@@ -20,6 +20,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/webhooks/{repositoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReceiveWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login": {
         parameters: {
             query?: never;
@@ -484,6 +500,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/repositories/{id}/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CreateRepositoryWebhookSecret"];
+        delete: operations["RemoveRepositoryWebhookSecret"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/environments/{id}/stacks": {
         parameters: {
             query?: never;
@@ -525,6 +557,22 @@ export interface paths {
         };
         get?: never;
         put: operations["ChangeStackSource"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stacks/{id}/deploy-on-push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["SetStackDeployOnPush"];
         post?: never;
         delete?: never;
         options?: never;
@@ -833,6 +881,9 @@ export interface components {
         DeploymentStatus: "Queued" | "Running" | "Succeeded" | "Failed" | "Cancelled";
         /** @enum {unknown} */
         DeploymentTrigger: "Manual" | "Webhook" | "Rehydrate";
+        DeployOnPushRequest: {
+            enabled: boolean;
+        };
         DeployRequest: {
             pull: boolean;
         };
@@ -958,6 +1009,8 @@ export interface components {
             detail?: null | string;
             instance?: null | string;
         };
+        /** @enum {unknown} */
+        PushStackOutcome: "Queued" | "AlreadyQueued" | "AfterRunning" | "AlreadyRunning" | "AlreadyDeployed" | "AgentOffline";
         RegistryCredentialResponse: {
             /** Format: uuid */
             id: string;
@@ -982,6 +1035,7 @@ export interface components {
             url: string;
             hasAccessToken: boolean;
             accessUserName: null | string;
+            hasWebhook: boolean;
             /** Format: date-time */
             createdAt: string;
         };
@@ -1034,6 +1088,7 @@ export interface components {
             deployedCommit: null | string;
             /** Format: date-time */
             deployedAt: null | string;
+            deployOnPush: boolean;
             canDeploy: boolean;
             canRestart: boolean;
         };
@@ -1068,6 +1123,28 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             lockedOutUntil: null | string;
+        };
+        /** @enum {unknown} */
+        WebhookOutcome: "Pong" | "Ignored" | "Push";
+        WebhookResponse: {
+            provider: string;
+            outcome: components["schemas"]["WebhookOutcome"];
+            detail: null | string;
+            stacks: components["schemas"]["WebhookStackResponse"][];
+        };
+        WebhookSecretResponse: {
+            repository: components["schemas"]["RepositoryResponse"];
+            secret: string;
+        };
+        WebhookStackResponse: {
+            /** Format: uuid */
+            stackId: string;
+            /** Format: uuid */
+            environmentId: string;
+            name: string;
+            outcome: components["schemas"]["PushStackOutcome"];
+            /** Format: uuid */
+            deploymentId: null | string;
         };
     };
     responses: never;
@@ -1107,6 +1184,55 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ReceiveWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repositoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Payload Too Large */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3210,6 +3336,104 @@ export interface operations {
             };
         };
     };
+    CreateRepositoryWebhookSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookSecretResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RemoveRepositoryWebhookSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     ListStacks: {
         parameters: {
             query?: never;
@@ -3410,6 +3634,68 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    SetStackDeployOnPush: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeployOnPushRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackResponse"];
                 };
             };
             /** @description Unauthorized */

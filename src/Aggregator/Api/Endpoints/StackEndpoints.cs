@@ -55,6 +55,23 @@ internal static class StackEndpoints
             .WithName("RemoveRepositoryAccessToken")
             .ProducesProblem(StatusCodes.Status404NotFound);
 
+        repositories.MapPost(
+                "/{id:guid}/webhook",
+                async (Guid id, RepositoryService service, CancellationToken ct) =>
+                {
+                    var (repository, secret) = await service.CreateWebhookSecretAsync(RepositoryId.From(id), ct);
+                    return new WebhookSecretResponse(ToResponse(repository), secret);
+                })
+            .WithName("CreateRepositoryWebhookSecret")
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        repositories.MapDelete(
+                "/{id:guid}/webhook",
+                async (Guid id, RepositoryService service, CancellationToken ct) =>
+                    ToResponse(await service.RemoveWebhookSecretAsync(RepositoryId.From(id), ct)))
+            .WithName("RemoveRepositoryWebhookSecret")
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
         var api = app.MapGroup("/api")
             .WithTags("Stacks")
             .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -88,6 +105,13 @@ internal static class StackEndpoints
                         StackId.From(id), RepositoryId.From(request.RepositoryId), request.Branch, request.ComposePath, ct)))
             .WithName("ChangeStackSource")
             .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        api.MapPut(
+                "/stacks/{id:guid}/deploy-on-push",
+                async (Guid id, DeployOnPushRequest request, StackService service, CancellationToken ct) =>
+                    ToResponse(await service.SetDeployOnPushAsync(StackId.From(id), request.Enabled, ct)))
+            .WithName("SetStackDeployOnPush")
             .ProducesProblem(StatusCodes.Status409Conflict);
 
         api.MapStackAction("restart", "RestartStack", StackAction.Restart);
@@ -142,6 +166,7 @@ internal static class StackEndpoints
         repository.Url.ToString(),
         repository.HasAccessToken,
         repository.AccessUserName,
+        repository.HasWebhook,
         repository.CreatedAt);
 
     private static RepositoryAccessToken? ToAccessToken(RepositoryAccessTokenRequest? request) =>
@@ -158,6 +183,7 @@ internal static class StackEndpoints
         s.IsSystem,
         s.DeployedCommit?.Value,
         s.DeployedAt,
+        s.DeployOnPush,
         s.CanDeploy,
         s.CanRestart);
 

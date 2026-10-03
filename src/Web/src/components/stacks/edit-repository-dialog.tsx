@@ -34,6 +34,7 @@ import {
   toAccessTokenRequest,
 } from "@/features/stacks/model";
 import { AccessTokenFields } from "./access-token-fields";
+import { WebhookSection } from "./webhook-section";
 
 const emptyToken: AccessTokenForm = { userName: "", token: "" };
 
@@ -222,6 +223,8 @@ export function EditRepositoryDialog({ repository }: { repository: Repository })
             )}
           </div>
         </section>
+
+        <WebhookSection repository={repository} />
       </DialogContent>
     </Dialog>
   );

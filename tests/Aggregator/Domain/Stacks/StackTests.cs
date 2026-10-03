@@ -31,6 +31,20 @@ public class StackTests
     }
 
     [Fact]
+    public void Deploy_on_push_is_off_by_default_and_never_on_for_a_system_stack()
+    {
+        var stack = Stack(EnvironmentId.New());
+        Assert.False(stack.DeployOnPush);
+        stack.SetDeployOnPush(true);
+        Assert.True(stack.DeployOnPush);
+
+        var system = Stack(EnvironmentId.New(), isSystem: true);
+        Assert.Throws<DomainConflictException>(() => system.SetDeployOnPush(true));
+        system.SetDeployOnPush(false);
+        Assert.False(system.DeployOnPush);
+    }
+
+    [Fact]
     public void Regular_stack_allows_every_operation()
     {
         var stack = Stack(EnvironmentId.New());

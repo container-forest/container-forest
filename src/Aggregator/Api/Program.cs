@@ -56,6 +56,7 @@ app.MapUserEndpoints();
 app.MapEnvironmentEndpoints();
 app.MapAgeKeyEndpoints();
 app.MapStackEndpoints();
+app.MapWebhookEndpoints();
 app.MapNotificationEndpoints();
 app.MapDiscordLinkEndpoints();
 // A signed-out session must not keep hearing updates on an open WebSocket.

@@ -57,6 +57,10 @@ internal sealed class StackRepository(AggregatorDbContext db) : EfRepository<Sta
 
     public async Task<IReadOnlyList<Stack>> ListByEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
         await Set.Where(s => s.EnvironmentId == environmentId).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Stack>> ListDeployedOnPushAsync(
+        RepositoryId repositoryId, BranchName branch, CancellationToken cancellationToken) =>
+        await Set.Where(s => s.RepositoryId == repositoryId && s.Branch == branch && s.DeployOnPush).ToListAsync(cancellationToken);
 }
 
 internal sealed class UserRepository(AggregatorDbContext db) : EfRepository<User, UserId>(db), IUserRepository
@@ -105,6 +109,9 @@ internal sealed class DeploymentRepository(AggregatorDbContext db)
 
     public Task<bool> HasUnfinishedAsync(StackId stackId, CancellationToken cancellationToken) =>
         Set.AnyAsync(d => d.StackId == stackId && Unfinished.Contains(d.Status), cancellationToken);
+
+    public Task<Deployment?> FindUnfinishedAsync(StackId stackId, CancellationToken cancellationToken) =>
+        Set.FirstOrDefaultAsync(d => d.StackId == stackId && Unfinished.Contains(d.Status), cancellationToken);
 
     public async Task<IReadOnlyList<Deployment>> ListUnfinishedAsync(CancellationToken cancellationToken) =>
         await Set.Where(d => Unfinished.Contains(d.Status)).ToListAsync(cancellationToken);

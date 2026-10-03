@@ -54,6 +54,30 @@ export function useRemoveRepositoryAccessTokenMutation(repositoryId: string) {
   });
 }
 
+/**
+ * Generates a new webhook secret, replacing the old one. The answer holds the secret, which is shown once: the
+ * mutation is dropped as soon as nothing observes it, and the component that shows the secret keeps it in its state.
+ */
+export function useCreateWebhookSecretMutation(repositoryId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    gcTime: 0,
+    mutationFn: async () =>
+      unwrap(await api.POST("/api/repositories/{id}/webhook", { params: { path: { id: repositoryId } } })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: repositoriesQuery.queryKey }),
+  });
+}
+
+export function useRemoveWebhookSecretMutation(repositoryId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => unwrap(await api.DELETE("/api/repositories/{id}/webhook", { params: { path: { id: repositoryId } } })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: repositoriesQuery.queryKey }),
+  });
+}
+
 export function useCreateStackMutation(environmentId: string) {
   const queryClient = useQueryClient();
 
@@ -71,6 +95,20 @@ export function useChangeStackSourceMutation(stackId: string) {
   return useMutation({
     mutationFn: async (request: ChangeStackSourceRequest) =>
       unwrap(await api.PUT("/api/stacks/{id}/source", { params: { path: { id: stackId } }, body: request })),
+    onSuccess: (stack) => {
+      queryClient.setQueryData(stackQuery(stackId).queryKey, stack);
+      return queryClient.invalidateQueries({ queryKey: stacksQuery(stack.environmentId).queryKey });
+    },
+  });
+}
+
+/** Turns deploying on push on or off; the answer is the changed stack, as for the source. */
+export function useSetDeployOnPushMutation(stackId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (enabled: boolean) =>
+      unwrap(await api.PUT("/api/stacks/{id}/deploy-on-push", { params: { path: { id: stackId } }, body: { enabled } })),
     onSuccess: (stack) => {
       queryClient.setQueryData(stackQuery(stackId).queryKey, stack);
       return queryClient.invalidateQueries({ queryKey: stacksQuery(stack.environmentId).queryKey });

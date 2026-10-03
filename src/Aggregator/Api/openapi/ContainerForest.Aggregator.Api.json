@@ -45,6 +45,67 @@
         }
       }
     },
+    "/api/webhooks/{repositoryId}": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "operationId": "ReceiveWebhook",
+        "parameters": [
+          {
+            "name": "repositoryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload Too Large",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
         "tags": [
@@ -2658,6 +2719,126 @@
         }
       }
     },
+    "/api/repositories/{id}/webhook": {
+      "post": {
+        "tags": [
+          "Repositories"
+        ],
+        "operationId": "CreateRepositoryWebhookSecret",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSecretResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Repositories"
+        ],
+        "operationId": "RemoveRepositoryWebhookSecret",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/environments/{id}/stacks": {
       "get": {
         "tags": [
@@ -2946,6 +3127,87 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stacks/{id}/deploy-on-push": {
+      "put": {
+        "tags": [
+          "Stacks"
+        ],
+        "operationId": "SetStackDeployOnPush",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeployOnPushRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StackResponse"
                 }
               }
             }
@@ -4589,6 +4851,17 @@
           "Rehydrate"
         ]
       },
+      "DeployOnPushRequest": {
+        "required": [
+          "enabled"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
       "DeployRequest": {
         "required": [
           "pull"
@@ -5057,6 +5330,16 @@
           }
         }
       },
+      "PushStackOutcome": {
+        "enum": [
+          "Queued",
+          "AlreadyQueued",
+          "AfterRunning",
+          "AlreadyRunning",
+          "AlreadyDeployed",
+          "AgentOffline"
+        ]
+      },
       "RegistryCredentialResponse": {
         "required": [
           "id",
@@ -5123,6 +5406,7 @@
           "url",
           "hasAccessToken",
           "accessUserName",
+          "hasWebhook",
           "createdAt"
         ],
         "type": "object",
@@ -5145,6 +5429,9 @@
               "null",
               "string"
             ]
+          },
+          "hasWebhook": {
+            "type": "boolean"
           },
           "createdAt": {
             "type": "string",
@@ -5292,6 +5579,7 @@
           "isSystem",
           "deployedCommit",
           "deployedAt",
+          "deployOnPush",
           "canDeploy",
           "canRestart"
         ],
@@ -5339,6 +5627,9 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "deployOnPush": {
+            "type": "boolean"
           },
           "canDeploy": {
             "type": "boolean"
@@ -5469,12 +5760,99 @@
             "format": "date-time"
           }
         }
+      },
+      "WebhookOutcome": {
+        "enum": [
+          "Pong",
+          "Ignored",
+          "Push"
+        ]
+      },
+      "WebhookResponse": {
+        "required": [
+          "provider",
+          "outcome",
+          "detail",
+          "stacks"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/WebhookOutcome"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "stacks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookStackResponse"
+            }
+          }
+        }
+      },
+      "WebhookSecretResponse": {
+        "required": [
+          "repository",
+          "secret"
+        ],
+        "type": "object",
+        "properties": {
+          "repository": {
+            "$ref": "#/components/schemas/RepositoryResponse"
+          },
+          "secret": {
+            "type": "string"
+          }
+        }
+      },
+      "WebhookStackResponse": {
+        "required": [
+          "stackId",
+          "environmentId",
+          "name",
+          "outcome",
+          "deploymentId"
+        ],
+        "type": "object",
+        "properties": {
+          "stackId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "environmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/PushStackOutcome"
+          },
+          "deploymentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
       }
     }
   },
   "tags": [
     {
       "name": "Account"
+    },
+    {
+      "name": "Webhooks"
     },
     {
       "name": "Users"

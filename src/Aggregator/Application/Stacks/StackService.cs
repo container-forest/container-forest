@@ -12,6 +12,7 @@ namespace ContainerForest.Aggregator.Application.Stacks;
 
 /// <param name="RepositoryName">Null when the repository is gone.</param>
 /// <param name="CanDeploy">Whether the current user may deploy the stack, change its source or take it down; the panel uses it to show the buttons.</param>
+/// <param name="DeployOnPush">A push to the branch deploys the stack, when the repository has a webhook.</param>
 /// <param name="CanRestart">Whether the current user may restart the stack.</param>
 public sealed record StackSummary(
     StackId Id,
@@ -24,6 +25,7 @@ public sealed record StackSummary(
     bool IsSystem,
     CommitSha? DeployedCommit,
     DateTimeOffset? DeployedAt,
+    bool DeployOnPush,
     bool CanDeploy,
     bool CanRestart);
 
@@ -136,6 +138,23 @@ public sealed class StackService(
         return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
     }
 
+    /// <summary>
+    /// Turns deploying on push on or off; the same role as deploying, since every push then deploys. Allowed during
+    /// a deployment: it only decides about later pushes.
+    /// </summary>
+    public async Task<StackSummary> SetDeployOnPushAsync(StackId stackId, bool enabled, CancellationToken cancellationToken)
+    {
+        var (actor, stack, environment, assignments) = await LoadVisibleAsync(stackId, cancellationToken);
+        if (!AccessPolicy.CanPerform(actor, environment, stack, assignments, Permission.Deploy))
+        {
+            throw new AccessDeniedException($"Changing stack '{stack.Name}' requires the Editor role.");
+        }
+
+        stack.SetDeployOnPush(enabled);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+    }
+
     private static StackSummary Summarize(
         User actor,
         DockerEnvironment environment,
@@ -152,6 +171,7 @@ public sealed class StackService(
         stack.IsSystem,
         stack.DeployedCommit,
         stack.DeployedAt,
+        stack.DeployOnPush,
         AccessPolicy.CanPerform(actor, environment, stack, assignments, Permission.Deploy),
         AccessPolicy.CanPerform(actor, environment, stack, assignments, StackOperation.Restart));
 

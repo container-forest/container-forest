@@ -9,6 +9,7 @@ using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Secrets;
 using ContainerForest.Aggregator.Application.Stacks;
+using ContainerForest.Aggregator.Application.Webhooks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -50,6 +51,14 @@ public static class DependencyInjection
         services.AddScoped<NotificationDispatcher>();
         services.AddScoped<NotificationDeliveryService>();
         services.AddScoped<IDeploymentObserver, DeploymentNotifier>();
+
+        // Asked in this order: Gitea also sends GitHub's headers.
+        services.AddSingleton<GitWebhookProvider, GiteaWebhook>();
+        services.AddSingleton<GitWebhookProvider, GitHubWebhook>();
+        services.AddSingleton<GitWebhookProvider, GitLabWebhook>();
+        services.AddSingleton<PushDeploymentGate>();
+        services.AddScoped<PushWebhookService>();
+        services.AddScoped<IDeploymentObserver, PushFollowUpObserver>();
         return services;
     }
 }

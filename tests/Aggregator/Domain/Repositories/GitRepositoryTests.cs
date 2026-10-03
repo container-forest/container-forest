@@ -7,6 +7,21 @@ namespace ContainerForest.Aggregator.Domain.Tests.Repositories;
 public class GitRepositoryTests
 {
     [Fact]
+    public void Webhook_secret_is_set_replaced_and_removed()
+    {
+        var repository = GitRepository.Create("infra", "https://git.example.com/team/infra.git", Now);
+        Assert.False(repository.HasWebhook);
+
+        repository.SetWebhookSecret("first");
+        repository.SetWebhookSecret("second");
+        Assert.Equal("second", repository.ProtectedWebhookSecret);
+
+        repository.RemoveWebhookSecret();
+        Assert.False(repository.HasWebhook);
+        Assert.Throws<DomainValidationException>(() => repository.SetWebhookSecret(" "));
+    }
+
+    [Fact]
     public void Accepts_an_https_url()
     {
         var repository = GitRepository.Create("infra", "https://git.example.com/team/infra.git", Now);

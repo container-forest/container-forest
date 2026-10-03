@@ -6,30 +6,23 @@ namespace ContainerForest.Aggregator.Domain.Repositories;
 /// Git repository the aggregator fetches stack sources from. One repository can hold several stacks.
 /// </summary>
 /// <remarks>
-/// Only HTTPS is supported: LibGit2Sharp from NuGet has no SSH, and a deploy token must not travel over plain HTTP.
-/// The access token is stored already encrypted by the application layer; the domain never sees it in plain text.
-/// The token belongs to the URL's host: a URL on another host is accepted only after the token is removed, so a
-/// changed URL cannot send the token to a server it was not issued for.
-/// The webhook secret, also stored encrypted, authenticates push notifications from the git server; with it set, a
-/// push deploys the stacks of the pushed branch that opted in (<see cref="Stacks.Stack.DeployOnPush"/>).
+/// Only HTTPS is supported: LibGit2Sharp from NuGet has no SSH, and a token must not travel over plain HTTP.
+/// A private repository belongs to a <see cref="GitConnection"/>: its URL lies under the connection's prefix, the
+/// connection's token is fetched with, and only the environments the connection allows may use the repository
+/// (ADR-0006). A repository without a connection is public: fetched anonymously and usable in every environment.
+/// The webhook secret, stored encrypted, authenticates push notifications for this repository alone; with it set,
+/// a push deploys the stacks of the pushed branch that opted in (<see cref="Stacks.Stack.DeployOnPush"/>).
 /// </remarks>
 public sealed class GitRepository : Entity<RepositoryId>
 {
     public const int MaxNameLength = 64;
 
-    public const int MaxAccessUserNameLength = 128;
-
-    /// <summary>
-    /// User name sent with a token when none is set. GitHub and GitLab accept any user name with a token;
-    /// others (GitLab deploy tokens, Bitbucket) need a specific one.
-    /// </summary>
-    public const string DefaultAccessUserName = "x-access-token";
-
-    private GitRepository(RepositoryId id, string name, Uri url, DateTimeOffset createdAt)
+    private GitRepository(RepositoryId id, string name, Uri url, GitConnectionId? connectionId, DateTimeOffset createdAt)
         : base(id)
     {
         Name = name;
         Url = url;
+        ConnectionId = connectionId;
         CreatedAt = createdAt;
     }
 
@@ -44,13 +37,8 @@ public sealed class GitRepository : Entity<RepositoryId>
 
     public Uri Url { get; private set; }
 
-    /// <summary>Encrypted deploy token; null for a public repository.</summary>
-    public string? ProtectedAccessToken { get; private set; }
-
-    /// <summary>User name sent with the token; null for <see cref="DefaultAccessUserName"/> or without a token.</summary>
-    public string? AccessUserName { get; private set; }
-
-    public bool HasAccessToken => ProtectedAccessToken is not null;
+    /// <summary>The connection that gives access to the repository; null for a public one.</summary>
+    public GitConnectionId? ConnectionId { get; private set; }
 
     /// <summary>Encrypted secret the git server signs webhook deliveries with; null when pushes are not received.</summary>
     public string? ProtectedWebhookSecret { get; private set; }
@@ -59,40 +47,41 @@ public sealed class GitRepository : Entity<RepositoryId>
 
     public DateTimeOffset CreatedAt { get; private init; }
 
-    public static GitRepository Create(string name, string url, DateTimeOffset now) =>
-        new(RepositoryId.New(), NormalizeName(name), ParseUrl(url), now);
+    /// <param name="connection">Null for a public repository.</param>
+    /// <exception cref="DomainValidationException">The URL is invalid or not under the connection's prefix.</exception>
+    public static GitRepository Create(string name, string url, GitConnection? connection, DateTimeOffset now)
+    {
+        var uri = ParseUrl(url, connection);
+        return new(RepositoryId.New(), NormalizeName(name), uri, connection?.Id, now);
+    }
 
     public void Rename(string name) => Name = NormalizeName(name);
 
-    /// <exception cref="DomainValidationException">The URL is invalid, or it is on another host while a token is set.</exception>
-    public void ChangeUrl(string url)
+    /// <summary>Points the repository at another address, connection or both.</summary>
+    /// <param name="connection">Null for a public repository.</param>
+    /// <exception cref="DomainValidationException">The URL is invalid or not under the connection's prefix.</exception>
+    public void ChangeSource(string url, GitConnection? connection)
     {
-        var uri = ParseUrl(url);
-        if (HasAccessToken && !string.Equals(uri.Authority, Url.Authority, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new DomainValidationException(
-                $"The access token was set for {Url.Authority}; remove it before moving the repository to {uri.Authority}.");
-        }
-
-        Url = uri;
+        Url = ParseUrl(url, connection);
+        ConnectionId = connection?.Id;
     }
 
-    /// <param name="userName">Null or blank for <see cref="DefaultAccessUserName"/>.</param>
-    public void SetAccessToken(string? userName, string protectedAccessToken)
+    /// <summary>True when stacks of <paramref name="environmentId"/> may deploy from this repository.</summary>
+    /// <param name="connection">The repository's connection, null for a public repository.</param>
+    public bool IsUsableIn(EnvironmentId environmentId, GitConnection? connection)
     {
-        if (string.IsNullOrWhiteSpace(protectedAccessToken))
-        {
-            throw new DomainValidationException("Access token must not be empty; use RemoveAccessToken for a public repository.");
-        }
-
-        AccessUserName = NormalizeAccessUserName(userName);
-        ProtectedAccessToken = protectedAccessToken;
+        EnsureOwnConnection(connection);
+        return connection is null || connection.IsAllowedIn(environmentId);
     }
 
-    public void RemoveAccessToken()
+    /// <exception cref="ArgumentException">The connection is not the repository's own.</exception>
+    public void EnsureOwnConnection(GitConnection? connection)
     {
-        ProtectedAccessToken = null;
-        AccessUserName = null;
+        if (connection?.Id != ConnectionId)
+        {
+            throw new ArgumentException(
+                $"Connection {connection?.Id.ToString() ?? "none"} is not the connection of repository '{Name}'.", nameof(connection));
+        }
     }
 
     /// <summary>Sets or replaces the webhook secret; deliveries signed with the previous one are rejected from now on.</summary>
@@ -106,42 +95,19 @@ public sealed class GitRepository : Entity<RepositoryId>
         ProtectedWebhookSecret = protectedSecret;
     }
 
-    /// <summary>Stops receiving pushes: every delivery is rejected.</summary>
+    /// <summary>Stops receiving pushes: every delivery for the repository alone is rejected.</summary>
     public void RemoveWebhookSecret() => ProtectedWebhookSecret = null;
 
-    private static Uri ParseUrl(string url)
+    private static Uri ParseUrl(string url, GitConnection? connection)
     {
-        if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+        var uri = GitUrl.Parse(url, "Repository URL");
+        if (connection is not null && !connection.Covers(uri))
         {
-            throw new DomainValidationException($"'{url}' is not an absolute https:// URL.");
-        }
-
-        // Credentials in the URL would end up in logs and API responses.
-        if (uri.UserInfo.Length > 0)
-        {
-            throw new DomainValidationException("Repository URL must not contain credentials; set an access token instead.");
+            throw new DomainValidationException(
+                $"Repository URL {uri} is not under {connection.UrlPrefix}, the prefix of connection '{connection.Name}'.");
         }
 
         return uri;
-    }
-
-    private static string? NormalizeAccessUserName(string? userName)
-    {
-        if (string.IsNullOrWhiteSpace(userName))
-        {
-            return null;
-        }
-
-        var trimmed = userName.Trim();
-
-        // ':' would split the user name from the password in HTTP basic authentication.
-        if (trimmed.Length > MaxAccessUserNameLength || trimmed.Any(c => char.IsControl(c) || c == ':'))
-        {
-            throw new DomainValidationException(
-                $"Access user name must be at most {MaxAccessUserNameLength} characters without ':' or control characters.");
-        }
-
-        return trimmed;
     }
 
     private static string NormalizeName(string name)

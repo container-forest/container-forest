@@ -97,6 +97,15 @@ export const repositoriesQuery = queryOptions({
   queryFn: async ({ signal }) => unwrap(await api.GET("/api/repositories", { signal })),
 });
 
+/**
+ * Connections to git servers (ADR-0006): administrators see all of them, editors those allowed in their
+ * environments, to add repositories under them.
+ */
+export const gitConnectionsQuery = queryOptions({
+  queryKey: ["git-connections"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/git-connections", { signal })),
+});
+
 /** Stacks of one environment the signed-in user may see, by name. */
 export const stacksQuery = (environmentId: string) =>
   queryOptions({

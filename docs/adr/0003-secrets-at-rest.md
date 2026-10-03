@@ -14,7 +14,7 @@
 
 ## Рішення
 
-1. Використовується Data Protection. Порт `ISecretProtector` в `Application` (`Protect`/`Unprotect` з `SecretPurpose`) реалізує `DataProtectionSecretProtector` в `Infrastructure`. `Domain` бачить лише зашифроване значення (`RegistryCredential.ProtectedPassword`, `GitRepository.ProtectedAccessToken`).
+1. Використовується Data Protection. Порт `ISecretProtector` в `Application` (`Protect`/`Unprotect` з `SecretPurpose`) реалізує `DataProtectionSecretProtector` в `Infrastructure`. `Domain` бачить лише зашифроване значення (`RegistryCredential.ProtectedPassword`, `GitRepository.ProtectedAccessToken`; з ADR-0006 — `GitConnection.ProtectedAccessToken`).
 2. Кожен вид секрету має власний purpose (`ContainerForest.Secrets.<SecretPurpose>`), тож пароль registry не розшифрується як git-токен.
 3. Key ring лежить у `DataProtection:KeyDirectory` (`CF_DATAPROTECTION__KEYDIRECTORY`), типово `data-protection-keys` у робочому каталозі ЦА. `ApplicationName` — `container-forest`.
 4. Значення, яке не вдалося розшифрувати (втрачений key ring, пошкоджений запис), дає `SecretUnreadableException`. Крок пайплайну показує користувачу, що креди треба задати заново, і не розкриває деталей.

@@ -10,8 +10,14 @@ namespace ContainerForest.Aggregator.Application.Deployments;
 /// State of one deployment as it moves through the pipeline. Each step reads what earlier steps produced
 /// and adds its own result; reading a result before the step that produces it has run is a bug.
 /// </summary>
+/// <param name="connection">The repository's connection; null for a public repository.</param>
 public sealed class DeployContext(
-    Deployment deployment, Stack stack, DockerEnvironment environment, GitRepository repository, TimeProvider time)
+    Deployment deployment,
+    Stack stack,
+    DockerEnvironment environment,
+    GitRepository repository,
+    TimeProvider time,
+    GitConnection? connection = null)
 {
     private GitSnapshot? source;
     private ComposeFile? compose;
@@ -24,6 +30,9 @@ public sealed class DeployContext(
     public DockerEnvironment Environment { get; } = environment;
 
     public GitRepository Repository { get; } = repository;
+
+    /// <summary>The repository's connection, with the token to fetch with; null for a public repository.</summary>
+    public GitConnection? Connection { get; } = connection;
 
     public DateTimeOffset Now => time.GetUtcNow();
 

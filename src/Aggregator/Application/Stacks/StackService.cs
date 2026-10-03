@@ -6,6 +6,7 @@ using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Environments;
+using ContainerForest.Aggregator.Domain.Repositories;
 using ContainerForest.Aggregator.Domain.Stacks;
 
 namespace ContainerForest.Aggregator.Application.Stacks;
@@ -35,6 +36,7 @@ public sealed class StackService(
     IEnvironmentRepository environments,
     IStackRepository stacks,
     IGitRepositoryRepository repositories,
+    IGitConnectionRepository connections,
     IRoleAssignmentRepository roleAssignments,
     IDeploymentRepository deployments,
     IUnitOfWork unitOfWork,
@@ -64,7 +66,7 @@ public sealed class StackService(
         }
 
         var stackName = StackName.Parse(name);
-        var repository = await repositories.GetAsync(repositoryId, cancellationToken);
+        var repository = await UsableRepositoryAsync(repositoryId, environment, cancellationToken);
         var stack = Stack.Create(
             environment.Id,
             stackName,
@@ -125,7 +127,7 @@ public sealed class StackService(
 
         var branchName = BranchName.Parse(branch);
         var path = StackFilePath.Parse(composePath);
-        var repository = await repositories.GetAsync(repositoryId, cancellationToken);
+        var repository = await UsableRepositoryAsync(repositoryId, environment, cancellationToken);
 
         // A queued deployment reads the source when it runs; changing it underneath would deploy something nobody asked for.
         if (await deployments.HasUnfinishedAsync(stack.Id, cancellationToken))
@@ -174,6 +176,23 @@ public sealed class StackService(
         stack.DeployOnPush,
         AccessPolicy.CanPerform(actor, environment, stack, assignments, Permission.Deploy),
         AccessPolicy.CanPerform(actor, environment, stack, assignments, StackOperation.Restart));
+
+    /// <summary>
+    /// The repository, if stacks of the environment may deploy from it (ADR-0006). One that may not is reported as
+    /// missing, like the repositories of connections the user does not see.
+    /// </summary>
+    private async Task<GitRepository> UsableRepositoryAsync(
+        RepositoryId repositoryId, DockerEnvironment environment, CancellationToken cancellationToken)
+    {
+        var repository = await repositories.FindAsync(repositoryId, cancellationToken);
+        var connection = repository?.ConnectionId is { } connectionId ? await connections.FindAsync(connectionId, cancellationToken) : null;
+        if (repository is null || (repository.ConnectionId is not null && connection is null) || !repository.IsUsableIn(environment.Id, connection))
+        {
+            throw new NotFoundException("Repository", repositoryId);
+        }
+
+        return repository;
+    }
 
     // Names only: the list of repositories itself is for administrators and editors (RepositoryService).
     private async Task<IReadOnlyDictionary<RepositoryId, string>> RepositoryNamesAsync(CancellationToken cancellationToken) =>

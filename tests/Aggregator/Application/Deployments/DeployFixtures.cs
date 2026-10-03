@@ -14,11 +14,16 @@ internal static class DeployFixtures
 
     public static readonly CommitSha Commit = CommitSha.Parse("0123456789abcdef0123456789abcdef01234567");
 
+    /// <param name="connection">The repository's connection; its URL prefix must cover https://git.example.com/infra.git.</param>
     public static DeployContext Context(
-        string composePath = "compose.yaml", ImagePullPolicy pull = ImagePullPolicy.Missing, bool isSystem = false)
+        string composePath = "compose.yaml",
+        ImagePullPolicy pull = ImagePullPolicy.Missing,
+        bool isSystem = false,
+        GitConnection? connection = null,
+        DockerEnvironment? environment = null)
     {
-        var environment = DockerEnvironment.Create("prod", isPrivate: false, Now);
-        var repository = GitRepository.Create("infra", "https://git.example.com/infra.git", Now);
+        environment ??= DockerEnvironment.Create("prod", isPrivate: false, Now);
+        var repository = GitRepository.Create("infra", "https://git.example.com/infra.git", connection, Now);
         var stack = Stack.Create(
             environment.Id,
             StackName.Parse("web"),
@@ -28,7 +33,7 @@ internal static class DeployFixtures
             isSystem,
             Now);
         var deployment = Deployment.QueueManual(stack.Id, UserId.New(), pull, Now);
-        return new DeployContext(deployment, stack, environment, repository, new FixedTime(Now));
+        return new DeployContext(deployment, stack, environment, repository, new FixedTime(Now), connection);
     }
 
     /// <summary>A context as it is after <see cref="Steps.GitFetchStep"/>.</summary>
@@ -59,7 +64,9 @@ internal sealed class FakeGitSource : IGitSource
     /// <summary>Thrown by <see cref="ReadAsync"/>, after the commit has been fetched.</summary>
     public Exception? ReadError { get; set; }
 
-    public GitCredentials? FetchedWith { get; private set; }
+    public GitCredentials? FetchedWith => FetchedAccess?.Credentials;
+
+    public GitAccess? FetchedAccess { get; private set; }
 
     public BranchName? FetchedBranch { get; private set; }
 
@@ -69,9 +76,9 @@ internal sealed class FakeGitSource : IGitSource
     public CommitSha? ReadCommit { get; private set; }
 
     public Task<CommitSha> FetchAsync(
-        GitRepository repository, GitCredentials? credentials, BranchName branch, CancellationToken cancellationToken)
+        GitRepository repository, GitAccess access, BranchName branch, CancellationToken cancellationToken)
     {
-        FetchedWith = credentials;
+        FetchedAccess = access;
         FetchedBranch = branch;
         return FetchError is null ? Task.FromResult(Snapshot.Commit) : Task.FromException<CommitSha>(FetchError);
     }

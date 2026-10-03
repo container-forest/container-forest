@@ -10,6 +10,9 @@ public interface IStackRepository : IRepository<Stack, StackId>
 
     Task<IReadOnlyList<Stack>> ListByEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken);
 
+    /// <summary>Stacks of all environments that deploy from the repository.</summary>
+    Task<IReadOnlyList<Stack>> ListByRepositoryAsync(RepositoryId repositoryId, CancellationToken cancellationToken);
+
     /// <summary>Stacks of all environments that a push to the branch deploys (<see cref="Stack.DeployOnPush"/>).</summary>
     Task<IReadOnlyList<Stack>> ListDeployedOnPushAsync(RepositoryId repositoryId, BranchName branch, CancellationToken cancellationToken);
 }

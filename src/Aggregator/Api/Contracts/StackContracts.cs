@@ -4,13 +4,14 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 
 // Repositories, stacks and deployments for the panel, limited to what the signed-in user may see and do.
 //
-//   GET  /api/repositories                       -> RepositoryResponse[] (name order); administrators and editors
-//   POST /api/repositories                       -> 201 RepositoryResponse; administrators only
-//   PUT  /api/repositories/{id}                  -> RepositoryResponse; administrators; 400 for another host while a token is set
-//   PUT  /api/repositories/{id}/access-token     -> RepositoryResponse; administrators; sets or replaces the token
-//   DELETE /api/repositories/{id}/access-token   -> RepositoryResponse; administrators; the repository becomes public
-//   POST /api/repositories/{id}/webhook          -> WebhookSecretResponse; administrators; a new secret, the old one stops working
-//   DELETE /api/repositories/{id}/webhook        -> RepositoryResponse; administrators; pushes are no longer received
+//   GET  /api/repositories                       -> RepositoryResponse[] (name order); administrators all, editors those
+//                                                  their environments may deploy from (ADR-0006); 403 for anyone else
+//   POST /api/repositories                       -> 201 RepositoryResponse; administrators, or editors with a connection
+//                                                  allowed in one of their environments (or none, for a public repository)
+//   PUT  /api/repositories/{id}                  -> RepositoryResponse; administrators, or editors who may deploy every
+//                                                  stack of the repository; 400 for a URL outside the connection's prefix
+//   POST /api/repositories/{id}/webhook          -> WebhookSecretResponse; as PUT; a new secret, the old one stops working
+//   DELETE /api/repositories/{id}/webhook        -> RepositoryResponse; as PUT; pushes are no longer received
 //   GET  /api/environments/{id}/stacks           -> StackResponse[] (name order)
 //   POST /api/environments/{id}/stacks           -> 201 StackResponse; Editor on the environment
 //   GET  /api/stacks/{id}                        -> StackResponse
@@ -27,13 +28,23 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 // 409 for a system stack or a deployment in progress, 404 for a stack that was never deployed on the host,
 // 503 when the agent is offline (nothing is queued), 502 for an agent error.
 //
-// An access token is write-only: responses only say whether one is set. The webhook secret is shown once, in the
-// response that creates it. The git server sends deliveries to POST /api/webhooks/{repositoryId} (WebhookContracts).
+// Access tokens belong to git connections (GitConnectionContracts); a repository without a connection is public. A
+// repository or connection the user may not use is 404. The webhook secret is shown once, in the response that
+// creates it. The git server sends deliveries to POST /api/webhooks/{repositoryId} (WebhookContracts).
 
-/// <param name="AccessUserName">User name sent with the token; null for the default or without a token.</param>
+/// <param name="ConnectionId">The git connection the repository is fetched through; null for a public repository.</param>
+/// <param name="ConnectionName">Name of that connection.</param>
 /// <param name="HasWebhook">A webhook secret is set: pushes deploy the stacks that opted in.</param>
+/// <param name="CanManage">Whether the current user may change the repository and its webhook.</param>
 public sealed record RepositoryResponse(
-    Guid Id, string Name, string Url, bool HasAccessToken, string? AccessUserName, bool HasWebhook, DateTimeOffset CreatedAt);
+    Guid Id,
+    string Name,
+    string Url,
+    Guid? ConnectionId,
+    string? ConnectionName,
+    bool HasWebhook,
+    bool CanManage,
+    DateTimeOffset CreatedAt);
 
 /// <param name="Secret">Shown only in this response; the git server signs deliveries with it.</param>
 public sealed record WebhookSecretResponse(RepositoryResponse Repository, string Secret)
@@ -43,17 +54,13 @@ public sealed record WebhookSecretResponse(RepositoryResponse Repository, string
 
 public sealed record DeployOnPushRequest(bool Enabled);
 
-/// <param name="AccessToken">Null for a public repository.</param>
-public sealed record CreateRepositoryRequest(string Name, string Url, RepositoryAccessTokenRequest? AccessToken);
+/// <param name="Url">Under the connection's URL prefix, when there is a connection.</param>
+/// <param name="ConnectionId">Null for a public repository.</param>
+public sealed record CreateRepositoryRequest(string Name, string Url, Guid? ConnectionId);
 
-public sealed record UpdateRepositoryRequest(string Name, string Url);
-
-/// <param name="UserName">Null for "x-access-token", which GitHub and GitLab accept with any token; GitLab deploy tokens
-/// and Bitbucket need their own.</param>
-public sealed record RepositoryAccessTokenRequest(string? UserName, string Token)
-{
-    public override string ToString() => $"{nameof(RepositoryAccessTokenRequest)} {{ UserName = {UserName} }}";
-}
+/// <param name="Url">Under the connection's URL prefix, when there is a connection.</param>
+/// <param name="ConnectionId">Null for a public repository.</param>
+public sealed record UpdateRepositoryRequest(string Name, string Url, Guid? ConnectionId);
 
 /// <param name="ComposePath">Path of the compose file in the repository; its directory holds the stack's files.</param>
 public sealed record CreateStackRequest(string Name, Guid RepositoryId, string Branch, string ComposePath);

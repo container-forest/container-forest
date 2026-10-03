@@ -36,6 +36,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/webhooks/connections/{connectionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReceiveConnectionWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login": {
         parameters: {
             query?: never;
@@ -452,6 +468,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/git-connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListGitConnections"];
+        put?: never;
+        post: operations["CreateGitConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/git-connections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["UpdateGitConnection"];
+        post?: never;
+        delete: operations["DeleteGitConnection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/git-connections/{id}/access-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["SetGitConnectionAccessToken"];
+        post?: never;
+        delete: operations["RemoveGitConnectionAccessToken"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/git-connections/{id}/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CreateGitConnectionWebhookSecret"];
+        delete: operations["RemoveGitConnectionWebhookSecret"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/repositories": {
         parameters: {
             query?: never;
@@ -479,22 +559,6 @@ export interface paths {
         put: operations["UpdateRepository"];
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/repositories/{id}/access-token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put: operations["SetRepositoryAccessToken"];
-        post?: never;
-        delete: operations["RemoveRepositoryAccessToken"];
         options?: never;
         head?: never;
         patch?: never;
@@ -808,6 +872,13 @@ export interface components {
             name: string;
             isPrivate: boolean;
         };
+        CreateGitConnectionRequest: {
+            name: string;
+            urlPrefix: string;
+            accessToken: null | components["schemas"]["GitAccessTokenRequest"];
+            allEnvironments: boolean;
+            environmentIds: null | string[];
+        };
         CreateNotificationChannelRequest: {
             name: string;
             discordChannelId: string;
@@ -822,7 +893,8 @@ export interface components {
         CreateRepositoryRequest: {
             name: string;
             url: string;
-            accessToken: null | components["schemas"]["RepositoryAccessTokenRequest"];
+            /** Format: uuid */
+            connectionId: null | string;
         };
         CreateStackRequest: {
             name: string;
@@ -926,6 +998,29 @@ export interface components {
             /** Format: date-time */
             enrollmentTokenExpiresAt: null | string;
         };
+        GitAccessTokenRequest: {
+            userName: null | string;
+            token: string;
+        };
+        GitConnectionResponse: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            urlPrefix: string;
+            hasAccessToken: boolean;
+            accessUserName: null | string;
+            allEnvironments: boolean;
+            environmentIds: string[];
+            hasWebhook: boolean;
+            /** Format: int32 */
+            repositoryCount: number | string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        GitConnectionWebhookSecretResponse: {
+            connection: components["schemas"]["GitConnectionResponse"];
+            secret: string;
+        };
         GrantRoleRequest: {
             /** Format: uuid */
             environmentId: string;
@@ -1010,7 +1105,7 @@ export interface components {
             instance?: null | string;
         };
         /** @enum {unknown} */
-        PushStackOutcome: "Queued" | "AlreadyQueued" | "AfterRunning" | "AlreadyRunning" | "AlreadyDeployed" | "AgentOffline";
+        PushStackOutcome: "Queued" | "AlreadyQueued" | "AfterRunning" | "AlreadyRunning" | "AlreadyDeployed" | "AgentOffline" | "NotAllowed";
         RegistryCredentialResponse: {
             /** Format: uuid */
             id: string;
@@ -1024,18 +1119,16 @@ export interface components {
         RenameUserRequest: {
             userName: string;
         };
-        RepositoryAccessTokenRequest: {
-            userName: null | string;
-            token: string;
-        };
         RepositoryResponse: {
             /** Format: uuid */
             id: string;
             name: string;
             url: string;
-            hasAccessToken: boolean;
-            accessUserName: null | string;
+            /** Format: uuid */
+            connectionId: null | string;
+            connectionName: null | string;
             hasWebhook: boolean;
+            canManage: boolean;
             /** Format: date-time */
             createdAt: string;
         };
@@ -1096,6 +1189,12 @@ export interface components {
             name: string;
             isPrivate: boolean;
         };
+        UpdateGitConnectionRequest: {
+            name: string;
+            urlPrefix: string;
+            allEnvironments: boolean;
+            environmentIds: null | string[];
+        };
         UpdateNotificationChannelRequest: {
             name: string;
             discordChannelId: string;
@@ -1108,6 +1207,8 @@ export interface components {
         UpdateRepositoryRequest: {
             name: string;
             url: string;
+            /** Format: uuid */
+            connectionId: null | string;
         };
         UserDetailsResponse: {
             user: components["schemas"]["UserResponse"];
@@ -1199,6 +1300,55 @@ export interface operations {
             header?: never;
             path: {
                 repositoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Payload Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ReceiveConnectionWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connectionId: string;
             };
             cookie?: never;
         };
@@ -3056,6 +3206,440 @@ export interface operations {
             };
         };
     };
+    ListGitConnections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnectionResponse"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateGitConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGitConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnectionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateGitConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateGitConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnectionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteGitConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    SetGitConnectionAccessToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitAccessTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnectionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RemoveGitConnectionAccessToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnectionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateGitConnectionWebhookSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnectionWebhookSecretResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RemoveGitConnectionWebhookSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnectionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     ListRepositories: {
         parameters: {
             query?: never;
@@ -3143,8 +3727,8 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Conflict */
-            409: {
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3185,126 +3769,6 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-        };
-    };
-    SetRepositoryAccessToken: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RepositoryAccessTokenRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RepositoryResponse"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-        };
-    };
-    RemoveRepositoryAccessToken: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RepositoryResponse"];
                 };
             };
             /** @description Unauthorized */

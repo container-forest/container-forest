@@ -20,6 +20,14 @@ internal static class WebhookEndpoints
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status413PayloadTooLarge);
 
+        app.MapPost("/api/webhooks/connections/{connectionId:guid}", ReceiveForConnectionAsync)
+            .WithTags("Webhooks")
+            .WithName("ReceiveConnectionWebhook")
+            .AllowAnonymous()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status413PayloadTooLarge);
+
         return app;
     }
 
@@ -30,14 +38,24 @@ internal static class WebhookEndpoints
         var body = await ReadBodyAsync(request, ct);
         var headers = request.Headers.ToDictionary(h => h.Key, h => h.Value.ToString(), StringComparer.OrdinalIgnoreCase);
 
-        var result = await service.ReceiveAsync(RepositoryId.From(repositoryId), new WebhookDelivery(headers, body), ct);
-        return new WebhookResponse(
+        return ToResponse(await service.ReceiveAsync(RepositoryId.From(repositoryId), new WebhookDelivery(headers, body), ct));
+    }
+
+    private static async Task<WebhookResponse> ReceiveForConnectionAsync(
+        Guid connectionId, HttpRequest request, PushWebhookService service, CancellationToken ct)
+    {
+        var body = await ReadBodyAsync(request, ct);
+        var headers = request.Headers.ToDictionary(h => h.Key, h => h.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+        return ToResponse(await service.ReceiveForConnectionAsync(GitConnectionId.From(connectionId), new WebhookDelivery(headers, body), ct));
+    }
+
+    private static WebhookResponse ToResponse(WebhookResult result) =>
+        new(
             result.Provider,
             result.Outcome,
             result.Detail,
             result.Stacks.Select(s => new WebhookStackResponse(
                 s.StackId.Value, s.EnvironmentId.Value, s.Name.Value, s.Outcome, s.DeploymentId?.Value)).ToList());
-    }
 
     private static async Task<byte[]> ReadBodyAsync(HttpRequest request, CancellationToken ct)
     {

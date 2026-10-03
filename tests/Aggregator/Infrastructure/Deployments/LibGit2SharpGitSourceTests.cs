@@ -20,16 +20,20 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
     {
         origin = Path.Combine(root, "origin");
         Repository.Init(origin);
-        source = new LibGit2SharpGitSource(Options.Create(new GitOptions { CacheDirectory = Path.Combine(root, "cache") }));
+        source = Source(new GitOptions { CacheDirectory = Path.Combine(root, "cache") });
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    [Fact]
-    public void Gives_the_token_to_the_repository_host()
+    private static readonly GitCredentials Credentials = new("deploy", "secret", new Uri("https://git.example.com/team/"));
+
+    [Theory]
+    [InlineData("https://git.example.com/team/infra.git")]
+    [InlineData("https://git.example.com/team/infra.git/info/refs")]
+    [InlineData("https://git.example.com/Team/other.git/info/refs?service=git-upload-pack")]
+    public void Gives_the_token_under_the_connection_s_prefix(string requestUrl)
     {
-        var credentials = LibGit2SharpGitSource.CredentialsFor(
-            "https://git.example.com/team/infra.git", "https://git.example.com/team/infra.git/info/refs", new GitCredentials("deploy", "secret"));
+        var credentials = LibGit2SharpGitSource.CredentialsFor(requestUrl, Credentials);
 
         var basic = Assert.IsType<UsernamePasswordCredentials>(credentials);
         Assert.Equal(("deploy", "secret"), (basic.Username, basic.Password));
@@ -39,9 +43,44 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
     [InlineData("https://evil.example.com/team/infra.git/info/refs")]
     [InlineData("https://git.example.com:8443/team/infra.git/info/refs")]
     [InlineData("http://git.example.com/team/infra.git/info/refs")]
-    public void Does_not_give_the_token_to_another_host_after_a_redirect(string requestUrl) =>
-        Assert.Throws<InvalidOperationException>(() => LibGit2SharpGitSource.CredentialsFor(
-            "https://git.example.com/team/infra.git", requestUrl, new GitCredentials("deploy", "secret")));
+    [InlineData("https://git.example.com/billing/ledger.git/info/refs")]
+    [InlineData("https://git.example.com/team-b/infra.git/info/refs")]
+    [InlineData("https://git.example.com/team/%2e%2e/billing/ledger.git/info/refs")]
+    public void Does_not_give_the_token_outside_the_prefix_after_a_redirect(string requestUrl) =>
+        Assert.Throws<InvalidOperationException>(() => LibGit2SharpGitSource.CredentialsFor(requestUrl, Credentials));
+
+    [Fact]
+    public async Task Public_repository_on_a_private_address_is_not_fetched()
+    {
+        var guarded = Source(
+            new GitOptions { CacheDirectory = Path.Combine(root, "cache") },
+            (_, _) => Task.FromResult(new[] { System.Net.IPAddress.Parse("10.0.0.5") }));
+        var repository = Domain.Repositories.GitRepository.Create("internal", "https://git.internal/team/app.git", null, DateTimeOffset.UnixEpoch);
+
+        var error = await Assert.ThrowsAsync<DeploymentFailedException>(() => guarded.FetchAsync(repository, GitAccess.Public, Main, Ct));
+
+        Assert.Contains("private network", error.Message, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(Path.Combine(root, "cache")));
+    }
+
+    [Fact]
+    public async Task Clone_over_the_cache_limit_is_deleted()
+    {
+        Commit(new() { ["compose.yaml"] = new string('x', 64 * 1024) });
+        var small = Source(new GitOptions { CacheDirectory = Path.Combine(root, "cache"), MaxCacheBytes = 1024 });
+
+        var error = await Assert.ThrowsAsync<DeploymentFailedException>(() => small.FetchAsync("repo", origin, null, Main, Ct));
+
+        Assert.Contains("Git:MaxCacheBytes", error.Message, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(Path.Combine(root, "cache", "repo")));
+    }
+
+    private static LibGit2SharpGitSource Source(
+        GitOptions options, Func<string, CancellationToken, Task<System.Net.IPAddress[]>>? resolve = null) =>
+        new(
+            Options.Create(options),
+            resolve is null ? new GitHostGuard() : new GitHostGuard(resolve),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<LibGit2SharpGitSource>.Instance);
 
     [Fact]
     public async Task Reads_the_directory_at_the_branch_head()

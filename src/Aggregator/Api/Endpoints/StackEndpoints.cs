@@ -4,7 +4,6 @@ using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
-using ContainerForest.Aggregator.Domain.Repositories;
 
 namespace ContainerForest.Aggregator.Api.Endpoints;
 
@@ -24,35 +23,20 @@ internal static class StackEndpoints
 
         repositories.MapPost("/", async (CreateRepositoryRequest request, RepositoryService service, CancellationToken ct) =>
             {
-                var repository = await service.CreateAsync(request.Name, request.Url, ToAccessToken(request.AccessToken), ct);
-                return TypedResults.Created($"/api/repositories/{repository.Id}", ToResponse(repository));
+                var repository = await service.CreateAsync(request.Name, request.Url, ConnectionIdOf(request.ConnectionId), ct);
+                return TypedResults.Created($"/api/repositories/{repository.Repository.Id}", ToResponse(repository));
             })
             .WithName("CreateRepository")
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         repositories.MapPut(
                 "/{id:guid}",
                 async (Guid id, UpdateRepositoryRequest request, RepositoryService service, CancellationToken ct) =>
-                    ToResponse(await service.UpdateAsync(RepositoryId.From(id), request.Name, request.Url, ct)))
+                    ToResponse(await service.UpdateAsync(
+                        RepositoryId.From(id), request.Name, request.Url, ConnectionIdOf(request.ConnectionId), ct)))
             .WithName("UpdateRepository")
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
-
-        repositories.MapPut(
-                "/{id:guid}/access-token",
-                async (Guid id, RepositoryAccessTokenRequest request, RepositoryService service, CancellationToken ct) =>
-                    ToResponse(await service.SetAccessTokenAsync(RepositoryId.From(id), ToAccessToken(request)!, ct)))
-            .WithName("SetRepositoryAccessToken")
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status404NotFound);
-
-        repositories.MapDelete(
-                "/{id:guid}/access-token",
-                async (Guid id, RepositoryService service, CancellationToken ct) =>
-                    ToResponse(await service.RemoveAccessTokenAsync(RepositoryId.From(id), ct)))
-            .WithName("RemoveRepositoryAccessToken")
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         repositories.MapPost(
@@ -160,17 +144,17 @@ internal static class StackEndpoints
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable)
             .ProducesProblem(StatusCodes.Status504GatewayTimeout);
 
-    private static RepositoryResponse ToResponse(GitRepository repository) => new(
-        repository.Id.Value,
-        repository.Name,
-        repository.Url.ToString(),
-        repository.HasAccessToken,
-        repository.AccessUserName,
-        repository.HasWebhook,
-        repository.CreatedAt);
+    private static RepositoryResponse ToResponse(RepositorySummary summary) => new(
+        summary.Repository.Id.Value,
+        summary.Repository.Name,
+        summary.Repository.Url.ToString(),
+        summary.Connection?.Id.Value,
+        summary.Connection?.Name,
+        summary.Repository.HasWebhook,
+        summary.CanManage,
+        summary.Repository.CreatedAt);
 
-    private static RepositoryAccessToken? ToAccessToken(RepositoryAccessTokenRequest? request) =>
-        request is null ? null : new RepositoryAccessToken(request.UserName, request.Token ?? "");
+    private static GitConnectionId? ConnectionIdOf(Guid? id) => id is { } value ? GitConnectionId.From(value) : null;
 
     private static StackResponse ToResponse(StackSummary s) => new(
         s.Id.Value,

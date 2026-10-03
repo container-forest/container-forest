@@ -6,10 +6,13 @@ namespace ContainerForest.Aggregator.Domain.Tests.Repositories;
 
 public class GitRepositoryTests
 {
+    private static readonly EnvironmentId Production = EnvironmentId.New();
+    private static readonly EnvironmentId Staging = EnvironmentId.New();
+
     [Fact]
     public void Webhook_secret_is_set_replaced_and_removed()
     {
-        var repository = GitRepository.Create("infra", "https://git.example.com/team/infra.git", Now);
+        var repository = GitRepository.Create("infra", "https://git.example.com/team/infra.git", null, Now);
         Assert.False(repository.HasWebhook);
 
         repository.SetWebhookSecret("first");
@@ -24,9 +27,10 @@ public class GitRepositoryTests
     [Fact]
     public void Accepts_an_https_url()
     {
-        var repository = GitRepository.Create("infra", "https://git.example.com/team/infra.git", Now);
+        var repository = GitRepository.Create("infra", "https://git.example.com/team/infra.git", null, Now);
 
         Assert.Equal("git.example.com", repository.Url.Host);
+        Assert.Null(repository.ConnectionId);
     }
 
     [Theory]
@@ -34,84 +38,90 @@ public class GitRepositoryTests
     [InlineData("git@github.com:team/infra.git")]
     [InlineData("ssh://git@github.com/team/infra.git")]
     [InlineData("infra.git")]
-    public void Rejects_non_https_urls(string url) =>
-        Assert.Throws<DomainValidationException>(() => GitRepository.Create("infra", url, Now));
+    [InlineData("https://deploy:secret@git.example.com/team/infra.git")]
+    [InlineData("https://git.example.com/team/infra.git?ref=main")]
+    [InlineData("https://git.example.com/team%2Fother/infra.git")]
+    public void Rejects_unsupported_urls(string url) =>
+        Assert.Throws<DomainValidationException>(() => GitRepository.Create("infra", url, null, Now));
 
     [Fact]
-    public void Rejects_credentials_in_the_url() =>
-        Assert.Throws<DomainValidationException>(
-            () => GitRepository.Create("infra", "https://user:token@git.example.com/team/infra.git", Now));
-
-    [Fact]
-    public void Keeps_the_token_with_a_url_on_the_same_host()
+    public void A_repository_of_a_connection_lies_under_its_prefix()
     {
-        var repository = WithToken();
+        var connection = GitConnection.Create("team", "https://git.example.com/team/", Now);
 
-        repository.ChangeUrl("https://git.example.com/team/renamed.git");
+        var repository = GitRepository.Create("infra", "https://git.example.com/Team/infra.git", connection, Now);
 
-        Assert.True(repository.HasAccessToken);
-        Assert.Equal("/team/renamed.git", repository.Url.AbsolutePath);
+        Assert.Equal(connection.Id, repository.ConnectionId);
+        Assert.Throws<DomainValidationException>(() =>
+            GitRepository.Create("other", "https://git.example.com/team-b/infra.git", connection, Now));
+        Assert.Throws<DomainValidationException>(() =>
+            GitRepository.Create("other", "https://other.example.com/team/infra.git", connection, Now));
+    }
+
+    [Fact]
+    public void Dot_segments_are_resolved_before_the_prefix_is_checked()
+    {
+        var connection = GitConnection.Create("team", "https://git.example.com/team/", Now);
+
+        Assert.Throws<DomainValidationException>(() =>
+            GitRepository.Create("other", "https://git.example.com/team/%2e%2e/other/infra.git", connection, Now));
+        Assert.Throws<DomainValidationException>(() =>
+            GitRepository.Create("other", "https://git.example.com/team/../other/infra.git", connection, Now));
+    }
+
+    [Fact]
+    public void Changing_the_source_keeps_the_url_under_the_new_connection()
+    {
+        var team = GitConnection.Create("team", "https://git.example.com/team/", Now);
+        var other = GitConnection.Create("other", "https://git.example.com/other/", Now);
+        var repository = GitRepository.Create("infra", "https://git.example.com/team/infra.git", team, Now);
+
+        Assert.Throws<DomainValidationException>(() => repository.ChangeSource("https://git.example.com/other/infra.git", team));
+        Assert.Equal(team.Id, repository.ConnectionId);
+
+        repository.ChangeSource("https://git.example.com/other/infra.git", other);
+        Assert.Equal(other.Id, repository.ConnectionId);
+
+        repository.ChangeSource("https://github.com/public/infra.git", null);
+        Assert.Null(repository.ConnectionId);
+    }
+
+    [Fact]
+    public void A_public_repository_is_usable_everywhere()
+    {
+        var repository = GitRepository.Create("infra", "https://github.com/team/infra.git", null, Now);
+
+        Assert.True(repository.IsUsableIn(Production, null));
+        Assert.True(repository.IsUsableIn(Staging, null));
+    }
+
+    [Fact]
+    public void A_repository_of_a_connection_is_usable_only_where_the_connection_is_allowed()
+    {
+        var connection = GitConnection.Create("team", "https://git.example.com/team/", Now);
+        connection.AllowEnvironments(false, [Production]);
+        var repository = GitRepository.Create("infra", "https://git.example.com/team/infra.git", connection, Now);
+
+        Assert.True(repository.IsUsableIn(Production, connection));
+        Assert.False(repository.IsUsableIn(Staging, connection));
+    }
+
+    [Fact]
+    public void Usability_is_checked_against_the_repository_s_own_connection_only()
+    {
+        var connection = GitConnection.Create("team", "https://git.example.com/team/", Now);
+        var everywhere = GitConnection.Create("all", "https://git.example.com/", Now);
+        everywhere.AllowEnvironments(true, []);
+        var repository = GitRepository.Create("infra", "https://git.example.com/team/infra.git", connection, Now);
+
+        Assert.Throws<ArgumentException>(() => repository.IsUsableIn(Production, everywhere));
+        Assert.Throws<ArgumentException>(() => repository.IsUsableIn(Production, null));
     }
 
     [Theory]
-    [InlineData("https://evil.example.com/team/infra.git")]
-    [InlineData("https://git.example.com:8443/team/infra.git")]
-    public void Does_not_move_the_token_to_another_host(string url)
-    {
-        var repository = WithToken();
-
-        Assert.Throws<DomainValidationException>(() => repository.ChangeUrl(url));
-        Assert.Equal("git.example.com", repository.Url.Authority);
-    }
-
-    [Fact]
-    public void Moves_to_another_host_after_the_token_is_removed()
-    {
-        var repository = WithToken();
-
-        repository.RemoveAccessToken();
-        repository.ChangeUrl("https://other.example.com/team/infra.git");
-
-        Assert.False(repository.HasAccessToken);
-        Assert.Null(repository.AccessUserName);
-    }
-
-    [Theory]
-    [InlineData(null, null)]
-    [InlineData("  ", null)]
-    [InlineData(" gitlab+deploy-token-1 ", "gitlab+deploy-token-1")]
-    public void Normalizes_the_access_user_name(string? userName, string? expected)
-    {
-        var repository = GitRepository.Create("infra", "https://git.example.com/team/infra.git", Now);
-
-        repository.SetAccessToken(userName, "protected");
-
-        Assert.Equal(expected, repository.AccessUserName);
-    }
-
-    [Theory]
-    [InlineData("user:name")]
-    [InlineData("user\nname")]
-    public void Rejects_access_user_names_that_break_basic_authentication(string userName)
-    {
-        var repository = GitRepository.Create("infra", "https://git.example.com/team/infra.git", Now);
-
-        Assert.Throws<DomainValidationException>(() => repository.SetAccessToken(userName, "protected"));
-        Assert.False(repository.HasAccessToken);
-    }
-
-    [Fact]
-    public void Rejects_an_empty_token()
-    {
-        var repository = GitRepository.Create("infra", "https://git.example.com/team/infra.git", Now);
-
-        Assert.Throws<DomainValidationException>(() => repository.SetAccessToken(null, " "));
-    }
-
-    private static GitRepository WithToken()
-    {
-        var repository = GitRepository.Create("infra", "https://git.example.com/team/infra.git", Now);
-        repository.SetAccessToken("deploy", "protected");
-        return repository;
-    }
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("bad\nname")]
+    public void Rejects_invalid_names(string name) =>
+        Assert.Throws<DomainValidationException>(() => GitRepository.Create(name, "https://github.com/a/b.git", null, Now));
 }

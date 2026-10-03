@@ -16,6 +16,7 @@ public sealed class DeploymentRunner(
     IStackRepository stacks,
     IEnvironmentRepository environments,
     IGitRepositoryRepository repositories,
+    IGitConnectionRepository connections,
     IUnitOfWork unitOfWork,
     DeployPipeline pipeline,
     TimeProvider time)
@@ -31,8 +32,9 @@ public sealed class DeploymentRunner(
         var stack = await stacks.GetAsync(deployment.StackId, cancellationToken);
         var environment = await environments.GetAsync(stack.EnvironmentId, cancellationToken);
         var repository = await repositories.GetAsync(stack.RepositoryId, cancellationToken);
+        var connection = repository.ConnectionId is { } connectionId ? await connections.GetAsync(connectionId, cancellationToken) : null;
 
-        await pipeline.RunAsync(new DeployContext(deployment, stack, environment, repository, time), cancellationToken);
+        await pipeline.RunAsync(new DeployContext(deployment, stack, environment, repository, time, connection), cancellationToken);
     }
 
     /// <summary>

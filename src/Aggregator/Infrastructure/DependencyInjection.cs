@@ -53,6 +53,7 @@ public static class DependencyInjection
         services.AddScoped<INotificationRuleRepository, NotificationRuleRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<IGitRepositoryRepository, GitRepositoryRepository>();
+        services.AddScoped<IGitConnectionRepository, GitConnectionRepository>();
         services.AddScoped<IDeploymentRepository, DeploymentRepository>();
         services.AddScoped<IRegistryCredentialRepository, RegistryCredentialRepository>();
         services.AddScoped<IAgeKeyRepository, AgeKeyRepository>();
@@ -113,7 +114,11 @@ public static class DependencyInjection
             .Validate(o => o.IsValid(), "Deployments limits and timeouts must be positive.")
             .ValidateOnStart();
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<DeploymentOptions>>().Value);
-        services.AddOptions<GitOptions>().Bind(configuration.GetSection(GitOptions.SectionName));
+        services.AddOptions<GitOptions>()
+            .Bind(configuration.GetSection(GitOptions.SectionName))
+            .Validate(o => o.IsValid(), "Git:MaxCacheBytes must be positive and Git:CacheDirectory set.")
+            .ValidateOnStart();
+        services.AddSingleton<GitHostGuard>();
         services.AddSingleton<IGitSource, LibGit2SharpGitSource>();
         services.AddSingleton<IComposeParser, YamlComposeParser>();
         services.AddOptions<SopsOptions>()

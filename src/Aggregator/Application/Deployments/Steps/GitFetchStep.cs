@@ -15,10 +15,12 @@ public sealed class GitFetchStep(IGitSource git, ISecretProtector protector, Dep
     public async Task ExecuteAsync(DeployContext context, CancellationToken cancellationToken)
     {
         var stack = context.Stack;
+        EnsureUsable(context);
+
         var directory = stack.ComposePath.Directory;
         var commit = context.Deployment is { IsPinned: true, Commit: { } pinned }
             ? await FetchPinnedAsync(context, pinned, cancellationToken)
-            : await git.FetchAsync(context.Repository, Credentials(context.Repository), stack.Branch, cancellationToken);
+            : await git.FetchAsync(context.Repository, Access(context), stack.Branch, cancellationToken);
 
         // Before reading: a deployment that fails on the files still shows which commit it was.
         context.Deployment.ResolveCommit(commit);
@@ -42,7 +44,7 @@ public sealed class GitFetchStep(IGitSource git, ISecretProtector protector, Dep
     {
         try
         {
-            await git.FetchAsync(context.Repository, Credentials(context.Repository), context.Stack.Branch, cancellationToken);
+            await git.FetchAsync(context.Repository, Access(context), context.Stack.Branch, cancellationToken);
         }
         catch (DeploymentFailedException ex)
         {
@@ -53,23 +55,45 @@ public sealed class GitFetchStep(IGitSource git, ISecretProtector protector, Dep
         return pinned;
     }
 
-    private GitCredentials? Credentials(GitRepository repository)
+    /// <summary>
+    /// The stack was added while the environment could use the repository; an administrator may have taken the
+    /// environment off the connection since (ADR-0006). The token is not sent for it, whoever started the deployment.
+    /// </summary>
+    private static void EnsureUsable(DeployContext context)
     {
-        if (repository.ProtectedAccessToken is null)
+        if (!context.Repository.IsUsableIn(context.Environment.Id, context.Connection))
         {
-            return null;
+            throw new DeploymentFailedException(
+                $"Environment '{context.Environment.Name}' may not deploy from repository '{context.Repository.Name}': " +
+                $"its connection '{context.Connection!.Name}' is not allowed here. Ask an administrator to allow it.");
+        }
+    }
+
+    private GitAccess Access(DeployContext context)
+    {
+        if (context.Connection is not { } connection)
+        {
+            return GitAccess.Public;
+        }
+
+        if (connection.ProtectedAccessToken is null)
+        {
+            return new GitAccess(null, IsTrustedHost: true);
         }
 
         try
         {
-            return new GitCredentials(
-                repository.AccessUserName ?? GitRepository.DefaultAccessUserName,
-                protector.Unprotect(SecretPurpose.GitAccessToken, repository.ProtectedAccessToken));
+            return new GitAccess(
+                new GitCredentials(
+                    connection.AccessUserName ?? GitConnection.DefaultAccessUserName,
+                    protector.Unprotect(SecretPurpose.GitAccessToken, connection.ProtectedAccessToken),
+                    connection.UrlPrefix),
+                IsTrustedHost: true);
         }
         catch (SecretUnreadableException)
         {
             throw new DeploymentFailedException(
-                $"The stored access token of repository '{repository.Name}' cannot be decrypted; set it again.");
+                $"The stored access token of connection '{connection.Name}' cannot be decrypted; set it again.");
         }
     }
 }

@@ -82,17 +82,16 @@ function AuthedLayout() {
             >
               {t("layout.nav.discord")}
             </Link>
+            {/* Administrators and editors; the screen says so to anyone else (ADR-0006). */}
+            <Link
+              to="/repositories"
+              className="hover:text-foreground"
+              inactiveProps={{ className: "text-muted-foreground" }}
+              activeProps={{ className: "text-foreground font-medium" }}
+            >
+              {t("layout.nav.repositories")}
+            </Link>
             {/* Only a convenience: the aggregator refuses non-administrators anyway. */}
-            {me.isAdmin && (
-              <Link
-                to="/repositories"
-                className="hover:text-foreground"
-                inactiveProps={{ className: "text-muted-foreground" }}
-                activeProps={{ className: "text-foreground font-medium" }}
-              >
-                {t("layout.nav.repositories")}
-              </Link>
-            )}
             {me.isAdmin && (
               <Link
                 to="/users"

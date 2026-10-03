@@ -26,6 +26,13 @@ public readonly record struct RepositoryId(Guid Value) : IStronglyTypedId<Reposi
     public override string ToString() => Value.ToString();
 }
 
+public readonly record struct GitConnectionId(Guid Value) : IStronglyTypedId<GitConnectionId>
+{
+    public static GitConnectionId New() => new(Guid.CreateVersion7());
+    public static GitConnectionId From(Guid value) => new(value);
+    public override string ToString() => Value.ToString();
+}
+
 public readonly record struct StackId(Guid Value) : IStronglyTypedId<StackId>
 {
     public static StackId New() => new(Guid.CreateVersion7());

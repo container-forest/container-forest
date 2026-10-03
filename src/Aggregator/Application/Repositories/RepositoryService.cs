@@ -1,6 +1,5 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
-using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Repositories;
 
@@ -8,152 +7,133 @@ namespace ContainerForest.Aggregator.Application.Repositories;
 
 public interface IGitRepositoryRepository : IRepository<GitRepository, RepositoryId>
 {
-    /// <summary>In name order.</summary>
     Task<IReadOnlyList<GitRepository>> ListAsync(CancellationToken cancellationToken);
 
-    /// <summary>Case-insensitive.</summary>
-    /// <param name="except">A repository to ignore, for a rename.</param>
-    Task<bool> NameExistsAsync(string name, RepositoryId? except, CancellationToken cancellationToken);
+    Task<IReadOnlyList<GitRepository>> ListByConnectionAsync(GitConnectionId connectionId, CancellationToken cancellationToken);
 }
 
-/// <summary>An access token as the administrator entered it.</summary>
-/// <param name="UserName">Null or blank for <see cref="GitRepository.DefaultAccessUserName"/>.</param>
-public sealed record RepositoryAccessToken(string? UserName, string Token)
-{
-    public const int MaxTokenLength = 1024;
-
-    // Records print every property; the token must not reach a log through ToString.
-    public override string ToString() => $"{nameof(RepositoryAccessToken)} {{ UserName = {UserName} }}";
-}
+/// <param name="Connection">Null for a public repository.</param>
+/// <param name="CanManage">Whether the current user may change the repository and its webhook.</param>
+public sealed record RepositorySummary(GitRepository Repository, GitConnection? Connection, bool CanManage);
 
 /// <summary>
-/// Git repositories stacks are deployed from. Only administrators add and change them: a repository may hold every
-/// environment's stacks, and its access token reads all of them. Editors may list them, to choose one for a stack.
-/// The token is encrypted before it is stored and is never returned.
+/// Repositories as the current user may see and change them (ADR-0006). Administrators manage all of them. Editors add
+/// public repositories and repositories under the connections allowed in their environments, and change those whose
+/// stacks they may all deploy. Tokens belong to connections (<see cref="GitConnectionService"/>), not to repositories.
 /// </summary>
 public sealed class RepositoryService(
-    CurrentActor currentActor,
+    RepositoryAccess access,
     IGitRepositoryRepository repositories,
-    IRoleAssignmentRepository roleAssignments,
+    IGitConnectionRepository connections,
     ISecretProtector protector,
     IUnitOfWork unitOfWork,
     TimeProvider time)
 {
-    /// <param name="accessToken">Null for a public repository.</param>
-    public async Task<GitRepository> CreateAsync(
-        string name, string url, RepositoryAccessToken? accessToken, CancellationToken cancellationToken)
+    /// <param name="connectionId">Null for a public repository.</param>
+    /// <exception cref="NotFoundException">The connection does not exist or the user may not use it.</exception>
+    public async Task<RepositorySummary> CreateAsync(
+        string name, string url, GitConnectionId? connectionId, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
+        var actor = await access.GetActorAsync(cancellationToken);
+        var connection = await UsableConnectionAsync(actor, connectionId, cancellationToken);
 
-        var repository = GitRepository.Create(name, url, time.GetUtcNow());
-        if (accessToken is not null)
-        {
-            SetAccessToken(repository, accessToken);
-        }
-
-        await EnsureNameIsFreeAsync(repository, cancellationToken);
+        var repository = GitRepository.Create(name, url, connection, time.GetUtcNow());
         repositories.Add(repository);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return repository;
+        return new RepositorySummary(repository, connection, CanManage: true);
     }
 
-    /// <summary>
-    /// Renames the repository and changes its URL. Stacks keep using it: the next deployment fetches from the new URL.
-    /// A URL on another host is rejected while a token is set (<see cref="GitRepository.ChangeUrl"/>).
-    /// </summary>
-    public async Task<GitRepository> UpdateAsync(RepositoryId id, string name, string url, CancellationToken cancellationToken)
+    /// <summary>Renames the repository and points it at another address or connection; its stacks deploy from there next.</summary>
+    /// <exception cref="NotFoundException">The repository or the new connection is not visible to the user.</exception>
+    /// <exception cref="AccessDeniedException">The user may not deploy every stack of the repository.</exception>
+    public async Task<RepositorySummary> UpdateAsync(
+        RepositoryId id, string name, string url, GitConnectionId? connectionId, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
+        var (actor, repository, _) = await LoadManagedAsync(id, cancellationToken);
+        var connection = await UsableConnectionAsync(actor, connectionId, cancellationToken);
 
-        var repository = await repositories.GetAsync(id, cancellationToken);
         repository.Rename(name);
-        repository.ChangeUrl(url);
-        await EnsureNameIsFreeAsync(repository, cancellationToken);
+        repository.ChangeSource(url, connection);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return repository;
-    }
-
-    /// <summary>Sets or replaces the access token; the repository becomes private.</summary>
-    public async Task<GitRepository> SetAccessTokenAsync(
-        RepositoryId id, RepositoryAccessToken accessToken, CancellationToken cancellationToken)
-    {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-
-        var repository = await repositories.GetAsync(id, cancellationToken);
-        SetAccessToken(repository, accessToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return repository;
-    }
-
-    /// <summary>Forgets the access token; the repository is fetched as a public one.</summary>
-    public async Task<GitRepository> RemoveAccessTokenAsync(RepositoryId id, CancellationToken cancellationToken)
-    {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-
-        var repository = await repositories.GetAsync(id, cancellationToken);
-        repository.RemoveAccessToken();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return repository;
+        return new RepositorySummary(repository, connection, CanManage: true);
     }
 
     /// <summary>
     /// Generates a new webhook secret, replacing the previous one: deliveries signed with it are rejected from now on.
     /// The secret is returned only here, to paste into the git server's webhook settings.
     /// </summary>
-    public async Task<(GitRepository Repository, string Secret)> CreateWebhookSecretAsync(
+    public async Task<(RepositorySummary Repository, string Secret)> CreateWebhookSecretAsync(
         RepositoryId id, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-
-        var repository = await repositories.GetAsync(id, cancellationToken);
+        var (_, repository, connection) = await LoadManagedAsync(id, cancellationToken);
         var secret = SecretToken.Generate();
         repository.SetWebhookSecret(protector.Protect(SecretPurpose.WebhookSecret, secret));
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return (repository, secret);
+        return (new RepositorySummary(repository, connection, CanManage: true), secret);
     }
 
-    /// <summary>Stops deploying on push: every delivery for the repository is rejected.</summary>
-    public async Task<GitRepository> RemoveWebhookSecretAsync(RepositoryId id, CancellationToken cancellationToken)
+    /// <summary>Stops deploying on push through the repository's own webhook.</summary>
+    public async Task<RepositorySummary> RemoveWebhookSecretAsync(RepositoryId id, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-
-        var repository = await repositories.GetAsync(id, cancellationToken);
+        var (_, repository, connection) = await LoadManagedAsync(id, cancellationToken);
         repository.RemoveWebhookSecret();
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return repository;
+        return new RepositorySummary(repository, connection, CanManage: true);
     }
 
-    /// <summary>In name order; for administrators and for users with the Editor role on any environment or stack.</summary>
-    public async Task<IReadOnlyList<GitRepository>> ListAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// In name order: all of them for administrators; for editors, those their environments may deploy from.
+    /// </summary>
+    /// <exception cref="AccessDeniedException">The user is neither an administrator nor an Editor anywhere.</exception>
+    public async Task<IReadOnlyList<RepositorySummary>> ListAsync(CancellationToken cancellationToken)
     {
-        var actor = await currentActor.GetAsync(cancellationToken);
-        if (!actor.IsAdmin
-            && !(await roleAssignments.ListForUserAsync(actor.Id, cancellationToken)).Any(a => a.Role >= Role.Editor))
+        var actor = await access.GetActorAsync(cancellationToken);
+        var byId = (await connections.ListAsync(cancellationToken)).ToDictionary(c => c.Id);
+
+        var result = new List<RepositorySummary>();
+        foreach (var repository in await repositories.ListAsync(cancellationToken))
         {
-            throw new AccessDeniedException("Only administrators and editors may list repositories.");
+            var connection = repository.ConnectionId is { } connectionId ? byId.GetValueOrDefault(connectionId) : null;
+            if (actor.CanUse(connection))
+            {
+                result.Add(new RepositorySummary(
+                    repository, connection, await access.CanManageAsync(actor, repository, connection, cancellationToken)));
+            }
         }
 
-        return await repositories.ListAsync(cancellationToken);
+        return result.OrderBy(r => r.Repository.Name, StringComparer.OrdinalIgnoreCase).ThenBy(r => r.Repository.Url.ToString()).ToList();
     }
 
-    private void SetAccessToken(GitRepository repository, RepositoryAccessToken accessToken)
+    private async Task<GitConnection?> UsableConnectionAsync(
+        RepositoryActor actor, GitConnectionId? connectionId, CancellationToken cancellationToken)
     {
-        // A token is sent in an HTTP header: whitespace would be part of it, and is always a copy-paste mistake.
-        var token = accessToken.Token;
-        if (token.Length is 0 or > RepositoryAccessToken.MaxTokenLength || token.Any(c => char.IsWhiteSpace(c) || char.IsControl(c)))
+        if (connectionId is not { } id)
         {
-            throw new DomainValidationException(
-                $"Access token must be 1-{RepositoryAccessToken.MaxTokenLength} characters without spaces.");
+            return null;
         }
 
-        repository.SetAccessToken(accessToken.UserName, protector.Protect(SecretPurpose.GitAccessToken, token));
+        // Reported as missing, so a connection of other environments does not show up.
+        var connection = await connections.FindAsync(id, cancellationToken);
+        return connection is not null && actor.CanUse(connection) ? connection : throw new NotFoundException("Git connection", id);
     }
 
-    private async Task EnsureNameIsFreeAsync(GitRepository repository, CancellationToken cancellationToken)
+    private async Task<(RepositoryActor Actor, GitRepository Repository, GitConnection? Connection)> LoadManagedAsync(
+        RepositoryId id, CancellationToken cancellationToken)
     {
-        if (await repositories.NameExistsAsync(repository.Name, repository.Id, cancellationToken))
+        var actor = await access.GetActorAsync(cancellationToken);
+        var repository = await repositories.FindAsync(id, cancellationToken);
+        var connection = repository?.ConnectionId is { } connectionId ? await connections.FindAsync(connectionId, cancellationToken) : null;
+        if (repository is null || !actor.CanUse(connection))
         {
-            throw new DomainConflictException($"Repository '{repository.Name}' already exists.");
+            throw new NotFoundException("Repository", id);
         }
+
+        if (!await access.CanManageAsync(actor, repository, connection, cancellationToken))
+        {
+            throw new AccessDeniedException(
+                $"Changing repository '{repository.Name}' requires the right to deploy every stack that uses it.");
+        }
+
+        return (actor, repository, connection);
     }
 }

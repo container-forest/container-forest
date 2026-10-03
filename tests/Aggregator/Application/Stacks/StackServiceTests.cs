@@ -19,6 +19,7 @@ public class StackServiceTests
     private readonly InMemoryEnvironments environments = new();
     private readonly InMemoryStacks stacks = new();
     private readonly InMemoryGitRepositories repositories = new();
+    private readonly InMemoryGitConnections connections = new();
     private readonly InMemoryRoleAssignments roleAssignments = new();
     private readonly InMemoryDeployments deployments = new();
     private readonly FakeCurrentUser currentUser = new();
@@ -28,15 +29,22 @@ public class StackServiceTests
 
     private readonly User alice = User.Create("alice", Now);
     private readonly DockerEnvironment environment = DockerEnvironment.Create("prod", isPrivate: true, Now);
-    private readonly GitRepository infra = GitRepository.Create("infra", "https://git.example.com/infra.git", Now);
-    private readonly GitRepository apps = GitRepository.Create("apps", "https://git.example.com/apps.git", Now);
+    private readonly GitRepository infra = GitRepository.Create("infra", "https://git.example.com/infra.git", null, Now);
+    private readonly GitRepository apps = GitRepository.Create("apps", "https://git.example.com/apps.git", null, Now);
     private readonly Stack web;
 
     public StackServiceTests()
     {
         var actor = new CurrentActor(currentUser, users);
-        service = new StackService(actor, environments, stacks, repositories, roleAssignments, deployments, unitOfWork, new FixedTime(Now));
-        repositoryService = new RepositoryService(actor, repositories, roleAssignments, new FakeSecretProtector(), unitOfWork, new FixedTime(Now));
+        service = new StackService(
+            actor, environments, stacks, repositories, connections, roleAssignments, deployments, unitOfWork, new FixedTime(Now));
+        repositoryService = new RepositoryService(
+            new RepositoryAccess(actor, roleAssignments, stacks, environments),
+            repositories,
+            connections,
+            new FakeSecretProtector(),
+            unitOfWork,
+            new FixedTime(Now));
         users.Add(alice);
         currentUser.Id = alice.Id;
         environments.Add(environment);
@@ -123,7 +131,40 @@ public class StackServiceTests
         await Assert.ThrowsAsync<AccessDeniedException>(() => repositoryService.ListAsync(Ct));
 
         roleAssignments.Add(RoleAssignment.ForStack(alice.Id, web, Role.Editor, Now));
-        Assert.Equal(["apps", "infra"], (await repositoryService.ListAsync(Ct)).Select(r => r.Name));
+        Assert.Equal(["apps", "infra"], (await repositoryService.ListAsync(Ct)).Select(r => r.Repository.Name));
+    }
+
+    [Fact]
+    public async Task A_repository_of_a_connection_not_allowed_here_is_not_found()
+    {
+        Grant(Role.Editor);
+        var (_, team) = AddConnectionRepository(allowedHere: false);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.CreateAsync(environment.Id, "api", team.Id, "main", "compose.yaml", Ct));
+        await Assert.ThrowsAsync<NotFoundException>(() => service.ChangeSourceAsync(web.Id, team.Id, "main", "compose.yaml", Ct));
+        Assert.Equal(infra.Id, web.RepositoryId);
+    }
+
+    [Fact]
+    public async Task A_repository_of_a_connection_allowed_here_is_used()
+    {
+        Grant(Role.Editor);
+        var (_, team) = AddConnectionRepository(allowedHere: true);
+
+        var created = await service.CreateAsync(environment.Id, "api", team.Id, "main", "compose.yaml", Ct);
+
+        Assert.Equal(team.Id, created.RepositoryId);
+    }
+
+    private (GitConnection Connection, GitRepository Repository) AddConnectionRepository(bool allowedHere)
+    {
+        var connection = GitConnection.Create("team", "https://gitea.example.com/team/", Now);
+        connection.AllowEnvironments(false, allowedHere ? [environment.Id] : [EnvironmentId.New()]);
+        connections.Add(connection);
+        var repository = GitRepository.Create("team-app", "https://gitea.example.com/team/app.git", connection, Now);
+        repositories.Add(repository);
+        return (connection, repository);
     }
 
     private void Grant(Role role) => roleAssignments.Add(RoleAssignment.ForEnvironment(alice.Id, environment.Id, role, Now));

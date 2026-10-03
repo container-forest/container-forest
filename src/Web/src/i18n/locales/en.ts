@@ -630,6 +630,20 @@ const en: Translation = {
       noProblems: "No warnings or errors.",
     },
   },
+  live: {
+    status: {
+      live: "Live",
+      connecting: "Connecting…",
+      reconnecting: "Reconnecting…",
+      offline: "No live updates",
+    },
+    hint: {
+      live: "Screens update by themselves as soon as something changes.",
+      connecting: "Connecting to the aggregator for live updates.",
+      reconnecting: "The connection to the aggregator was lost, for example while it is being updated. Screens refresh less often until it is back.",
+      offline: "The aggregator refused the connection: sign in again to get live updates.",
+    },
+  },
   keys: {
     title: "Environment keys",
     description:

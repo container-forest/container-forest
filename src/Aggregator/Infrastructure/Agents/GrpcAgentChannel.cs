@@ -1,4 +1,5 @@
 using ContainerForest.Aggregator.Application.Agents;
+using ContainerForest.Aggregator.Application.Live;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Stacks;
@@ -11,8 +12,12 @@ using ProtoContainerState = ContainerForest.Contracts.Agent.ContainerState;
 
 namespace ContainerForest.Aggregator.Infrastructure.Agents;
 
-/// <summary>Adapter from <see cref="IAgentChannel"/> to the agent protocol.</summary>
-internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGatewayOptions> options) : IAgentChannel
+/// <summary>
+/// Adapter from <see cref="IAgentChannel"/> to the agent protocol. After a command that can change containers, open
+/// panels are told to reload them, whether the command succeeded or not: a failed compose may have changed some.
+/// </summary>
+internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGatewayOptions> options, ILiveUpdates live)
+    : IAgentChannel
 {
     public bool IsOnline(EnvironmentId environmentId) => registry.IsOnline(environmentId);
 
@@ -32,27 +37,27 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
     }
 
     public Task StartContainerAsync(EnvironmentId environmentId, string containerId, CancellationToken cancellationToken) =>
-        SendAsync(
+        ChangeContainersAsync(environmentId, () => SendAsync(
             environmentId,
             new ControllerMessage { StartContainer = new StartContainer { ContainerId = containerId } },
             options.Value.CommandTimeout,
-            cancellationToken);
+            cancellationToken));
 
     public Task StopContainerAsync(
         EnvironmentId environmentId, string containerId, TimeSpan stopTimeout, CancellationToken cancellationToken) =>
-        SendAsync(
+        ChangeContainersAsync(environmentId, () => SendAsync(
             environmentId,
             new ControllerMessage { StopContainer = new StopContainer { ContainerId = containerId, TimeoutSeconds = Seconds(stopTimeout) } },
             WaitFor(stopTimeout),
-            cancellationToken);
+            cancellationToken));
 
     public Task RestartContainerAsync(
         EnvironmentId environmentId, string containerId, TimeSpan stopTimeout, CancellationToken cancellationToken) =>
-        SendAsync(
+        ChangeContainersAsync(environmentId, () => SendAsync(
             environmentId,
             new ControllerMessage { RestartContainer = new RestartContainer { ContainerId = containerId, TimeoutSeconds = Seconds(stopTimeout) } },
             WaitFor(stopTimeout),
-            cancellationToken);
+            cancellationToken));
 
     public Task DeployStackAsync(
         EnvironmentId environmentId,
@@ -81,7 +86,8 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
             Password = l.Password,
         }));
 
-        return SendAsync(environmentId, new ControllerMessage { DeployStack = command }, timeout, cancellationToken, onProgress);
+        return ChangeContainersAsync(
+            environmentId, () => SendAsync(environmentId, new ControllerMessage { DeployStack = command }, timeout, cancellationToken, onProgress));
     }
 
     public Task RestartStackAsync(
@@ -90,12 +96,12 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
         TimeSpan stopTimeout,
         Action<string> onProgress,
         CancellationToken cancellationToken) =>
-        SendAsync(
+        ChangeContainersAsync(environmentId, () => SendAsync(
             environmentId,
             new ControllerMessage { RestartStack = new RestartStack { StackName = stackName.Value, TimeoutSeconds = Seconds(stopTimeout) } },
             options.Value.StackCommandTimeout,
             cancellationToken,
-            onProgress);
+            onProgress));
 
     public Task DownStackAsync(
         EnvironmentId environmentId,
@@ -103,12 +109,12 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
         TimeSpan stopTimeout,
         Action<string> onProgress,
         CancellationToken cancellationToken) =>
-        SendAsync(
+        ChangeContainersAsync(environmentId, () => SendAsync(
             environmentId,
             new ControllerMessage { DownStack = new DownStack { StackName = stackName.Value, TimeoutSeconds = Seconds(stopTimeout) } },
             options.Value.StackCommandTimeout,
             cancellationToken,
-            onProgress);
+            onProgress));
 
     public async Task<IReadOnlyList<ContainerLogLine>> ReadContainerLogsAsync(
         EnvironmentId environmentId, string containerId, ContainerLogQuery query, CancellationToken cancellationToken)
@@ -129,6 +135,26 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
             cancellationToken,
             onLogs: tail.Add);
         return tail.ToList();
+    }
+
+    private async Task ChangeContainersAsync(EnvironmentId environmentId, Func<Task<CommandResult>> send)
+    {
+        try
+        {
+            await send();
+        }
+        catch (AgentOfflineException)
+        {
+            // Nothing reached the host.
+            throw;
+        }
+        catch
+        {
+            await live.ContainersChangedAsync(environmentId);
+            throw;
+        }
+
+        await live.ContainersChangedAsync(environmentId);
     }
 
     // Docker may wait the whole stop timeout before killing the process; the answer comes after that.

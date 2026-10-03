@@ -21,6 +21,8 @@ import {
 } from "@/features/stacks/model";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useLiveStatus } from "@/components/live/hub-provider";
+import { pollingInterval } from "@/features/live/model";
 
 export const Route = createFileRoute("/_authed/deployments/$deploymentId")({
   loader: ({ context, params }) => context.queryClient.ensureQueryData(deploymentQuery(params.deploymentId)),
@@ -32,9 +34,12 @@ export const Route = createFileRoute("/_authed/deployments/$deploymentId")({
 function DeploymentScreen() {
   const { t, i18n } = useTranslation();
   const { deploymentId } = Route.useParams();
+  const live = useLiveStatus();
   const { data: deployment } = useSuspenseQuery({
     ...deploymentQuery(deploymentId),
-    refetchInterval: (query) => (query.state.data && !isFinished(query.state.data.status) ? DEPLOYMENT_POLL_MS : false),
+    // Live updates report every step; polling only stands in while the connection is down.
+    refetchInterval: (query) =>
+      query.state.data && !isFinished(query.state.data.status) ? pollingInterval(live, DEPLOYMENT_POLL_MS) : false,
   });
   const stack = useQuery(stackQuery(deployment.stackId));
   const language = i18n.resolvedLanguage;

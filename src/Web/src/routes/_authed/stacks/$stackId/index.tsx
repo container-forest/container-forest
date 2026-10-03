@@ -29,6 +29,8 @@ import {
   stackSourceSchema,
 } from "@/features/stacks/model";
 import { formatDateTime } from "@/lib/format";
+import { useLiveStatus } from "@/components/live/hub-provider";
+import { pollingInterval } from "@/features/live/model";
 
 /** How many deployments the stack's screen lists; the history screen has the rest. */
 const RECENT_DEPLOYMENTS = 5;
@@ -348,10 +350,12 @@ function SourceCard({ stack }: { stack: Stack }) {
 
 function RecentDeploymentsCard({ stack }: { stack: Stack }) {
   const { t, i18n } = useTranslation();
+  const live = useLiveStatus();
   const deployments = useQuery({
     ...deploymentsQuery(stack.id),
-    // A queued or running deployment changes on its own; the list follows it until it finishes.
-    refetchInterval: (query) => (query.state.data && hasUnfinished(query.state.data) ? DEPLOYMENT_POLL_MS : false),
+    // A queued or running deployment changes on its own; live updates follow it, polling only without them.
+    refetchInterval: (query) =>
+      query.state.data && hasUnfinished(query.state.data) ? pollingInterval(live, DEPLOYMENT_POLL_MS) : false,
   });
   const recent = (deployments.data ?? []).slice(0, RECENT_DEPLOYMENTS);
 

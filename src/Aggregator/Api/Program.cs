@@ -4,8 +4,10 @@ using ContainerForest.Aggregator.Api.Access;
 using ContainerForest.Aggregator.Api.Endpoints;
 using ContainerForest.Aggregator.Api.ErrorHandling;
 using ContainerForest.Aggregator.Api.Grpc;
+using ContainerForest.Aggregator.Api.Live;
 using ContainerForest.Aggregator.Application;
 using ContainerForest.Aggregator.Application.Access;
+using ContainerForest.Aggregator.Application.Live;
 using ContainerForest.Aggregator.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,13 +15,19 @@ builder.Configuration.AddEnvironmentVariables(prefix: "CF_");
 
 builder.Services.AddApplication();
 
+// Before AddInfrastructure, which falls back to sending nothing.
+builder.Services.AddSignalR(options => options.EnableDetailedErrors = builder.Environment.IsDevelopment());
+builder.Services.AddSingleton<ILiveUpdates, SignalRLiveUpdates>();
+
 // The build-time OpenAPI generator starts the host, hosted services included; it must not create a database.
 var isOpenApiGeneration = Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider";
 builder.Services.AddInfrastructure(builder.Configuration, runHostedServices: !isOpenApiGeneration);
 
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentUser, ClaimsCurrentUser>();
+builder.Services.AddScoped<ClaimsCurrentUser>();
+builder.Services.AddScoped<ICurrentUser>(sp => sp.GetRequiredService<ClaimsCurrentUser>());
 builder.Services.AddSessionAuthentication(builder.Environment);
+builder.Services.AddAuthorization();
 
 builder.Services.AddGrpc()
     .AddServiceOptions<BotGatewayService>(options => options.Interceptors.Add<BotGatewayInterceptor>());
@@ -37,6 +45,7 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapOpenApi();
 app.MapGrpcService<AgentGatewayService>();
@@ -49,6 +58,8 @@ app.MapAgeKeyEndpoints();
 app.MapStackEndpoints();
 app.MapNotificationEndpoints();
 app.MapDiscordLinkEndpoints();
+// A signed-out session must not keep hearing updates on an open WebSocket.
+app.MapHub<LiveHub>("/hubs/live", options => options.CloseOnAuthenticationExpiration = true).RequireAuthorization();
 
 app.Run();
 

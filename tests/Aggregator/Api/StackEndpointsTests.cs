@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace ContainerForest.Aggregator.Api.Tests;
 
@@ -57,12 +58,49 @@ public class StackEndpointsTests
         await HttpAssert.StatusAsync(HttpStatusCode.NotFound, alice.GetAsync($"/api/stacks/{Guid.NewGuid()}", Ct));
     }
 
+    [Fact]
+    public async Task Access_token_is_write_only_and_stays_on_its_host()
+    {
+        await using var app = new AggregatorApp();
+        var client = app.CreateClient();
+
+        var created = await client.PostAsJsonAsync(
+            "/api/repositories",
+            new { name = "private", url = "https://git.example.com/team/private.git", accessToken = new { userName = (string?)null, token = "ghp_secret" } },
+            Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.Created, created);
+        var body = await created.Content.ReadAsStringAsync(Ct);
+        Assert.DoesNotContain("ghp_secret", body, StringComparison.Ordinal);
+        var repository = JsonSerializer.Deserialize<RepositoryView>(body, AggregatorApp.Json)!;
+        Assert.Equal((true, null), (repository.HasAccessToken, repository.AccessUserName));
+
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.BadRequest,
+            client.PutAsJsonAsync($"/api/repositories/{repository.Id}", new { name = "private", url = "https://evil.example.com/private.git" }, Ct));
+
+        var replaced = await client.PutAsJsonAsync(
+            $"/api/repositories/{repository.Id}/access-token", new { userName = "gitlab+deploy-token-1", token = "gldt-secret" }, Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, replaced);
+        Assert.Equal("gitlab+deploy-token-1", (await replaced.Content.ReadFromJsonAsync<RepositoryView>(AggregatorApp.Json, Ct))!.AccessUserName);
+
+        var removed = await client.DeleteAsync($"/api/repositories/{repository.Id}/access-token", Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, removed);
+        Assert.False((await removed.Content.ReadFromJsonAsync<RepositoryView>(AggregatorApp.Json, Ct))!.HasAccessToken);
+
+        var moved = await client.PutAsJsonAsync(
+            $"/api/repositories/{repository.Id}", new { name = "moved", url = "https://other.example.com/private.git" }, Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, moved);
+        Assert.Equal("https://other.example.com/private.git", (await moved.Content.ReadFromJsonAsync<RepositoryView>(AggregatorApp.Json, Ct))!.Url);
+    }
+
     private static async Task<Guid> CreateRepositoryAsync(HttpClient client, string name)
     {
         var response = await client.PostAsJsonAsync("/api/repositories", new { name, url = $"https://git.example.com/{name}.git" }, Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Created, response);
         return (await response.Content.ReadFromJsonAsync<StackView>(AggregatorApp.Json, Ct))!.Id;
     }
+
+    private sealed record RepositoryView(Guid Id, string Name, string Url, bool HasAccessToken, string? AccessUserName);
 
     private sealed record StackView(
         Guid Id, Guid EnvironmentId, string? RepositoryName, string Branch, string ComposePath, bool CanDeploy, bool CanRestart);

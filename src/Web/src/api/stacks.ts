@@ -5,14 +5,51 @@ import { deploymentsQuery, repositoriesQuery, stackQuery, stacksQuery } from "./
 import type { components } from "./schema.gen";
 
 export type CreateRepositoryRequest = components["schemas"]["CreateRepositoryRequest"];
+export type UpdateRepositoryRequest = components["schemas"]["UpdateRepositoryRequest"];
+export type RepositoryAccessTokenRequest = components["schemas"]["RepositoryAccessTokenRequest"];
 export type CreateStackRequest = components["schemas"]["CreateStackRequest"];
 export type ChangeStackSourceRequest = components["schemas"]["ChangeStackSourceRequest"];
+
+// A repository's access token is a secret: mutations that carry it are dropped as soon as nothing observes them
+// (gcTime 0), and their forms reset the mutation after success, as for registry passwords.
 
 export function useCreateRepositoryMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    gcTime: 0,
     mutationFn: async (request: CreateRepositoryRequest) => unwrap(await api.POST("/api/repositories", { body: request })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: repositoriesQuery.queryKey }),
+  });
+}
+
+export function useUpdateRepositoryMutation(repositoryId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (request: UpdateRepositoryRequest) =>
+      unwrap(await api.PUT("/api/repositories/{id}", { params: { path: { id: repositoryId } }, body: request })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: repositoriesQuery.queryKey }),
+  });
+}
+
+export function useSetRepositoryAccessTokenMutation(repositoryId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    gcTime: 0,
+    mutationFn: async (request: RepositoryAccessTokenRequest) =>
+      unwrap(await api.PUT("/api/repositories/{id}/access-token", { params: { path: { id: repositoryId } }, body: request })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: repositoriesQuery.queryKey }),
+  });
+}
+
+export function useRemoveRepositoryAccessTokenMutation(repositoryId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () =>
+      unwrap(await api.DELETE("/api/repositories/{id}/access-token", { params: { path: { id: repositoryId } } })),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: repositoriesQuery.queryKey }),
   });
 }

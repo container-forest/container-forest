@@ -1,12 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { hasStatus } from "@/api/client";
 import { useCreateRepositoryMutation } from "@/api/stacks";
 import { ErrorText, FieldError } from "@/components/form-messages";
 import { Loader2Icon, PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -18,21 +19,29 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { type CreateRepositoryForm, createRepositorySchema, describeError } from "@/features/stacks/model";
+import {
+  type CreateRepositoryForm,
+  createRepositorySchema,
+  describeError,
+  toCreateRepositoryRequest,
+} from "@/features/stacks/model";
+import { AccessTokenFields } from "./access-token-fields";
 
-const emptyForm: CreateRepositoryForm = { name: "", url: "" };
+const emptyForm: CreateRepositoryForm = { name: "", url: "", isPrivate: false, userName: "", token: "" };
 
-/** "Add repository": a public https repository; administrators only. */
+/** "Add repository": an https repository, public or with an access token; administrators only. */
 export function AddRepositoryDialog() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const create = useCreateRepositoryMutation();
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { errors },
   } = useForm<CreateRepositoryForm>({ resolver: zodResolver(createRepositorySchema), defaultValues: emptyForm });
+  const isPrivate = useWatch({ control, name: "isPrivate" });
 
   const onOpenChange = (next: boolean) => {
     setOpen(next);
@@ -42,7 +51,10 @@ export function AddRepositoryDialog() {
     }
   };
 
-  const onSubmit = handleSubmit((form) => create.mutate(form, { onSuccess: () => onOpenChange(false) }));
+  // Closing resets both the form and the mutation, so the token stays in neither.
+  const onSubmit = handleSubmit((form) =>
+    create.mutate(toCreateRepositoryRequest(form), { onSuccess: () => onOpenChange(false) }),
+  );
   const createError = create.error && !hasStatus(create.error, 409) ? describeError(create.error) : undefined;
 
   return (
@@ -83,6 +95,35 @@ export function AddRepositoryDialog() {
             />
             <FieldError id="repository-url-error" message={errors.url?.message} />
           </div>
+          <div className="grid gap-1">
+            <div className="flex items-center gap-2">
+              <Controller
+                control={control}
+                name="isPrivate"
+                render={({ field }) => (
+                  <Checkbox
+                    id="repository-private"
+                    checked={field.value}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
+                  />
+                )}
+              />
+              <Label htmlFor="repository-private" className="font-normal">
+                {t("repositories.create.private")}
+              </Label>
+            </div>
+            <p className="text-muted-foreground text-sm">{t("repositories.create.privateHint")}</p>
+          </div>
+          {isPrivate && (
+            <AccessTokenFields
+              idPrefix="repository-create"
+              userName={register("userName")}
+              token={register("token")}
+              errors={{ userName: errors.userName?.message, token: errors.token?.message }}
+            />
+          )}
           {create.error && hasStatus(create.error, 409) && <ErrorText>{t("repositories.create.nameTaken")}</ErrorText>}
           {createError && (
             <ErrorText>

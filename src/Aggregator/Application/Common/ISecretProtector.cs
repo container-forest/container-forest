@@ -4,6 +4,7 @@ namespace ContainerForest.Aggregator.Application.Common;
 public enum SecretPurpose
 {
     RegistryPassword,
+    GitAccessToken,
 }
 
 /// <summary>Encrypts secrets the aggregator keeps in its database, such as registry passwords.</summary>

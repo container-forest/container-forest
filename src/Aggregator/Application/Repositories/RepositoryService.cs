@@ -12,32 +12,86 @@ public interface IGitRepositoryRepository : IRepository<GitRepository, Repositor
     Task<IReadOnlyList<GitRepository>> ListAsync(CancellationToken cancellationToken);
 
     /// <summary>Case-insensitive.</summary>
-    Task<bool> NameExistsAsync(string name, CancellationToken cancellationToken);
+    /// <param name="except">A repository to ignore, for a rename.</param>
+    Task<bool> NameExistsAsync(string name, RepositoryId? except, CancellationToken cancellationToken);
+}
+
+/// <summary>An access token as the administrator entered it.</summary>
+/// <param name="UserName">Null or blank for <see cref="GitRepository.DefaultAccessUserName"/>.</param>
+public sealed record RepositoryAccessToken(string? UserName, string Token)
+{
+    public const int MaxTokenLength = 1024;
+
+    // Records print every property; the token must not reach a log through ToString.
+    public override string ToString() => $"{nameof(RepositoryAccessToken)} {{ UserName = {UserName} }}";
 }
 
 /// <summary>
-/// Git repositories stacks are deployed from. Only administrators add them: a repository may hold every
-/// environment's stacks. Editors may list them, to choose one for a stack.
+/// Git repositories stacks are deployed from. Only administrators add and change them: a repository may hold every
+/// environment's stacks, and its access token reads all of them. Editors may list them, to choose one for a stack.
+/// The token is encrypted before it is stored and is never returned.
 /// </summary>
 public sealed class RepositoryService(
     CurrentActor currentActor,
     IGitRepositoryRepository repositories,
     IRoleAssignmentRepository roleAssignments,
+    ISecretProtector protector,
     IUnitOfWork unitOfWork,
     TimeProvider time)
 {
-    /// <summary>Adds a public repository. Private repositories need an access token, which is not supported yet.</summary>
-    public async Task<GitRepository> CreateAsync(string name, string url, CancellationToken cancellationToken)
+    /// <param name="accessToken">Null for a public repository.</param>
+    public async Task<GitRepository> CreateAsync(
+        string name, string url, RepositoryAccessToken? accessToken, CancellationToken cancellationToken)
     {
         await currentActor.GetAdministratorAsync(cancellationToken);
 
-        var repository = GitRepository.Create(name, url, protectedAccessToken: null, time.GetUtcNow());
-        if (await repositories.NameExistsAsync(repository.Name, cancellationToken))
+        var repository = GitRepository.Create(name, url, time.GetUtcNow());
+        if (accessToken is not null)
         {
-            throw new DomainConflictException($"Repository '{repository.Name}' already exists.");
+            SetAccessToken(repository, accessToken);
         }
 
+        await EnsureNameIsFreeAsync(repository, cancellationToken);
         repositories.Add(repository);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return repository;
+    }
+
+    /// <summary>
+    /// Renames the repository and changes its URL. Stacks keep using it: the next deployment fetches from the new URL.
+    /// A URL on another host is rejected while a token is set (<see cref="GitRepository.ChangeUrl"/>).
+    /// </summary>
+    public async Task<GitRepository> UpdateAsync(RepositoryId id, string name, string url, CancellationToken cancellationToken)
+    {
+        await currentActor.GetAdministratorAsync(cancellationToken);
+
+        var repository = await repositories.GetAsync(id, cancellationToken);
+        repository.Rename(name);
+        repository.ChangeUrl(url);
+        await EnsureNameIsFreeAsync(repository, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return repository;
+    }
+
+    /// <summary>Sets or replaces the access token; the repository becomes private.</summary>
+    public async Task<GitRepository> SetAccessTokenAsync(
+        RepositoryId id, RepositoryAccessToken accessToken, CancellationToken cancellationToken)
+    {
+        await currentActor.GetAdministratorAsync(cancellationToken);
+
+        var repository = await repositories.GetAsync(id, cancellationToken);
+        SetAccessToken(repository, accessToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return repository;
+    }
+
+    /// <summary>Forgets the access token; the repository is fetched as a public one.</summary>
+    public async Task<GitRepository> RemoveAccessTokenAsync(RepositoryId id, CancellationToken cancellationToken)
+    {
+        await currentActor.GetAdministratorAsync(cancellationToken);
+
+        var repository = await repositories.GetAsync(id, cancellationToken);
+        repository.RemoveAccessToken();
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return repository;
     }
@@ -53,5 +107,26 @@ public sealed class RepositoryService(
         }
 
         return await repositories.ListAsync(cancellationToken);
+    }
+
+    private void SetAccessToken(GitRepository repository, RepositoryAccessToken accessToken)
+    {
+        // A token is sent in an HTTP header: whitespace would be part of it, and is always a copy-paste mistake.
+        var token = accessToken.Token;
+        if (token.Length is 0 or > RepositoryAccessToken.MaxTokenLength || token.Any(c => char.IsWhiteSpace(c) || char.IsControl(c)))
+        {
+            throw new DomainValidationException(
+                $"Access token must be 1-{RepositoryAccessToken.MaxTokenLength} characters without spaces.");
+        }
+
+        repository.SetAccessToken(accessToken.UserName, protector.Protect(SecretPurpose.GitAccessToken, token));
+    }
+
+    private async Task EnsureNameIsFreeAsync(GitRepository repository, CancellationToken cancellationToken)
+    {
+        if (await repositories.NameExistsAsync(repository.Name, repository.Id, cancellationToken))
+        {
+            throw new DomainConflictException($"Repository '{repository.Name}' already exists.");
+        }
     }
 }

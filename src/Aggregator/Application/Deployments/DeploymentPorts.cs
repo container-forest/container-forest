@@ -16,8 +16,10 @@ public interface IGitSource
     /// Fetches the branch and returns its head commit. Reading is a separate call, so the deployment is pinned to the
     /// commit even when its files turn out to be unusable.
     /// </summary>
+    /// <param name="credentials">The repository's decrypted token; null for a public repository.</param>
     /// <exception cref="DeploymentFailedException">The repository or the branch is unavailable.</exception>
-    Task<CommitSha> FetchAsync(GitRepository repository, BranchName branch, CancellationToken cancellationToken);
+    Task<CommitSha> FetchAsync(
+        GitRepository repository, GitCredentials? credentials, BranchName branch, CancellationToken cancellationToken);
 
     /// <summary>Reads the files under <paramref name="directory"/> at a commit <see cref="FetchAsync"/> returned.</summary>
     /// <param name="directory">Directory inside the repository, '/'-separated; empty for the root.</param>
@@ -25,6 +27,13 @@ public interface IGitSource
     /// <exception cref="DeploymentFailedException">The directory does not exist at the commit, or the files are too large.</exception>
     Task<GitSnapshot> ReadAsync(
         GitRepository repository, CommitSha commit, string directory, long maxBytes, CancellationToken cancellationToken);
+}
+
+/// <summary>A decrypted access token for HTTPS basic authentication.</summary>
+public sealed record GitCredentials(string UserName, string Token)
+{
+    // Records print every property; the token must not reach a log through ToString.
+    public override string ToString() => $"{nameof(GitCredentials)} {{ UserName = {UserName} }}";
 }
 
 /// <param name="Files">Paths are relative to the requested directory.</param>

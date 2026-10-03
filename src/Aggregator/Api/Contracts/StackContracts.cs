@@ -5,7 +5,10 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 // Repositories, stacks and deployments for the panel, limited to what the signed-in user may see and do.
 //
 //   GET  /api/repositories                       -> RepositoryResponse[] (name order); administrators and editors
-//   POST /api/repositories                       -> 201 RepositoryResponse; administrators only, public repositories only
+//   POST /api/repositories                       -> 201 RepositoryResponse; administrators only
+//   PUT  /api/repositories/{id}                  -> RepositoryResponse; administrators; 400 for another host while a token is set
+//   PUT  /api/repositories/{id}/access-token     -> RepositoryResponse; administrators; sets or replaces the token
+//   DELETE /api/repositories/{id}/access-token   -> RepositoryResponse; administrators; the repository becomes public
 //   GET  /api/environments/{id}/stacks           -> StackResponse[] (name order)
 //   POST /api/environments/{id}/stacks           -> 201 StackResponse; Editor on the environment
 //   GET  /api/stacks/{id}                        -> StackResponse
@@ -20,10 +23,24 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 // also when compose itself failed (the output says why); errors before compose ran are problem responses:
 // 409 for a system stack or a deployment in progress, 404 for a stack that was never deployed on the host,
 // 503 when the agent is offline (nothing is queued), 502 for an agent error.
+//
+// An access token is write-only: responses only say whether one is set.
 
-public sealed record RepositoryResponse(Guid Id, string Name, string Url, DateTimeOffset CreatedAt);
+/// <param name="AccessUserName">User name sent with the token; null for the default or without a token.</param>
+public sealed record RepositoryResponse(
+    Guid Id, string Name, string Url, bool HasAccessToken, string? AccessUserName, DateTimeOffset CreatedAt);
 
-public sealed record CreateRepositoryRequest(string Name, string Url);
+/// <param name="AccessToken">Null for a public repository.</param>
+public sealed record CreateRepositoryRequest(string Name, string Url, RepositoryAccessTokenRequest? AccessToken);
+
+public sealed record UpdateRepositoryRequest(string Name, string Url);
+
+/// <param name="UserName">Null for "x-access-token", which GitHub and GitLab accept with any token; GitLab deploy tokens
+/// and Bitbucket need their own.</param>
+public sealed record RepositoryAccessTokenRequest(string? UserName, string Token)
+{
+    public override string ToString() => $"{nameof(RepositoryAccessTokenRequest)} {{ UserName = {UserName} }}";
+}
 
 /// <param name="ComposePath">Path of the compose file in the repository; its directory holds the stack's files.</param>
 public sealed record CreateStackRequest(string Name, Guid RepositoryId, string Branch, string ComposePath);

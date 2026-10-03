@@ -24,12 +24,36 @@ internal static class StackEndpoints
 
         repositories.MapPost("/", async (CreateRepositoryRequest request, RepositoryService service, CancellationToken ct) =>
             {
-                var repository = await service.CreateAsync(request.Name, request.Url, ct);
+                var repository = await service.CreateAsync(request.Name, request.Url, ToAccessToken(request.AccessToken), ct);
                 return TypedResults.Created($"/api/repositories/{repository.Id}", ToResponse(repository));
             })
             .WithName("CreateRepository")
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status409Conflict);
+
+        repositories.MapPut(
+                "/{id:guid}",
+                async (Guid id, UpdateRepositoryRequest request, RepositoryService service, CancellationToken ct) =>
+                    ToResponse(await service.UpdateAsync(RepositoryId.From(id), request.Name, request.Url, ct)))
+            .WithName("UpdateRepository")
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        repositories.MapPut(
+                "/{id:guid}/access-token",
+                async (Guid id, RepositoryAccessTokenRequest request, RepositoryService service, CancellationToken ct) =>
+                    ToResponse(await service.SetAccessTokenAsync(RepositoryId.From(id), ToAccessToken(request)!, ct)))
+            .WithName("SetRepositoryAccessToken")
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        repositories.MapDelete(
+                "/{id:guid}/access-token",
+                async (Guid id, RepositoryService service, CancellationToken ct) =>
+                    ToResponse(await service.RemoveAccessTokenAsync(RepositoryId.From(id), ct)))
+            .WithName("RemoveRepositoryAccessToken")
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         var api = app.MapGroup("/api")
             .WithTags("Stacks")
@@ -112,8 +136,16 @@ internal static class StackEndpoints
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable)
             .ProducesProblem(StatusCodes.Status504GatewayTimeout);
 
-    private static RepositoryResponse ToResponse(GitRepository repository) =>
-        new(repository.Id.Value, repository.Name, repository.Url.ToString(), repository.CreatedAt);
+    private static RepositoryResponse ToResponse(GitRepository repository) => new(
+        repository.Id.Value,
+        repository.Name,
+        repository.Url.ToString(),
+        repository.HasAccessToken,
+        repository.AccessUserName,
+        repository.CreatedAt);
+
+    private static RepositoryAccessToken? ToAccessToken(RepositoryAccessTokenRequest? request) =>
+        request is null ? null : new RepositoryAccessToken(request.UserName, request.Token ?? "");
 
     private static StackResponse ToResponse(StackSummary s) => new(
         s.Id.Value,

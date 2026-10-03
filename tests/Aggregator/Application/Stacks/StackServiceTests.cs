@@ -28,15 +28,15 @@ public class StackServiceTests
 
     private readonly User alice = User.Create("alice", Now);
     private readonly DockerEnvironment environment = DockerEnvironment.Create("prod", isPrivate: true, Now);
-    private readonly GitRepository infra = GitRepository.Create("infra", "https://git.example.com/infra.git", protectedAccessToken: null, Now);
-    private readonly GitRepository apps = GitRepository.Create("apps", "https://git.example.com/apps.git", protectedAccessToken: null, Now);
+    private readonly GitRepository infra = GitRepository.Create("infra", "https://git.example.com/infra.git", Now);
+    private readonly GitRepository apps = GitRepository.Create("apps", "https://git.example.com/apps.git", Now);
     private readonly Stack web;
 
     public StackServiceTests()
     {
         var actor = new CurrentActor(currentUser, users);
         service = new StackService(actor, environments, stacks, repositories, roleAssignments, deployments, unitOfWork, new FixedTime(Now));
-        repositoryService = new RepositoryService(actor, repositories, roleAssignments, unitOfWork, new FixedTime(Now));
+        repositoryService = new RepositoryService(actor, repositories, roleAssignments, new FakeSecretProtector(), unitOfWork, new FixedTime(Now));
         users.Add(alice);
         currentUser.Id = alice.Id;
         environments.Add(environment);

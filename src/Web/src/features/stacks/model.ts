@@ -59,13 +59,85 @@ export type CreateStackForm = z.infer<typeof createStackSchema>;
 /** GitRepository.MaxNameLength in the aggregator. */
 export const MAX_REPOSITORY_NAME = 64;
 
-export const createRepositorySchema = z.object({
+const repositoryDetails = {
   name: z.string().trim().min(1, "repositories.form.nameInvalid" satisfies MessageKey).max(MAX_REPOSITORY_NAME, "repositories.form.nameInvalid" satisfies MessageKey),
   // Only https: the aggregator fetches over HTTPS (LibGit2Sharp has no SSH).
   url: z.string().trim().regex(/^https:\/\/\S+$/i, "repositories.form.urlInvalid" satisfies MessageKey),
-});
+};
+
+/** GitRepository.MaxAccessUserNameLength and RepositoryAccessToken.MaxTokenLength in the aggregator. */
+export const MAX_ACCESS_USER_NAME = 128;
+export const MAX_ACCESS_TOKEN = 1024;
+
+const accessUserName = z
+  .string()
+  .trim()
+  .max(MAX_ACCESS_USER_NAME, "repositories.token.userNameInvalid" satisfies MessageKey)
+  // ':' would split the user name from the token in HTTP basic authentication.
+  .regex(/^[^:\p{Cc}]*$/u, "repositories.token.userNameInvalid" satisfies MessageKey);
+
+// Not trimmed: a space inside a pasted token is a mistake the aggregator rejects, so it is shown here too.
+const accessToken = z
+  .string()
+  .min(1, "repositories.token.tokenRequired" satisfies MessageKey)
+  .max(MAX_ACCESS_TOKEN, "repositories.token.tokenInvalid" satisfies MessageKey)
+  .regex(/^\S+$/, "repositories.token.tokenInvalid" satisfies MessageKey);
+
+export const accessTokenSchema = z.object({ userName: accessUserName, token: accessToken });
+
+export type AccessTokenForm = z.infer<typeof accessTokenSchema>;
+
+/** "Add repository": the token fields are checked only for a private repository. */
+export const createRepositorySchema = z
+  .object({ ...repositoryDetails, isPrivate: z.boolean(), userName: z.string(), token: z.string() })
+  .superRefine((form, context) => {
+    if (!form.isPrivate) {
+      return;
+    }
+
+    for (const [field, schema] of [["userName", accessUserName], ["token", accessToken]] as const) {
+      const result = schema.safeParse(form[field]);
+      if (!result.success) {
+        context.addIssue({ code: "custom", path: [field], message: result.error.issues[0]?.message });
+      }
+    }
+  });
 
 export type CreateRepositoryForm = z.infer<typeof createRepositorySchema>;
+
+export const editRepositorySchema = z.object(repositoryDetails);
+
+export type EditRepositoryForm = z.infer<typeof editRepositorySchema>;
+
+/** The request for "Add repository"; the token fields of a public repository are ignored even if filled in. */
+export function toCreateRepositoryRequest(form: CreateRepositoryForm) {
+  return {
+    name: form.name,
+    url: form.url,
+    accessToken: form.isPrivate ? toAccessTokenRequest({ userName: form.userName.trim(), token: form.token }) : null,
+  };
+}
+
+/** A blank user name is sent as null: the aggregator then uses its default. */
+export function toAccessTokenRequest(form: AccessTokenForm) {
+  return { userName: form.userName === "" ? null : form.userName, token: form.token };
+}
+
+/**
+ * The aggregator keeps a token on its host: a repository with a token cannot move to another one until the token is
+ * removed. Checked here too, so the form can say so before submitting.
+ */
+export function movesTokenToAnotherHost(repository: Pick<Repository, "url" | "hasAccessToken">, url: string): boolean {
+  if (!repository.hasAccessToken) {
+    return false;
+  }
+
+  try {
+    return new URL(url.trim()).host.toLowerCase() !== new URL(repository.url).host.toLowerCase();
+  } catch {
+    return false;
+  }
+}
 
 export function isFinished(status: DeploymentStatus): boolean {
   return status === "Succeeded" || status === "Failed" || status === "Cancelled";

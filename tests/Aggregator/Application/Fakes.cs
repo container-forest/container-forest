@@ -144,8 +144,8 @@ internal sealed class InMemoryGitRepositories : InMemoryRepository<GitRepository
     public Task<IReadOnlyList<GitRepository>> ListAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<GitRepository>>(Items.OrderBy(r => r.Name).ToList());
 
-    public Task<bool> NameExistsAsync(string name, CancellationToken cancellationToken) =>
-        Task.FromResult(Items.Any(r => string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)));
+    public Task<bool> NameExistsAsync(string name, RepositoryId? except, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.Any(r => r.Id != except && string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)));
 }
 
 internal sealed class InMemoryDeployments : InMemoryRepository<Deployment, DeploymentId>, IDeploymentRepository

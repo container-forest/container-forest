@@ -16,6 +16,9 @@ public enum DeploymentTrigger
 {
     Manual,
     Webhook,
+
+    /// <summary>The host rebooted and lost its file secrets (tmpfs); the deployed commit is deployed again.</summary>
+    Rehydrate,
 }
 
 public enum DeploymentLogLevel
@@ -108,6 +111,20 @@ public sealed class Deployment : Entity<DeploymentId>
 
     public static Deployment QueueFromWebhook(StackId stackId, DateTimeOffset now) =>
         new(DeploymentId.New(), stackId, DeploymentTrigger.Webhook, requestedBy: null, ImagePullPolicy.Missing, now);
+
+    /// <summary>
+    /// Re-deploys <paramref name="commit"/>, the one already running, after the host lost its file secrets in a reboot.
+    /// The commit is pinned from the start: the branch may have moved on, and restoring secrets must not deploy
+    /// anything nobody asked for. Images are pulled only when missing, as they normally are already there.
+    /// </summary>
+    public static Deployment QueueRehydrate(StackId stackId, CommitSha commit, DateTimeOffset now) =>
+        new(DeploymentId.New(), stackId, DeploymentTrigger.Rehydrate, requestedBy: null, ImagePullPolicy.Missing, now)
+        {
+            Commit = commit,
+        };
+
+    /// <summary>True when the deployment must use <see cref="Commit"/> instead of the branch head.</summary>
+    public bool IsPinned => Trigger == DeploymentTrigger.Rehydrate;
 
     public void Start(DateTimeOffset now)
     {

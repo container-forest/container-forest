@@ -24,6 +24,24 @@ public class DeploymentTests
     }
 
     [Fact]
+    public void Rehydration_is_pinned_to_the_deployed_commit_from_the_start()
+    {
+        var deployment = Deployment.QueueRehydrate(StackId.New(), Commit, Now);
+
+        Assert.Equal((DeploymentTrigger.Rehydrate, Commit, true), (deployment.Trigger, deployment.Commit, deployment.IsPinned));
+        Assert.Null(deployment.RequestedBy);
+        Assert.Equal(ImagePullPolicy.Missing, deployment.PullPolicy);
+
+        deployment.Start(Now);
+        deployment.ResolveCommit(Commit);
+        Assert.Throws<DomainConflictException>(() => deployment.ResolveCommit(CommitSha.Parse(new string('b', 40))));
+    }
+
+    [Fact]
+    public void Manual_deployment_is_not_pinned() =>
+        Assert.False(Deployment.QueueManual(StackId.New(), UserId.New(), ImagePullPolicy.Missing, Now).IsPinned);
+
+    [Fact]
     public void Webhook_deployment_has_no_user_and_pulls_missing_images()
     {
         var deployment = Deployment.QueueFromWebhook(StackId.New(), Now);

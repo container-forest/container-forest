@@ -4,6 +4,7 @@ using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Deployments.Steps;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Repositories;
+using ContainerForest.Aggregator.Domain.Stacks;
 using static ContainerForest.Aggregator.Application.Tests.Deployments.DeployFixtures;
 
 namespace ContainerForest.Aggregator.Application.Tests.Deployments;
@@ -39,6 +40,52 @@ public class GitFetchStepTests
             new GitFetchStep(git, new FakeSecretProtector(), new DeploymentOptions()).ExecuteAsync(context, TestContext.Current.CancellationToken));
 
         Assert.Equal(Commit, context.Deployment.Commit);
+    }
+
+    [Fact]
+    public async Task Pinned_deployment_reads_its_own_commit_not_the_branch_head()
+    {
+        var pinned = CommitSha.Parse(new string('b', 40));
+        var git = new FakeGitSource();
+        var context = PinnedContext(pinned);
+
+        await new GitFetchStep(git, new FakeSecretProtector(), new DeploymentOptions()).ExecuteAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Equal(pinned, git.ReadCommit);
+        Assert.Equal(pinned, context.Deployment.Commit);
+        Assert.NotNull(git.FetchedBranch);
+    }
+
+    [Fact]
+    public async Task Pinned_deployment_uses_the_cache_when_the_git_server_is_down()
+    {
+        var pinned = CommitSha.Parse(new string('b', 40));
+        var git = new FakeGitSource { FetchError = new DeploymentFailedException("Fetching https://git.example.com/infra.git failed.") };
+        var context = PinnedContext(pinned);
+
+        await new GitFetchStep(git, new FakeSecretProtector(), new DeploymentOptions()).ExecuteAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Equal(pinned, git.ReadCommit);
+        Assert.Contains(Lines(context, DeploymentLogLevel.Warning), l => l.Contains("from the aggregator's cache", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Unpinned_deployment_fails_when_the_git_server_is_down()
+    {
+        var git = new FakeGitSource { FetchError = new DeploymentFailedException("Fetching failed.") };
+        var context = Context();
+        context.Deployment.Start(Now);
+
+        await Assert.ThrowsAsync<DeploymentFailedException>(() =>
+            new GitFetchStep(git, new FakeSecretProtector(), new DeploymentOptions()).ExecuteAsync(context, TestContext.Current.CancellationToken));
+    }
+
+    private static DeployContext PinnedContext(CommitSha pinned)
+    {
+        var fresh = Context();
+        var deployment = Deployment.QueueRehydrate(fresh.Stack.Id, pinned, Now);
+        deployment.Start(Now);
+        return new DeployContext(deployment, fresh.Stack, fresh.Environment, fresh.Repository, new FixedTime(Now));
     }
 
     [Fact]

@@ -48,6 +48,9 @@ public sealed class DeployContext(
         set => bundle = value;
     }
 
+    /// <summary>True when the bundle carries SOPS-decrypted files; false before a bundle is built.</summary>
+    public bool HasSecretFiles => bundle?.Files.Any(f => f.IsSecret) ?? false;
+
     public void Info(string text) => Deployment.AppendLog(DeploymentLogLevel.Info, text, Now);
 
     public void Warn(string text) => Deployment.AppendLog(DeploymentLogLevel.Warning, text, Now);

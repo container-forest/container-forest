@@ -265,7 +265,7 @@ public class StackCommandServiceTests
         deployment.Start(Now);
         deployment.ResolveCommit(Commit);
         deployment.Succeed(Now);
-        stack.RecordDeployment(deployment);
+        stack.RecordDeployment(deployment, withSecrets: true);
     }
 
     private void Grant(Role role) => roleAssignments.Add(RoleAssignment.ForEnvironment(alice.Id, environment.Id, role, Now));

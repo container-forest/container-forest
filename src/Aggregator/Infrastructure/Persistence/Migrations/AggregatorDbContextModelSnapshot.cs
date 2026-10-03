@@ -473,6 +473,9 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("DeployedWithSecrets")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid>("EnvironmentId")
                         .HasColumnType("TEXT");
 

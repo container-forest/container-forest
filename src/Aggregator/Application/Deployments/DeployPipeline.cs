@@ -50,7 +50,7 @@ public sealed class DeployPipeline(
 
             context.Info($"Stack '{context.Stack.Name}' is running commit {deployment.Commit?.Short}.");
             deployment.Succeed(context.Now);
-            context.Stack.RecordDeployment(deployment);
+            context.Stack.RecordDeployment(deployment, context.HasSecretFiles);
         }
         catch (Exception ex)
         {

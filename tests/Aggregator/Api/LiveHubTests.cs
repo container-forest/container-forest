@@ -178,6 +178,11 @@ public class LiveHubTests
                 .Build();
             var client = new LiveClient(connection);
             await connection.StartAsync(TestContext.Current.CancellationToken);
+
+            // StartAsync returns once the handshake is answered, before the hub's OnConnectedAsync has joined the
+            // environment groups; an event published in between would be lost. Invocations run after OnConnectedAsync,
+            // so this one returns only when the connection is subscribed.
+            await connection.InvokeAsync("Resubscribe", TestContext.Current.CancellationToken);
             return client;
         }
 

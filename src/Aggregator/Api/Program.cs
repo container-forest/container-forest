@@ -45,6 +45,7 @@ app.MapAuthEndpoints();
 app.MapMeEndpoints();
 app.MapUserEndpoints();
 app.MapEnvironmentEndpoints();
+app.MapAgeKeyEndpoints();
 app.MapStackEndpoints();
 app.MapNotificationEndpoints();
 app.MapDiscordLinkEndpoints();

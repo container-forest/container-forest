@@ -43,8 +43,16 @@ jobs:
             exit 1
           fi
 
+      # The SOPS tests run the real sops and age-keygen; with CF_TEST_REQUIRE_SOPS they fail instead of skipping.
+      - name: Install sops and age-keygen
+        run: |
+          scripts/install-sops.sh "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Test
         run: dotnet test --solution ContainerForest.slnx --no-build
+        env:
+          CF_TEST_REQUIRE_SOPS: 1
 
   web:
     name: Build (web)

@@ -64,6 +64,14 @@ function AuthedLayout() {
             {t("layout.nav.stacks")}
           </Link>
           <Link
+            to="/keys"
+            className="hover:text-foreground"
+            inactiveProps={{ className: "text-muted-foreground" }}
+            activeProps={{ className: "text-foreground font-medium" }}
+          >
+            {t("layout.nav.keys")}
+          </Link>
+          <Link
             to="/discord"
             className="hover:text-foreground"
             inactiveProps={{ className: "text-muted-foreground" }}

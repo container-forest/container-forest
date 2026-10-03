@@ -162,6 +162,37 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.ToTable("Deployments", (string)null);
                 });
 
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Environments.AgeKey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("EnvironmentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProtectedIdentity")
+                        .IsRequired()
+                        .HasMaxLength(8192)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Recipient")
+                        .IsRequired()
+                        .HasMaxLength(62)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EnvironmentId");
+
+                    b.HasIndex("Recipient")
+                        .IsUnique();
+
+                    b.ToTable("AgeKeys", (string)null);
+                });
+
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Environments.DockerEnvironment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -692,6 +723,15 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("Log");
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Environments.AgeKey", b =>
+                {
+                    b.HasOne("ContainerForest.Aggregator.Domain.Environments.DockerEnvironment", null)
+                        .WithMany()
+                        .HasForeignKey("EnvironmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Environments.RegistryCredential", b =>

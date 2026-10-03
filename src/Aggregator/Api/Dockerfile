@@ -20,6 +20,13 @@ COPY src/Aggregator/ src/Aggregator/
 RUN dotnet publish src/Aggregator/Api/ContainerForest.Aggregator.Api.csproj \
     --configuration Release --no-restore --output /app -p:UseAppHost=false -p:OpenApiGenerateDocuments=false
 
+# sops and age-keygen for the target architecture: the aggregator decrypts SOPS files and creates age keys with them.
+# The runtime image has no curl, so they are downloaded and checked here.
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS tools
+ARG TARGETARCH
+COPY scripts/install-sops.sh /tmp/
+RUN /tmp/install-sops.sh /tools "$TARGETARCH"
+
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 LABEL org.opencontainers.image.title="container-forest-aggregator" \
       org.opencontainers.image.source="https://github.com/lepterion/container-forest"
@@ -27,6 +34,7 @@ LABEL org.opencontainers.image.title="container-forest-aggregator" \
 # The content root must be the application directory, or appsettings.json is not found.
 WORKDIR /app
 COPY --from=build /app .
+COPY --from=tools /tools/ /usr/local/bin/
 
 # Everything the aggregator keeps lives in /data: the database, the Data Protection key ring (without it stored
 # secrets cannot be decrypted, so it is backed up with the database) and the git clones. A named volume mounted

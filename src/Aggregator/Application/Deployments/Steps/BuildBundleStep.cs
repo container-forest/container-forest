@@ -28,7 +28,7 @@ public sealed class BuildBundleStep(DeploymentOptions options) : IDeployStep
             }
 
             var mode = file.IsExecutable ? BundleFile.ExecutableMode : BundleFile.RegularMode;
-            files.Add(new BundleFile(isCompose ? bundlePath : file.Path, file.Content, mode));
+            files.Add(new BundleFile(isCompose ? bundlePath : file.Path, file.Content, mode, file.IsSecret));
         }
 
         var bundle = new StackBundle(context.Stack.Name, context.Deployment.Commit!, files, context.Deployment.PullPolicy);

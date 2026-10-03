@@ -5,6 +5,7 @@ using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
+using ContainerForest.Aggregator.Application.Secrets;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
@@ -318,4 +319,48 @@ internal sealed class FakeSecretProtector : ISecretProtector
         protectedValue.StartsWith($"{purpose}:", StringComparison.Ordinal)
             ? protectedValue[(purpose.ToString().Length + 1)..]
             : throw new SecretUnreadableException(purpose, new InvalidOperationException("Not protected by this fake."));
+}
+
+internal sealed class InMemoryAgeKeys : InMemoryRepository<AgeKey, AgeKeyId>, IAgeKeyRepository
+{
+    public IReadOnlyList<AgeKey> All => Items;
+
+    public Task<IReadOnlyList<AgeKey>> ListByEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<AgeKey>>(Items
+            .Where(k => k.EnvironmentId == environmentId)
+            .OrderByDescending(k => k.CreatedAt)
+            .ToList());
+}
+
+/// <summary>Hands out <see cref="Keys"/> in order.</summary>
+internal sealed class FakeAgeKeyGenerator : IAgeKeyGenerator
+{
+    public Queue<GeneratedAgeKey> Keys { get; } = new();
+
+    public Task<GeneratedAgeKey> GenerateAsync(CancellationToken cancellationToken) => Task.FromResult(Keys.Dequeue());
+}
+
+/// <summary>"Decrypts" a file whose content is "encrypted for &lt;identity&gt;: &lt;plain text&gt;" when given that identity.</summary>
+internal sealed class FakeSopsDecryptor : ISopsDecryptor
+{
+    public List<(StackFilePath Path, IReadOnlyList<string> Identities)> Calls { get; } = [];
+
+    public Task<byte[]> DecryptAsync(
+        StackFilePath path, byte[] content, IReadOnlyList<string> identities, CancellationToken cancellationToken)
+    {
+        Calls.Add((path, identities));
+        var text = System.Text.Encoding.UTF8.GetString(content);
+        foreach (var identity in identities)
+        {
+            var prefix = $"encrypted for {identity}: ";
+            var start = text.IndexOf(prefix, StringComparison.Ordinal);
+            if (start >= 0)
+            {
+                var end = text.IndexOf('\n', start);
+                return Task.FromResult(System.Text.Encoding.UTF8.GetBytes(text[(start + prefix.Length)..(end < 0 ? text.Length : end)]));
+            }
+        }
+
+        throw new SopsDecryptionException("none of this environment's age keys is a recipient of the file.");
+    }
 }

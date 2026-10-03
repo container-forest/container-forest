@@ -5,6 +5,7 @@ using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
+using ContainerForest.Aggregator.Application.Secrets;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
@@ -157,4 +158,11 @@ internal sealed class RegistryCredentialRepository(AggregatorDbContext db)
 
     public Task<RegistryCredential?> FindByServerAsync(EnvironmentId environmentId, string server, CancellationToken cancellationToken) =>
         Set.SingleOrDefaultAsync(c => c.EnvironmentId == environmentId && c.Server == server, cancellationToken);
+}
+
+internal sealed class AgeKeyRepository(AggregatorDbContext db) : EfRepository<AgeKey, AgeKeyId>(db), IAgeKeyRepository
+{
+    public async Task<IReadOnlyList<AgeKey>> ListByEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        await Set.Where(k => k.EnvironmentId == environmentId).OrderByDescending(k => k.CreatedAt).ThenByDescending(k => k.Id)
+            .ToListAsync(cancellationToken);
 }

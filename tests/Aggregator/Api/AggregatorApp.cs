@@ -5,6 +5,7 @@ using ContainerForest.Aggregator.Api.Grpc;
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
+using ContainerForest.Aggregator.Application.Secrets;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Contracts.Bot;
@@ -50,6 +51,8 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
     private GrpcChannel? channel;
 
     public StubGitSource Git { get; } = new();
+
+    public StubSops Sops { get; } = new();
 
     public BotGateway.BotGatewayClient BotGateway => new(Channel);
 
@@ -130,7 +133,12 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         builder.UseSetting("BotGateway:TokenHashes:0", SecretToken.Hash(BotToken));
         builder.UseSetting("Bootstrap:AdminUserName", AdminUserName);
         builder.UseSetting("Bootstrap:AdminPassword", AdminPassword);
-        builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Singleton<IGitSource>(Git)));
+        builder.ConfigureTestServices(services =>
+        {
+            services.Replace(ServiceDescriptor.Singleton<IGitSource>(Git));
+            services.Replace(ServiceDescriptor.Singleton<IAgeKeyGenerator>(Sops));
+            services.Replace(ServiceDescriptor.Singleton<ISopsDecryptor>(Sops));
+        });
     }
 
     protected override void ConfigureClient(HttpClient client)
@@ -181,6 +189,37 @@ internal sealed class StubGitSource : IGitSource
         long maxBytes,
         CancellationToken cancellationToken) =>
         Task.FromResult(Snapshot!);
+}
+
+/// <summary>
+/// Stands in for age-keygen and sops: keys are "AGE-SECRET-KEY-1TEST&lt;n&gt;", and a file decrypts to the text after
+/// "encrypted for &lt;identity&gt;: ". The real tools are tested in the infrastructure tests.
+/// </summary>
+internal sealed class StubSops : IAgeKeyGenerator, ISopsDecryptor
+{
+    private int generated;
+
+    public Task<GeneratedAgeKey> GenerateAsync(CancellationToken cancellationToken)
+    {
+        var n = Interlocked.Increment(ref generated);
+        return Task.FromResult(new GeneratedAgeKey($"age1{new string('q', 57)}{"023456789acdefghjklmnpqrstuvwxyz"[n % 32]}", $"AGE-SECRET-KEY-1TEST{n}"));
+    }
+
+    public Task<byte[]> DecryptAsync(
+        Domain.Stacks.StackFilePath path, byte[] content, IReadOnlyList<string> identities, CancellationToken cancellationToken)
+    {
+        var text = System.Text.Encoding.UTF8.GetString(content);
+        foreach (var identity in identities)
+        {
+            var prefix = $"encrypted for {identity}: ";
+            if (text.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return Task.FromResult(System.Text.Encoding.UTF8.GetBytes(text[prefix.Length..text.IndexOf('\n', StringComparison.Ordinal)]));
+            }
+        }
+
+        throw new SopsDecryptionException("none of this environment's age keys is a recipient of the file.");
+    }
 }
 
 /// <summary>Plays the agent's side of the Connect stream.</summary>

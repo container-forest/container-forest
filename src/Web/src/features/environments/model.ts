@@ -10,7 +10,7 @@ import type { MessageKey } from "@/i18n";
 export type Environment = components["schemas"]["EnvironmentResponse"];
 export type RegistryCredential = components["schemas"]["RegistryCredentialResponse"];
 
-/** Without SignalR the agents' status is reloaded this often while a screen shows it. */
+/** Without live updates the agents' status is reloaded this often while a screen shows it; with them it is not polled. */
 export const STATUS_REFRESH_MS = 15_000;
 
 export const agentStatuses = ["online", "offline", "notEnrolled"] as const;

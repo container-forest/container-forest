@@ -44,6 +44,7 @@ public static class DependencyInjection
 
         services.AddSingleton<CredentialStore>();
         services.AddSingleton<AgentEnroller>();
+        services.AddSingleton<ContainerEventForwarder>();
         services.AddSingleton<AgentSessionRunner>();
         services.AddHostedService<AgentWorker>();
         return services;

@@ -10,11 +10,12 @@ using Microsoft.Extensions.Options;
 namespace ContainerForest.Agent.Connection;
 
 /// <summary>
-/// One Connect call: Hello first, then heartbeats and command execution until the stream ends.
+/// One Connect call: Hello first, then heartbeats, container events and command execution until the stream ends.
 /// Commands run concurrently, so a long stop does not delay other commands or heartbeats.
 /// </summary>
 public sealed class AgentSessionRunner(
     CommandDispatcher dispatcher,
+    ContainerEventForwarder containerEvents,
     IDockerGateway docker,
     IBootIdProvider bootIds,
     IOptions<AgentOptions> options,
@@ -43,6 +44,7 @@ public sealed class AgentSessionRunner(
             options.Value.ControllerUrl, credentials.AgentId, hello.BootId, hello.DockerVersion is "" ? "unavailable" : hello.DockerVersion);
 
         var heartbeats = SendHeartbeatsAsync(writer, session);
+        var events = containerEvents.RunAsync(writer, session.Token);
         var commands = new List<Task>();
         try
         {
@@ -60,6 +62,7 @@ public sealed class AgentSessionRunner(
         {
             await session.CancelAsync();
             await heartbeats;
+            await events;
             await Task.WhenAll(commands);
         }
     }

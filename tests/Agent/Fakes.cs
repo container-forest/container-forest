@@ -27,6 +27,34 @@ internal sealed class FakeDockerGateway : IDockerGateway
     public Task<IReadOnlyList<ContainerInfo>> ListContainersAsync(CancellationToken cancellationToken) =>
         Run<IReadOnlyList<ContainerInfo>>("list", Containers);
 
+    public Task<ContainerInfo?> FindContainerAsync(string containerId, CancellationToken cancellationToken) =>
+        Run($"find {containerId}", Containers.FirstOrDefault(c => c.Id == containerId));
+
+    /// <summary>Events a watch passes on; completing the writer ends the watch as Docker ending the stream would.</summary>
+    public Channel<DockerContainerEvent> Events { get; set; } = Channel.CreateUnbounded<DockerContainerEvent>();
+
+    /// <summary>How many times events were followed; a new watch starts after a failure or the end of the stream.</summary>
+    public int Watches { get; private set; }
+
+    /// <summary>Thrown by the next watch instead of following events, as when Docker is down.</summary>
+    public AgentCommandException? WatchFailure { get; set; }
+
+    public async Task WatchContainerEventsAsync(
+        Func<DockerContainerEvent, CancellationToken, Task> onEvent, CancellationToken cancellationToken)
+    {
+        Watches++;
+        if (WatchFailure is { } failure)
+        {
+            WatchFailure = null;
+            throw failure;
+        }
+
+        await foreach (var dockerEvent in Events.Reader.ReadAllAsync(cancellationToken))
+        {
+            await onEvent(dockerEvent, cancellationToken);
+        }
+    }
+
     public Task StartContainerAsync(string containerId, CancellationToken cancellationToken) =>
         Run($"start {containerId}", true);
 

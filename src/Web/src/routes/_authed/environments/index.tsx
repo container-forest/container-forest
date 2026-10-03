@@ -25,6 +25,8 @@ import {
   tokenStateOf,
 } from "@/features/environments/model";
 import { formatDateTime } from "@/lib/format";
+import { useLiveStatus } from "@/components/live/hub-provider";
+import { pollingInterval } from "@/features/live/model";
 
 export const Route = createFileRoute("/_authed/environments/")({
   validateSearch: environmentsSearchSchema,
@@ -38,7 +40,8 @@ function EnvironmentsScreen() {
   const { me } = Route.useRouteContext();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  const environments = useQuery({ ...environmentsQuery, refetchInterval: STATUS_REFRESH_MS });
+  const live = useLiveStatus();
+  const environments = useQuery({ ...environmentsQuery, refetchInterval: pollingInterval(live, STATUS_REFRESH_MS) });
 
   const setSearch = (patch: Partial<EnvironmentsSearch>) => {
     // Navigating to the same search would only re-run the loader.

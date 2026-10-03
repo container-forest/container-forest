@@ -28,6 +28,25 @@ public class LiveHubTests
     }
 
     [Fact]
+    public async Task Burst_of_container_events_from_the_agent_is_one_update()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        await using var live = await LiveClient.ConnectAsync(app, AggregatorApp.AdminUserName);
+
+        // A compose up: every container reports create and start.
+        foreach (var (id, action) in new[] { ("c1", "create"), ("c2", "create"), ("c1", "start"), ("c2", "start") })
+        {
+            await agent.SendAsync(new AgentMessage { ContainerEvent = new ContainerEvent { ContainerId = id, Action = action } });
+        }
+
+        var expected = $"ContainersChanged {agent.EnvironmentId}";
+        await live.WaitForAsync(expected);
+        await Task.Delay(ContainerForest.Aggregator.Infrastructure.Agents.ContainerEventCoalescer.Window * 2, Ct);
+        Assert.Single(live.Events, e => e == expected);
+    }
+
+    [Fact]
     public async Task Panel_follows_a_deployment_from_queue_to_finish()
     {
         await using var app = new AggregatorApp();

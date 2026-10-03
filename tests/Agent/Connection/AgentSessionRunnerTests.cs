@@ -123,7 +123,13 @@ public class AgentSessionRunnerTests
             ],
             NullLogger<CommandDispatcher>.Instance);
         return new AgentSessionRunner(
-            dispatcher, docker, new StubBootIds(), options, TimeProvider.System, NullLogger<AgentSessionRunner>.Instance);
+            dispatcher,
+            new ContainerEventForwarder(docker, TimeProvider.System, NullLogger<ContainerEventForwarder>.Instance),
+            docker,
+            new StubBootIds(),
+            options,
+            TimeProvider.System,
+            NullLogger<AgentSessionRunner>.Instance);
     }
 
     private sealed class StubBootIds : IBootIdProvider

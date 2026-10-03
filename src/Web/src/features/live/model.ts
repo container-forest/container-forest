@@ -44,7 +44,14 @@ export function retryDelay(attempt: number): number {
   return Math.min(30_000, 1_000 * 2 ** Math.min(attempt, 5));
 }
 
-/** While the connection is live, a screen needs no polling: the events tell it when to reload. */
-export function pollingInterval(status: LiveStatus, intervalMs: number): number | false {
-  return status === "live" ? false : intervalMs;
+/**
+ * While the connection is live, a screen needs no polling (or only a slow safety net, `whileLiveMs`):
+ * the events tell it when to reload. Without the connection it polls every `intervalMs`.
+ */
+export function pollingInterval(
+  status: LiveStatus,
+  intervalMs: number,
+  whileLiveMs: number | false = false,
+): number | false {
+  return status === "live" ? whileLiveMs : intervalMs;
 }

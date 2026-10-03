@@ -5,8 +5,10 @@ import { z } from "zod";
 import { hasStatus } from "@/api/client";
 import { repositoriesQuery } from "@/api/queries";
 import { ErrorText } from "@/components/form-messages";
-import { SearchIcon } from "@/components/icons";
+import { LockIcon, LockOpenIcon, SearchIcon } from "@/components/icons";
 import { AddRepositoryDialog } from "@/components/stacks/add-repository-dialog";
+import { EditRepositoryDialog } from "@/components/stacks/edit-repository-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -65,7 +67,9 @@ function RepositoriesScreen() {
             <TableRow>
               <TableHead>{t("repositories.columns.name")}</TableHead>
               <TableHead>{t("repositories.columns.url")}</TableHead>
+              <TableHead>{t("repositories.columns.access")}</TableHead>
               <TableHead>{t("repositories.columns.createdAt")}</TableHead>
+              {me.isAdmin && <TableHead className="sr-only">{t("repositories.columns.actions")}</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -73,7 +77,25 @@ function RepositoriesScreen() {
               <TableRow key={repository.id}>
                 <TableCell className="font-medium">{repository.name}</TableCell>
                 <TableCell className="font-mono text-sm">{repository.url}</TableCell>
+                <TableCell>
+                  {repository.hasAccessToken ? (
+                    <Badge variant="secondary">
+                      <LockIcon data-icon="inline-start" />
+                      {t("repositories.access.token")}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">
+                      <LockOpenIcon data-icon="inline-start" />
+                      {t("repositories.access.public")}
+                    </Badge>
+                  )}
+                </TableCell>
                 <TableCell className="text-sm">{formatDate(repository.createdAt, i18n.resolvedLanguage)}</TableCell>
+                {me.isAdmin && (
+                  <TableCell className="text-right">
+                    <EditRepositoryDialog repository={repository} />
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>

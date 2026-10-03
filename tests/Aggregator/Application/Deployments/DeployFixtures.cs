@@ -18,7 +18,7 @@ internal static class DeployFixtures
         string composePath = "compose.yaml", ImagePullPolicy pull = ImagePullPolicy.Missing, bool isSystem = false)
     {
         var environment = DockerEnvironment.Create("prod", isPrivate: false, Now);
-        var repository = GitRepository.Create("infra", "https://git.example.com/infra.git", protectedAccessToken: null, Now);
+        var repository = GitRepository.Create("infra", "https://git.example.com/infra.git", Now);
         var stack = Stack.Create(
             environment.Id,
             StackName.Parse("web"),
@@ -59,8 +59,14 @@ internal sealed class FakeGitSource : IGitSource
     /// <summary>Thrown by <see cref="ReadAsync"/>, after the commit has been fetched.</summary>
     public Exception? ReadError { get; set; }
 
-    public Task<CommitSha> FetchAsync(GitRepository repository, BranchName branch, CancellationToken cancellationToken) =>
-        Task.FromResult(Snapshot.Commit);
+    public GitCredentials? FetchedWith { get; private set; }
+
+    public Task<CommitSha> FetchAsync(
+        GitRepository repository, GitCredentials? credentials, BranchName branch, CancellationToken cancellationToken)
+    {
+        FetchedWith = credentials;
+        return Task.FromResult(Snapshot.Commit);
+    }
 
     public Task<GitSnapshot> ReadAsync(
         GitRepository repository, CommitSha commit, string directory, long maxBytes, CancellationToken cancellationToken)

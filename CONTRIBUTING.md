@@ -88,13 +88,19 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/users/<userId>/role-assignments -H 'content-type: application/json' -d '{"environmentId":"<id>","stackId":null,"role":"Operator"}'   # stackId — роль лише на стеку
    curl -H 'X-Dev-User: root' http://localhost:5080/api/users/<userId>   # користувач і його ролі
    ```
-   Деплой стеку з публічного git-репозиторію (compose-файл має використовувати готові образи, `build:` відхиляється; для перевірки підходить `https://github.com/dockersamples/example-voting-app.git` з `composePath` = `docker-compose.images.yml`):
+   Деплой стеку з git-репозиторію (compose-файл має використовувати готові образи, `build:` відхиляється; для перевірки підходить `https://github.com/dockersamples/example-voting-app.git` з `composePath` = `docker-compose.images.yml`):
    ```sh
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/repositories -H 'content-type: application/json' -d '{"name":"infra","url":"https://github.com/<org>/<repo>.git"}'
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/stacks -H 'content-type: application/json' -d '{"name":"web","repositoryId":"<repoId>","branch":"main","composePath":"apps/web/compose.yaml"}'
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/stacks/<stackId>/deployments -H 'content-type: application/json' -d '{"pull":false}'   # pull=true — redeploy with pull
    curl -H 'X-Dev-User: root' http://localhost:5080/api/deployments/<deploymentId>   # статус і лог
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/stacks/<stackId>/restart?timeoutSeconds=10   # restart | down; у відповіді — вивід compose
+   ```
+   Приватний репозиторій — з токеном доступу лише на читання (GitHub: fine-grained token з `Contents: Read-only`; GitLab: deploy token з `read_repository`, тоді `userName` — ім'я токена). Токен лише записується: відповідь каже тільки `hasAccessToken`:
+   ```sh
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/repositories -H 'content-type: application/json' -d '{"name":"private","url":"https://github.com/<org>/<repo>.git","accessToken":{"userName":null,"token":"<токен>"}}'
+   curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/repositories/<repoId>/access-token -H 'content-type: application/json' -d '{"userName":null,"token":"<новий токен>"}'
+   curl -X DELETE -H 'X-Dev-User: root' http://localhost:5080/api/repositories/<repoId>/access-token
    ```
    Клони репозиторіїв ЦА тримає в `git-cache/` у робочому каталозі (`CF_GIT__CACHEDIRECTORY`).
 

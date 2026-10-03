@@ -166,7 +166,10 @@ internal sealed class StubGitSource : IGitSource
     public GitSnapshot? Snapshot { get; set; }
 
     public Task<Domain.Stacks.CommitSha> FetchAsync(
-        Domain.Repositories.GitRepository repository, Domain.Stacks.BranchName branch, CancellationToken cancellationToken) =>
+        Domain.Repositories.GitRepository repository,
+        GitCredentials? credentials,
+        Domain.Stacks.BranchName branch,
+        CancellationToken cancellationToken) =>
         Snapshot is { } snapshot
             ? Task.FromResult(snapshot.Commit)
             : throw new DeploymentFailedException($"Branch '{branch}' does not exist.");

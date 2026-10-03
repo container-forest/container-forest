@@ -93,8 +93,8 @@ internal sealed class GitRepositoryRepository(AggregatorDbContext db)
     public async Task<IReadOnlyList<GitRepository>> ListAsync(CancellationToken cancellationToken) =>
         await Set.OrderBy(r => r.Name).ToListAsync(cancellationToken);
 
-    public Task<bool> NameExistsAsync(string name, CancellationToken cancellationToken) =>
-        Set.AnyAsync(r => r.Name == name, cancellationToken);
+    public Task<bool> NameExistsAsync(string name, RepositoryId? except, CancellationToken cancellationToken) =>
+        Set.AnyAsync(r => r.Name == name && r.Id != except, cancellationToken);
 }
 
 internal sealed class DeploymentRepository(AggregatorDbContext db)

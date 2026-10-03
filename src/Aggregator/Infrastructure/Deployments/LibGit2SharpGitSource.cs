@@ -28,36 +28,42 @@ internal sealed class LibGit2SharpGitSource(IOptions<GitOptions> options) : IGit
     // LibGit2Sharp must not write to one repository from two threads.
     private readonly ConcurrentDictionary<string, SemaphoreSlim> locks = new();
 
-    public Task<CommitSha> FetchAsync(GitRepository repository, BranchName branch, CancellationToken cancellationToken)
-    {
-        EnsureSupported(repository);
-        return FetchAsync(repository.Id.ToString(), repository.Url.ToString(), branch, cancellationToken);
-    }
+    public Task<CommitSha> FetchAsync(
+        GitRepository repository, GitCredentials? credentials, BranchName branch, CancellationToken cancellationToken) =>
+        FetchAsync(repository.Id.ToString(), repository.Url.ToString(), credentials, branch, cancellationToken);
 
     public Task<GitSnapshot> ReadAsync(
-        GitRepository repository, CommitSha commit, string directory, long maxBytes, CancellationToken cancellationToken)
-    {
-        EnsureSupported(repository);
-        return ReadAsync(repository.Id.ToString(), commit, directory, maxBytes, cancellationToken);
-    }
+        GitRepository repository, CommitSha commit, string directory, long maxBytes, CancellationToken cancellationToken) =>
+        ReadAsync(repository.Id.ToString(), commit, directory, maxBytes, cancellationToken);
 
     /// <param name="cacheKey">Name of the bare clone's directory; one per repository.</param>
     /// <param name="url">Any URL or path libgit2 accepts; tests use local paths.</param>
-    internal Task<CommitSha> FetchAsync(string cacheKey, string url, BranchName branch, CancellationToken cancellationToken) =>
-        WithLockAsync(cacheKey, () => Fetch(cacheKey, url, branch, cancellationToken), cancellationToken);
+    internal Task<CommitSha> FetchAsync(
+        string cacheKey, string url, GitCredentials? credentials, BranchName branch, CancellationToken cancellationToken) =>
+        WithLockAsync(cacheKey, () => Fetch(cacheKey, url, credentials, branch, cancellationToken), cancellationToken);
 
-    /// <param name="cacheKey">Name of the bare clone's directory, as passed to <see cref="FetchAsync(string, string, BranchName, CancellationToken)"/>.</param>
+    /// <param name="cacheKey">Name of the bare clone's directory, as passed to <see cref="FetchAsync(string, string, GitCredentials?, BranchName, CancellationToken)"/>.</param>
     internal Task<GitSnapshot> ReadAsync(
         string cacheKey, CommitSha commit, string directory, long maxBytes, CancellationToken cancellationToken) =>
         WithLockAsync(cacheKey, () => Read(cacheKey, commit, directory, maxBytes, cancellationToken), cancellationToken);
 
-    private static void EnsureSupported(GitRepository repository)
+    /// <summary>
+    /// Answers libgit2's request for credentials only for the repository's own host: a server that redirects the fetch
+    /// elsewhere must not receive the token.
+    /// </summary>
+    internal static Credentials CredentialsFor(string repositoryUrl, string requestUrl, GitCredentials credentials)
     {
-        if (repository.ProtectedAccessToken is not null)
+        if (!Uri.TryCreate(repositoryUrl, UriKind.Absolute, out var repository)
+            || !Uri.TryCreate(requestUrl, UriKind.Absolute, out var request)
+            || request.Scheme != Uri.UriSchemeHttps
+            || !string.Equals(request.Authority, repository.Authority, StringComparison.OrdinalIgnoreCase))
         {
-            throw new DeploymentFailedException(
-                $"Repository '{repository.Name}' has an access token; private repositories are not supported yet.");
+            // LibGit2Sharp turns an exception from the callback into a failed fetch with this message.
+            throw new InvalidOperationException(
+                $"The access token is only sent to {repository?.Authority ?? repositoryUrl} over HTTPS.");
         }
+
+        return new UsernamePasswordCredentials { Username = credentials.UserName, Password = credentials.Token };
     }
 
     private async Task<T> WithLockAsync<T>(string cacheKey, Func<T> work, CancellationToken cancellationToken)
@@ -76,7 +82,8 @@ internal sealed class LibGit2SharpGitSource(IOptions<GitOptions> options) : IGit
 
     private string CachePath(string cacheKey) => Path.GetFullPath(Path.Combine(options.Value.CacheDirectory, cacheKey));
 
-    private CommitSha Fetch(string cacheKey, string url, BranchName branch, CancellationToken cancellationToken)
+    private CommitSha Fetch(
+        string cacheKey, string url, GitCredentials? credentials, BranchName branch, CancellationToken cancellationToken)
     {
         var path = CachePath(cacheKey);
         if (!Repository.IsValid(path))
@@ -111,13 +118,20 @@ internal sealed class LibGit2SharpGitSource(IOptions<GitOptions> options) : IGit
                     Prune = true,
                     TagFetchMode = TagFetchMode.None,
                     OnTransferProgress = _ => !cancellationToken.IsCancellationRequested,
+                    CredentialsProvider = credentials is null
+                        ? null
+                        : (requestUrl, _, _) => CredentialsFor(url, requestUrl, credentials),
                 },
                 logMessage: null);
         }
         catch (LibGit2SharpException ex)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            throw new DeploymentFailedException($"Fetching {url} failed: {ex.Message}");
+            // libgit2 retries a rejected token several times and then reports the replays, not the rejection.
+            var hint = !ex.Message.Contains("authentication", StringComparison.OrdinalIgnoreCase) ? ""
+                : credentials is null ? " The repository may be private: set its access token."
+                : " Check the repository's access token and its permissions.";
+            throw new DeploymentFailedException($"Fetching {url} failed: {ex.Message}{hint}");
         }
 
         var commit = repository.Refs[trackingRef]?.ResolveToDirectReference()?.Target as Commit

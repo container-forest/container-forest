@@ -1,7 +1,9 @@
 using ContainerForest.Aggregator.Application.Agents;
+using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Deployments.Steps;
 using ContainerForest.Aggregator.Domain.Deployments;
+using ContainerForest.Aggregator.Domain.Repositories;
 using static ContainerForest.Aggregator.Application.Tests.Deployments.DeployFixtures;
 
 namespace ContainerForest.Aggregator.Application.Tests.Deployments;
@@ -18,7 +20,7 @@ public class GitFetchStepTests
         var context = Context("apps/web/compose.yaml");
         context.Deployment.Start(Now);
 
-        await new GitFetchStep(git, new DeploymentOptions()).ExecuteAsync(context, TestContext.Current.CancellationToken);
+        await new GitFetchStep(git, new FakeSecretProtector(), new DeploymentOptions()).ExecuteAsync(context, TestContext.Current.CancellationToken);
 
         Assert.Equal("apps/web", git.RequestedDirectory);
         Assert.Equal(Commit, context.Deployment.Commit);
@@ -34,10 +36,60 @@ public class GitFetchStepTests
         context.Deployment.Start(Now);
 
         await Assert.ThrowsAsync<DeploymentFailedException>(() =>
-            new GitFetchStep(git, new DeploymentOptions()).ExecuteAsync(context, TestContext.Current.CancellationToken));
+            new GitFetchStep(git, new FakeSecretProtector(), new DeploymentOptions()).ExecuteAsync(context, TestContext.Current.CancellationToken));
 
         Assert.Equal(Commit, context.Deployment.Commit);
     }
+
+    [Fact]
+    public async Task Public_repository_is_fetched_without_credentials()
+    {
+        var git = new FakeGitSource();
+        var context = Context();
+        context.Deployment.Start(Now);
+
+        await new GitFetchStep(git, new FakeSecretProtector(), new DeploymentOptions())
+            .ExecuteAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Null(git.FetchedWith);
+    }
+
+    [Theory]
+    [InlineData("deploy", "deploy")]
+    [InlineData(null, GitRepository.DefaultAccessUserName)]
+    public async Task Private_repository_is_fetched_with_the_decrypted_token(string? userName, string expectedUserName)
+    {
+        var git = new FakeGitSource();
+        var protector = new FakeSecretProtector();
+        var context = Context();
+        context.Repository.SetAccessToken(userName, protector.Protect(SecretPurpose.GitAccessToken, "ghp_secret"));
+        context.Deployment.Start(Now);
+
+        await new GitFetchStep(git, protector, new DeploymentOptions()).ExecuteAsync(context, TestContext.Current.CancellationToken);
+
+        Assert.Equal(new GitCredentials(expectedUserName, "ghp_secret"), git.FetchedWith);
+        Assert.DoesNotContain(context.Deployment.Log, l => l.Text.Contains("ghp_secret", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Unreadable_token_fails_the_deployment_with_a_hint()
+    {
+        var git = new FakeGitSource();
+        var context = Context();
+        context.Repository.SetAccessToken(null, "protected with a lost key");
+        context.Deployment.Start(Now);
+
+        var error = await Assert.ThrowsAsync<DeploymentFailedException>(() =>
+            new GitFetchStep(git, new FakeSecretProtector(), new DeploymentOptions())
+                .ExecuteAsync(context, TestContext.Current.CancellationToken));
+
+        Assert.Contains("set it again", error.Message, StringComparison.Ordinal);
+        Assert.Null(git.FetchedWith);
+    }
+
+    [Fact]
+    public void Credentials_do_not_print_the_token() =>
+        Assert.DoesNotContain("ghp_secret", new GitCredentials("deploy", "ghp_secret").ToString(), StringComparison.Ordinal);
 }
 
 public class ValidateComposeStepTests

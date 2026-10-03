@@ -26,6 +26,24 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
+    public void Gives_the_token_to_the_repository_host()
+    {
+        var credentials = LibGit2SharpGitSource.CredentialsFor(
+            "https://git.example.com/team/infra.git", "https://git.example.com/team/infra.git/info/refs", new GitCredentials("deploy", "secret"));
+
+        var basic = Assert.IsType<UsernamePasswordCredentials>(credentials);
+        Assert.Equal(("deploy", "secret"), (basic.Username, basic.Password));
+    }
+
+    [Theory]
+    [InlineData("https://evil.example.com/team/infra.git/info/refs")]
+    [InlineData("https://git.example.com:8443/team/infra.git/info/refs")]
+    [InlineData("http://git.example.com/team/infra.git/info/refs")]
+    public void Does_not_give_the_token_to_another_host_after_a_redirect(string requestUrl) =>
+        Assert.Throws<InvalidOperationException>(() => LibGit2SharpGitSource.CredentialsFor(
+            "https://git.example.com/team/infra.git", requestUrl, new GitCredentials("deploy", "secret")));
+
+    [Fact]
     public async Task Reads_the_directory_at_the_branch_head()
     {
         var sha = Commit(new() { ["apps/web/compose.yaml"] = "services: {}", ["apps/web/conf/nginx.conf"] = "x", ["other/a.txt"] = "a" });
@@ -85,7 +103,7 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
         Commit(new() { ["compose.yaml"] = "" });
 
         var error = await Assert.ThrowsAsync<DeploymentFailedException>(() =>
-            source.FetchAsync("repo", origin, BranchName.Parse("release"), Ct));
+            source.FetchAsync("repo", origin, null, BranchName.Parse("release"), Ct));
         Assert.Contains("release", error.Message);
     }
 
@@ -98,14 +116,14 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
             repository.Branches.Add("feature", repository.Head.Tip);
         }
 
-        await source.FetchAsync("repo", origin, BranchName.Parse("feature"), Ct);
+        await source.FetchAsync("repo", origin, null, BranchName.Parse("feature"), Ct);
         using (var repository = new Repository(origin))
         {
             repository.Branches.Remove("feature");
         }
 
         await Assert.ThrowsAsync<DeploymentFailedException>(() =>
-            source.FetchAsync("repo", origin, BranchName.Parse("feature"), Ct));
+            source.FetchAsync("repo", origin, null, BranchName.Parse("feature"), Ct));
     }
 
     [Fact]
@@ -128,7 +146,7 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
     public async Task Unreachable_repository_is_an_error()
     {
         await Assert.ThrowsAsync<DeploymentFailedException>(() =>
-            source.FetchAsync("repo", Path.Combine(root, "missing"), Main, Ct));
+            source.FetchAsync("repo", Path.Combine(root, "missing"), null, Main, Ct));
     }
 
     public void Dispose()
@@ -151,7 +169,7 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
     {
         var sha = Commit(new() { ["compose.yaml"] = "" });
 
-        var commit = await source.FetchAsync("repo", origin, Main, Ct);
+        var commit = await source.FetchAsync("repo", origin, null, Main, Ct);
         var error = await Assert.ThrowsAsync<DeploymentFailedException>(() => source.ReadAsync("repo", commit, "apps/web", 1024, Ct));
 
         Assert.Equal(sha, commit.Value);
@@ -168,7 +186,7 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
 
     private async Task<GitSnapshot> Fetch(string directory, long maxBytes = 1024 * 1024)
     {
-        var commit = await source.FetchAsync("repo", origin, Main, Ct);
+        var commit = await source.FetchAsync("repo", origin, null, Main, Ct);
         return await source.ReadAsync("repo", commit, directory, maxBytes, Ct);
     }
 

@@ -26,7 +26,7 @@ import {
 } from "@/features/container-logs/model";
 import type { Environment } from "@/features/containers/model";
 
-/** How often auto-refresh asks for newer lines; until SignalR there is no live stream. */
+/** How often auto-refresh asks for newer lines; there is no live log stream (follow) yet. */
 const AUTO_REFRESH_MS = 5_000;
 
 /** How close to the bottom (px) still counts as "at the end", so new lines keep the view scrolled down. */

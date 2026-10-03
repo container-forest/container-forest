@@ -14,6 +14,15 @@ public interface IDockerGateway
     /// <summary>All containers, including stopped ones.</summary>
     Task<IReadOnlyList<ContainerInfo>> ListContainersAsync(CancellationToken cancellationToken);
 
+    /// <summary>One container by its full id, including a stopped one; null when it does not exist.</summary>
+    Task<ContainerInfo?> FindContainerAsync(string containerId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Follows Docker's container events and passes each one to <paramref name="onEvent"/> in order, until cancelled
+    /// or until the daemon ends the stream (it then returns).
+    /// </summary>
+    Task WatchContainerEventsAsync(Func<DockerContainerEvent, CancellationToken, Task> onEvent, CancellationToken cancellationToken);
+
     /// <summary>Succeeds when the container is already running.</summary>
     Task StartContainerAsync(string containerId, CancellationToken cancellationToken);
 
@@ -34,3 +43,6 @@ public interface IDockerGateway
         Func<LogLine, CancellationToken, Task> onLine,
         CancellationToken cancellationToken);
 }
+
+/// <param name="Action">Docker's action, e.g. "start", "die", "health_status: unhealthy".</param>
+public sealed record DockerContainerEvent(string ContainerId, string Action, DateTimeOffset At);

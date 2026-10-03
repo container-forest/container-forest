@@ -50,9 +50,15 @@ import {
   stateFilterOf,
   stateFilters,
 } from "@/features/containers/model";
+import { useLiveStatus } from "@/components/live/hub-provider";
+import { pollingInterval } from "@/features/live/model";
 
-/** Without SignalR the list is reloaded this often, so the states do not go stale while the screen is open. */
+/**
+ * Without live updates the list is reloaded this often, so the states do not go stale while the screen is open.
+ * With them the agent reports container events; the slow reload covers agents too old to send them.
+ */
 const REFRESH_INTERVAL_MS = 15_000;
+const REFRESH_WHILE_LIVE_MS = 60_000;
 
 export const Route = createFileRoute("/_authed/containers")({
   validateSearch: containersSearchSchema,
@@ -151,11 +157,12 @@ function EnvironmentContainers({
   setSearch: (patch: Partial<ContainersSearch>) => void;
 }) {
   const { t, i18n } = useTranslation();
+  const live = useLiveStatus();
   const containers = useQuery({
     ...containersQuery(environment.id),
     // An offline agent answers 503 every time; there is nothing to load until it reconnects.
     enabled: environment.isOnline,
-    refetchInterval: REFRESH_INTERVAL_MS,
+    refetchInterval: pollingInterval(live, REFRESH_INTERVAL_MS, REFRESH_WHILE_LIVE_MS),
   });
   const action = useContainerActionMutation(environment.id);
   const [pending, setPending] = useState<PendingAction>();

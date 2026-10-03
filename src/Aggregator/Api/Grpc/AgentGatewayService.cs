@@ -12,6 +12,7 @@ namespace ContainerForest.Aggregator.Api.Grpc;
 public sealed class AgentGatewayService(
     IServiceScopeFactory scopeFactory,
     AgentRegistry registry,
+    ContainerEventCoalescer containerEvents,
     IOptions<AgentGatewayOptions> options,
     TimeProvider time,
     ILogger<AgentGatewayService> logger) : AgentGateway.AgentGatewayBase
@@ -156,8 +157,11 @@ public sealed class AgentGatewayService(
             case AgentMessage.BodyOneofCase.Hello:
                 logger.LogWarning("Environment {EnvironmentId} sent a second Hello; ignoring it", session.EnvironmentId);
                 break;
+            case AgentMessage.BodyOneofCase.ContainerEvent:
+                // Only "something changed" goes on: panels reload the containers through the API, with its checks.
+                containerEvents.Report(session.EnvironmentId);
+                break;
             default:
-                // Container events get a consumer with live updates.
                 logger.LogTrace("Ignoring {MessageType} from environment {EnvironmentId}", message.BodyCase, session.EnvironmentId);
                 break;
         }

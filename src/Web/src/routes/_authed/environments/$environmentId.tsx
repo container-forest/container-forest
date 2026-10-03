@@ -32,6 +32,8 @@ import {
   tokenStateOf,
 } from "@/features/environments/model";
 import { formatDateTime } from "@/lib/format";
+import { useLiveStatus } from "@/components/live/hub-provider";
+import { pollingInterval } from "@/features/live/model";
 
 export const Route = createFileRoute("/_authed/environments/$environmentId")({
   loader: ({ context }) => context.queryClient.ensureQueryData(environmentsQuery),
@@ -43,7 +45,8 @@ function EnvironmentScreen() {
   const { t } = useTranslation();
   const { me } = Route.useRouteContext();
   const { environmentId } = Route.useParams();
-  const environments = useQuery({ ...environmentsQuery, refetchInterval: STATUS_REFRESH_MS });
+  const live = useLiveStatus();
+  const environments = useQuery({ ...environmentsQuery, refetchInterval: pollingInterval(live, STATUS_REFRESH_MS) });
   const environment = environments.data?.find((e) => e.id === environmentId);
 
   return (

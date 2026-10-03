@@ -105,6 +105,7 @@ public static class DependencyInjection
             .Validate(o => o.IsValid(), "AgentGateway timeouts must be positive.")
             .ValidateOnStart();
         services.AddSingleton<AgentRegistry>();
+        services.AddSingleton<ContainerEventCoalescer>();
         services.AddSingleton<IAgentChannel, GrpcAgentChannel>();
 
         services.AddOptions<DeploymentOptions>()

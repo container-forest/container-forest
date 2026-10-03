@@ -189,7 +189,7 @@ const en: Translation = {
   },
   containers: {
     title: "Containers",
-    description: "Containers of an environment as its agent sees them now. The list reloads every 15 seconds.",
+    description: "Containers of an environment as its agent sees them now. The list updates by itself as soon as a container changes state.",
     environment: "Environment",
     offlineMark: " (offline)",
     noEnvironments: "You cannot see any environments yet. Ask an administrator for access.",
@@ -308,7 +308,7 @@ const en: Translation = {
   },
   environments: {
     title: "Environments",
-    description: "Servers with agents and how they are connected to the aggregator. The list reloads every 15 seconds.",
+    description: "Servers with agents and how they are connected to the aggregator. The list updates by itself as soon as an agent connects or goes away.",
     new: "New environment",
     refresh: "Refresh",
     updatedAt: "updated at {{time}}",

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net.Sockets;
 using System.Text.Json;
+using System.Threading.Channels;
 using ContainerForest.Agent.Commands;
 using ContainerForest.Contracts.Agent;
 using Docker.DotNet;
@@ -48,6 +49,74 @@ public sealed class DockerDotNetGateway : IDockerGateway, IDisposable
                 return containers.Select(ContainerInfoMapper.ToContainerInfo).ToList();
             },
             cancellationToken);
+
+    public Task<ContainerInfo?> FindContainerAsync(string containerId, CancellationToken cancellationToken) =>
+        CallAsync(
+            null,
+            RequestTimeout,
+            async ct =>
+            {
+                // The id filter matches prefixes too, so the exact id is checked again.
+                var containers = await client.Containers.ListContainersAsync(
+                    new ContainersListParameters
+                    {
+                        All = true,
+                        Filters = new Dictionary<string, IDictionary<string, bool>> { ["id"] = new Dictionary<string, bool> { [containerId] = true } },
+                    },
+                    ct);
+                return containers.Where(c => c.ID == containerId).Select(ContainerInfoMapper.ToContainerInfo).FirstOrDefault();
+            },
+            cancellationToken);
+
+    public async Task WatchContainerEventsAsync(
+        Func<DockerContainerEvent, CancellationToken, Task> onEvent, CancellationToken cancellationToken)
+    {
+        // Docker.DotNet reports events through IProgress on its reading thread; a channel hands them to an async
+        // consumer in order, so a slow consumer never blocks the reading.
+        var events = Channel.CreateUnbounded<Message>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+        var parameters = new ContainerEventsParameters
+        {
+            Filters = new Dictionary<string, IDictionary<string, bool>> { ["type"] = new Dictionary<string, bool> { ["container"] = true } },
+        };
+
+        var monitor = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await CallAsync(
+                        null,
+                        Timeout.InfiniteTimeSpan,
+                        async ct =>
+                        {
+                            await client.System.MonitorEventsAsync(parameters, new ChannelProgress(events.Writer), ct);
+                            return true;
+                        },
+                        cancellationToken);
+                    events.Writer.TryComplete();
+                }
+                catch (Exception ex)
+                {
+                    events.Writer.TryComplete(ex);
+                }
+            },
+            CancellationToken.None);
+
+        try
+        {
+            await foreach (var message in events.Reader.ReadAllAsync(cancellationToken))
+            {
+                if (message.Actor?.ID is { Length: > 0 } id && message.Action is { Length: > 0 } action)
+                {
+                    await onEvent(new DockerContainerEvent(id, action, TimeOf(message)), cancellationToken);
+                }
+            }
+        }
+        finally
+        {
+            await monitor;
+        }
+    }
 
     public Task StartContainerAsync(string containerId, CancellationToken cancellationToken) =>
         CallAsync(
@@ -136,6 +205,17 @@ public sealed class DockerDotNetGateway : IDockerGateway, IDisposable
     }
 
     public void Dispose() => client.Dispose();
+
+    private static DateTimeOffset TimeOf(Message message) =>
+        message.TimeNano is { } nanoseconds and > 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(nanoseconds / 1_000_000)
+            : DateTimeOffset.UtcNow;
+
+    /// <summary>Passes each event on synchronously, in the order Docker reports them (Progress&lt;T&gt; would not keep it).</summary>
+    private sealed class ChannelProgress(ChannelWriter<Message> writer) : IProgress<Message>
+    {
+        public void Report(Message value) => writer.TryWrite(value);
+    }
 
     private static uint Seconds(TimeSpan timeout) => (uint)Math.Ceiling(timeout.TotalSeconds);
 

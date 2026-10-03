@@ -1,4 +1,4 @@
-import type { User } from "@/api/users";
+import type { RoleAssignment, User } from "@/api/users";
 
 export const userStatuses = ["active", "locked", "deactivated"] as const;
 
@@ -29,3 +29,14 @@ export function filterUsers(users: readonly User[], query: string, status: UserS
 
 /** The same rule as the aggregator's User: 3-64 letters, digits, '.', '_' or '-'. */
 export const userNamePattern = /^[A-Za-z0-9._-]{3,64}$/;
+
+/**
+ * Scopes where the user already has a role: a second role there is a conflict, so the grant form offers them
+ * disabled and the existing role is changed in the table instead.
+ */
+export function takenScopes(assignments: readonly RoleAssignment[]) {
+  return {
+    environments: new Set(assignments.filter((a) => a.stackId === null).map((a) => a.environmentId)),
+    stacks: new Set(assignments.flatMap((a) => (a.stackId === null ? [] : [a.stackId]))),
+  };
+}

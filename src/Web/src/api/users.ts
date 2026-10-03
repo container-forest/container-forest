@@ -107,3 +107,16 @@ export function useRevokeRoleMutation(userId: string) {
     onSuccess: invalidate,
   });
 }
+
+export type GrantRoleRequest = components["schemas"]["GrantRoleRequest"];
+
+/** Grants a role on an environment (`stackId` null) or on one of its stacks; a scope that already has one is 409. */
+export function useGrantRoleMutation(userId: string) {
+  const invalidate = useInvalidateUsers();
+
+  return useMutation({
+    mutationFn: async (request: GrantRoleRequest) =>
+      unwrap(await api.POST("/api/users/{id}/role-assignments", { params: { path: { id: userId } }, body: request })),
+    onSuccess: invalidate,
+  });
+}

@@ -184,7 +184,7 @@ function HistoryScreen() {
                     <Badge variant={severityVariant(n.severity)}>{t(`notifications.severity.${n.severity}`)}</Badge>
                   </div>
                 </TableCell>
-                <TableCell className="max-w-md text-sm break-words whitespace-normal">{n.summary}</TableCell>
+                <TableCell className="max-w-md min-w-64 text-sm break-words whitespace-normal">{n.summary}</TableCell>
                 <TableCell className="text-sm">
                   <Badge variant={statusVariant(n.status)}>
                     {n.status === "Pending" && <Loader2Icon data-icon="inline-start" className="animate-spin" />}

@@ -47,6 +47,14 @@ export const MAX_CHANNEL_NAME = 64;
  */
 export const discordIdPattern = /^[1-9]\d{16,19}$/;
 
+/** The largest unsigned 64-bit number: the aggregator keeps the id as ulong, and 20 digits can exceed it. */
+const MAX_DISCORD_ID = 18_446_744_073_709_551_615n;
+
+/** A snowflake the aggregator can store; checked without a JavaScript number, which would lose digits. */
+export function isDiscordId(value: string): boolean {
+  return discordIdPattern.test(value) && BigInt(value) <= MAX_DISCORD_ID;
+}
+
 export const channelSchema = z.object({
   name: z
     .string()
@@ -56,7 +64,7 @@ export const channelSchema = z.object({
   discordChannelId: z
     .string()
     .trim()
-    .regex(discordIdPattern, "notifications.channels.form.discordIdInvalid" satisfies MessageKey),
+    .refine(isDiscordId, "notifications.channels.form.discordIdInvalid" satisfies MessageKey),
 });
 
 export type ChannelForm = z.infer<typeof channelSchema>;

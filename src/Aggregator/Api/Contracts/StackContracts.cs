@@ -17,6 +17,7 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 //   GET  /api/stacks/{id}                        -> StackResponse
 //   PUT  /api/stacks/{id}/source                 -> StackResponse; Editor on the stack; 409 while a deployment is unfinished
 //   PUT  /api/stacks/{id}/deploy-on-push         -> StackResponse; Editor on the stack; 409 for a system stack
+//   PUT  /api/stacks/{id}/restart-on-file-change -> StackResponse; Editor on the stack; 409 for a system stack
 //   POST /api/stacks/{id}/deploy-hook            -> DeployHookTokenResponse; Editor on the stack; 409 for a system stack;
 //                                                  a new token, the old one stops working
 //   DELETE /api/stacks/{id}/deploy-hook          -> StackResponse; Editor on the stack; calls are no longer accepted
@@ -60,6 +61,8 @@ public sealed record WebhookSecretResponse(RepositoryResponse Repository, string
 
 public sealed record DeployOnPushRequest(bool Enabled);
 
+public sealed record RestartOnFileChangeRequest(bool Enabled);
+
 /// <param name="Token">The deploy hook's token, shown only here: the aggregator keeps its hash.</param>
 public sealed record DeployHookTokenResponse(StackResponse Stack, string Token)
 {
@@ -83,6 +86,7 @@ public sealed record ChangeStackSourceRequest(Guid RepositoryId, string Branch, 
 /// <param name="RepositoryName">Null when the repository is gone.</param>
 /// <param name="DeployedCommit">The commit of the last successful deployment; null before it and after down.</param>
 /// <param name="DeployOnPush">A push to the branch deploys the stack, when the repository has a webhook.</param>
+/// <param name="RestartOnFileChange">A deployment restarts the stack when its files other than the compose file changed.</param>
 /// <param name="HasDeployHook">CI can deploy the stack with fresh images through its deploy hook.</param>
 /// <param name="CanDeploy">Whether the user may deploy, change the source and take the stack down; for hiding buttons only.</param>
 /// <param name="CanRestart">Whether the user may restart the stack; for hiding buttons only.</param>
@@ -98,6 +102,7 @@ public sealed record StackResponse(
     string? DeployedCommit,
     DateTimeOffset? DeployedAt,
     bool DeployOnPush,
+    bool RestartOnFileChange,
     bool HasDeployHook,
     bool CanDeploy,
     bool CanRestart);

@@ -45,6 +45,20 @@ public class StackTests
     }
 
     [Fact]
+    public void Restart_on_file_change_is_off_by_default_and_never_on_for_a_system_stack()
+    {
+        var stack = Stack(EnvironmentId.New());
+        Assert.False(stack.RestartOnFileChange);
+        stack.SetRestartOnFileChange(true);
+        Assert.True(stack.RestartOnFileChange);
+
+        var system = Stack(EnvironmentId.New(), isSystem: true);
+        Assert.Throws<DomainConflictException>(() => system.SetRestartOnFileChange(true));
+        system.SetRestartOnFileChange(false);
+        Assert.False(system.RestartOnFileChange);
+    }
+
+    [Fact]
     public void Deploy_hook_accepts_only_its_token()
     {
         var stack = Stack(EnvironmentId.New());

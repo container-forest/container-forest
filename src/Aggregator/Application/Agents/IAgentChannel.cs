@@ -83,6 +83,9 @@ public sealed record StackBundle(StackName StackName, CommitSha Commit, IReadOnl
     /// <summary>Logins the agent uses to pull the stack's images; set by the registry credentials step.</summary>
     public IReadOnlyList<RegistryLogin> RegistryLogins { get; init; } = [];
 
+    /// <summary>The agent restarts the stack after compose up when its other files changed (<see cref="Stack.RestartOnFileChange"/>).</summary>
+    public bool RestartOnFileChange { get; init; }
+
     public long TotalBytes => Files.Sum(f => (long)f.Content.Length);
 }
 

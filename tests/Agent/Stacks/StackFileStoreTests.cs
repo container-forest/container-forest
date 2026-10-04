@@ -76,6 +76,41 @@ public sealed class StackFileStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Only_a_change_to_files_other_than_the_compose_file_counts_as_changed_files()
+    {
+        Assert.False((await WriteResult(Compose("v1"), File("conf/site.conf", "site v1"), File("old.env", "x"))).FilesChanged);
+        Assert.False((await WriteResult(Compose("v2"), File("conf/site.conf", "site v1"), File("old.env", "x"))).FilesChanged);
+        Assert.True((await WriteResult(Compose("v2"), File("conf/site.conf", "site v2"), File("old.env", "x"))).FilesChanged);
+        Assert.True((await WriteResult(Compose("v2"), File("conf/site.conf", "site v2"))).FilesChanged);
+        Assert.True((await WriteResult(Compose("v2"), File("conf/site.conf", "site v2"), File("new.env", "y"))).FilesChanged);
+        Assert.False((await WriteResult(Compose("v2"), File("conf/site.conf", "site v2"), File("new.env", "y"))).FilesChanged);
+    }
+
+    [Fact]
+    [UnsupportedOSPlatform("windows")]
+    public async Task Changed_secret_counts_as_changed_files_and_an_unchanged_one_does_not()
+    {
+        await Write(Compose("v1"), File(".env", "TOKEN=a", secret: true));
+
+        Assert.False((await WriteResult(Compose("v1"), File(".env", "TOKEN=a", secret: true))).FilesChanged);
+        Assert.True((await WriteResult(Compose("v1"), File(".env", "TOKEN=b", secret: true))).FilesChanged);
+    }
+
+    [Fact]
+    [UnsupportedOSPlatform("windows")]
+    public async Task File_a_container_replaced_with_a_link_counts_as_changed_without_being_read()
+    {
+        await Write(Compose("v1"), File("conf/site.conf", "site"));
+        var target = Path.Combine(StackDirectory, "conf", "site.conf");
+        var planted = Path.Combine(root, "planted.conf");
+        await System.IO.File.WriteAllTextAsync(planted, "site", Ct);
+        System.IO.File.Delete(target);
+        System.IO.File.CreateSymbolicLink(target, planted);
+
+        Assert.True((await WriteResult(Compose("v1"), File("conf/site.conf", "site"))).FilesChanged);
+    }
+
+    [Fact]
     public async Task Previous_bundle_is_kept_for_a_rollback()
     {
         await Write(Compose("v1"), File("conf/site.conf", "site v1"));
@@ -258,7 +293,9 @@ public sealed class StackFileStoreTests : IDisposable
         Assert.Equal("services: v2", Read("compose.yaml"));
     }
 
-    private Task<string> Write(params StackFile[] files) => store.WriteAsync(StackLayout.Create("web", files), Ct);
+    private async Task<string> Write(params StackFile[] files) => (await WriteResult(files)).Directory;
+
+    private Task<StackWriteResult> WriteResult(params StackFile[] files) => store.WriteAsync(StackLayout.Create("web", files), Ct);
 
     private string Read(string path) => System.IO.File.ReadAllText(Path.Combine(StackDirectory, path), Encoding.UTF8);
 

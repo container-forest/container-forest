@@ -1,5 +1,12 @@
 namespace ContainerForest.Agent.Stacks;
 
+/// <param name="Directory">The stack directory, which compose runs in; its path never changes between deployments.</param>
+/// <param name="FilesChanged">
+/// A file other than the compose file is new, changed or gone since the previous deployment. False for the first one:
+/// compose then creates every container, which reads the files anyway.
+/// </param>
+public sealed record StackWriteResult(string Directory, bool FilesChanged);
+
 /// <summary>Stack files on the host: the stack directory and the stack's secret files on tmpfs.</summary>
 public interface IStackFileStore
 {
@@ -11,9 +18,8 @@ public interface IStackFileStore
     /// A bundle that conflicts with the host is rejected before anything changes; after that every file is replaced
     /// atomically. The previous version is kept for a rollback.
     /// </summary>
-    /// <returns>The stack directory, which compose runs in; its path never changes between deployments.</returns>
     /// <exception cref="Commands.StackFileConflictException">A path is a directory or goes through a symbolic link on the host.</exception>
-    Task<string> WriteAsync(StackLayout layout, CancellationToken cancellationToken);
+    Task<StackWriteResult> WriteAsync(StackLayout layout, CancellationToken cancellationToken);
 
     /// <summary>Removes the previous version of the stack's secrets once compose runs with the new ones.</summary>
     void DiscardPreviousSecrets(string stackName);

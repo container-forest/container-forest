@@ -92,6 +92,19 @@ export function useSetDeployOnPushMutation(stackId: string) {
   });
 }
 
+export function useSetRestartOnFileChangeMutation(stackId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (enabled: boolean) =>
+      unwrap(await api.PUT("/api/stacks/{id}/restart-on-file-change", { params: { path: { id: stackId } }, body: { enabled } })),
+    onSuccess: (stack) => {
+      queryClient.setQueryData(stackQuery(stackId).queryKey, stack);
+      return queryClient.invalidateQueries({ queryKey: stacksQuery(stack.environmentId).queryKey });
+    },
+  });
+}
+
 /** A new deploy hook token; the answer holds it, so the mutation keeps nothing after use. */
 export function useCreateDeployHookMutation(stackId: string) {
   const queryClient = useQueryClient();

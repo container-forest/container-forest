@@ -536,6 +536,9 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("RepositoryId")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("RestartOnFileChange")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("RepositoryId");

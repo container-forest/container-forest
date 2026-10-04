@@ -37,6 +37,7 @@ public class DeploymentTests
         Assert.Equal(Sha, command.DeployStack.CommitSha);
         Assert.Equal(PullPolicy.Always, command.DeployStack.Pull);
         Assert.Equal(["compose.yaml", "conf/site.conf"], command.DeployStack.Files.Select(f => f.Path));
+        Assert.False(command.DeployStack.RestartOnFileChange);
 
         await agent.SendAsync(new AgentMessage { Progress = new CommandProgress { RequestId = command.RequestId, Line = "Container web-web-1 Started" } });
         await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
@@ -51,6 +52,27 @@ public class DeploymentTests
             $"/api/environments/{agent.EnvironmentId}/stacks", AggregatorApp.Json, Ct);
         Assert.Equal(Sha, stacks!.Single().DeployedCommit);
     }
+
+    [Fact]
+    public async Task Stack_that_restarts_on_file_change_tells_the_agent_so()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        app.Git.Snapshot = Snapshot(("compose.yaml", "services:\n  web:\n    image: nginx:1.27\n"), ("config.yaml", "x"));
+        var stack = await CreateStackAsync(app, agent, "compose.yaml");
+        var client = app.CreateClient();
+
+        var changed = await client.PutAsJsonAsync($"/api/stacks/{stack.Id}/restart-on-file-change", new { enabled = true }, Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, changed);
+        Assert.True((await changed.Content.ReadFromJsonAsync<RestartSettingView>(AggregatorApp.Json, Ct))!.RestartOnFileChange);
+        await HttpAssert.StatusAsync(HttpStatusCode.Accepted, client.PostAsJsonAsync($"/api/stacks/{stack.Id}/deployments", new { pull = false }, Ct));
+
+        var command = await agent.ReceiveAsync();
+        Assert.True(command.DeployStack.RestartOnFileChange);
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
+    }
+
+    private sealed record RestartSettingView(bool RestartOnFileChange);
 
     [Fact]
     public async Task Agent_error_fails_the_deployment_with_its_message()

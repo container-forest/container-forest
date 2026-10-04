@@ -31,7 +31,10 @@ public sealed class BuildBundleStep(DeploymentOptions options) : IDeployStep
             files.Add(new BundleFile(isCompose ? bundlePath : file.Path, file.Content, mode, file.IsSecret));
         }
 
-        var bundle = new StackBundle(context.Stack.Name, context.Deployment.Commit!, files, context.Deployment.PullPolicy);
+        var bundle = new StackBundle(context.Stack.Name, context.Deployment.Commit!, files, context.Deployment.PullPolicy)
+        {
+            RestartOnFileChange = context.Stack.RestartOnFileChange,
+        };
         if (bundle.TotalBytes > options.MaxBundleBytes)
         {
             throw new DeploymentFailedException(

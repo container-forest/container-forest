@@ -1173,6 +1173,7 @@ export interface components {
             connectionId: null | string;
             connectionName: null | string;
             hasWebhook: boolean;
+            connectionHasWebhook: boolean;
             canManage: boolean;
             /** Format: date-time */
             createdAt: string;

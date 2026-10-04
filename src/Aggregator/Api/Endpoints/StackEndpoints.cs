@@ -167,6 +167,7 @@ internal static class StackEndpoints
         summary.Connection?.Id.Value,
         summary.Connection?.Name,
         summary.Repository.HasWebhook,
+        summary.Connection?.HasWebhook ?? false,
         summary.CanManage,
         summary.Repository.CreatedAt);
 

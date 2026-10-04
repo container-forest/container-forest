@@ -576,7 +576,7 @@ const en: Translation = {
       title: "Deploy on push",
       description: "Every push to {{branch}} deploys the stack, when the repository has a webhook.",
       label: "Deploy on push",
-      noWebhook: "The repository has no webhook: pushes deploy nothing until an administrator sets it up.",
+      noWebhook: "Neither the repository nor its connection has a webhook: pushes deploy nothing until one is set up.",
       failed: "Could not change the setting.",
     },
     hook: {
@@ -738,6 +738,7 @@ const en: Translation = {
       public: "Public",
       connectionHint: "The connection the aggregator fetches the repository through",
       webhook: "Webhook",
+      connectionWebhook: "Organization webhook",
     },
     create: {
       title: "New repository",

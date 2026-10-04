@@ -108,6 +108,12 @@ function RepositoriesScreen() {
                         {t("repositories.access.webhook")}
                       </Badge>
                     )}
+                    {!repository.hasWebhook && repository.connectionHasWebhook && (
+                      <Badge variant="secondary">
+                        <WebhookIcon data-icon="inline-start" />
+                        {t("repositories.access.connectionWebhook")}
+                      </Badge>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell className="text-sm">{formatDate(repository.createdAt, i18n.resolvedLanguage)}</TableCell>

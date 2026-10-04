@@ -32,6 +32,7 @@ import {
   type StackSourceForm,
   describeError,
   hasUnfinished,
+  receivesPushes,
   shortCommit,
   stackSourceSchema,
 } from "@/features/stacks/model";
@@ -383,7 +384,7 @@ function DeployOnPushCard({ stack }: { stack: Stack }) {
           <Label htmlFor="deploy-on-push">{t("stack.push.label")}</Label>
         </div>
         <div aria-live="polite">
-          {stack.deployOnPush && repository !== undefined && !repository.hasWebhook && (
+          {stack.deployOnPush && repository !== undefined && !receivesPushes(repository) && (
             <p className="text-muted-foreground text-sm">{t("stack.push.noWebhook")}</p>
           )}
           {changeError && (

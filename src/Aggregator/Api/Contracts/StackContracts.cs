@@ -39,6 +39,7 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 /// <param name="ConnectionId">The git connection the repository is fetched through; null for a public repository.</param>
 /// <param name="ConnectionName">Name of that connection.</param>
 /// <param name="HasWebhook">A webhook secret is set: pushes deploy the stacks that opted in.</param>
+/// <param name="ConnectionHasWebhook">The repository's connection has an organization-wide webhook, which also delivers its pushes.</param>
 /// <param name="CanManage">Whether the current user may change the repository and its webhook.</param>
 public sealed record RepositoryResponse(
     Guid Id,
@@ -47,6 +48,7 @@ public sealed record RepositoryResponse(
     Guid? ConnectionId,
     string? ConnectionName,
     bool HasWebhook,
+    bool ConnectionHasWebhook,
     bool CanManage,
     DateTimeOffset CreatedAt);
 

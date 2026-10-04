@@ -14,6 +14,7 @@ namespace ContainerForest.Aggregator.Application.Stacks;
 /// <param name="RepositoryName">Null when the repository is gone.</param>
 /// <param name="CanDeploy">Whether the current user may deploy the stack, change its source or take it down; the panel uses it to show the buttons.</param>
 /// <param name="DeployOnPush">A push to the branch deploys the stack, when the repository has a webhook.</param>
+/// <param name="HasDeployHook">CI can deploy the stack with fresh images through its deploy hook.</param>
 /// <param name="CanRestart">Whether the current user may restart the stack.</param>
 public sealed record StackSummary(
     StackId Id,
@@ -27,6 +28,7 @@ public sealed record StackSummary(
     CommitSha? DeployedCommit,
     DateTimeOffset? DeployedAt,
     bool DeployOnPush,
+    bool HasDeployHook,
     bool CanDeploy,
     bool CanRestart);
 
@@ -157,6 +159,39 @@ public sealed class StackService(
         return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
     }
 
+    /// <summary>
+    /// Creates the stack's deploy hook, or replaces its token. The token is returned once and only its hash is kept.
+    /// The same role as deploying, since every call then deploys.
+    /// </summary>
+    public async Task<(StackSummary Stack, string Token)> CreateDeployHookAsync(StackId stackId, CancellationToken cancellationToken)
+    {
+        var (actor, stack, environment, assignments) = await LoadDeployableAsync(stackId, cancellationToken);
+        var token = SecretToken.Generate();
+        stack.SetDeployHook(SecretToken.Hash(token));
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return (Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken)), token);
+    }
+
+    public async Task<StackSummary> RemoveDeployHookAsync(StackId stackId, CancellationToken cancellationToken)
+    {
+        var (actor, stack, environment, assignments) = await LoadDeployableAsync(stackId, cancellationToken);
+        stack.RemoveDeployHook();
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+    }
+
+    private async Task<(User Actor, Stack Stack, DockerEnvironment Environment, IReadOnlyList<RoleAssignment> Assignments)> LoadDeployableAsync(
+        StackId stackId, CancellationToken cancellationToken)
+    {
+        var loaded = await LoadVisibleAsync(stackId, cancellationToken);
+        if (!AccessPolicy.CanPerform(loaded.Actor, loaded.Environment, loaded.Stack, loaded.Assignments, Permission.Deploy))
+        {
+            throw new AccessDeniedException($"Changing stack '{loaded.Stack.Name}' requires the Editor role.");
+        }
+
+        return loaded;
+    }
+
     private static StackSummary Summarize(
         User actor,
         DockerEnvironment environment,
@@ -174,6 +209,7 @@ public sealed class StackService(
         stack.DeployedCommit,
         stack.DeployedAt,
         stack.DeployOnPush,
+        stack.HasDeployHook,
         AccessPolicy.CanPerform(actor, environment, stack, assignments, Permission.Deploy),
         AccessPolicy.CanPerform(actor, environment, stack, assignments, StackOperation.Restart));
 

@@ -4,7 +4,7 @@ using ContainerForest.Aggregator.Domain.Common;
 
 namespace ContainerForest.Aggregator.Api.Endpoints;
 
-/// <summary>Push webhooks from git servers (see WebhookContracts).</summary>
+/// <summary>Push webhooks from git servers and deploy hooks called by CI (see WebhookContracts).</summary>
 internal static class WebhookEndpoints
 {
     /// <summary>GitHub caps deliveries at 25 MB, but a push large enough to exceed this is no reason to read it all.</summary>
@@ -28,7 +28,33 @@ internal static class WebhookEndpoints
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status413PayloadTooLarge);
 
+        app.MapPost("/api/deploy-hooks/{stackId:guid}", ReceiveDeployHookAsync)
+            .WithTags("Webhooks")
+            .WithName("ReceiveDeployHook")
+            .AllowAnonymous()
+            .Produces<DeployHookResponse>(StatusCodes.Status202Accepted)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+
         return app;
+    }
+
+    private static async Task<IResult> ReceiveDeployHookAsync(
+        Guid stackId, HttpRequest request, DeployHookService service, CancellationToken ct)
+    {
+        // In a header rather than the URL, which proxies and CI logs keep.
+        var result = await service.ReceiveAsync(StackId.From(stackId), BearerToken(request), ct);
+        return TypedResults.Accepted(
+            (string?)null, new DeployHookResponse(result.StackId.Value, result.Outcome, result.DeploymentId?.Value));
+    }
+
+    private static string? BearerToken(HttpRequest request)
+    {
+        const string scheme = "Bearer ";
+        var header = request.Headers.Authorization.ToString();
+        return header.StartsWith(scheme, StringComparison.OrdinalIgnoreCase) && header.Length > scheme.Length
+            ? header[scheme.Length..].Trim()
+            : null;
     }
 
     private static async Task<WebhookResponse> ReceiveAsync(

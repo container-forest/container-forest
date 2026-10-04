@@ -51,6 +51,16 @@ public class DeploymentTests
     }
 
     [Fact]
+    public void Deploy_hook_deployment_has_no_user_and_pulls_every_image()
+    {
+        var deployment = Deployment.QueueFromDeployHook(StackId.New(), Now);
+
+        Assert.Equal(
+            (DeploymentTrigger.DeployHook, null, ImagePullPolicy.Always, false),
+            (deployment.Trigger, deployment.RequestedBy, deployment.PullPolicy, deployment.IsPinned));
+    }
+
+    [Fact]
     public void Cannot_succeed_without_a_commit()
     {
         var deployment = Deployment.QueueFromWebhook(StackId.New(), Now);

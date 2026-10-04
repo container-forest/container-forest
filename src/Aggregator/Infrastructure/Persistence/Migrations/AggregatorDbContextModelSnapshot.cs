@@ -506,6 +506,9 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.Property<long>("CreatedAt")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("DeployHookTokenHash")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("DeployOnPush")
                         .HasColumnType("INTEGER");
 

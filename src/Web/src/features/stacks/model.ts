@@ -116,6 +116,16 @@ export function webhookUrl(origin: string, repositoryId: string): string {
   return `${origin.replace(/\/+$/, "")}/api/webhooks/${repositoryId}`;
 }
 
+/** Where CI calls the stack's deploy hook; the panel's own origin, as for webhooks. */
+export function deployHookUrl(origin: string, stackId: string): string {
+  return `${origin.replace(/\/+$/, "")}/api/deploy-hooks/${stackId}`;
+}
+
+/** The call CI makes after pushing an image; the token is read from a CI secret, never written into the command. */
+export function deployHookCommand(url: string, tokenVariable = "FOREST_DEPLOY_HOOK"): string {
+  return `curl -fsS -X POST -H "Authorization: Bearer $${tokenVariable}" ${url}`;
+}
+
 export function isFinished(status: DeploymentStatus): boolean {
   return status === "Succeeded" || status === "Failed" || status === "Cancelled";
 }

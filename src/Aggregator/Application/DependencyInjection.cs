@@ -60,6 +60,7 @@ public static class DependencyInjection
         services.AddSingleton<GitWebhookProvider, GitLabWebhook>();
         services.AddSingleton<PushDeploymentGate>();
         services.AddScoped<PushWebhookService>();
+        services.AddScoped<DeployHookService>();
         services.AddScoped<IDeploymentObserver, PushFollowUpObserver>();
         return services;
     }

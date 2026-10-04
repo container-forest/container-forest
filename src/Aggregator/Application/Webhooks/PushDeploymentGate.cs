@@ -1,10 +1,12 @@
 using ContainerForest.Aggregator.Domain.Common;
+using ContainerForest.Aggregator.Domain.Deployments;
 
 namespace ContainerForest.Aggregator.Application.Webhooks;
 
 /// <summary>
-/// Remembers pushes that arrived while a stack was being deployed, so the push is deployed after that deployment
-/// instead of being lost: the running deployment has already fetched its commit. Singleton.
+/// Remembers pushes and deploy hook calls that arrived while a stack was being deployed, so they are deployed after
+/// that deployment instead of being lost: the running deployment has already fetched its commit and pulled its
+/// images. Singleton.
 /// </summary>
 /// <remarks>
 /// Deciding "running, so remember the push" and "finished, so deploy what was remembered" happen under one lock,
@@ -16,7 +18,7 @@ namespace ContainerForest.Aggregator.Application.Webhooks;
 public sealed class PushDeploymentGate
 {
     private readonly SemaphoreSlim mutex = new(1, 1);
-    private readonly HashSet<StackId> pending = [];
+    private readonly Dictionary<StackId, ImagePullPolicy> pending = [];
 
     /// <summary>Holds the gate until the returned value is disposed.</summary>
     public async Task<IDisposable> EnterAsync(CancellationToken cancellationToken)
@@ -25,11 +27,23 @@ public sealed class PushDeploymentGate
         return new Releaser(mutex);
     }
 
-    /// <summary>Call while holding the gate.</summary>
-    public void MarkPending(StackId stackId) => pending.Add(stackId);
+    /// <summary>
+    /// Call while holding the gate. <paramref name="pull"/> is what the follow-up deployment must pull; a deploy
+    /// hook's <see cref="ImagePullPolicy.Always"/> is kept when a push comes after it.
+    /// </summary>
+    public void MarkPending(StackId stackId, ImagePullPolicy pull)
+    {
+        if (!pending.TryGetValue(stackId, out var marked) || marked != ImagePullPolicy.Always)
+        {
+            pending[stackId] = pull;
+        }
+    }
 
-    /// <summary>Call while holding the gate. True when a push was waiting for the stack; it is forgotten.</summary>
-    public bool TakePending(StackId stackId) => pending.Remove(stackId);
+    /// <summary>
+    /// Call while holding the gate. What the follow-up deployment must pull when something was waiting for the
+    /// stack, which is then forgotten; null when nothing was.
+    /// </summary>
+    public ImagePullPolicy? TakePending(StackId stackId) => pending.Remove(stackId, out var pull) ? pull : null;
 
     private sealed class Releaser(SemaphoreSlim mutex) : IDisposable
     {

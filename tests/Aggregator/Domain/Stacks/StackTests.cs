@@ -45,6 +45,33 @@ public class StackTests
     }
 
     [Fact]
+    public void Deploy_hook_accepts_only_its_token()
+    {
+        var stack = Stack(EnvironmentId.New());
+        Assert.False(stack.HasDeployHook);
+        Assert.False(stack.AcceptsDeployHook("token"));
+
+        stack.SetDeployHook(SecretToken.Hash("token"));
+        Assert.True(stack.HasDeployHook);
+        Assert.True(stack.AcceptsDeployHook("token"));
+        Assert.False(stack.AcceptsDeployHook("other"));
+
+        stack.SetDeployHook(SecretToken.Hash("renewed"));
+        Assert.False(stack.AcceptsDeployHook("token"));
+
+        stack.RemoveDeployHook();
+        Assert.False(stack.AcceptsDeployHook("renewed"));
+    }
+
+    [Fact]
+    public void Deploy_hook_is_stored_as_a_hash_and_never_set_on_a_system_stack()
+    {
+        Assert.Throws<DomainValidationException>(() => Stack(EnvironmentId.New()).SetDeployHook("token"));
+        Assert.Throws<DomainValidationException>(() => Stack(EnvironmentId.New()).SetDeployHook(SecretToken.Hash("t").ToUpperInvariant()));
+        Assert.Throws<DomainConflictException>(() => Stack(EnvironmentId.New(), isSystem: true).SetDeployHook(SecretToken.Hash("t")));
+    }
+
+    [Fact]
     public void Regular_stack_allows_every_operation()
     {
         var stack = Stack(EnvironmentId.New());

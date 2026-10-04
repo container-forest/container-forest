@@ -224,7 +224,7 @@ public sealed partial class PushWebhookService(
             case { } running when running.Commit == pushed:
                 return (PushStackOutcome.AlreadyRunning, null);
             case not null:
-                gate.MarkPending(stack.Id);
+                gate.MarkPending(stack.Id, ImagePullPolicy.Missing);
                 return (PushStackOutcome.AfterRunning, null);
         }
 
@@ -257,7 +257,9 @@ public sealed partial class PushWebhookService(
     private partial void LogPush(string provider, string repository, string branch, string commit, int stacks);
 }
 
-/// <summary>Deploys a push that arrived while the stack was being deployed (<see cref="PushDeploymentGate"/>).</summary>
+/// <summary>
+/// Deploys a push or a deploy hook call that arrived while the stack was being deployed (<see cref="PushDeploymentGate"/>).
+/// </summary>
 public sealed partial class PushFollowUpObserver(
     PushDeploymentGate gate,
     IDeploymentRepository deployments,
@@ -273,14 +275,20 @@ public sealed partial class PushFollowUpObserver(
         try
         {
             using var _ = await gate.EnterAsync(cancellationToken);
-            if (!gate.TakePending(stack.Id))
+            if (gate.TakePending(stack.Id) is not { } pull)
             {
                 return;
             }
 
-            // Someone deployed in between: that deployment fetches after the push.
-            if (await deployments.HasUnfinishedAsync(stack.Id, cancellationToken))
+            // Someone deployed in between: that deployment started after the push and fetches its commit. It pulls
+            // the hook's new images only if it pulls them all; otherwise the hook waits for it in turn.
+            if (await deployments.FindUnfinishedAsync(stack.Id, cancellationToken) is { } next)
             {
+                if (pull == ImagePullPolicy.Always && next.PullPolicy != ImagePullPolicy.Always)
+                {
+                    gate.MarkPending(stack.Id, pull);
+                }
+
                 return;
             }
 
@@ -290,7 +298,9 @@ public sealed partial class PushFollowUpObserver(
                 return;
             }
 
-            var deployment = Deployment.QueueFromWebhook(stack.Id, time.GetUtcNow());
+            var deployment = pull == ImagePullPolicy.Always
+                ? Deployment.QueueFromDeployHook(stack.Id, time.GetUtcNow())
+                : Deployment.QueueFromWebhook(stack.Id, time.GetUtcNow());
             deployments.Add(deployment);
             await unitOfWork.SaveChangesAsync(cancellationToken);
             queue.Enqueue(deployment.Id);
@@ -301,9 +311,9 @@ public sealed partial class PushFollowUpObserver(
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "A push to stack {Stack} arrived during its deployment, but the agent is now offline; it is not deployed")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A push or deploy hook call for stack {Stack} arrived during its deployment, but the agent is now offline; it is not deployed")]
     private partial void LogAgentOffline(string stack);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Could not queue the deployment of a push to stack {Stack}")]
+    [LoggerMessage(Level = LogLevel.Error, Message = "Could not queue the deployment of a push or deploy hook call for stack {Stack}")]
     private partial void LogFailed(Exception exception, string stack);
 }

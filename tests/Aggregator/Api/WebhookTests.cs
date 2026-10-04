@@ -178,6 +178,97 @@ public class WebhookTests
         await HttpAssert.StatusAsync(HttpStatusCode.BadRequest, response);
     }
 
+    [Fact]
+    public async Task Deploy_hook_deploys_the_branch_head_with_fresh_images()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        var client = app.CreateClient();
+        var (repositoryId, _) = await CreateRepositoryWithWebhookAsync(client);
+        var stackId = await CreateStackAsync(client, agent.EnvironmentId, repositoryId, "web", deployOnPush: false);
+        var token = await CreateDeployHookAsync(client, stackId);
+        app.Git.Snapshot = Snapshot(First);
+
+        var response = await CallDeployHookAsync(app, stackId, token);
+
+        await HttpAssert.StatusAsync(HttpStatusCode.Accepted, response);
+        var result = await response.Content.ReadFromJsonAsync<DeployHookView>(AggregatorApp.Json, Ct);
+        Assert.Equal("Queued", result!.Outcome);
+        var command = await agent.ReceiveAsync();
+        Assert.Equal(("web", First, PullPolicy.Always), (command.DeployStack.StackName, command.DeployStack.CommitSha, command.DeployStack.Pull));
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
+        var history = await WaitForFinishedAsync(client, stackId);
+        Assert.Equal(("DeployHook", "Succeeded", result.DeploymentId), (history[0].Trigger, history[0].Status, (Guid?)history[0].Id));
+    }
+
+    [Fact]
+    public async Task Deploy_hook_rejects_a_wrong_or_missing_token_an_unknown_stack_and_a_removed_hook_alike()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        var client = app.CreateClient();
+        var (repositoryId, _) = await CreateRepositoryWithWebhookAsync(client);
+        var stackId = await CreateStackAsync(client, agent.EnvironmentId, repositoryId, "web", deployOnPush: false);
+        var oldToken = await CreateDeployHookAsync(client, stackId);
+        var token = await CreateDeployHookAsync(client, stackId);
+
+        var responses = new[]
+        {
+            await CallDeployHookAsync(app, stackId, oldToken),
+            await CallDeployHookAsync(app, stackId, null),
+            await CallDeployHookAsync(app, Guid.NewGuid(), token),
+        };
+        var removed = await client.DeleteAsync($"/api/stacks/{stackId}/deploy-hook", Ct);
+        Assert.False((await removed.Content.ReadFromJsonAsync<StackView>(AggregatorApp.Json, Ct))!.HasDeployHook);
+        var afterRemoval = await CallDeployHookAsync(app, stackId, token);
+
+        foreach (var response in responses.Append(afterRemoval))
+        {
+            await HttpAssert.StatusAsync(HttpStatusCode.Unauthorized, response);
+            Assert.Equal(
+                new ProblemView(401, "Unauthorized", "The webhook delivery could not be authenticated."),
+                await response.Content.ReadFromJsonAsync<ProblemView>(AggregatorApp.Json, Ct));
+        }
+    }
+
+    [Fact]
+    public async Task Only_editors_of_the_stack_manage_its_deploy_hook()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        var client = app.CreateClient();
+        var (repositoryId, _) = await CreateRepositoryWithWebhookAsync(client);
+        var stackId = await CreateStackAsync(client, agent.EnvironmentId, repositoryId, "web", deployOnPush: false);
+        var userId = await app.CreateUserAsync("olga", isAdmin: false);
+        await HttpAssert.StatusAsync(HttpStatusCode.Created, client.PostAsJsonAsync(
+            $"/api/users/{userId}/role-assignments", new { environmentId = agent.EnvironmentId, stackId = (Guid?)null, role = "Operator" }, Ct));
+        var operatorClient = app.CreateClientAs("olga");
+
+        await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, operatorClient.PostAsync($"/api/stacks/{stackId}/deploy-hook", null, Ct));
+        await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, operatorClient.DeleteAsync($"/api/stacks/{stackId}/deploy-hook", Ct));
+    }
+
+    private static async Task<string> CreateDeployHookAsync(HttpClient client, Guid stackId)
+    {
+        var response = await client.PostAsync($"/api/stacks/{stackId}/deploy-hook", null, Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, response);
+        var created = (await response.Content.ReadFromJsonAsync<DeployHookTokenView>(AggregatorApp.Json, Ct))!;
+        Assert.True(created.Stack.HasDeployHook);
+        return created.Token;
+    }
+
+    private static Task<HttpResponseMessage> CallDeployHookAsync(AggregatorApp app, Guid stackId, string? token)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/deploy-hooks/{stackId}");
+        if (token is not null)
+        {
+            request.Headers.Authorization = new("Bearer", token);
+        }
+
+        // Anonymous, like CI.
+        return app.CreateClientAs(null).SendAsync(request, Ct);
+    }
+
     private static Task<HttpResponseMessage> SendPushAsync(AggregatorApp app, Guid repositoryId, string secret, string after) =>
         SendAsync(app, repositoryId, secret, "push", $$"""{"ref":"refs/heads/main","after":"{{after}}"}""");
 
@@ -250,7 +341,11 @@ public class WebhookTests
 
     private sealed record SecretView(RepositoryView Repository, string Secret);
 
-    private sealed record StackView(Guid Id, bool DeployOnPush);
+    private sealed record StackView(Guid Id, bool DeployOnPush, bool HasDeployHook);
+
+    private sealed record DeployHookTokenView(StackView Stack, string Token);
+
+    private sealed record DeployHookView(Guid StackId, string Outcome, Guid? DeploymentId);
 
     private sealed record IdView(Guid Id);
 

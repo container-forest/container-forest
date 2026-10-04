@@ -115,6 +115,12 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
      -H "X-Hub-Signature-256: sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -r | cut -d' ' -f1)" -d "$BODY"
    ```
 
+   Хук деплою для CI (опис — у [docs/architecture.md](docs/architecture.md#хук-деплою-для-ci)): токен показується лише раз, ЦА зберігає його хеш:
+   ```sh
+   HOOK=$(curl -s -X POST -H 'X-Dev-User: root' http://localhost:5080/api/stacks/<stackId>/deploy-hook | jq -r .token)
+   curl -X POST -H "Authorization: Bearer $HOOK" http://localhost:5080/api/deploy-hooks/<stackId>   # 202: деплой з оновленням образів у черзі
+   ```
+
    Секрети SOPS (опис — у [docs/architecture.md](docs/architecture.md#секрети-в-git-sops)): ЦА потрібні `sops` і `age-keygen` у `PATH`; без них деплой стеку із зашифрованими файлами й створення ключа не вдаються, а решта працює. Поставити ті самі версії, що в образі: `scripts/install-sops.sh ~/.local/bin`. Ключі середовища (лише адміністратор; у відповіді — тільки публічний ключ):
    ```sh
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/age-keys

@@ -15,6 +15,7 @@ import {
 import { ConfirmAction } from "@/components/confirm-action";
 import { ErrorText, FieldError } from "@/components/form-messages";
 import { ArrowLeftIcon, ArrowRightIcon, Loader2Icon, PlayIcon, RefreshCwIcon, RotateCwIcon, SquareIcon } from "@/components/icons";
+import { DeployHookCard } from "@/components/stacks/deploy-hook-card";
 import { DeploymentStatusBadge } from "@/components/stacks/deployment-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -78,6 +79,7 @@ function StackScreen() {
       <ActionsCard stack={stack} />
       <SourceCard key={`${stack.repositoryId}/${stack.branch}/${stack.composePath}`} stack={stack} />
       {stack.canDeploy && !stack.isSystem && <DeployOnPushCard stack={stack} />}
+      {stack.canDeploy && !stack.isSystem && <DeployHookCard stack={stack} />}
       <RecentDeploymentsCard stack={stack} />
     </div>
   );

@@ -6185,6 +6185,7 @@
           "connectionId",
           "connectionName",
           "hasWebhook",
+          "connectionHasWebhook",
           "canManage",
           "createdAt"
         ],
@@ -6214,6 +6215,9 @@
             ]
           },
           "hasWebhook": {
+            "type": "boolean"
+          },
+          "connectionHasWebhook": {
             "type": "boolean"
           },
           "canManage": {

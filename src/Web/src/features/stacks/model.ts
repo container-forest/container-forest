@@ -126,6 +126,11 @@ export function deployHookCommand(url: string, tokenVariable = "FOREST_DEPLOY_HO
   return `curl -fsS -X POST -H "Authorization: Bearer $${tokenVariable}" ${url}`;
 }
 
+/** Pushes reach the aggregator through the repository's own webhook or its connection's organization-wide one. */
+export function receivesPushes(repository: Pick<Repository, "hasWebhook" | "connectionHasWebhook">): boolean {
+  return repository.hasWebhook || repository.connectionHasWebhook;
+}
+
 export function isFinished(status: DeploymentStatus): boolean {
   return status === "Succeeded" || status === "Failed" || status === "Cancelled";
 }

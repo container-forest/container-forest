@@ -57,6 +57,8 @@ public class WebhookTests
         var repository = await client.PostAsJsonAsync(
             "/api/repositories", new { name = "app", url = "https://gitea.example.com/team/app.git", connectionId }, Ct);
         var repositoryId = (await repository.Content.ReadFromJsonAsync<IdView>(AggregatorApp.Json, Ct))!.Id;
+        var listed = await client.GetFromJsonAsync<RepositoryView[]>("/api/repositories", AggregatorApp.Json, Ct);
+        Assert.Equal((false, true), (listed!.Single().HasWebhook, listed!.Single().ConnectionHasWebhook));
         await CreateStackAsync(client, agent.EnvironmentId, repositoryId, "app", deployOnPush: true);
         app.Git.Snapshot = Snapshot(First);
 
@@ -337,7 +339,7 @@ public class WebhookTests
 
     private sealed record ProblemView(int Status, string Title, string Detail);
 
-    private sealed record RepositoryView(Guid Id, bool HasWebhook);
+    private sealed record RepositoryView(Guid Id, bool HasWebhook, bool ConnectionHasWebhook = false);
 
     private sealed record SecretView(RepositoryView Repository, string Secret);
 

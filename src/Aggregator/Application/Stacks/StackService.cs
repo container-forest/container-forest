@@ -14,6 +14,7 @@ namespace ContainerForest.Aggregator.Application.Stacks;
 /// <param name="RepositoryName">Null when the repository is gone.</param>
 /// <param name="CanDeploy">Whether the current user may deploy the stack, change its source or take it down; the panel uses it to show the buttons.</param>
 /// <param name="DeployOnPush">A push to the branch deploys the stack, when the repository has a webhook.</param>
+/// <param name="RestartOnFileChange">A deployment restarts the stack when its files other than the compose file changed.</param>
 /// <param name="HasDeployHook">CI can deploy the stack with fresh images through its deploy hook.</param>
 /// <param name="CanRestart">Whether the current user may restart the stack.</param>
 public sealed record StackSummary(
@@ -28,6 +29,7 @@ public sealed record StackSummary(
     CommitSha? DeployedCommit,
     DateTimeOffset? DeployedAt,
     bool DeployOnPush,
+    bool RestartOnFileChange,
     bool HasDeployHook,
     bool CanDeploy,
     bool CanRestart);
@@ -160,6 +162,18 @@ public sealed class StackService(
     }
 
     /// <summary>
+    /// Turns restarting after a deployment that changed the stack's files on or off; the same role as deploying.
+    /// Takes effect from the next deployment.
+    /// </summary>
+    public async Task<StackSummary> SetRestartOnFileChangeAsync(StackId stackId, bool enabled, CancellationToken cancellationToken)
+    {
+        var (actor, stack, environment, assignments) = await LoadDeployableAsync(stackId, cancellationToken);
+        stack.SetRestartOnFileChange(enabled);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+    }
+
+    /// <summary>
     /// Creates the stack's deploy hook, or replaces its token. The token is returned once and only its hash is kept.
     /// The same role as deploying, since every call then deploys.
     /// </summary>
@@ -209,6 +223,7 @@ public sealed class StackService(
         stack.DeployedCommit,
         stack.DeployedAt,
         stack.DeployOnPush,
+        stack.RestartOnFileChange,
         stack.HasDeployHook,
         AccessPolicy.CanPerform(actor, environment, stack, assignments, Permission.Deploy),
         AccessPolicy.CanPerform(actor, environment, stack, assignments, StackOperation.Restart));

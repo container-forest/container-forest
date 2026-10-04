@@ -31,7 +31,7 @@ public sealed class StackFileStore(IOptions<AgentOptions> options, ILogger<Stack
 
     public bool Exists(string stackName) => Directory.Exists(StackDirectory(stackName));
 
-    public async Task<string> WriteAsync(StackLayout layout, CancellationToken cancellationToken)
+    public async Task<StackWriteResult> WriteAsync(StackLayout layout, CancellationToken cancellationToken)
     {
         var name = layout.StackName;
         var directory = StackDirectory(name);
@@ -49,6 +49,7 @@ public sealed class StackFileStore(IOptions<AgentOptions> options, ILogger<Stack
 
         var previous = await ReadManifestAsync(name, cancellationToken);
         var next = StackManifest.Of(layout);
+        var changed = FilesChanged(files, previous, next);
         try
         {
             DeleteDirectory(staging);
@@ -79,7 +80,41 @@ public sealed class StackFileStore(IOptions<AgentOptions> options, ILogger<Stack
         logger.LogInformation(
             "Wrote {Count} file(s) of stack {Stack} to {Directory}, {Secrets} of them secret",
             files.Count, name, directory, files.Count(f => f.Source.Secret));
-        return directory;
+        return new StackWriteResult(directory, changed);
+    }
+
+    /// <summary>
+    /// Whether a file other than the compose file differs from the host's copy: compose recreates containers for a
+    /// changed compose file by itself, but not for a changed file they bind-mount. Compared before anything is written.
+    /// </summary>
+    private static bool FilesChanged(IReadOnlyList<PlannedFile> files, StackManifest? previous, StackManifest next)
+    {
+        if (previous is null)
+        {
+            return false;
+        }
+
+        var kept = next.Files.Select(f => f.Path).ToHashSet(PathComparer);
+        if (previous.Files.Any(f => !kept.Contains(f.Path) && !IsComposeFile(f.Path)))
+        {
+            return true;
+        }
+
+        return files
+            .Where(f => !IsComposeFile(f.Source.Path))
+            .Any(f => !HasContent(f.Source.Secret ? f.Secret : f.Target, f.Source.Content.Span));
+    }
+
+    private static bool IsComposeFile(string path) => PathComparer.Equals(path, StackLayout.ComposeFileName);
+
+    // A link in place of a regular file was planted by a container: it is replaced, not read through.
+    private static bool HasContent(string path, ReadOnlySpan<byte> content)
+    {
+        var file = new FileInfo(path);
+        return file.Exists
+            && file.LinkTarget is null
+            && file.Length == content.Length
+            && File.ReadAllBytes(path).AsSpan().SequenceEqual(content);
     }
 
     public void DiscardPreviousSecrets(string stackName) => DeleteDirectory(SecretsDirectory(stackName) + ".prev");

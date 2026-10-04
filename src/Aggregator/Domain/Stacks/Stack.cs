@@ -68,6 +68,13 @@ public sealed class Stack : Entity<StackId>
     public bool DeployOnPush { get; private set; }
 
     /// <summary>
+    /// After a deployment, the agent restarts the stack when a file other than the compose file changed. Containers
+    /// read bind-mounted configuration when they start, and compose recreates them only for a changed definition.
+    /// Off by default: a restart interrupts the services, and many stacks have no such files.
+    /// </summary>
+    public bool RestartOnFileChange { get; private set; }
+
+    /// <summary>
     /// SHA-256 of the deploy hook token (<see cref="SecretToken.Hash"/>), never the token: CI presents the token to
     /// deploy the branch head with fresh images. Null when the stack has no deploy hook.
     /// </summary>
@@ -102,6 +109,18 @@ public sealed class Stack : Entity<StackId>
         }
 
         DeployOnPush = enabled;
+    }
+
+    /// <exception cref="DomainConflictException">Turning it on for a system stack, which the pipeline does not deploy.</exception>
+    public void SetRestartOnFileChange(bool enabled)
+    {
+        if (enabled && RequiresUpdateHelper(StackOperation.Restart))
+        {
+            throw new DomainConflictException(
+                $"System stack '{Name}' can only be updated through the helper container, so a deployment cannot restart it.");
+        }
+
+        RestartOnFileChange = enabled;
     }
 
     /// <summary>Sets the deploy hook to a new token, given as its hash; the previous token stops working.</summary>

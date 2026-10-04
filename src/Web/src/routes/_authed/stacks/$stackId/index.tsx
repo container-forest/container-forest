@@ -10,6 +10,7 @@ import {
   useChangeStackSourceMutation,
   useDeployStackMutation,
   useSetDeployOnPushMutation,
+  useSetRestartOnFileChangeMutation,
   useStackActionMutation,
 } from "@/api/stacks";
 import { ConfirmAction } from "@/components/confirm-action";
@@ -80,6 +81,7 @@ function StackScreen() {
       <ActionsCard stack={stack} />
       <SourceCard key={`${stack.repositoryId}/${stack.branch}/${stack.composePath}`} stack={stack} />
       {stack.canDeploy && !stack.isSystem && <DeployOnPushCard stack={stack} />}
+      {stack.canDeploy && !stack.isSystem && <RestartOnFileChangeCard stack={stack} />}
       {stack.canDeploy && !stack.isSystem && <DeployHookCard stack={stack} />}
       <RecentDeploymentsCard stack={stack} />
     </div>
@@ -390,6 +392,39 @@ function DeployOnPushCard({ stack }: { stack: Stack }) {
           {changeError && (
             <ErrorText>
               {t("stack.push.failed")} {t(changeError.key)} {changeError.detail}
+            </ErrorText>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RestartOnFileChangeCard({ stack }: { stack: Stack }) {
+  const { t } = useTranslation();
+  const change = useSetRestartOnFileChangeMutation(stack.id);
+  const changeError = change.error ? describeError(change.error) : undefined;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("stack.restartOnFileChange.title")}</CardTitle>
+        <CardDescription>{t("stack.restartOnFileChange.description")}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <div className="flex items-center gap-3">
+          <Switch
+            id="restart-on-file-change"
+            checked={change.isPending ? change.variables : stack.restartOnFileChange}
+            disabled={change.isPending}
+            onCheckedChange={(enabled) => change.mutate(enabled)}
+          />
+          <Label htmlFor="restart-on-file-change">{t("stack.restartOnFileChange.label")}</Label>
+        </div>
+        <div aria-live="polite">
+          {changeError && (
+            <ErrorText>
+              {t("stack.restartOnFileChange.failed")} {t(changeError.key)} {changeError.detail}
             </ErrorText>
           )}
         </div>

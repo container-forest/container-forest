@@ -660,6 +660,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/stacks/{id}/restart-on-file-change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["SetStackRestartOnFileChange"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/stacks/{id}/deploy-hook": {
         parameters: {
             query?: never;
@@ -1181,6 +1197,9 @@ export interface components {
         ResetPasswordRequest: {
             newPassword: string;
         };
+        RestartOnFileChangeRequest: {
+            enabled: boolean;
+        };
         /** @enum {unknown} */
         Role: "Viewer" | "Operator" | "Editor";
         RoleAssignmentResponse: {
@@ -1228,6 +1247,7 @@ export interface components {
             /** Format: date-time */
             deployedAt: null | string;
             deployOnPush: boolean;
+            restartOnFileChange: boolean;
             hasDeployHook: boolean;
             canDeploy: boolean;
             canRestart: boolean;
@@ -4237,6 +4257,68 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["DeployOnPushRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    SetStackRestartOnFileChange: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestartOnFileChangeRequest"];
             };
         };
         responses: {

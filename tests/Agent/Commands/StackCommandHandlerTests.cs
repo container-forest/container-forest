@@ -77,6 +77,39 @@ public sealed class StackCommandHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task Deploy_restarts_the_stack_after_compose_up_when_its_other_files_changed()
+    {
+        store.FilesChanged = true;
+        var command = DeployCommand();
+        command.RestartOnFileChange = true;
+
+        var result = await Deploy().HandleAsync(Message(command), progress, Ct);
+
+        Assert.Null(result.Error);
+        Assert.Equal(2, compose.Runs.Count);
+        Assert.Contains("up", compose.Runs[0].Arguments);
+        Assert.Equal(
+            ["compose", "--ansi", "never", "--progress", "plain", "-p", "web", "restart", "--timeout", "10"],
+            compose.Runs[1].Arguments);
+        Assert.Equal(options.StacksRoot, compose.Runs[1].WorkingDirectory);
+        Assert.Contains(progress.Lines, line => line.Contains("restarting the stack", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Deploy_does_not_restart_without_the_option_or_without_changed_files(bool restartOnFileChange, bool filesChanged)
+    {
+        store.FilesChanged = filesChanged;
+        var command = DeployCommand();
+        command.RestartOnFileChange = restartOnFileChange;
+
+        await Deploy().HandleAsync(Message(command), progress, Ct);
+
+        Assert.Contains("up", Assert.Single(compose.Runs).Arguments);
+    }
+
+    [Fact]
     public async Task Deploy_without_a_pull_policy_is_rejected_before_anything_is_written()
     {
         var result = await Deploy().HandleAsync(Message(DeployCommand(PullPolicy.Unspecified)), progress, Ct);
@@ -329,6 +362,7 @@ public sealed class StackCommandHandlerTests : IDisposable
         compose,
         new RegistryConfigWriter(Options.Create(options), NullLogger<RegistryConfigWriter>.Instance),
         locks,
+        Options.Create(options),
         NullLogger<DeployStackHandler>.Instance);
 
     private RestartStackHandler Restart() =>

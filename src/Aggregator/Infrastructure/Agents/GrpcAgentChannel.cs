@@ -71,6 +71,7 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
             StackName = bundle.StackName.Value,
             CommitSha = bundle.Commit.Value,
             Pull = bundle.Pull == ImagePullPolicy.Always ? PullPolicy.Always : PullPolicy.Missing,
+            RestartOnFileChange = bundle.RestartOnFileChange,
         };
         command.Files.AddRange(bundle.Files.Select(f => new StackFile
         {

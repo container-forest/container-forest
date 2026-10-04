@@ -348,12 +348,15 @@ internal sealed class FakeStackFileStore : IStackFileStore
 
     public bool Exists(string stackName) => Deployed.Contains(stackName);
 
-    public Task<string> WriteAsync(StackLayout layout, CancellationToken cancellationToken)
+    /// <summary>What <see cref="WriteAsync"/> reports about files other than the compose file.</summary>
+    public bool FilesChanged { get; set; }
+
+    public Task<StackWriteResult> WriteAsync(StackLayout layout, CancellationToken cancellationToken)
     {
         Written.Add(layout);
         Deployed.Add(layout.StackName);
         Calls.Add($"write {layout.StackName}");
-        return Task.FromResult(Path.Combine(Path.GetTempPath(), "stacks", layout.StackName));
+        return Task.FromResult(new StackWriteResult(Path.Combine(Path.GetTempPath(), "stacks", layout.StackName), FilesChanged));
     }
 
     public void DiscardPreviousSecrets(string stackName) => Calls.Add($"discard-previous-secrets {stackName}");

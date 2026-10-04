@@ -1,23 +1,30 @@
 using System.Text.RegularExpressions;
 using ContainerForest.Agent.Compose;
+using ContainerForest.Agent.Configuration;
 using ContainerForest.Agent.Stacks;
 using ContainerForest.Contracts.Agent;
 using Google.Protobuf.Collections;
+using Microsoft.Extensions.Options;
 
 namespace ContainerForest.Agent.Commands;
 
 /// <summary>
 /// Redeploy and redeploy with pull: writes the bundle into the stack directory and runs `docker compose up`.
-/// Every line of compose output goes to the aggregator as progress, which shows it in the deployment log.
+/// Every line of compose output goes to the aggregator as progress, which shows it in the deployment log. With
+/// <see cref="DeployStack.RestartOnFileChange"/>, the stack is restarted afterwards when its other files changed.
 /// </summary>
 public sealed partial class DeployStackHandler(
     IStackFileStore store,
     IComposeRunner compose,
     RegistryConfigWriter registryConfigs,
     StackLocks locks,
+    IOptions<AgentOptions> options,
     ILogger<DeployStackHandler> logger)
     : StackCommandHandler<DeployStack>(locks, logger)
 {
+    /// <summary>How long a container has to stop when restarted after a file change; the panel's default for restart.</summary>
+    public static readonly TimeSpan RestartTimeout = TimeSpan.FromSeconds(10);
+
     protected override string StackNameOf(DeployStack command) => command.StackName;
 
     protected override async Task RunAsync(
@@ -39,9 +46,9 @@ public sealed partial class DeployStackHandler(
         RegistryConfigWriter.Validate(command.RegistryAuths);
 
         await progress.ReportAsync(Describe(command, layout), cancellationToken);
-        var directory = await store.WriteAsync(layout, cancellationToken);
+        var written = await store.WriteAsync(layout, cancellationToken);
 
-        var invocation = ComposeInvocation.Up(stackName, directory, command.Pull, environment);
+        var invocation = ComposeInvocation.Up(stackName, written.Directory, command.Pull, environment);
         using (var registryConfig = await registryConfigs.WriteAsync(command.RegistryAuths, cancellationToken))
         {
             if (registryConfig is not null)
@@ -52,8 +59,29 @@ public sealed partial class DeployStackHandler(
             await compose.RunAsync(invocation, progress, cancellationToken);
         }
 
+        if (command.RestartOnFileChange)
+        {
+            await RestartIfFilesChangedAsync(stackName, written.FilesChanged, progress, cancellationToken);
+        }
+
         // The containers now use the new secrets; the old ones should not stay on the host longer than needed.
         store.DiscardPreviousSecrets(stackName);
+    }
+
+    // Compose recreated the containers whose definition changed; the rest still have the files read at their start.
+    private async Task RestartIfFilesChangedAsync(
+        string stackName, bool filesChanged, ICommandProgress progress, CancellationToken cancellationToken)
+    {
+        if (!filesChanged)
+        {
+            await progress.ReportAsync("No file other than compose.yaml changed; the containers are not restarted.", cancellationToken);
+            return;
+        }
+
+        await progress.ReportAsync("Files other than compose.yaml changed; restarting the stack so its containers read them.", cancellationToken);
+
+        // As RestartStackHandler: outside the stack directory and without -f.
+        await compose.RunAsync(ComposeInvocation.Restart(stackName, options.Value.StacksRoot, RestartTimeout), progress, cancellationToken);
     }
 
     private static Dictionary<string, string> ValidateEnvironment(MapField<string, string> env)

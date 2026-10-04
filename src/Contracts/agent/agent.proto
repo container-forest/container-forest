@@ -177,6 +177,10 @@ message DeployStack {
   map<string, string> env = 4;
   repeated RegistryAuth registry_auths = 5;
   PullPolicy pull = 6;
+  // After compose up, restart the stack's containers when a file other than compose.yaml is new, changed or gone:
+  // containers read bind-mounted files such as configuration when they start, and compose recreates a container
+  // only when its definition changes. An agent without this field just never restarts.
+  bool restart_on_file_change = 7;
 }
 
 // path is relative to the stack directory. A secret file is written to the tmpfs secrets directory

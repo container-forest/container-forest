@@ -579,6 +579,13 @@ const en: Translation = {
       noWebhook: "Neither the repository nor its connection has a webhook: pushes deploy nothing until one is set up.",
       failed: "Could not change the setting.",
     },
+    restartOnFileChange: {
+      title: "Restart after file changes",
+      description:
+        "Containers read mounted files (configuration, secrets) only when they start, and a deployment recreates a container only when the compose file changed. With this on, the agent restarts the stack after a deployment that changed any other file of the stack.",
+      label: "Restart after file changes",
+      failed: "Could not change the setting.",
+    },
     hook: {
       title: "Deploy hook for CI",
       description:

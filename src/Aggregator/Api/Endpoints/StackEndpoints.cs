@@ -98,6 +98,13 @@ internal static class StackEndpoints
             .WithName("SetStackDeployOnPush")
             .ProducesProblem(StatusCodes.Status409Conflict);
 
+        api.MapPut(
+                "/stacks/{id:guid}/restart-on-file-change",
+                async (Guid id, RestartOnFileChangeRequest request, StackService service, CancellationToken ct) =>
+                    ToResponse(await service.SetRestartOnFileChangeAsync(StackId.From(id), request.Enabled, ct)))
+            .WithName("SetStackRestartOnFileChange")
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
         api.MapPost(
                 "/stacks/{id:guid}/deploy-hook",
                 async (Guid id, StackService service, CancellationToken ct) =>
@@ -185,6 +192,7 @@ internal static class StackEndpoints
         s.DeployedCommit?.Value,
         s.DeployedAt,
         s.DeployOnPush,
+        s.RestartOnFileChange,
         s.HasDeployHook,
         s.CanDeploy,
         s.CanRestart);

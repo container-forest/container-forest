@@ -67,6 +67,14 @@ public sealed class Stack : Entity<StackId>
     /// </summary>
     public bool DeployOnPush { get; private set; }
 
+    /// <summary>
+    /// SHA-256 of the deploy hook token (<see cref="SecretToken.Hash"/>), never the token: CI presents the token to
+    /// deploy the branch head with fresh images. Null when the stack has no deploy hook.
+    /// </summary>
+    public string? DeployHookTokenHash { get; private set; }
+
+    public bool HasDeployHook => DeployHookTokenHash is not null;
+
     public static Stack Create(
         EnvironmentId environmentId,
         StackName name,
@@ -95,6 +103,30 @@ public sealed class Stack : Entity<StackId>
 
         DeployOnPush = enabled;
     }
+
+    /// <summary>Sets the deploy hook to a new token, given as its hash; the previous token stops working.</summary>
+    /// <exception cref="DomainConflictException">A system stack, which the pipeline does not deploy.</exception>
+    public void SetDeployHook(string tokenHash)
+    {
+        if (RequiresUpdateHelper(StackOperation.RedeployWithPull))
+        {
+            throw new DomainConflictException(
+                $"System stack '{Name}' can only be updated through the helper container, so a deploy hook cannot deploy it.");
+        }
+
+        if (tokenHash.Length != 64 || !tokenHash.All(char.IsAsciiHexDigitLower))
+        {
+            throw new DomainValidationException("A deploy hook is stored as the token's SHA-256 in lowercase hex.");
+        }
+
+        DeployHookTokenHash = tokenHash;
+    }
+
+    public void RemoveDeployHook() => DeployHookTokenHash = null;
+
+    /// <summary>True when <paramref name="token"/> is the deploy hook's token; compared in constant time.</summary>
+    public bool AcceptsDeployHook(string token) =>
+        DeployHookTokenHash is { } hash && SecretToken.Matches(token, hash);
 
     /// <summary>Throws when the operation is never allowed for this stack.</summary>
     public void EnsureAllows(StackOperation operation)

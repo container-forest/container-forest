@@ -167,6 +167,57 @@
         }
       }
     },
+    "/api/deploy-hooks/{stackId}": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "operationId": "ReceiveDeployHook",
+        "parameters": [
+          {
+            "name": "stackId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeployHookResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
         "tags": [
@@ -3660,6 +3711,136 @@
         }
       }
     },
+    "/api/stacks/{id}/deploy-hook": {
+      "post": {
+        "tags": [
+          "Stacks"
+        ],
+        "operationId": "CreateStackDeployHook",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeployHookTokenResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Stacks"
+        ],
+        "operationId": "RemoveStackDeployHook",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StackResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/stacks/{id}/restart": {
       "post": {
         "tags": [
@@ -5151,6 +5332,52 @@
           }
         }
       },
+      "DeployHookOutcome": {
+        "enum": [
+          "Queued",
+          "AlreadyQueued",
+          "AfterRunning"
+        ]
+      },
+      "DeployHookResponse": {
+        "required": [
+          "stackId",
+          "outcome",
+          "deploymentId"
+        ],
+        "type": "object",
+        "properties": {
+          "stackId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/DeployHookOutcome"
+          },
+          "deploymentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "DeployHookTokenResponse": {
+        "required": [
+          "stack",
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "stack": {
+            "$ref": "#/components/schemas/StackResponse"
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
       "DeploymentDetailsResponse": {
         "required": [
           "id",
@@ -5321,7 +5548,8 @@
         "enum": [
           "Manual",
           "Webhook",
-          "Rehydrate"
+          "Rehydrate",
+          "DeployHook"
         ]
       },
       "DeployOnPushRequest": {
@@ -6138,6 +6366,7 @@
           "deployedCommit",
           "deployedAt",
           "deployOnPush",
+          "hasDeployHook",
           "canDeploy",
           "canRestart"
         ],
@@ -6187,6 +6416,9 @@
             "format": "date-time"
           },
           "deployOnPush": {
+            "type": "boolean"
+          },
+          "hasDeployHook": {
             "type": "boolean"
           },
           "canDeploy": {

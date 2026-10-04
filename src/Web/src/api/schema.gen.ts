@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/deploy-hooks/{stackId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReceiveDeployHook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login": {
         parameters: {
             query?: never;
@@ -644,6 +660,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/stacks/{id}/deploy-hook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CreateStackDeployHook"];
+        delete: operations["RemoveStackDeployHook"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/stacks/{id}/restart": {
         parameters: {
             query?: never;
@@ -908,6 +940,19 @@ export interface components {
             password: string;
             isAdmin: boolean;
         };
+        /** @enum {unknown} */
+        DeployHookOutcome: "Queued" | "AlreadyQueued" | "AfterRunning";
+        DeployHookResponse: {
+            /** Format: uuid */
+            stackId: string;
+            outcome: components["schemas"]["DeployHookOutcome"];
+            /** Format: uuid */
+            deploymentId: null | string;
+        };
+        DeployHookTokenResponse: {
+            stack: components["schemas"]["StackResponse"];
+            token: string;
+        };
         DeploymentDetailsResponse: {
             /** Format: uuid */
             id: string;
@@ -952,7 +997,7 @@ export interface components {
         /** @enum {unknown} */
         DeploymentStatus: "Queued" | "Running" | "Succeeded" | "Failed" | "Cancelled";
         /** @enum {unknown} */
-        DeploymentTrigger: "Manual" | "Webhook" | "Rehydrate";
+        DeploymentTrigger: "Manual" | "Webhook" | "Rehydrate" | "DeployHook";
         DeployOnPushRequest: {
             enabled: boolean;
         };
@@ -1182,6 +1227,7 @@ export interface components {
             /** Format: date-time */
             deployedAt: null | string;
             deployOnPush: boolean;
+            hasDeployHook: boolean;
             canDeploy: boolean;
             canRestart: boolean;
         };
@@ -1383,6 +1429,46 @@ export interface operations {
             };
             /** @description Payload Too Large */
             413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ReceiveDeployHook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeployHookResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4191,6 +4277,113 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateStackDeployHook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeployHookTokenResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RemoveStackDeployHook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

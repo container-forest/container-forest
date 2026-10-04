@@ -19,6 +19,9 @@ public enum DeploymentTrigger
 
     /// <summary>The host rebooted and lost its file secrets (tmpfs); the deployed commit is deployed again.</summary>
     Rehydrate,
+
+    /// <summary>CI called the stack's deploy hook after pushing an image: the branch head is deployed with fresh images.</summary>
+    DeployHook,
 }
 
 public enum DeploymentLogLevel
@@ -77,7 +80,7 @@ public sealed class Deployment : Entity<DeploymentId>
 
     public DeploymentTrigger Trigger { get; private init; }
 
-    /// <summary>User who started a manual deployment; null for webhook deployments.</summary>
+    /// <summary>User who started a manual deployment; null when no user did (webhook, deploy hook, rehydration).</summary>
     public UserId? RequestedBy { get; private init; }
 
     public ImagePullPolicy PullPolicy { get; private init; }
@@ -111,6 +114,13 @@ public sealed class Deployment : Entity<DeploymentId>
 
     public static Deployment QueueFromWebhook(StackId stackId, DateTimeOffset now) =>
         new(DeploymentId.New(), stackId, DeploymentTrigger.Webhook, requestedBy: null, ImagePullPolicy.Missing, now);
+
+    /// <summary>
+    /// Deploys the branch head and pulls every image again: CI has just pushed a new image under a moving tag, which
+    /// a deployment pulling only missing images would not see.
+    /// </summary>
+    public static Deployment QueueFromDeployHook(StackId stackId, DateTimeOffset now) =>
+        new(DeploymentId.New(), stackId, DeploymentTrigger.DeployHook, requestedBy: null, ImagePullPolicy.Always, now);
 
     /// <summary>
     /// Re-deploys <paramref name="commit"/>, the one already running, after the host lost its file secrets in a reboot.

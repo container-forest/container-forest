@@ -92,6 +92,32 @@ export function useSetDeployOnPushMutation(stackId: string) {
   });
 }
 
+/** A new deploy hook token; the answer holds it, so the mutation keeps nothing after use. */
+export function useCreateDeployHookMutation(stackId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    gcTime: 0,
+    mutationFn: async () => unwrap(await api.POST("/api/stacks/{id}/deploy-hook", { params: { path: { id: stackId } } })),
+    onSuccess: ({ stack }) => {
+      queryClient.setQueryData(stackQuery(stackId).queryKey, stack);
+      return queryClient.invalidateQueries({ queryKey: stacksQuery(stack.environmentId).queryKey });
+    },
+  });
+}
+
+export function useRemoveDeployHookMutation(stackId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => unwrap(await api.DELETE("/api/stacks/{id}/deploy-hook", { params: { path: { id: stackId } } })),
+    onSuccess: (stack) => {
+      queryClient.setQueryData(stackQuery(stackId).queryKey, stack);
+      return queryClient.invalidateQueries({ queryKey: stacksQuery(stack.environmentId).queryKey });
+    },
+  });
+}
+
 /** Queues a deployment (redeploy, or redeploy with pull); the answer is the queued deployment to follow. */
 export function useDeployStackMutation(stackId: string) {
   const queryClient = useQueryClient();

@@ -98,6 +98,22 @@ internal static class StackEndpoints
             .WithName("SetStackDeployOnPush")
             .ProducesProblem(StatusCodes.Status409Conflict);
 
+        api.MapPost(
+                "/stacks/{id:guid}/deploy-hook",
+                async (Guid id, StackService service, CancellationToken ct) =>
+                {
+                    var (stack, token) = await service.CreateDeployHookAsync(StackId.From(id), ct);
+                    return new DeployHookTokenResponse(ToResponse(stack), token);
+                })
+            .WithName("CreateStackDeployHook")
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        api.MapDelete(
+                "/stacks/{id:guid}/deploy-hook",
+                async (Guid id, StackService service, CancellationToken ct) =>
+                    ToResponse(await service.RemoveDeployHookAsync(StackId.From(id), ct)))
+            .WithName("RemoveStackDeployHook");
+
         api.MapStackAction("restart", "RestartStack", StackAction.Restart);
         api.MapStackAction("down", "DownStack", StackAction.Down);
 
@@ -168,6 +184,7 @@ internal static class StackEndpoints
         s.DeployedCommit?.Value,
         s.DeployedAt,
         s.DeployOnPush,
+        s.HasDeployHook,
         s.CanDeploy,
         s.CanRestart);
 

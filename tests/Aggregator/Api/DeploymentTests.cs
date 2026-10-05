@@ -144,6 +144,41 @@ public class DeploymentTests
     }
 
     [Fact]
+    public async Task Removed_stack_takes_its_deployment_history_along()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        app.Git.Snapshot = Snapshot(("compose.yaml", "services:\n  api:\n    build: .\n"));
+        var stack = await CreateStackAsync(app, agent, "compose.yaml");
+        var failed = await WaitUntilFinishedAsync(app, (await QueueAsync(app, stack.Id)).Id);
+        var client = app.CreateClient();
+
+        await HttpAssert.StatusAsync(HttpStatusCode.NoContent, client.DeleteAsync($"/api/stacks/{stack.Id}", Ct));
+
+        await HttpAssert.StatusAsync(HttpStatusCode.NotFound, client.GetAsync($"/api/stacks/{stack.Id}", Ct));
+        await HttpAssert.StatusAsync(HttpStatusCode.NotFound, client.GetAsync($"/api/deployments/{failed.Id}", Ct));
+        await HttpAssert.StatusAsync(HttpStatusCode.NotFound, client.DeleteAsync($"/api/stacks/{stack.Id}", Ct));
+    }
+
+    [Fact]
+    public async Task Deployed_stack_is_not_removed()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        app.Git.Snapshot = Snapshot(("compose.yaml", "services:\n  web:\n    image: nginx:1.27\n"));
+        var stack = await CreateStackAsync(app, agent, "compose.yaml");
+        var queued = await QueueAsync(app, stack.Id);
+        var command = await agent.ReceiveAsync();
+        var client = app.CreateClient();
+
+        // In progress, then deployed: either way its containers would be left without a stack.
+        await HttpAssert.StatusAsync(HttpStatusCode.Conflict, client.DeleteAsync($"/api/stacks/{stack.Id}", Ct));
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
+        Assert.Equal("Succeeded", (await WaitUntilFinishedAsync(app, queued.Id)).Status);
+        await HttpAssert.StatusAsync(HttpStatusCode.Conflict, client.DeleteAsync($"/api/stacks/{stack.Id}", Ct));
+    }
+
+    [Fact]
     public async Task Second_deployment_of_a_running_stack_is_a_conflict()
     {
         await using var app = new AggregatorApp();

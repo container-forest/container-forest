@@ -24,7 +24,8 @@ internal sealed class DeploymentConfiguration : IEntityTypeConfiguration<Deploym
 
         builder.HasIndex(d => new { d.StackId, d.QueuedAt });
 
-        builder.HasOne<Stack>().WithMany().HasForeignKey(d => d.StackId).OnDelete(DeleteBehavior.Restrict);
+        // Removing a stack takes its history with it (StackService.RemoveAsync); deployments never outlive their stack otherwise.
+        builder.HasOne<Stack>().WithMany().HasForeignKey(d => d.StackId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<User>().WithMany().HasForeignKey(d => d.RequestedBy).OnDelete(DeleteBehavior.Restrict);
 
         builder.OwnsMany(d => d.Log, log =>

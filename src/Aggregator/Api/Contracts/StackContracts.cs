@@ -90,6 +90,7 @@ public sealed record ChangeStackSourceRequest(Guid RepositoryId, string Branch, 
 /// <param name="HasDeployHook">CI can deploy the stack with fresh images through its deploy hook.</param>
 /// <param name="CanDeploy">Whether the user may deploy, change the source and take the stack down; for hiding buttons only.</param>
 /// <param name="CanRestart">Whether the user may restart the stack; for hiding buttons only.</param>
+/// <param name="CanRemove">Whether the user may remove the stack (an Editor of its environment); for hiding buttons only.</param>
 public sealed record StackResponse(
     Guid Id,
     Guid EnvironmentId,
@@ -105,7 +106,8 @@ public sealed record StackResponse(
     bool RestartOnFileChange,
     bool HasDeployHook,
     bool CanDeploy,
-    bool CanRestart);
+    bool CanRestart,
+    bool CanRemove);
 
 /// <param name="Error">Why compose failed, or null when it succeeded.</param>
 /// <param name="Output">The last lines of compose output.</param>

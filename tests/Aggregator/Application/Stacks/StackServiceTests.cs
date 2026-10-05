@@ -106,6 +106,52 @@ public class StackServiceTests
         Assert.Equal(0, unitOfWork.Saves);
     }
 
+    [Fact]
+    public async Task Editor_of_the_environment_removes_a_stack_that_is_not_deployed()
+    {
+        Grant(Role.Editor);
+        Assert.True((await service.GetAsync(web.Id, Ct)).CanRemove);
+
+        await service.RemoveAsync(web.Id, Ct);
+
+        Assert.Null(await stacks.FindAsync(web.Id, Ct));
+        Assert.Equal(1, unitOfWork.Saves);
+    }
+
+    [Fact]
+    public async Task Editor_of_the_stack_alone_may_not_remove_it()
+    {
+        roleAssignments.Add(RoleAssignment.ForStack(alice.Id, web, Role.Editor, Now));
+        Assert.False((await service.GetAsync(web.Id, Ct)).CanRemove);
+
+        await Assert.ThrowsAsync<AccessDeniedException>(() => service.RemoveAsync(web.Id, Ct));
+        Assert.NotNull(await stacks.FindAsync(web.Id, Ct));
+    }
+
+    [Fact]
+    public async Task Deployed_stack_or_one_with_a_deployment_in_progress_is_not_removed()
+    {
+        Grant(Role.Editor);
+        var deployment = Deployment.QueueManual(web.Id, alice.Id, ImagePullPolicy.Missing, Now);
+        deployments.Add(deployment);
+
+        await Assert.ThrowsAsync<DomainConflictException>(() => service.RemoveAsync(web.Id, Ct));
+
+        deployment.Start(Now);
+        deployment.ResolveCommit(CommitSha.Parse(new string('a', 40)));
+        deployment.Succeed(Now);
+        web.RecordDeployment(deployment, withSecrets: false);
+        await Assert.ThrowsAsync<DomainConflictException>(() => service.RemoveAsync(web.Id, Ct));
+        Assert.NotNull(await stacks.FindAsync(web.Id, Ct));
+        Assert.Equal(0, unitOfWork.Saves);
+    }
+
+    [Fact]
+    public async Task Invisible_stack_is_not_found_for_removal()
+    {
+        await Assert.ThrowsAsync<NotFoundException>(() => service.RemoveAsync(web.Id, Ct));
+    }
+
     [Theory]
     [InlineData("main", "../compose.yaml")]
     [InlineData("-bad", "compose.yaml")]

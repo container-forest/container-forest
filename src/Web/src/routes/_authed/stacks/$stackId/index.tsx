@@ -9,13 +9,24 @@ import { deploymentsQuery, repositoriesQuery, stackQuery } from "@/api/queries";
 import {
   useChangeStackSourceMutation,
   useDeployStackMutation,
+  useForgetStack,
+  useRemoveStackMutation,
   useSetDeployOnPushMutation,
   useSetRestartOnFileChangeMutation,
   useStackActionMutation,
 } from "@/api/stacks";
 import { ConfirmAction } from "@/components/confirm-action";
 import { ErrorText, FieldError } from "@/components/form-messages";
-import { ArrowLeftIcon, ArrowRightIcon, Loader2Icon, PlayIcon, RefreshCwIcon, RotateCwIcon, SquareIcon } from "@/components/icons";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  Loader2Icon,
+  PlayIcon,
+  RefreshCwIcon,
+  RotateCwIcon,
+  SquareIcon,
+  Trash2Icon,
+} from "@/components/icons";
 import { DeployHookCard } from "@/components/stacks/deploy-hook-card";
 import { DeploymentStatusBadge } from "@/components/stacks/deployment-status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -84,6 +95,7 @@ function StackScreen() {
       {stack.canDeploy && !stack.isSystem && <RestartOnFileChangeCard stack={stack} />}
       {stack.canDeploy && !stack.isSystem && <DeployHookCard stack={stack} />}
       <RecentDeploymentsCard stack={stack} />
+      {stack.canRemove && <RemoveStackCard stack={stack} />}
     </div>
   );
 }
@@ -480,6 +492,64 @@ function RecentDeploymentsCard({ stack }: { stack: Stack }) {
           {t("stack.recent.all")}
           <ArrowRightIcon className="size-4" />
         </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Removing the stack from the system; only one without containers, so a deployed stack is taken down first. */
+function RemoveStackCard({ stack }: { stack: Stack }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const deployments = useQuery(deploymentsQuery(stack.id));
+  const remove = useRemoveStackMutation(stack.id);
+  const forget = useForgetStack();
+  const removeError = remove.error ? describeError(remove.error) : undefined;
+
+  const deployed = stack.deployedCommit !== null;
+  const deploying = deployments.data !== undefined && hasUnfinished(deployments.data);
+
+  const onRemove = () =>
+    remove.mutate(undefined, {
+      // Leave the screen first: its query would refetch the removed stack.
+      onSuccess: async () => {
+        await navigate({ to: "/stacks", search: { environment: stack.environmentId }, replace: true });
+        await forget(stack);
+      },
+    });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("stack.remove.title")}</CardTitle>
+        <CardDescription>{t("stack.remove.description")}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <div>
+          <ConfirmAction
+            variant="destructive"
+            title={t("stack.remove.confirmTitle", { name: stack.name })}
+            description={t("stack.remove.confirmDescription")}
+            confirmLabel={t("stack.remove.action")}
+            disabled={deployed || deploying || remove.isPending}
+            onConfirm={onRemove}
+          >
+            {remove.isPending ? (
+              <Loader2Icon data-icon="inline-start" className="animate-spin" />
+            ) : (
+              <Trash2Icon data-icon="inline-start" />
+            )}
+            {t("stack.remove.action")}
+          </ConfirmAction>
+        </div>
+        <div aria-live="polite">
+          {deployed && <p className="text-muted-foreground text-sm">{t("stack.remove.deployed")}</p>}
+          {removeError && (
+            <ErrorText>
+              {t("stack.remove.failed")} {t(removeError.key)} {removeError.detail}
+            </ErrorText>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

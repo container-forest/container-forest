@@ -105,6 +105,27 @@ export function useSetRestartOnFileChangeMutation(stackId: string) {
   });
 }
 
+/**
+ * Removes the stack with its history. The caller leaves the stack's screen first and then drops its queries
+ * (`forgetStack`): dropping them while the screen is mounted would refetch a stack that is gone.
+ */
+export function useRemoveStackMutation(stackId: string) {
+  return useMutation({
+    mutationFn: async () => unwrap(await api.DELETE("/api/stacks/{id}", { params: { path: { id: stackId } } })),
+  });
+}
+
+/** Drops the cached removed stack and its deployments, and refreshes its environment's list. */
+export function useForgetStack() {
+  const queryClient = useQueryClient();
+
+  return (stack: { id: string; environmentId: string }) => {
+    queryClient.removeQueries({ queryKey: stackQuery(stack.id).queryKey });
+    queryClient.removeQueries({ queryKey: deploymentsQuery(stack.id).queryKey });
+    return queryClient.invalidateQueries({ queryKey: stacksQuery(stack.environmentId).queryKey });
+  };
+}
+
 /** A new deploy hook token; the answer holds it, so the mutation keeps nothing after use. */
 export function useCreateDeployHookMutation(stackId: string) {
   const queryClient = useQueryClient();

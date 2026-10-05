@@ -82,6 +82,16 @@ internal static class StackEndpoints
                 ToResponse(await service.GetAsync(StackId.From(id), ct)))
             .WithName("GetStack");
 
+        api.MapDelete(
+                "/stacks/{id:guid}",
+                async (Guid id, StackService service, CancellationToken ct) =>
+                {
+                    await service.RemoveAsync(StackId.From(id), ct);
+                    return TypedResults.NoContent();
+                })
+            .WithName("RemoveStack")
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
         api.MapPut(
                 "/stacks/{id:guid}/source",
                 async (Guid id, ChangeStackSourceRequest request, StackService service, CancellationToken ct) =>
@@ -195,7 +205,8 @@ internal static class StackEndpoints
         s.RestartOnFileChange,
         s.HasDeployHook,
         s.CanDeploy,
-        s.CanRestart);
+        s.CanRestart,
+        s.CanRemove);
 
     private static DeploymentDetailsResponse ToDetails(Deployment d) => new(
         d.Id.Value,

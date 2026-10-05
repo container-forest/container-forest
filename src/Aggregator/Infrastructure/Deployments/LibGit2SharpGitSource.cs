@@ -61,6 +61,31 @@ internal sealed partial class LibGit2SharpGitSource(
         GitRepository repository, CommitSha commit, string directory, long maxBytes, CancellationToken cancellationToken) =>
         ReadAsync(repository.Id.ToString(), commit, directory, maxBytes, cancellationToken);
 
+    public async Task ForgetAsync(RepositoryId repositoryId, CancellationToken cancellationToken)
+    {
+        var cacheKey = repositoryId.ToString();
+        try
+        {
+            await WithLockAsync(
+                cacheKey,
+                () =>
+                {
+                    var path = CachePath(cacheKey);
+                    if (Directory.Exists(path))
+                    {
+                        DeleteClone(path);
+                    }
+
+                    return true;
+                },
+                cancellationToken);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            LogCloneNotDeleted(e, repositoryId);
+        }
+    }
+
     /// <param name="cacheKey">Name of the bare clone's directory; one per repository.</param>
     /// <param name="url">Any URL or path libgit2 accepts; tests use local paths.</param>
     /// <param name="detailedErrors">
@@ -214,6 +239,9 @@ internal sealed partial class LibGit2SharpGitSource(
 
     [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "The clone of {Url} takes {Size} bytes, over the limit of {Limit}; deleted it")]
     private partial void LogCacheTooLarge(string url, long size, long limit);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "Could not delete the cached clone of removed repository {RepositoryId}")]
+    private partial void LogCloneNotDeleted(Exception exception, RepositoryId repositoryId);
 
     private GitSnapshot Read(string cacheKey, CommitSha sha, string directory, long maxBytes, CancellationToken cancellationToken)
     {

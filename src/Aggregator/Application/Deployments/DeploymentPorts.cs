@@ -27,6 +27,12 @@ public interface IGitSource
     /// <exception cref="DeploymentFailedException">The directory does not exist at the commit, or the files are too large.</exception>
     Task<GitSnapshot> ReadAsync(
         GitRepository repository, CommitSha commit, string directory, long maxBytes, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes the cached clone of a repository removed from the system. Best effort: a clone that cannot be deleted
+    /// is only logged, since the repository is already gone.
+    /// </summary>
+    Task ForgetAsync(RepositoryId repositoryId, CancellationToken cancellationToken);
 }
 
 /// <summary>A decrypted access token for HTTPS basic authentication.</summary>

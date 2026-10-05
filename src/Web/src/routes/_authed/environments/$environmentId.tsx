@@ -1,16 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import {
   useDeleteRegistryCredentialMutation,
   useIssueEnrollmentTokenMutation,
+  useRemoveEnvironmentMutation,
   useRevokeAgentMutation,
   useSetRegistryCredentialMutation,
 } from "@/api/environments";
-import { environmentsQuery, registryCredentialsQuery } from "@/api/queries";
+import { environmentsQuery, registryCredentialsQuery, stacksQuery } from "@/api/queries";
 import { ConfirmAction } from "@/components/confirm-action";
 import { EditEnvironmentDialog } from "@/components/environments/environment-dialogs";
 import { EnrollmentInstructions } from "@/components/environments/enrollment-instructions";
@@ -40,7 +41,7 @@ export const Route = createFileRoute("/_authed/environments/$environmentId")({
   component: EnvironmentScreen,
 });
 
-/** One environment: its agent's status and, for administrators, enrolling an agent and registry logins. */
+/** One environment: its agent's status and, for administrators, enrolling an agent, registry logins and removing it. */
 function EnvironmentScreen() {
   const { t } = useTranslation();
   const { me } = Route.useRouteContext();
@@ -82,6 +83,7 @@ function EnvironmentScreen() {
               {/* A new key per environment drops a token shown for another one. */}
               <EnrollmentSection key={environment.id} environment={environment} />
               <RegistryCredentialsSection environmentId={environment.id} />
+              <RemoveEnvironmentSection environment={environment} />
             </>
           )}
         </>
@@ -219,6 +221,60 @@ function EnrollmentSection({ environment }: { environment: Environment }) {
 }
 
 const emptyCredential: RegistryCredentialForm = { server: "", username: "", password: "" };
+
+/** Removing the environment: only one without stacks, as the aggregator requires. */
+function RemoveEnvironmentSection({ environment }: { environment: Environment }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const stacks = useQuery(stacksQuery(environment.id));
+  const remove = useRemoveEnvironmentMutation(environment.id);
+  const removeError = remove.error ? describeError(remove.error) : undefined;
+  const stackCount = stacks.data?.length ?? 0;
+
+  const onRemove = () =>
+    remove.mutate(undefined, {
+      // Leave the screen first: refreshing the list under it would show the environment as missing.
+      onSuccess: async () => {
+        await navigate({ to: "/environments", replace: true });
+        queryClient.removeQueries({ queryKey: stacksQuery(environment.id).queryKey });
+        await queryClient.invalidateQueries({ queryKey: environmentsQuery.queryKey });
+      },
+    });
+
+  return (
+    <section aria-labelledby="environment-remove" className="grid gap-3 rounded-lg border p-4">
+      <div>
+        <h2 id="environment-remove" className="font-heading text-lg font-semibold">
+          {t("environment.remove.title")}
+        </h2>
+        <p className="text-muted-foreground mt-1 text-sm">
+          {stackCount > 0 ? t("environment.remove.inUse", { count: stackCount }) : t("environment.remove.description")}
+        </p>
+      </div>
+      <div>
+        <ConfirmAction
+          variant="destructive"
+          title={t("environment.remove.confirmTitle", { name: environment.name })}
+          description={t("environment.remove.confirmDescription")}
+          confirmLabel={t("environment.remove.button")}
+          disabled={remove.isPending || stacks.data === undefined || stackCount > 0}
+          onConfirm={onRemove}
+        >
+          {remove.isPending ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : <Trash2Icon data-icon="inline-start" />}
+          {t("environment.remove.button")}
+        </ConfirmAction>
+      </div>
+      <div aria-live="polite">
+        {removeError && (
+          <ErrorText>
+            {t("environment.remove.failed")} {t(removeError.key)} {removeError.detail}
+          </ErrorText>
+        )}
+      </div>
+    </section>
+  );
+}
 
 function RegistryCredentialsSection({ environmentId }: { environmentId: string }) {
   const { t, i18n } = useTranslation();

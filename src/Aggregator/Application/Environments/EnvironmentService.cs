@@ -1,6 +1,7 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Common;
+using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Environments;
@@ -31,13 +32,14 @@ public sealed record EnvironmentSummary(
     DateTimeOffset? EnrollmentTokenExpiresAt = null);
 
 /// <summary>
-/// Environments as the current user sees them; creating and changing environments, enrollment tokens and revoking
-/// agents (administrators only).
+/// Environments as the current user sees them; creating, changing and removing environments, enrollment tokens and
+/// revoking agents (administrators only).
 /// </summary>
 public sealed class EnvironmentService(
     CurrentActor currentActor,
     IEnvironmentRepository environments,
     IRoleAssignmentRepository roleAssignments,
+    IStackRepository stacks,
     IUnitOfWork unitOfWork,
     IAgentChannel agents,
     TimeProvider time)
@@ -111,6 +113,34 @@ public sealed class EnvironmentService(
 
         // After saving: a reconnect that slips in between is refused, since the secret is already gone.
         agents.Disconnect(environment.Id, "agent credentials revoked");
+    }
+
+    /// <summary>
+    /// Removes an environment without stacks: its stacks must be removed first, since each has containers or files on
+    /// the host and a deployment history. The database cascade takes the environment's age keys (files encrypted only
+    /// for them can no longer be decrypted by the aggregator), registry logins, roles, notification rules and its place
+    /// in git connections. The agent is disconnected and cannot connect again; it keeps running on the host until
+    /// someone removes it there.
+    /// </summary>
+    /// <exception cref="NotFoundException">The environment does not exist.</exception>
+    /// <exception cref="DomainConflictException">It still has stacks.</exception>
+    public async Task RemoveAsync(EnvironmentId id, CancellationToken cancellationToken)
+    {
+        await currentActor.GetAdministratorAsync(cancellationToken);
+        var environment = await environments.FindAsync(id, cancellationToken) ?? throw new NotFoundException("Environment", id);
+
+        var stackCount = (await stacks.ListByEnvironmentAsync(environment.Id, cancellationToken)).Count;
+        if (stackCount > 0)
+        {
+            throw new DomainConflictException(
+                $"Environment '{environment.Name}' has {stackCount} stack(s); take them down and remove them first.");
+        }
+
+        environments.Remove(environment);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // After saving, as for a revoked agent: a reconnect that slips in between finds no environment.
+        agents.Disconnect(environment.Id, "environment removed");
     }
 
     /// <summary>Environments the current user may see, in name order.</summary>

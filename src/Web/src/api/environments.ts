@@ -57,6 +57,16 @@ export function useRevokeAgentMutation(environmentId: string) {
   });
 }
 
+/**
+ * Removes an environment without stacks. The caller leaves the environment's screen first and then refreshes the
+ * list: refreshing while the screen is mounted would show it as missing for a moment.
+ */
+export function useRemoveEnvironmentMutation(environmentId: string) {
+  return useMutation({
+    mutationFn: async () => unwrap(await api.DELETE("/api/environments/{id}", { params: { path: { id: environmentId } } })),
+  });
+}
+
 /** Adds a registry login, or replaces the login for the same server. The variables hold the password. */
 export function useSetRegistryCredentialMutation(environmentId: string) {
   const queryClient = useQueryClient();

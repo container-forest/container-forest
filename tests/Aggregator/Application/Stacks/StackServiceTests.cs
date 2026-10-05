@@ -42,6 +42,8 @@ public class StackServiceTests
             new RepositoryAccess(actor, roleAssignments, stacks, environments),
             repositories,
             connections,
+            stacks,
+            new FakeGitSource(),
             new FakeSecretProtector(),
             unitOfWork,
             new FixedTime(Now));

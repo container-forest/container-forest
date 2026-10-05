@@ -2,7 +2,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { useCreateWebhookSecretMutation, useRemoveWebhookSecretMutation, useUpdateRepositoryMutation } from "@/api/stacks";
+import {
+  useCreateWebhookSecretMutation,
+  useRemoveRepositoryMutation,
+  useRemoveWebhookSecretMutation,
+  useUpdateRepositoryMutation,
+} from "@/api/stacks";
+import { ConfirmAction } from "@/components/confirm-action";
 import { ErrorText } from "@/components/form-messages";
 import { Loader2Icon, PencilIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -28,7 +34,7 @@ import { RepositoryFields, useRepositoryFormBlocked } from "./repository-fields"
 import { WebhookSection } from "./webhook-section";
 
 /**
- * "Edit repository": name, connection and address, and the repository's own webhook. Shown when the user may manage
+ * "Edit repository": name, connection and address, the repository's own webhook, and removing it. Shown when the user may manage
  * it (canManage): an administrator, or someone who may deploy every stack of the repository.
  */
 export function EditRepositoryDialog({ repository }: { repository: Repository }) {
@@ -37,6 +43,7 @@ export function EditRepositoryDialog({ repository }: { repository: Repository })
   const update = useUpdateRepositoryMutation(repository.id);
   const createWebhook = useCreateWebhookSecretMutation(repository.id);
   const removeWebhook = useRemoveWebhookSecretMutation(repository.id);
+  const remove = useRemoveRepositoryMutation(repository.id);
   const form = useForm<RepositoryForm>({ resolver: zodResolver(repositorySchema), defaultValues: repositoryFormOf(repository) });
   const blocked = useRepositoryFormBlocked(form);
 
@@ -48,6 +55,7 @@ export function EditRepositoryDialog({ repository }: { repository: Repository })
       update.reset();
       createWebhook.reset();
       removeWebhook.reset();
+      remove.reset();
     }
   };
 
@@ -57,6 +65,10 @@ export function EditRepositoryDialog({ repository }: { repository: Repository })
     }
   });
   const updateError = update.error ? describeError(update.error) : undefined;
+  const removeError = remove.error ? describeError(remove.error) : undefined;
+  // The aggregator refuses a repository with stacks; the count says so before the click.
+  const inUse = Number(repository.stackCount ?? 0) > 0;
+  const onRemove = () => remove.mutate(undefined, { onSuccess: () => setOpen(false) });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -98,6 +110,33 @@ export function EditRepositoryDialog({ repository }: { repository: Repository })
           create={createWebhook}
           remove={removeWebhook}
         />
+
+        <section aria-labelledby="repository-delete-title" className="grid gap-3 border-t pt-4">
+          <div>
+            <h3 id="repository-delete-title" className="font-heading font-semibold">
+              {t("repositories.delete.title")}
+            </h3>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {inUse ? t("repositories.delete.inUse", { count: repository.stackCount }) : t("repositories.delete.description")}
+            </p>
+          </div>
+          <div>
+            <ConfirmAction
+              title={t("repositories.delete.confirmTitle", { name: repository.name })}
+              description={t("repositories.delete.confirmDescription")}
+              confirmLabel={t("repositories.delete.button")}
+              disabled={remove.isPending || inUse}
+              onConfirm={onRemove}
+            >
+              {t("repositories.delete.button")}
+            </ConfirmAction>
+          </div>
+          {removeError && (
+            <ErrorText>
+              {t("repositories.delete.failed")} {t(removeError.key)} {removeError.detail}
+            </ErrorText>
+          )}
+        </section>
       </DialogContent>
     </Dialog>
   );

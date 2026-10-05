@@ -132,6 +132,15 @@ internal static class EnvironmentEndpoints
             })
             .WithName("RevokeAgent")
             .ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapDelete("/{id:guid}", async (Guid id, EnvironmentService environments, CancellationToken ct) =>
+            {
+                await environments.RemoveAsync(EnvironmentId.From(id), ct);
+                return TypedResults.NoContent();
+            })
+            .WithName("RemoveEnvironment")
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
     }
 
     /// <summary>Logins for private registries the environment's stacks pull from. Administrators only; passwords are never returned.</summary>

@@ -17,6 +17,7 @@ namespace ContainerForest.Aggregator.Application.Stacks;
 /// <param name="RestartOnFileChange">A deployment restarts the stack when its files other than the compose file changed.</param>
 /// <param name="HasDeployHook">CI can deploy the stack with fresh images through its deploy hook.</param>
 /// <param name="CanRestart">Whether the current user may restart the stack.</param>
+/// <param name="CanRemove">Whether the current user may remove the stack: an Editor of its environment, as for adding one.</param>
 public sealed record StackSummary(
     StackId Id,
     EnvironmentId EnvironmentId,
@@ -32,9 +33,13 @@ public sealed record StackSummary(
     bool RestartOnFileChange,
     bool HasDeployHook,
     bool CanDeploy,
-    bool CanRestart);
+    bool CanRestart,
+    bool CanRemove);
 
-/// <summary>Stacks as the current user sees them; adding stacks (Editor on the environment) and changing their source (Editor on the stack).</summary>
+/// <summary>
+/// Stacks as the current user sees them; adding and removing stacks (Editor on the environment) and changing their
+/// source (Editor on the stack).
+/// </summary>
 public sealed class StackService(
     CurrentActor currentActor,
     IEnvironmentRepository environments,
@@ -194,6 +199,37 @@ public sealed class StackService(
         return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
     }
 
+    /// <summary>
+    /// Removes the stack with its deployment history, the roles on it and the notification rules about it (the
+    /// database cascades). Only a stack without containers of its own: one never deployed or taken down. Its files
+    /// stay on the host, as after a down; a stack added later under the same name deploys over them.
+    /// </summary>
+    /// <exception cref="AccessDeniedException">The user is not an Editor of the environment.</exception>
+    /// <exception cref="DomainConflictException">A system stack, a deployed one, or one with a deployment in progress.</exception>
+    public async Task RemoveAsync(StackId stackId, CancellationToken cancellationToken)
+    {
+        var (actor, stack, environment, assignments) = await LoadVisibleAsync(stackId, cancellationToken);
+        if (!CanRemove(actor, environment, assignments))
+        {
+            throw new AccessDeniedException($"Removing stack '{stack.Name}' requires the Editor role on environment '{environment.Name}'.");
+        }
+
+        stack.EnsureRemovable();
+
+        // The worker would deploy a stack that is no longer there, and the deployment's row would block the delete.
+        if (await deployments.HasUnfinishedAsync(stack.Id, cancellationToken))
+        {
+            throw new DomainConflictException($"Stack '{stack.Name}' has a deployment in progress; remove it after that.");
+        }
+
+        stacks.Remove(stack);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    // The role that adds stacks: a stack's own Editor did not add it and may not drop the roles others have on it.
+    private static bool CanRemove(User actor, DockerEnvironment environment, IReadOnlyList<RoleAssignment> assignments) =>
+        AccessPolicy.CanPerform(actor, environment, assignments, RolePermissions.RequiredFor(StackOperation.Remove));
+
     private async Task<(User Actor, Stack Stack, DockerEnvironment Environment, IReadOnlyList<RoleAssignment> Assignments)> LoadDeployableAsync(
         StackId stackId, CancellationToken cancellationToken)
     {
@@ -226,7 +262,8 @@ public sealed class StackService(
         stack.RestartOnFileChange,
         stack.HasDeployHook,
         AccessPolicy.CanPerform(actor, environment, stack, assignments, Permission.Deploy),
-        AccessPolicy.CanPerform(actor, environment, stack, assignments, StackOperation.Restart));
+        AccessPolicy.CanPerform(actor, environment, stack, assignments, StackOperation.Restart),
+        CanRemove(actor, environment, assignments) && !stack.IsSystem);
 
     /// <summary>
     /// The repository, if stacks of the environment may deploy from it (ADR-0006). One that may not is reported as

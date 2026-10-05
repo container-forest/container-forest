@@ -135,6 +135,20 @@ public class StackTests
     }
 
     [Fact]
+    public void Stack_is_removable_only_while_nothing_of_it_is_deployed()
+    {
+        var stack = Stack(EnvironmentId.New());
+        stack.EnsureRemovable();
+
+        stack.RecordDeployment(SucceededDeployment(stack, CommitA, Now), withSecrets: false);
+        Assert.Throws<DomainConflictException>(stack.EnsureRemovable);
+
+        stack.RecordTakenDown();
+        stack.EnsureRemovable();
+        Assert.Throws<DomainConflictException>(Stack(EnvironmentId.New(), isSystem: true).EnsureRemovable);
+    }
+
+    [Fact]
     public void Only_a_deployed_stack_with_secrets_needs_rehydration()
     {
         var stack = Stack(EnvironmentId.New());

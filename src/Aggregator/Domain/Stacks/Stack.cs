@@ -157,6 +157,20 @@ public sealed class Stack : Entity<StackId>
     }
 
     /// <summary>
+    /// Throws unless the stack may be removed from the system. A deployed stack must be taken down first: its
+    /// containers would keep running with nothing in the system that manages them.
+    /// </summary>
+    /// <exception cref="DomainConflictException">A system stack, or one with a deployed commit.</exception>
+    public void EnsureRemovable()
+    {
+        EnsureAllows(StackOperation.Remove);
+        if (DeployedCommit is not null)
+        {
+            throw new DomainConflictException($"Stack '{Name}' is deployed; take it down before removing it.");
+        }
+    }
+
+    /// <summary>
     /// True when the operation must run through the one-off helper container: an agent running
     /// compose up on its own stack would stop itself halfway through the command.
     /// </summary>

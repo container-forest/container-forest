@@ -579,6 +579,15 @@ const en: Translation = {
       noWebhook: "Neither the repository nor its connection has a webhook: pushes deploy nothing until one is set up.",
       failed: "Could not change the setting.",
     },
+    remove: {
+      title: "Remove the stack",
+      description: "Removes the stack from the system with its deployment history, the roles on it and the notification rules about it. Its files stay on the host: a new stack with the same name deploys over them.",
+      action: "Remove stack",
+      confirmTitle: "Remove stack “{{name}}”?",
+      confirmDescription: "Its deployment history, the roles on it and the notification rules about it are deleted for good.",
+      deployed: "The stack is deployed: take it down first, so that its containers are not left without a stack.",
+      failed: "Could not remove the stack.",
+    },
     restartOnFileChange: {
       title: "Restart after file changes",
       description:

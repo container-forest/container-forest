@@ -742,7 +742,7 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.HasOne("ContainerForest.Aggregator.Domain.Stacks.Stack", null)
                         .WithMany()
                         .HasForeignKey("StackId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.OwnsMany("ContainerForest.Aggregator.Domain.Deployments.DeploymentLogLine", "Log", b1 =>

@@ -185,6 +185,8 @@ internal sealed class StubGitSource : IGitSource
     /// <summary>The commits files were read at, in order.</summary>
     public List<string> ReadCommits { get; } = [];
 
+    public Task ForgetAsync(Domain.Common.RepositoryId repositoryId, CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task<GitSnapshot> ReadAsync(
         Domain.Repositories.GitRepository repository,
         Domain.Stacks.CommitSha commit,

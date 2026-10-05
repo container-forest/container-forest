@@ -4,6 +4,7 @@ using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Environments;
+using ContainerForest.Aggregator.Domain.Stacks;
 
 namespace ContainerForest.Aggregator.Application.Tests.Environments;
 
@@ -14,6 +15,7 @@ public class EnvironmentAdministrationTests
     private readonly InMemoryUsers users = new();
     private readonly InMemoryEnvironments environments = new();
     private readonly InMemoryRoleAssignments roleAssignments = new();
+    private readonly InMemoryStacks stacks = new();
     private readonly FakeAgentChannel agent = new();
     private readonly FakeUnitOfWork unitOfWork = new();
     private readonly EnvironmentService service;
@@ -29,7 +31,7 @@ public class EnvironmentAdministrationTests
 
     // CurrentActor remembers its user for the request, as in the aggregator, so each user gets its own service.
     private EnvironmentService ServiceFor(User user) => new(
-        new CurrentActor(new FakeCurrentUser { Id = user.Id }, users), environments, roleAssignments, unitOfWork, agent, new Deployments.FixedTime(Now));
+        new CurrentActor(new FakeCurrentUser { Id = user.Id }, users), environments, roleAssignments, stacks, unitOfWork, agent, new Deployments.FixedTime(Now));
 
     [Fact]
     public async Task Environment_is_renamed_and_made_private()
@@ -85,6 +87,33 @@ public class EnvironmentAdministrationTests
 
         await Assert.ThrowsAsync<AccessDeniedException>(() => asAlice.UpdateAsync(created.Id, "x", isPrivate: false, Ct));
         await Assert.ThrowsAsync<AccessDeniedException>(() => asAlice.RevokeAgentAsync(created.Id, Ct));
+        await Assert.ThrowsAsync<AccessDeniedException>(() => asAlice.RemoveAsync(created.Id, Ct));
+        Assert.Empty(agent.Disconnected);
+        Assert.NotNull(await environments.FindAsync(created.Id, Ct));
+    }
+
+    [Fact]
+    public async Task Environment_without_stacks_is_removed_and_its_agent_dropped()
+    {
+        var created = await service.CreateAsync("prod", isPrivate: false, Ct);
+
+        await service.RemoveAsync(created.Id, Ct);
+
+        Assert.Null(await environments.FindAsync(created.Id, Ct));
+        Assert.Equal([created.Id], agent.Disconnected);
+        await Assert.ThrowsAsync<NotFoundException>(() => service.RemoveAsync(created.Id, Ct));
+    }
+
+    [Fact]
+    public async Task Environment_with_stacks_is_not_removed()
+    {
+        var created = await service.CreateAsync("prod", isPrivate: false, Ct);
+        stacks.Add(Stack.Create(
+            created.Id, StackName.Parse("web"), RepositoryId.New(), BranchName.Parse("main"), StackFilePath.Parse("compose.yaml"),
+            isSystem: false, Now));
+
+        await Assert.ThrowsAsync<DomainConflictException>(() => service.RemoveAsync(created.Id, Ct));
+        Assert.NotNull(await environments.FindAsync(created.Id, Ct));
         Assert.Empty(agent.Disconnected);
     }
 }

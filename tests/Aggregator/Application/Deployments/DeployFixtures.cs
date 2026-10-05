@@ -75,6 +75,15 @@ internal sealed class FakeGitSource : IGitSource
 
     public CommitSha? ReadCommit { get; private set; }
 
+    /// <summary>Repositories whose clone <see cref="ForgetAsync"/> was asked to delete.</summary>
+    public List<RepositoryId> Forgotten { get; } = [];
+
+    public Task ForgetAsync(RepositoryId repositoryId, CancellationToken cancellationToken)
+    {
+        Forgotten.Add(repositoryId);
+        return Task.CompletedTask;
+    }
+
     public Task<CommitSha> FetchAsync(
         GitRepository repository, GitAccess access, BranchName branch, CancellationToken cancellationToken)
     {

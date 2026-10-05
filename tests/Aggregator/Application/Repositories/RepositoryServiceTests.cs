@@ -22,6 +22,7 @@ public class RepositoryServiceTests
     private readonly FakeCurrentUser currentUser = new();
     private readonly FakeUnitOfWork unitOfWork = new();
     private readonly FakeSecretProtector protector = new();
+    private readonly FakeGitSource gitSource = new();
     private readonly RepositoryService service;
 
     private readonly User admin = User.CreateAdministrator("root", Now);
@@ -39,6 +40,8 @@ public class RepositoryServiceTests
             new RepositoryAccess(actor, roleAssignments, stacks, environments),
             repositories,
             connections,
+            stacks,
+            gitSource,
             protector,
             unitOfWork,
             new FixedTime(Now));
@@ -186,6 +189,42 @@ public class RepositoryServiceTests
 
         await service.RemoveWebhookSecretAsync(app.Id, Ct);
         Assert.False(app.HasWebhook);
+    }
+
+    [Fact]
+    public async Task Repository_without_stacks_is_removed_with_its_cached_clone()
+    {
+        Grant(production, Role.Editor);
+        Assert.Equal(0, Assert.Single(await service.ListAsync(Ct)).StackCount);
+
+        await service.RemoveAsync(app.Id, Ct);
+
+        Assert.Null(await repositories.FindAsync(app.Id, Ct));
+        Assert.Equal([app.Id], gitSource.Forgotten);
+    }
+
+    [Fact]
+    public async Task Repository_with_stacks_is_not_removed()
+    {
+        Grant(production, Role.Editor);
+        AddStack(production, app.Id);
+
+        Assert.Equal(1, Assert.Single(await service.ListAsync(Ct)).StackCount);
+        await Assert.ThrowsAsync<DomainConflictException>(() => service.RemoveAsync(app.Id, Ct));
+        Assert.NotNull(await repositories.FindAsync(app.Id, Ct));
+        Assert.Empty(gitSource.Forgotten);
+    }
+
+    [Fact]
+    public async Task Removing_takes_the_right_to_manage_the_repository()
+    {
+        AddStack(production, app.Id, "theirs");
+        roleAssignments.Add(RoleAssignment.ForStack(alice.Id, AddStack(production, app.Id, "mine"), Role.Editor, Now));
+
+        var listed = Assert.Single(await service.ListAsync(Ct));
+        Assert.Null(listed.StackCount);
+        await Assert.ThrowsAsync<AccessDeniedException>(() => service.RemoveAsync(app.Id, Ct));
+        await Assert.ThrowsAsync<NotFoundException>(() => service.RemoveAsync(RepositoryId.New(), Ct));
     }
 
     [Fact]

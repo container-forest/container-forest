@@ -1,5 +1,7 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
+using ContainerForest.Aggregator.Application.Deployments;
+using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Repositories;
 
@@ -13,8 +15,12 @@ public interface IGitRepositoryRepository : IRepository<GitRepository, Repositor
 }
 
 /// <param name="Connection">Null for a public repository.</param>
-/// <param name="CanManage">Whether the current user may change the repository and its webhook.</param>
-public sealed record RepositorySummary(GitRepository Repository, GitConnection? Connection, bool CanManage);
+/// <param name="CanManage">Whether the current user may change, remove the repository and its webhook.</param>
+/// <param name="StackCount">
+/// How many stacks deploy from it, in all environments; only for those who may manage it (they may deploy each of
+/// them), null otherwise. A repository with stacks cannot be removed.
+/// </param>
+public sealed record RepositorySummary(GitRepository Repository, GitConnection? Connection, bool CanManage, int? StackCount = null);
 
 /// <summary>
 /// Repositories as the current user may see and change them (ADR-0006). Administrators manage all of them. Editors add
@@ -25,6 +31,8 @@ public sealed class RepositoryService(
     RepositoryAccess access,
     IGitRepositoryRepository repositories,
     IGitConnectionRepository connections,
+    IStackRepository stacks,
+    IGitSource gitSource,
     ISecretProtector protector,
     IUnitOfWork unitOfWork,
     TimeProvider time)
@@ -40,7 +48,7 @@ public sealed class RepositoryService(
         var repository = GitRepository.Create(name, url, connection, time.GetUtcNow());
         repositories.Add(repository);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return new RepositorySummary(repository, connection, CanManage: true);
+        return new RepositorySummary(repository, connection, CanManage: true, StackCount: 0);
     }
 
     /// <summary>Renames the repository and points it at another address or connection; its stacks deploy from there next.</summary>
@@ -55,7 +63,7 @@ public sealed class RepositoryService(
         repository.Rename(name);
         repository.ChangeSource(url, connection);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return new RepositorySummary(repository, connection, CanManage: true);
+        return await ManagedSummaryAsync(repository, connection, cancellationToken);
     }
 
     /// <summary>
@@ -69,7 +77,7 @@ public sealed class RepositoryService(
         var secret = SecretToken.Generate();
         repository.SetWebhookSecret(protector.Protect(SecretPurpose.WebhookSecret, secret));
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return (new RepositorySummary(repository, connection, CanManage: true), secret);
+        return (await ManagedSummaryAsync(repository, connection, cancellationToken), secret);
     }
 
     /// <summary>Stops deploying on push through the repository's own webhook.</summary>
@@ -78,7 +86,32 @@ public sealed class RepositoryService(
         var (_, repository, connection) = await LoadManagedAsync(id, cancellationToken);
         repository.RemoveWebhookSecret();
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return new RepositorySummary(repository, connection, CanManage: true);
+        return await ManagedSummaryAsync(repository, connection, cancellationToken);
+    }
+
+    /// <summary>
+    /// Removes a repository no stack deploys from, with its webhook secret and the aggregator's cached clone. Its
+    /// stacks must first be pointed at another repository or removed: the count does not name them, since they may be
+    /// in environments the user does not see.
+    /// </summary>
+    /// <exception cref="NotFoundException">The repository is not visible to the user.</exception>
+    /// <exception cref="AccessDeniedException">The user may not manage it.</exception>
+    /// <exception cref="DomainConflictException">Stacks deploy from it.</exception>
+    public async Task RemoveAsync(RepositoryId id, CancellationToken cancellationToken)
+    {
+        var (_, repository, _) = await LoadManagedAsync(id, cancellationToken);
+        var stackCount = (await stacks.ListByRepositoryAsync(repository.Id, cancellationToken)).Count;
+        if (stackCount > 0)
+        {
+            throw new DomainConflictException(
+                $"Repository '{repository.Name}' is used by {stackCount} stack(s); point them at another repository or remove them first.");
+        }
+
+        repositories.Remove(repository);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // After saving: the clone is only a cache, and a failure to delete it must not keep the repository.
+        await gitSource.ForgetAsync(repository.Id, cancellationToken);
     }
 
     /// <summary>
@@ -96,13 +129,18 @@ public sealed class RepositoryService(
             var connection = repository.ConnectionId is { } connectionId ? byId.GetValueOrDefault(connectionId) : null;
             if (actor.CanUse(connection))
             {
-                result.Add(new RepositorySummary(
-                    repository, connection, await access.CanManageAsync(actor, repository, connection, cancellationToken)));
+                result.Add(await access.CanManageAsync(actor, repository, connection, cancellationToken)
+                    ? await ManagedSummaryAsync(repository, connection, cancellationToken)
+                    : new RepositorySummary(repository, connection, CanManage: false));
             }
         }
 
         return result.OrderBy(r => r.Repository.Name, StringComparer.OrdinalIgnoreCase).ThenBy(r => r.Repository.Url.ToString()).ToList();
     }
+
+    private async Task<RepositorySummary> ManagedSummaryAsync(
+        GitRepository repository, GitConnection? connection, CancellationToken cancellationToken) =>
+        new(repository, connection, CanManage: true, (await stacks.ListByRepositoryAsync(repository.Id, cancellationToken)).Count);
 
     private async Task<GitConnection?> UsableConnectionAsync(
         RepositoryActor actor, GitConnectionId? connectionId, CancellationToken cancellationToken)

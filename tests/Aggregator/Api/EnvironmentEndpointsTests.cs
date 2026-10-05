@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using ContainerForest.Contracts.Agent;
 
 namespace ContainerForest.Aggregator.Api.Tests;
@@ -126,6 +127,58 @@ public class EnvironmentEndpointsTests
         var logs = (await request)!;
         Assert.Equal([("Stdout", "ready"), ("Stderr", "warning")], logs.Lines.Select(l => (l.Stream, l.Text)));
         Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1_000), logs.Lines[0].At);
+    }
+
+    [Fact]
+    public async Task Removed_environment_takes_its_keys_logins_and_roles_along()
+    {
+        await using var app = new AggregatorApp();
+        var aliceId = await app.CreateUserAsync("alice", isAdmin: false);
+        var environment = await app.CreateEnvironmentAsync("archive");
+        var admin = app.CreateClient();
+        var path = $"/api/environments/{environment.Id}";
+        await HttpAssert.StatusAsync(HttpStatusCode.Created, admin.PostAsync($"{path}/age-keys", null, Ct));
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Created,
+            admin.PutAsJsonAsync($"{path}/registry-credentials", new { server = "ghcr.io", username = "bot", password = "secret" }, Ct));
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Created,
+            admin.PostAsJsonAsync($"/api/users/{aliceId}/role-assignments", new { environmentId = environment.Id, stackId = (Guid?)null, role = "Viewer" }, Ct));
+
+        await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, app.CreateClientAs("alice").DeleteAsync(path, Ct));
+        await HttpAssert.StatusAsync(HttpStatusCode.NoContent, admin.DeleteAsync(path, Ct));
+
+        Assert.Empty((await admin.GetFromJsonAsync<EnvironmentView[]>("/api/environments", AggregatorApp.Json, Ct))!);
+        await HttpAssert.StatusAsync(HttpStatusCode.NotFound, admin.GetAsync($"{path}/age-keys", Ct));
+        var alice = await admin.GetFromJsonAsync<JsonElement>($"/api/users/{aliceId}", AggregatorApp.Json, Ct);
+        Assert.Equal(0, alice.GetProperty("roleAssignments").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Environment_and_repository_with_a_stack_are_not_removed_until_it_is()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        var admin = app.CreateClient();
+        var repository = await admin.PostAsJsonAsync(
+            "/api/repositories", new { name = "infra", url = "https://git.example.com/infra.git", connectionId = (Guid?)null }, Ct);
+        var repositoryId = (await repository.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct)).GetProperty("id").GetGuid();
+        var stack = await admin.PostAsJsonAsync(
+            $"/api/environments/{agent.EnvironmentId}/stacks",
+            new { name = "web", repositoryId, branch = "main", composePath = "compose.yaml" },
+            Ct);
+        var stackId = (await stack.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct)).GetProperty("id").GetGuid();
+
+        var listed = (await admin.GetFromJsonAsync<JsonElement>("/api/repositories", AggregatorApp.Json, Ct))[0];
+        Assert.Equal(1, listed.GetProperty("stackCount").GetInt32());
+        await HttpAssert.StatusAsync(HttpStatusCode.Conflict, admin.DeleteAsync($"/api/environments/{agent.EnvironmentId}", Ct));
+        await HttpAssert.StatusAsync(HttpStatusCode.Conflict, admin.DeleteAsync($"/api/repositories/{repositoryId}", Ct));
+
+        await HttpAssert.StatusAsync(HttpStatusCode.NoContent, admin.DeleteAsync($"/api/stacks/{stackId}", Ct));
+        await HttpAssert.StatusAsync(HttpStatusCode.NoContent, admin.DeleteAsync($"/api/repositories/{repositoryId}", Ct));
+        await HttpAssert.StatusAsync(HttpStatusCode.NoContent, admin.DeleteAsync($"/api/environments/{agent.EnvironmentId}", Ct));
+
+        Assert.Equal(0, (await admin.GetFromJsonAsync<JsonElement>("/api/repositories", AggregatorApp.Json, Ct)).GetArrayLength());
     }
 
     [Fact]

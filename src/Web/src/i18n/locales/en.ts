@@ -416,6 +416,15 @@ const en: Translation = {
       replaceDescription: "The previous token stops working. An agent that enrolls with the new one replaces the current agent.",
       failed: "Could not issue a token.",
     },
+    remove: {
+      title: "Remove the environment",
+      description: "Removes the environment from the system with its SOPS keys, registry logins, roles and notification rules. The agent is disconnected; stop it on the host yourself.",
+      inUse: "The environment has stacks ({{count}}): take them down and remove them first.",
+      button: "Remove environment",
+      confirmTitle: "Remove environment {{name}}?",
+      confirmDescription: "Its private SOPS keys are deleted for good: files encrypted only for them can no longer be decrypted by the aggregator. Registry logins, roles and notification rules go too.",
+      failed: "Could not remove the environment.",
+    },
     revoke: {
       button: "Revoke agent",
       title: "Revoke the agent of {{name}}?",
@@ -767,6 +776,15 @@ const en: Translation = {
       title: "Repository {{name}}",
       description: "Stacks keep deploying from it: the next deployment uses the new URL.",
       save: "Save",
+    },
+    delete: {
+      title: "Removal",
+      description: "No stack deploys from this repository.",
+      inUse: "Stacks deploy from this repository ({{count}}): remove them or point them at another repository first.",
+      button: "Remove repository",
+      confirmTitle: "Remove repository {{name}}?",
+      confirmDescription: "Its webhook secret and the aggregator's copy are deleted. The repository on the git server stays.",
+      failed: "Could not remove the repository.",
     },
     webhook: {
       title: "Webhook",

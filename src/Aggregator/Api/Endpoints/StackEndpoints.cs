@@ -39,6 +39,17 @@ internal static class StackEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
+        repositories.MapDelete(
+                "/{id:guid}",
+                async (Guid id, RepositoryService service, CancellationToken ct) =>
+                {
+                    await service.RemoveAsync(RepositoryId.From(id), ct);
+                    return TypedResults.NoContent();
+                })
+            .WithName("RemoveRepository")
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
         repositories.MapPost(
                 "/{id:guid}/webhook",
                 async (Guid id, RepositoryService service, CancellationToken ct) =>
@@ -186,6 +197,7 @@ internal static class StackEndpoints
         summary.Repository.HasWebhook,
         summary.Connection?.HasWebhook ?? false,
         summary.CanManage,
+        summary.StackCount,
         summary.Repository.CreatedAt);
 
     private static GitConnectionId? ConnectionIdOf(Guid? id) => id is { } value ? GitConnectionId.From(value) : null;

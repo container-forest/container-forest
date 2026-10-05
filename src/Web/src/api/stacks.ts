@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { StackAction } from "@/features/stacks/model";
 import { api, unwrap } from "./client";
-import { deploymentsQuery, repositoriesQuery, stackQuery, stacksQuery } from "./queries";
+import { deploymentsQuery, gitConnectionsQuery, repositoriesQuery, stackQuery, stacksQuery } from "./queries";
 import type { components } from "./schema.gen";
 
 export type CreateRepositoryRequest = components["schemas"]["CreateRepositoryRequest"];
@@ -27,6 +27,20 @@ export function useUpdateRepositoryMutation(repositoryId: string) {
     mutationFn: async (request: UpdateRepositoryRequest) =>
       unwrap(await api.PUT("/api/repositories/{id}", { params: { path: { id: repositoryId } }, body: request })),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: repositoriesQuery.queryKey }),
+  });
+}
+
+/** Removes a repository no stack deploys from; its connection's repository count changes too. */
+export function useRemoveRepositoryMutation(repositoryId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => unwrap(await api.DELETE("/api/repositories/{id}", { params: { path: { id: repositoryId } } })),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: repositoriesQuery.queryKey }),
+        queryClient.invalidateQueries({ queryKey: gitConnectionsQuery.queryKey }),
+      ]),
   });
 }
 

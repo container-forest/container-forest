@@ -41,7 +41,8 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 /// <param name="ConnectionName">Name of that connection.</param>
 /// <param name="HasWebhook">A webhook secret is set: pushes deploy the stacks that opted in.</param>
 /// <param name="ConnectionHasWebhook">The repository's connection has an organization-wide webhook, which also delivers its pushes.</param>
-/// <param name="CanManage">Whether the current user may change the repository and its webhook.</param>
+/// <param name="CanManage">Whether the current user may change or remove the repository and its webhook.</param>
+/// <param name="StackCount">How many stacks deploy from it; only when the user may manage it. One with stacks cannot be removed.</param>
 public sealed record RepositoryResponse(
     Guid Id,
     string Name,
@@ -51,6 +52,7 @@ public sealed record RepositoryResponse(
     bool HasWebhook,
     bool ConnectionHasWebhook,
     bool CanManage,
+    int? StackCount,
     DateTimeOffset CreatedAt);
 
 /// <param name="Secret">Shown only in this response; the git server signs deliveries with it.</param>

@@ -1,13 +1,14 @@
-import { Link, Outlet, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { Link, Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useLogoutMutation } from "../api/auth";
-import { isUnauthorized } from "../api/client";
-import { meQuery } from "../api/queries";
-import { LogOutIcon } from "../components/icons";
-import { LanguageSwitcher } from "../components/language-switcher";
-import { HubProvider } from "../components/live/hub-provider";
-import { LiveIndicator } from "../components/live/live-indicator";
-import { Button } from "../components/ui/button";
+import { isUnauthorized } from "@/api/client";
+import { meQuery } from "@/api/queries";
+import { MenuIcon } from "@/components/icons";
+import { SidebarContent } from "@/components/layout/app-sidebar";
+import { HubProvider } from "@/components/live/hub-provider";
+import { LiveIndicator } from "@/components/live/live-indicator";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 /**
  * Every page that needs a signed-in user lives under this pathless layout. A 401 from /api/me sends the
@@ -30,124 +31,44 @@ export const Route = createFileRoute("/_authed")({
 
 function AuthedLayout() {
   const { t } = useTranslation();
-  const { me } = Route.useRouteContext();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <HubProvider>
-      <div className="min-h-svh">
-        {/* Narrower than xl, the links get a row of their own and scroll sideways instead of widening the page. */}
-        <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b sm:gap-x-6 px-4 py-3 sm:px-6">
-          <Link to="/" className="font-semibold">
-            container-forest
-          </Link>
-          <nav className="order-last -mx-4 flex w-full gap-4 overflow-x-auto px-4 pb-1 text-sm whitespace-nowrap sm:-mx-6 sm:px-6 xl:order-none xl:mx-0 xl:w-auto xl:flex-1 xl:overflow-visible xl:px-0 xl:pb-0">
-            {/* Screens add their links here. */}
-            <Link
-              to="/environments"
-              className="hover:text-foreground"
-              inactiveProps={{ className: "text-muted-foreground" }}
-              activeProps={{ className: "text-foreground font-medium" }}
-            >
-              {t("layout.nav.environments")}
+      <div className="min-h-svh md:grid md:grid-cols-[16rem_minmax(0,1fr)]">
+        {/* Wide screens: the sidebar stays in place while the page scrolls. */}
+        <aside className="bg-sidebar sticky top-0 hidden h-svh border-r md:block">
+          <SidebarContent />
+        </aside>
+
+        <div className="min-w-0">
+          {/* Phones and narrow windows: a bar with the menu, which opens the same sidebar as a sheet. */}
+          <header className="bg-background/95 sticky top-0 z-40 flex items-center gap-2 border-b px-2 py-2 backdrop-blur md:hidden">
+            <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label={t("layout.nav.menu")}>
+                  <MenuIcon className="size-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="bg-sidebar w-72 gap-0 p-0" showCloseButton={false}>
+                <SheetTitle className="sr-only">{t("layout.nav.menu")}</SheetTitle>
+                <SheetDescription className="sr-only">{t("layout.nav.menuDescription")}</SheetDescription>
+                <SidebarContent onNavigate={() => setMenuOpen(false)} />
+              </SheetContent>
+            </Sheet>
+            <Link to="/" className="font-heading text-base font-extrabold tracking-tight">
+              container<span className="text-emerald-500">-</span>forest
             </Link>
-            <Link
-              to="/containers"
-              className="hover:text-foreground"
-              inactiveProps={{ className: "text-muted-foreground" }}
-              activeProps={{ className: "text-foreground font-medium" }}
-            >
-              {t("layout.nav.containers")}
-            </Link>
-            <Link
-              to="/stacks"
-              className="hover:text-foreground"
-              inactiveProps={{ className: "text-muted-foreground" }}
-              activeProps={{ className: "text-foreground font-medium" }}
-            >
-              {t("layout.nav.stacks")}
-            </Link>
-            <Link
-              to="/keys"
-              className="hover:text-foreground"
-              inactiveProps={{ className: "text-muted-foreground" }}
-              activeProps={{ className: "text-foreground font-medium" }}
-            >
-              {t("layout.nav.keys")}
-            </Link>
-            <Link
-              to="/discord"
-              className="hover:text-foreground"
-              inactiveProps={{ className: "text-muted-foreground" }}
-              activeProps={{ className: "text-foreground font-medium" }}
-            >
-              {t("layout.nav.discord")}
-            </Link>
-            {/* Administrators and editors; the screen says so to anyone else (ADR-0006). */}
-            <Link
-              to="/repositories"
-              className="hover:text-foreground"
-              inactiveProps={{ className: "text-muted-foreground" }}
-              activeProps={{ className: "text-foreground font-medium" }}
-            >
-              {t("layout.nav.repositories")}
-            </Link>
-            {/* Only a convenience: the aggregator refuses non-administrators anyway. */}
-            {me.isAdmin && (
-              <Link
-                to="/users"
-                className="hover:text-foreground"
-                inactiveProps={{ className: "text-muted-foreground" }}
-                activeProps={{ className: "text-foreground font-medium" }}
-              >
-                {t("layout.nav.users")}
-              </Link>
-            )}
-            {me.isAdmin && (
-              <Link
-                to="/notifications"
-                className="hover:text-foreground"
-                inactiveProps={{ className: "text-muted-foreground" }}
-                activeProps={{ className: "text-foreground font-medium" }}
-              >
-                {t("layout.nav.notifications")}
-              </Link>
-            )}
-          </nav>
-          <Link
-            to="/account"
-            className="text-muted-foreground hover:text-foreground ml-auto max-w-32 truncate text-sm sm:max-w-none"
-            title={t("layout.nav.account")}
-          >
-            {me.userName}
-            {me.isAdmin && <span className="hidden sm:inline"> {t("layout.administrator")}</span>}
-          </Link>
-          <LiveIndicator />
-          <LanguageSwitcher />
-          <LogoutButton />
-        </header>
-        <main className="mx-auto max-w-6xl p-4 sm:p-6">
-          <Outlet />
-        </main>
+            <span className="ml-auto pr-2">
+              <LiveIndicator />
+            </span>
+          </header>
+
+          <main className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-8">
+            <Outlet />
+          </main>
+        </div>
       </div>
     </HubProvider>
-  );
-}
-
-function LogoutButton() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const logout = useLogoutMutation();
-
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      disabled={logout.isPending}
-      onClick={() => logout.mutate(undefined, { onSuccess: () => navigate({ to: "/login" }) })}
-    >
-      <LogOutIcon data-icon="inline-start" />
-      {/* On a phone only the icon fits next to the name; the text stays for screen readers. */}
-      <span className="sr-only sm:not-sr-only">{t("layout.signOut")}</span>
-    </Button>
   );
 }

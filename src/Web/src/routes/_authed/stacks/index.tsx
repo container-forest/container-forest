@@ -1,18 +1,20 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { environmentsQuery, stacksQuery } from "@/api/queries";
 import { ErrorText } from "@/components/form-messages";
 import { Loader2Icon, RefreshCwIcon } from "@/components/icons";
 import { CreateStackDialog } from "@/components/stacks/create-stack-dialog";
+import { type StackQuickResult, StackQuickActions } from "@/components/stacks/stack-quick-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Environment } from "@/features/containers/model";
 import { describeError, shortCommit, stacksSearchSchema } from "@/features/stacks/model";
 import { formatDateTime } from "@/lib/format";
+import { rowActionsClass, rowClass, rowLinkClass } from "@/lib/row-link";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/stacks/")({
   validateSearch: stacksSearchSchema,
@@ -32,7 +34,6 @@ export const Route = createFileRoute("/_authed/stacks/")({
 function StacksScreen() {
   const { t } = useTranslation();
   const search = Route.useSearch();
-  const navigate = Route.useNavigate();
   const { me } = Route.useRouteContext();
   const { data: environments } = useSuspenseQuery(environmentsQuery);
   const environment = environments.find((e) => e.id === search.environment);
@@ -41,37 +42,14 @@ function StacksScreen() {
     <div className="grid gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-heading text-2xl font-semibold">{t("stacks.title")}</h1>
+          <h1 className="font-heading flex flex-wrap items-baseline gap-x-3 text-2xl font-semibold">
+            {t("stacks.title")}
+            {environment && <span className="text-muted-foreground text-lg font-medium">{environment.name}</span>}
+          </h1>
           <p className="text-muted-foreground mt-1">{t("stacks.description")}</p>
         </div>
-        {environments.length > 0 && (
-          <div className="flex items-end gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="stacks-environment">{t("stacks.environment")}</Label>
-              <Select
-                value={search.environment}
-                onValueChange={(id) =>
-                  id !== "" && id !== search.environment && void navigate({ search: { environment: id }, replace: true })
-                }
-              >
-                <SelectTrigger id="stacks-environment" className="min-w-56">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {environments.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {/* Adding a stack takes Editor on the environment; hiding is cosmetic, the aggregator answers 403 otherwise. */}
-            {environment && (me.isAdmin || environment.role === "Editor") && (
-              <CreateStackDialog environmentId={environment.id} />
-            )}
-          </div>
-        )}
+        {/* Adding a stack takes Editor on the environment; hiding is cosmetic, the aggregator answers 403 otherwise. */}
+        {environment && (me.isAdmin || environment.role === "Editor") && <CreateStackDialog environmentId={environment.id} />}
       </div>
 
       {environment === undefined ? (
@@ -86,6 +64,7 @@ function StacksScreen() {
 function EnvironmentStacks({ environment }: { environment: Environment }) {
   const { t, i18n } = useTranslation();
   const stacks = useQuery(stacksQuery(environment.id));
+  const [result, setResult] = useState<StackQuickResult>();
 
   if (stacks.isPending) {
     return (
@@ -111,20 +90,24 @@ function EnvironmentStacks({ environment }: { environment: Environment }) {
 
   return (
     <div className="grid gap-3">
+      <QuickResult result={result} />
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>{t("stacks.columns.name")}</TableHead>
-            <TableHead>{t("stacks.columns.source")}</TableHead>
+            <TableHead className="hidden md:table-cell">{t("stacks.columns.source")}</TableHead>
             <TableHead>{t("stacks.columns.deployed")}</TableHead>
-            <TableHead>{t("stacks.columns.access")}</TableHead>
+            <TableHead className="hidden lg:table-cell">{t("stacks.columns.access")}</TableHead>
+            <TableHead className="text-right">
+              <span className="sr-only sm:not-sr-only">{t("stacks.columns.actions")}</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {stacks.data.map((stack) => (
-            <TableRow key={stack.id}>
-              <TableCell>
-                <Link to="/stacks/$stackId" params={{ stackId: stack.id }} className="font-medium hover:underline">
+            <TableRow key={stack.id} className={rowClass}>
+              <TableCell className="whitespace-normal">
+                <Link to="/stacks/$stackId" params={{ stackId: stack.id }} className={cn("font-medium", rowLinkClass)}>
                   {stack.name}
                 </Link>
                 {stack.isSystem && (
@@ -132,8 +115,9 @@ function EnvironmentStacks({ environment }: { environment: Environment }) {
                     {t("stacks.system")}
                   </Badge>
                 )}
+                <div className="text-muted-foreground text-xs md:hidden">{stack.repositoryName ?? t("stacks.repositoryGone")}</div>
               </TableCell>
-              <TableCell className="text-sm">
+              <TableCell className="hidden text-sm md:table-cell">
                 <div>{stack.repositoryName ?? t("stacks.repositoryGone")}</div>
                 <div className="text-muted-foreground font-mono text-xs">
                   {stack.branch} · {stack.composePath}
@@ -149,8 +133,11 @@ function EnvironmentStacks({ environment }: { environment: Environment }) {
                   <span className="text-muted-foreground">{t("stacks.notDeployed")}</span>
                 )}
               </TableCell>
-              <TableCell className="text-muted-foreground text-sm">
+              <TableCell className="text-muted-foreground hidden text-sm lg:table-cell">
                 {stack.canDeploy ? t("stacks.access.deploy") : stack.canRestart ? t("stacks.access.restart") : t("stacks.access.view")}
+              </TableCell>
+              <TableCell className={cn("text-right", rowActionsClass)}>
+                <StackQuickActions stack={stack} onResult={setResult} />
               </TableCell>
             </TableRow>
           ))}
@@ -162,6 +149,39 @@ function EnvironmentStacks({ environment }: { environment: Environment }) {
           {t("stacks.refresh")}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** The outcome of the last quick action, above the list; a deployment links to its log. */
+function QuickResult({ result }: { result: StackQuickResult | undefined }) {
+  const { t } = useTranslation();
+
+  return (
+    <div aria-live="polite">
+      {result?.kind === "deployed" && (
+        <p role="status" className="text-sm">
+          {t("stacks.quick.deployQueued", { name: result.stack })}{" "}
+          <Link to="/deployments/$deploymentId" params={{ deploymentId: result.deploymentId }} className="font-medium underline">
+            {t("stacks.quick.openDeployment")}
+          </Link>
+        </p>
+      )}
+      {result?.kind === "done" && (
+        <p role="status" className="text-sm">
+          {t(`stacks.quick.done.${result.action}`, { name: result.stack })}
+        </p>
+      )}
+      {result?.kind === "composeFailed" && (
+        <ErrorText>
+          {t("stacks.quick.composeFailed", { name: result.stack })} {result.error}
+        </ErrorText>
+      )}
+      {result?.kind === "error" && (
+        <ErrorText>
+          {result.stack}: {t(result.key)} {result.detail}
+        </ErrorText>
+      )}
     </div>
   );
 }

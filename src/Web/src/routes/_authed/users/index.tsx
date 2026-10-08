@@ -13,6 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CreateUserDialog } from "@/components/users/create-user-dialog";
 import { UserKindBadge, UserStatusBadge } from "@/components/users/user-badges";
 import { formatDate } from "@/lib/format";
+import { rowClass, rowLinkClass } from "@/lib/row-link";
+import { cn } from "@/lib/utils";
 import { type UserStatusFilter, filterUsers, userStatusFilters } from "@/lib/users";
 
 // Filters live in the URL, so a filtered list can be bookmarked, shared and restored with Back.
@@ -94,7 +96,7 @@ function UsersScreen() {
             <TableHead>{t("users.columns.userName")}</TableHead>
             <TableHead>{t("users.columns.kind")}</TableHead>
             <TableHead>{t("users.columns.status")}</TableHead>
-            <TableHead>{t("users.columns.createdAt")}</TableHead>
+            <TableHead className="hidden sm:table-cell">{t("users.columns.createdAt")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -106,9 +108,9 @@ function UsersScreen() {
             </TableRow>
           ) : (
             shown.map((user) => (
-              <TableRow key={user.id}>
+              <TableRow key={user.id} className={rowClass}>
                 <TableCell>
-                  <Link to="/users/$userId" params={{ userId: user.id }} className="font-medium hover:underline">
+                  <Link to="/users/$userId" params={{ userId: user.id }} className={cn("font-medium", rowLinkClass)}>
                     {user.userName}
                   </Link>
                 </TableCell>
@@ -118,7 +120,9 @@ function UsersScreen() {
                 <TableCell>
                   <UserStatusBadge user={user} now={now} />
                 </TableCell>
-                <TableCell className="text-muted-foreground">{formatDate(user.createdAt, i18n.resolvedLanguage)}</TableCell>
+                <TableCell className="text-muted-foreground hidden sm:table-cell">
+                  {formatDate(user.createdAt, i18n.resolvedLanguage)}
+                </TableCell>
               </TableRow>
             ))
           )}

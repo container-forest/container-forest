@@ -12,6 +12,8 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type NotificationChannel, describeError } from "@/features/notifications/model";
 import { formatDate } from "@/lib/format";
+import { rowActionsClass, rowClass, rowLinkClass } from "@/lib/row-link";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/notifications/channels/")({
   loader: ({ context }) => context.queryClient.ensureQueryData(notificationChannelsQuery),
@@ -41,8 +43,8 @@ function ChannelsScreen() {
           <TableHeader>
             <TableRow>
               <TableHead>{t("notifications.channels.columns.name")}</TableHead>
-              <TableHead>{t("notifications.channels.columns.discordId")}</TableHead>
-              <TableHead>{t("notifications.channels.columns.created")}</TableHead>
+              <TableHead className="hidden md:table-cell">{t("notifications.channels.columns.discordId")}</TableHead>
+              <TableHead className="hidden lg:table-cell">{t("notifications.channels.columns.created")}</TableHead>
               <TableHead>{t("notifications.channels.columns.enabled")}</TableHead>
               <TableHead className="text-right">{t("notifications.channels.columns.actions")}</TableHead>
             </TableRow>
@@ -68,12 +70,12 @@ function ChannelRow({ channel }: { channel: NotificationChannel }) {
   const enabled = update.isPending ? (update.variables?.isEnabled ?? channel.isEnabled) : channel.isEnabled;
 
   return (
-    <TableRow>
+    <TableRow className={rowClass}>
       <TableCell>
         <Link
           to="/notifications/channels/$channelId"
           params={{ channelId: channel.id }}
-          className="font-medium hover:underline"
+          className={cn("font-medium", rowLinkClass)}
         >
           {channel.name}
         </Link>
@@ -83,14 +85,16 @@ function ChannelRow({ channel }: { channel: NotificationChannel }) {
           </ErrorText>
         )}
       </TableCell>
-      <TableCell>
+      <TableCell className={cn("hidden md:table-cell", rowActionsClass)}>
         <span className="flex items-center gap-1">
           <code className="font-mono text-sm">{channel.discordChannelId}</code>
           <CopyButton text={channel.discordChannelId} label={t("notifications.channels.copyId")} variant="ghost" />
         </span>
       </TableCell>
-      <TableCell className="text-muted-foreground text-sm">{formatDate(channel.createdAt, i18n.resolvedLanguage)}</TableCell>
-      <TableCell>
+      <TableCell className="text-muted-foreground hidden text-sm lg:table-cell">
+        {formatDate(channel.createdAt, i18n.resolvedLanguage)}
+      </TableCell>
+      <TableCell className={rowActionsClass}>
         <Switch
           checked={enabled}
           disabled={update.isPending}
@@ -100,7 +104,7 @@ function ChannelRow({ channel }: { channel: NotificationChannel }) {
           }
         />
       </TableCell>
-      <TableCell>
+      <TableCell className={rowActionsClass}>
         <div className="flex justify-end gap-1">
           <EditChannelDialog channel={channel} />
           <ConfirmAction

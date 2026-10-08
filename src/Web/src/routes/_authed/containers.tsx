@@ -1,53 +1,23 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { Link, createFileRoute, redirect } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useContainerActionMutation } from "@/api/containers";
 import { containersQuery, environmentsQuery } from "@/api/queries";
-import {
-  FilterXIcon,
-  Loader2Icon,
-  PlayIcon,
-  RefreshCwIcon,
-  RotateCwIcon,
-  ScrollTextIcon,
-  SearchIcon,
-  SquareIcon,
-} from "@/components/icons";
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
+import { FilterXIcon, Loader2Icon, RefreshCwIcon, SearchIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { MessageKey } from "@/i18n";
+import { ContainerTable } from "@/components/containers/container-table";
 import {
   ALL_STACKS,
-  type Container,
-  type ContainerAction,
   type ContainersSearch,
-  DEFAULT_STOP_TIMEOUT,
   type Environment,
-  MAX_STOP_TIMEOUT,
   NO_STACK,
   type StateFilter,
   containersSearchSchema,
   describeError,
   filterContainers,
-  isActionAvailable,
-  needsConfirmation,
-  parseStopTimeout,
   stackOptions,
-  stateFilterOf,
   stateFilters,
 } from "@/features/containers/model";
 import { useLiveStatus } from "@/components/live/hub-provider";
@@ -95,33 +65,12 @@ function ContainersScreen() {
     <div className="grid gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-heading text-2xl font-semibold">{t("containers.title")}</h1>
+          <h1 className="font-heading flex flex-wrap items-baseline gap-x-3 text-2xl font-semibold">
+            {t("containers.title")}
+            {environment && <span className="text-muted-foreground text-lg font-medium">{environment.name}</span>}
+          </h1>
           <p className="text-muted-foreground mt-1">{t("containers.description")}</p>
         </div>
-        {environments.length > 0 && (
-          <div className="grid gap-1.5">
-            <Label htmlFor="environment">{t("containers.environment")}</Label>
-            <Select
-              value={search.environment}
-              // Stacks differ between environments, so the stack filter does not carry over.
-              // Radix Select also reports its current value, or "" while the value matches no item, without the
-              // user choosing anything; only a different environment resets the stack filter.
-              onValueChange={(id) => id !== "" && id !== search.environment && setSearch({ environment: id, stack: undefined })}
-            >
-              <SelectTrigger id="environment" className="min-w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {environments.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    {e.name}
-                    {!e.isOnline && <span className="text-muted-foreground">{t("containers.offlineMark")}</span>}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
       </div>
 
       {environment === undefined ? (
@@ -132,19 +81,6 @@ function ContainersScreen() {
       )}
     </div>
   );
-}
-
-/** The outcome of the last action. Kept as a key, not text, so it follows a language switch. */
-interface Notice {
-  kind: "success" | "error";
-  key: MessageKey;
-  name?: string;
-  detail?: string;
-}
-
-interface PendingAction {
-  container: Container;
-  action: "stop" | "restart";
 }
 
 function EnvironmentContainers({
@@ -164,37 +100,9 @@ function EnvironmentContainers({
     enabled: environment.isOnline,
     refetchInterval: pollingInterval(live, REFRESH_INTERVAL_MS, REFRESH_WHILE_LIVE_MS),
   });
-  const action = useContainerActionMutation(environment.id);
-  const [pending, setPending] = useState<PendingAction>();
-  const [notice, setNotice] = useState<Notice>();
-
   const errorText = (error: unknown) => {
     const { key, detail } = describeError(error);
     return detail ? `${t(key)} ${detail}` : t(key);
-  };
-
-  const noticeText = ({ key, name, detail }: Notice) => {
-    const text = t(key, { name });
-    return detail ? `${text} ${detail}` : text;
-  };
-
-  const run = (container: Container, kind: ContainerAction, timeoutSeconds?: number) => {
-    setNotice(undefined);
-    action.mutate(
-      { containerId: container.id, action: kind, timeoutSeconds },
-      {
-        onSuccess: () => setNotice({ kind: "success", key: `containers.done.${kind}`, name: container.name }),
-        onError: (error) => setNotice({ kind: "error", ...describeError(error) }),
-      },
-    );
-  };
-
-  const onAction = (container: Container, kind: ContainerAction) => {
-    if (needsConfirmation(kind)) {
-      setPending({ container, action: kind });
-    } else {
-      run(container, kind);
-    }
   };
 
   if (!environment.isOnline) {
@@ -286,14 +194,6 @@ function EnvironmentContainers({
         </Button>
       </div>
 
-      <div aria-live="polite">
-        {notice && (
-          <p role={notice.kind === "error" ? "alert" : "status"} className={notice.kind === "error" ? "text-destructive text-sm" : "text-sm"}>
-            {noticeText(notice)}
-          </p>
-        )}
-      </div>
-
       {containers.isPending ? (
         <p className="text-muted-foreground flex items-center gap-2">
           <Loader2Icon className="animate-spin" />
@@ -307,31 +207,7 @@ function EnvironmentContainers({
         <p className="text-muted-foreground">{t("containers.empty")}</p>
       ) : (
         <>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("containers.columns.name")}</TableHead>
-                <TableHead>{t("containers.columns.stack")}</TableHead>
-                <TableHead>{t("containers.columns.state")}</TableHead>
-                <TableHead>{t("containers.columns.image")}</TableHead>
-                <TableHead>{t("containers.columns.created")}</TableHead>
-                <TableHead className="text-right">{t("containers.columns.actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {shown.map((container) => (
-                <ContainerRow
-                  key={container.id}
-                  environmentId={environment.id}
-                  container={container}
-                  busy={action.isPending && action.variables?.containerId === container.id}
-                  locked={action.isPending}
-                  language={i18n.resolvedLanguage}
-                  onAction={onAction}
-                />
-              ))}
-            </TableBody>
-          </Table>
+          {shown.length > 0 && <ContainerTable environmentId={environment.id} containers={shown} />}
           <p className="text-muted-foreground text-sm">
             {shown.length === 0
               ? t("containers.noMatches")
@@ -348,179 +224,7 @@ function EnvironmentContainers({
         </>
       )}
 
-      <StopDialog
-        pending={pending}
-        onCancel={() => setPending(undefined)}
-        onConfirm={(timeoutSeconds) => {
-          if (pending) {
-            run(pending.container, pending.action, timeoutSeconds);
-          }
-
-          setPending(undefined);
-        }}
-      />
     </div>
-  );
-}
-
-const actionIcons = { start: PlayIcon, stop: SquareIcon, restart: RotateCwIcon } as const;
-
-function ContainerRow({
-  environmentId,
-  container,
-  busy,
-  locked,
-  language,
-  onAction,
-}: {
-  environmentId: string;
-  container: Container;
-  busy: boolean;
-  locked: boolean;
-  language: string | undefined;
-  onAction: (container: Container, action: ContainerAction) => void;
-}) {
-  const { t } = useTranslation();
-  const group = stateFilterOf(container.state);
-
-  return (
-    <TableRow>
-      {/* Compose names can be long (project-service-index); they wrap at the hyphens instead of widening the table. */}
-      <TableCell className="max-w-72 whitespace-normal">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
-          {container.name}
-          {container.isSystem && (
-            <Badge variant="outline" title={t("containers.systemHint")}>
-              {t("containers.system")}
-            </Badge>
-          )}
-        </div>
-        <div className="text-muted-foreground font-mono text-xs">{container.id.slice(0, 12)}</div>
-      </TableCell>
-      <TableCell>
-        {container.stackName ?? <span className="text-muted-foreground">{t("containers.filters.noStack")}</span>}
-        {container.serviceName && <div className="text-muted-foreground text-xs">{container.serviceName}</div>}
-      </TableCell>
-      <TableCell>
-        <Badge variant={group === "running" ? "default" : container.state === "Dead" ? "destructive" : "secondary"}>
-          {t(`containers.states.${container.state}`)}
-        </Badge>
-        <div className="text-muted-foreground mt-1 text-xs">{container.statusText}</div>
-      </TableCell>
-      <TableCell className="max-w-52 truncate font-mono text-xs" title={container.image}>
-        {container.image}
-      </TableCell>
-      <TableCell className="text-sm whitespace-nowrap">
-        {container.createdAt &&
-          new Intl.DateTimeFormat(language, { dateStyle: "short", timeStyle: "short" }).format(new Date(container.createdAt))}
-      </TableCell>
-      <TableCell className="text-right">
-        <div className="flex items-center justify-end gap-1">
-          {/* Everyone who sees a container may read its log (Viewer and up). The name, not the id, keeps the link
-              working after compose recreates the container. */}
-          <Button asChild variant="ghost" size="icon" title={t("containers.actions.logs")}>
-            <Link
-              to="/containers/$environmentId/$containerId/logs"
-              params={{ environmentId, containerId: container.name }}
-              aria-label={`${t("containers.actions.logs")}: ${container.name}`}
-            >
-              <ScrollTextIcon />
-            </Link>
-          </Button>
-          {container.canControl ? (
-            (["start", "stop", "restart"] as const).map((kind) => {
-              const Icon = actionIcons[kind];
-              const label = t(`containers.actions.${kind}`);
-              return (
-                <Button
-                  key={kind}
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`${label}: ${container.name}`}
-                  title={label}
-                  disabled={locked || !isActionAvailable(kind, container)}
-                  onClick={() => onAction(container, kind)}
-                >
-                  {busy ? <Loader2Icon className="animate-spin" /> : <Icon />}
-                </Button>
-              );
-            })
-          ) : (
-            <span className="text-muted-foreground text-sm">{t("containers.viewOnly")}</span>
-          )}
-        </div>
-      </TableCell>
-    </TableRow>
-  );
-}
-
-/** Confirms a stop or restart and asks how long Docker may wait for a clean exit. */
-function StopDialog({
-  pending,
-  onCancel,
-  onConfirm,
-}: {
-  pending: PendingAction | undefined;
-  onCancel: () => void;
-  onConfirm: (timeoutSeconds: number) => void;
-}) {
-  const { t } = useTranslation();
-  const [timeout, setTimeoutText] = useState(String(DEFAULT_STOP_TIMEOUT));
-  const seconds = parseStopTimeout(timeout);
-
-  return (
-    <AlertDialog
-      open={pending !== undefined}
-      onOpenChange={(open) => {
-        if (!open) {
-          setTimeoutText(String(DEFAULT_STOP_TIMEOUT));
-          onCancel();
-        }
-      }}
-    >
-      {pending && (
-        <AlertDialogContent>
-          <form
-            className="grid gap-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (seconds !== null) {
-                setTimeoutText(String(DEFAULT_STOP_TIMEOUT));
-                onConfirm(seconds);
-              }
-            }}
-          >
-            <AlertDialogHeader>
-              <AlertDialogTitle>{t(`containers.confirm.${pending.action}Title`, { name: pending.container.name })}</AlertDialogTitle>
-              <AlertDialogDescription>{t(`containers.confirm.${pending.action}Description`)}</AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="grid gap-1.5">
-              <Label htmlFor="stop-timeout">{t("containers.confirm.timeout")}</Label>
-              <Input
-                id="stop-timeout"
-                inputMode="numeric"
-                className="w-28"
-                value={timeout}
-                aria-invalid={seconds === null}
-                aria-describedby="stop-timeout-hint"
-                onChange={(event) => setTimeoutText(event.target.value)}
-              />
-              <p id="stop-timeout-hint" className={seconds === null ? "text-destructive text-sm" : "text-muted-foreground text-sm"}>
-                {seconds === null
-                  ? t("containers.confirm.timeoutInvalid", { max: MAX_STOP_TIMEOUT })
-                  : t("containers.confirm.timeoutHint", { max: MAX_STOP_TIMEOUT })}
-              </p>
-            </div>
-            <AlertDialogFooter>
-              <AlertDialogCancel type="button">{t("containers.confirm.cancel")}</AlertDialogCancel>
-              <Button type="submit" variant={pending.action === "stop" ? "destructive" : "default"} disabled={seconds === null}>
-                {t(`containers.actions.${pending.action}`)}
-              </Button>
-            </AlertDialogFooter>
-          </form>
-        </AlertDialogContent>
-      )}
-    </AlertDialog>
   );
 }
 

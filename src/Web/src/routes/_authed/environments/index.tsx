@@ -25,6 +25,8 @@ import {
   tokenStateOf,
 } from "@/features/environments/model";
 import { formatDateTime } from "@/lib/format";
+import { rowActionsClass, rowClass, rowLinkClass } from "@/lib/row-link";
+import { cn } from "@/lib/utils";
 import { useLiveStatus } from "@/components/live/hub-provider";
 import { pollingInterval } from "@/features/live/model";
 
@@ -145,9 +147,9 @@ function EnvironmentsScreen() {
               <TableRow>
                 <TableHead>{t("environments.columns.name")}</TableHead>
                 <TableHead>{t("environments.columns.status")}</TableHead>
-                <TableHead>{t("environments.columns.host")}</TableHead>
-                <TableHead>{t("environments.columns.version")}</TableHead>
-                <TableHead>{t("environments.columns.lastSeen")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("environments.columns.host")}</TableHead>
+                <TableHead className="hidden lg:table-cell">{t("environments.columns.version")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("environments.columns.lastSeen")}</TableHead>
                 {me.isAdmin && <TableHead className="text-right">{t("environments.columns.actions")}</TableHead>}
               </TableRow>
             </TableHeader>
@@ -188,9 +190,13 @@ function EnvironmentRow({
   const token = tokenStateOf(environment, new Date());
 
   return (
-    <TableRow>
+    <TableRow className={rowClass}>
       <TableCell>
-        <Link to="/environments/$environmentId" params={{ environmentId: environment.id }} className="font-medium hover:underline">
+        <Link
+          to="/environments/$environmentId"
+          params={{ environmentId: environment.id }}
+          className={cn("font-medium", rowLinkClass)}
+        >
           {environment.name}
         </Link>
         {environment.isPrivate && (
@@ -206,9 +212,9 @@ function EnvironmentRow({
           <div className="text-muted-foreground mt-1 text-xs">{t(`environments.token.${token}`)}</div>
         )}
       </TableCell>
-      <TableCell className="font-mono text-xs">{environment.agentHostname ?? "—"}</TableCell>
-      <TableCell className="text-sm">{environment.agentVersion ?? "—"}</TableCell>
-      <TableCell className="text-sm whitespace-nowrap">
+      <TableCell className="hidden font-mono text-xs md:table-cell">{environment.agentHostname ?? "—"}</TableCell>
+      <TableCell className="hidden text-sm lg:table-cell">{environment.agentVersion ?? "—"}</TableCell>
+      <TableCell className="hidden text-sm whitespace-nowrap sm:table-cell">
         {status === "online"
           ? t("environments.connectedNow")
           : environment.lastSeenAt
@@ -216,15 +222,8 @@ function EnvironmentRow({
             : "—"}
       </TableCell>
       {isAdmin && (
-        <TableCell className="text-right">
-          <div className="flex justify-end gap-1">
-            <EditEnvironmentDialog environment={environment} />
-            <Button asChild variant="outline" size="sm">
-              <Link to="/environments/$environmentId" params={{ environmentId: environment.id }}>
-                {t("environments.manage")}
-              </Link>
-            </Button>
-          </div>
+        <TableCell className={cn("text-right", rowActionsClass)}>
+          <EditEnvironmentDialog environment={environment} />
         </TableCell>
       )}
     </TableRow>

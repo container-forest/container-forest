@@ -23,6 +23,7 @@ export function ConfirmAction({
   description,
   confirmLabel,
   disabled,
+  label,
   variant = "outline",
   size,
   onConfirm,
@@ -32,6 +33,8 @@ export function ConfirmAction({
   description: string;
   confirmLabel: string;
   disabled?: boolean;
+  /** Accessible name and tooltip for a button that shows only an icon. */
+  label?: string;
   variant?: ComponentProps<typeof Button>["variant"];
   size?: ComponentProps<typeof Button>["size"];
   onConfirm: () => void;
@@ -41,7 +44,7 @@ export function ConfirmAction({
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant={variant} size={size} disabled={disabled}>
+        <Button variant={variant} size={size} disabled={disabled} aria-label={label} title={label}>
           {children}
         </Button>
       </AlertDialogTrigger>

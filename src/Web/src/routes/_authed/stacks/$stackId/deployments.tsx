@@ -21,6 +21,7 @@ import {
   splitDuration,
 } from "@/features/stacks/model";
 import { formatDateTime } from "@/lib/format";
+import { rowClass, rowLinkClass } from "@/lib/row-link";
 import { useLiveStatus } from "@/components/live/hub-provider";
 import { pollingInterval } from "@/features/live/model";
 
@@ -118,32 +119,32 @@ function DeploymentHistoryScreen() {
               <TableRow>
                 <TableHead>{t("deployments.columns.status")}</TableHead>
                 <TableHead>{t("deployments.columns.queuedAt")}</TableHead>
-                <TableHead>{t("deployments.columns.commit")}</TableHead>
-                <TableHead>{t("deployments.columns.kind")}</TableHead>
-                <TableHead>{t("deployments.columns.duration")}</TableHead>
-                <TableHead>{t("deployments.columns.error")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("deployments.columns.commit")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("deployments.columns.kind")}</TableHead>
+                <TableHead className="hidden lg:table-cell">{t("deployments.columns.duration")}</TableHead>
+                <TableHead className="hidden lg:table-cell">{t("deployments.columns.error")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {shown.map((deployment) => (
-                <TableRow key={deployment.id}>
+                <TableRow key={deployment.id} className={rowClass}>
                   <TableCell>
                     <DeploymentStatusBadge status={deployment.status} />
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
-                    <Link to="/deployments/$deploymentId" params={{ deploymentId: deployment.id }} className="hover:underline">
+                    <Link to="/deployments/$deploymentId" params={{ deploymentId: deployment.id }} className={rowLinkClass}>
                       {formatDateTime(deployment.queuedAt, i18n.resolvedLanguage)}
                     </Link>
                   </TableCell>
-                  <TableCell className="font-mono text-sm">{shortCommit(deployment.commit) ?? "—"}</TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="hidden font-mono text-sm sm:table-cell">{shortCommit(deployment.commit) ?? "—"}</TableCell>
+                  <TableCell className="hidden text-sm md:table-cell">
                     {t(`deployments.trigger.${deployment.trigger}`)}
                     {deployment.pullPolicy === "Always" && (
                       <div className="text-muted-foreground text-xs">{t("deployments.withPull")}</div>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm whitespace-nowrap">{duration(deployment)}</TableCell>
-                  <TableCell className="text-destructive max-w-72 truncate text-sm" title={deployment.error ?? undefined} lang="en">
+                  <TableCell className="hidden text-sm whitespace-nowrap lg:table-cell">{duration(deployment)}</TableCell>
+                  <TableCell className="text-destructive hidden max-w-72 truncate text-sm lg:table-cell" title={deployment.error ?? undefined} lang="en">
                     {deployment.error}
                   </TableCell>
                 </TableRow>

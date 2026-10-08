@@ -1,11 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { type ErrorComponentProps, Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { hasStatus } from "@/api/client";
-import { deploymentsQuery, repositoriesQuery, stackQuery } from "@/api/queries";
+import { containersQuery, deploymentsQuery, environmentsQuery, repositoriesQuery, stackQuery } from "@/api/queries";
 import {
   useChangeStackSourceMutation,
   useDeployStackMutation,
@@ -16,6 +16,7 @@ import {
   useStackActionMutation,
 } from "@/api/stacks";
 import { ConfirmAction } from "@/components/confirm-action";
+import { ContainerTable } from "@/components/containers/container-table";
 import { ErrorText, FieldError } from "@/components/form-messages";
 import {
   ArrowLeftIcon,
@@ -49,6 +50,8 @@ import {
   stackSourceSchema,
 } from "@/features/stacks/model";
 import { formatDateTime } from "@/lib/format";
+import { rowClass, rowLinkClass } from "@/lib/row-link";
+import { cn } from "@/lib/utils";
 import { useLiveStatus } from "@/components/live/hub-provider";
 import { pollingInterval } from "@/features/live/model";
 
@@ -90,6 +93,7 @@ function StackScreen() {
       </div>
 
       <ActionsCard stack={stack} />
+      <StackContainersCard stack={stack} />
       <SourceCard key={`${stack.repositoryId}/${stack.branch}/${stack.composePath}`} stack={stack} />
       {stack.canDeploy && !stack.isSystem && <DeployOnPushCard stack={stack} />}
       {stack.canDeploy && !stack.isSystem && <RestartOnFileChangeCard stack={stack} />}
@@ -104,6 +108,7 @@ function ActionsCard({ stack }: { stack: Stack }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const deployments = useQuery(deploymentsQuery(stack.id));
+  const queryClient = useQueryClient();
   const deploy = useDeployStackMutation(stack.id);
   const action = useStackActionMutation(stack.id);
   const [result, setResult] = useState<{ action: StackAction; result: StackCommandResult }>();
@@ -123,7 +128,14 @@ function ActionsCard({ stack }: { stack: Stack }) {
   const onAction = (kind: StackAction) => {
     setResult(undefined);
     deploy.reset();
-    action.mutate({ action: kind }, { onSuccess: (outcome) => setResult({ action: kind, result: outcome }) });
+    action.mutate(
+      { action: kind },
+      {
+        onSuccess: (outcome) => setResult({ action: kind, result: outcome }),
+        // The stack's containers below change with it.
+        onSettled: () => queryClient.invalidateQueries({ queryKey: containersQuery(stack.environmentId).queryKey }),
+      },
+    );
   };
 
   const error = deploy.error ?? action.error;
@@ -213,6 +225,55 @@ function ActionsCard({ stack }: { stack: Stack }) {
           )}
           {result && <CommandOutput action={result.action} result={result.result} />}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** How often the containers are reloaded without live updates, and with them (agents too old to send events). */
+const CONTAINERS_REFRESH_MS = 15_000;
+const CONTAINERS_REFRESH_WHILE_LIVE_MS = 60_000;
+
+/**
+ * The stack's containers as its environment's agent reports them, with the same quick actions and links as on the
+ * containers screen. Compose labels say which stack a container belongs to.
+ */
+function StackContainersCard({ stack }: { stack: Stack }) {
+  const { t } = useTranslation();
+  const live = useLiveStatus();
+  const environments = useQuery(environmentsQuery);
+  const online = environments.data?.find((e) => e.id === stack.environmentId)?.isOnline ?? false;
+  const containers = useQuery({
+    ...containersQuery(stack.environmentId),
+    // An offline agent answers 503 every time; there is nothing to load until it reconnects.
+    enabled: online,
+    refetchInterval: pollingInterval(live, CONTAINERS_REFRESH_MS, CONTAINERS_REFRESH_WHILE_LIVE_MS),
+  });
+  const own = (containers.data ?? []).filter((c) => c.stackName === stack.name);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("stack.containers.title")}</CardTitle>
+        <CardDescription>{t("stack.containers.description")}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {!online ? (
+          <p role="status" className="text-muted-foreground text-sm">
+            {t("stack.containers.agentOffline")}
+          </p>
+        ) : containers.isPending ? (
+          <p className="text-muted-foreground flex items-center gap-2 text-sm">
+            <Loader2Icon className="animate-spin" />
+            {t("stack.containers.loading")}
+          </p>
+        ) : containers.isError && own.length === 0 ? (
+          <ErrorText>{t("stack.containers.loadFailed")}</ErrorText>
+        ) : own.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{t("stack.containers.empty")}</p>
+        ) : (
+          <ContainerTable environmentId={stack.environmentId} containers={own} showStack={false} />
+        )}
       </CardContent>
     </Card>
   );
@@ -472,11 +533,11 @@ function RecentDeploymentsCard({ stack }: { stack: Stack }) {
         ) : recent.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("deployments.empty")}</p>
         ) : (
-          <ul className="grid gap-2">
+          <ul className="-mx-2 grid gap-0.5">
             {recent.map((deployment) => (
-              <li key={deployment.id} className="flex flex-wrap items-center gap-3 text-sm">
+              <li key={deployment.id} className={cn("flex flex-wrap items-center gap-3 rounded-md px-2 py-1.5 text-sm", rowClass)}>
                 <DeploymentStatusBadge status={deployment.status} />
-                <Link to="/deployments/$deploymentId" params={{ deploymentId: deployment.id }} className="hover:underline">
+                <Link to="/deployments/$deploymentId" params={{ deploymentId: deployment.id }} className={rowLinkClass}>
                   {formatDateTime(deployment.queuedAt, i18n.resolvedLanguage)}
                 </Link>
                 {deployment.commit && <span className="text-muted-foreground font-mono">{shortCommit(deployment.commit)}</span>}

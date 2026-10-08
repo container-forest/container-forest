@@ -78,18 +78,21 @@ function RepositoriesScreen() {
           <TableHeader>
             <TableRow>
               <TableHead>{t("repositories.columns.name")}</TableHead>
-              <TableHead>{t("repositories.columns.url")}</TableHead>
-              <TableHead>{t("repositories.columns.access")}</TableHead>
-              <TableHead>{t("repositories.columns.createdAt")}</TableHead>
+              <TableHead className="hidden md:table-cell">{t("repositories.columns.url")}</TableHead>
+              <TableHead className="hidden sm:table-cell">{t("repositories.columns.access")}</TableHead>
+              <TableHead className="hidden lg:table-cell">{t("repositories.columns.createdAt")}</TableHead>
               <TableHead className="sr-only">{t("repositories.columns.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {shown.map((repository) => (
               <TableRow key={repository.id}>
-                <TableCell className="font-medium">{repository.name}</TableCell>
-                <TableCell className="font-mono text-sm">{repository.url}</TableCell>
-                <TableCell>
+                <TableCell className="font-medium whitespace-normal">
+                  {repository.name}
+                  <div className="text-muted-foreground font-mono text-xs font-normal break-all md:hidden">{repository.url}</div>
+                </TableCell>
+                <TableCell className="hidden font-mono text-sm break-all whitespace-normal md:table-cell">{repository.url}</TableCell>
+                <TableCell className="hidden sm:table-cell">
                   <div className="flex flex-wrap gap-1">
                     {repository.connectionName ? (
                       <Badge variant="secondary" title={t("repositories.access.connectionHint")}>
@@ -116,7 +119,7 @@ function RepositoriesScreen() {
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="text-sm">{formatDate(repository.createdAt, i18n.resolvedLanguage)}</TableCell>
+                <TableCell className="hidden text-sm lg:table-cell">{formatDate(repository.createdAt, i18n.resolvedLanguage)}</TableCell>
                 <TableCell className="text-right">
                   {repository.canManage && <EditRepositoryDialog repository={repository} />}
                 </TableCell>

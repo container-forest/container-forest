@@ -9,8 +9,6 @@ import { ErrorText } from "@/components/form-messages";
 import { Loader2Icon, PlusIcon, Trash2Icon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Environment } from "@/features/containers/model";
 import { type AgeKey, currentKey, keysSearchSchema, sopsCommands, sopsConfig } from "@/features/keys/model";
@@ -35,7 +33,6 @@ export const Route = createFileRoute("/_authed/keys")({
 function KeysScreen() {
   const { t } = useTranslation();
   const search = Route.useSearch();
-  const navigate = Route.useNavigate();
   const { data: environments } = useSuspenseQuery(environmentsQuery);
   const environment = environments.find((e) => e.id === search.environment);
 
@@ -43,31 +40,12 @@ function KeysScreen() {
     <div className="grid gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-2xl">
-          <h1 className="font-heading text-2xl font-semibold">{t("keys.title")}</h1>
+          <h1 className="font-heading flex flex-wrap items-baseline gap-x-3 text-2xl font-semibold">
+            {t("keys.title")}
+            {environment && <span className="text-muted-foreground text-lg font-medium">{environment.name}</span>}
+          </h1>
           <p className="text-muted-foreground mt-1">{t("keys.description")}</p>
         </div>
-        {environments.length > 0 && (
-          <div className="grid gap-1.5">
-            <Label htmlFor="keys-environment">{t("keys.environment")}</Label>
-            <Select
-              value={search.environment}
-              onValueChange={(id) =>
-                id !== "" && id !== search.environment && void navigate({ search: { environment: id }, replace: true })
-              }
-            >
-              <SelectTrigger id="keys-environment" className="min-w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {environments.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    {e.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
       </div>
 
       {environment === undefined ? (

@@ -353,7 +353,7 @@ function SourceCard({ stack }: { stack: Stack }) {
               name="repositoryId"
               render={({ field }) => (
                 <Select value={field.value} onValueChange={(value) => value !== "" && field.onChange(value)}>
-                  <SelectTrigger id="source-repository" className="max-w-sm">
+                  <SelectTrigger id="source-repository" className="w-full max-w-sm">
                     <SelectValue placeholder={stack.repositoryName ?? t("stacks.repositoryGone")} />
                   </SelectTrigger>
                   <SelectContent>

@@ -141,6 +141,18 @@ internal sealed class InMemoryDiscordLinks : InMemoryRepository<DiscordLink, Use
         Task.FromResult(Items.FirstOrDefault(l => l.PendingCodeHash == codeHash));
 }
 
+internal sealed class InMemoryApiTokens : InMemoryRepository<ApiToken, ApiTokenId>, IApiTokenRepository
+{
+    public Task<ApiToken?> FindByHashAsync(string tokenHash, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.SingleOrDefault(t => t.TokenHash == tokenHash));
+
+    public Task<IReadOnlyList<ApiToken>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ApiToken>>(Items.Where(t => t.UserId == userId).OrderByDescending(t => t.CreatedAt).ToList());
+
+    public Task<int> CountForUserAsync(UserId userId, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.Count(t => t.UserId == userId));
+}
+
 internal sealed class InMemoryRoleAssignments : InMemoryRepository<RoleAssignment, RoleAssignmentId>, IRoleAssignmentRepository
 {
     public Task<IReadOnlyList<RoleAssignment>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>
@@ -198,6 +210,18 @@ internal sealed class FakeDeploymentQueue : IDeploymentQueue
 internal sealed class FakeCurrentUser : ICurrentUser
 {
     public UserId? Id { get; set; }
+
+    public AccessScope Scope { get; set; } = AccessScope.Full;
+
+    public ApiTokenId? ApiTokenId { get; set; }
+
+    /// <summary>Acts as the user through an API token with these limits.</summary>
+    public void UseToken(ApiToken token)
+    {
+        Id = token.UserId;
+        Scope = token.Scope;
+        ApiTokenId = token.Id;
+    }
 }
 
 internal sealed class FakeUnitOfWork : IUnitOfWork

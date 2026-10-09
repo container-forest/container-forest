@@ -27,7 +27,6 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ClaimsCurrentUser>();
 builder.Services.AddScoped<ICurrentUser>(sp => sp.GetRequiredService<ClaimsCurrentUser>());
 builder.Services.AddSessionAuthentication(builder.Environment);
-builder.Services.AddAuthorization();
 
 builder.Services.AddGrpc()
     .AddServiceOptions<BotGatewayService>(options => options.Interceptors.Add<BotGatewayInterceptor>());
@@ -45,6 +44,7 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseAuthentication();
+app.UseReadOnlyTokens();
 app.UseAuthorization();
 
 app.MapOpenApi();
@@ -52,6 +52,7 @@ app.MapGrpcService<AgentGatewayService>();
 app.MapGrpcService<BotGatewayService>();
 app.MapAuthEndpoints();
 app.MapMeEndpoints();
+app.MapApiTokenEndpoints();
 app.MapUserEndpoints();
 app.MapEnvironmentEndpoints();
 app.MapAgeKeyEndpoints();
@@ -60,8 +61,9 @@ app.MapStackEndpoints();
 app.MapWebhookEndpoints();
 app.MapNotificationEndpoints();
 app.MapDiscordLinkEndpoints();
-// A signed-out session must not keep hearing updates on an open WebSocket.
-app.MapHub<LiveHub>("/hubs/live", options => options.CloseOnAuthenticationExpiration = true).RequireAuthorization();
+// A signed-out session must not keep hearing updates on an open WebSocket. The panel's hub is for sessions, not API tokens.
+app.MapHub<LiveHub>("/hubs/live", options => options.CloseOnAuthenticationExpiration = true)
+    .RequireAuthorization(AuthenticationSetup.SessionPolicy);
 
 app.Run();
 

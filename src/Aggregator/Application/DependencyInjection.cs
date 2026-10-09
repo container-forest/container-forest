@@ -24,6 +24,8 @@ public static class DependencyInjection
         services.AddScoped<AgentEnrollmentService>();
         services.AddScoped<CurrentActor>();
         services.AddScoped<DiscordLinkService>();
+        services.AddScoped<ApiTokenService>();
+        services.AddScoped<ApiTokenAuthenticator>();
         services.AddScoped<UserManagementService>();
         services.AddScoped<ContainerCommandService>();
         services.AddScoped<ContainerQueryService>();

@@ -156,7 +156,7 @@ public sealed class EnvironmentService(
             .ToList();
     }
 
-    private EnvironmentSummary Summarize(User user, DockerEnvironment environment, IReadOnlyList<RoleAssignment> assignments) => new(
+    private EnvironmentSummary Summarize(Actor user, DockerEnvironment environment, IReadOnlyList<RoleAssignment> assignments) => new(
         environment.Id,
         environment.Name,
         environment.IsPrivate,

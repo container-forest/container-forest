@@ -227,10 +227,10 @@ public sealed class StackService(
     }
 
     // The role that adds stacks: a stack's own Editor did not add it and may not drop the roles others have on it.
-    private static bool CanRemove(User actor, DockerEnvironment environment, IReadOnlyList<RoleAssignment> assignments) =>
+    private static bool CanRemove(Actor actor, DockerEnvironment environment, IReadOnlyList<RoleAssignment> assignments) =>
         AccessPolicy.CanPerform(actor, environment, assignments, RolePermissions.RequiredFor(StackOperation.Remove));
 
-    private async Task<(User Actor, Stack Stack, DockerEnvironment Environment, IReadOnlyList<RoleAssignment> Assignments)> LoadDeployableAsync(
+    private async Task<(Actor Actor, Stack Stack, DockerEnvironment Environment, IReadOnlyList<RoleAssignment> Assignments)> LoadDeployableAsync(
         StackId stackId, CancellationToken cancellationToken)
     {
         var loaded = await LoadVisibleAsync(stackId, cancellationToken);
@@ -243,7 +243,7 @@ public sealed class StackService(
     }
 
     private static StackSummary Summarize(
-        User actor,
+        Actor actor,
         DockerEnvironment environment,
         Stack stack,
         IReadOnlyList<RoleAssignment> assignments,
@@ -287,7 +287,7 @@ public sealed class StackService(
         (await repositories.ListAsync(cancellationToken)).ToDictionary(r => r.Id, r => r.Name);
 
     /// <exception cref="NotFoundException">The stack does not exist or the user may not see it.</exception>
-    private async Task<(User Actor, Stack Stack, DockerEnvironment Environment, IReadOnlyList<RoleAssignment> Assignments)> LoadVisibleAsync(
+    private async Task<(Actor Actor, Stack Stack, DockerEnvironment Environment, IReadOnlyList<RoleAssignment> Assignments)> LoadVisibleAsync(
         StackId stackId, CancellationToken cancellationToken)
     {
         var actor = await currentActor.GetAsync(cancellationToken);

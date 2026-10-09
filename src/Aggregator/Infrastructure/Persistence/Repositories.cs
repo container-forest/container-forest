@@ -88,6 +88,19 @@ internal sealed class DiscordLinkRepository(AggregatorDbContext db) : EfReposito
         Set.SingleOrDefaultAsync(l => l.PendingCodeHash == codeHash, cancellationToken);
 }
 
+internal sealed class ApiTokenRepository(AggregatorDbContext db) : EfRepository<ApiToken, ApiTokenId>(db), IApiTokenRepository
+{
+    public Task<ApiToken?> FindByHashAsync(string tokenHash, CancellationToken cancellationToken) =>
+        Set.SingleOrDefaultAsync(t => t.TokenHash == tokenHash, cancellationToken);
+
+    // Ids are version 7 GUIDs, but SQLite compares them as text; the creation time orders reliably.
+    public async Task<IReadOnlyList<ApiToken>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>
+        await Set.Where(t => t.UserId == userId).OrderByDescending(t => t.CreatedAt).ToListAsync(cancellationToken);
+
+    public Task<int> CountForUserAsync(UserId userId, CancellationToken cancellationToken) =>
+        Set.CountAsync(t => t.UserId == userId, cancellationToken);
+}
+
 internal sealed class RoleAssignmentRepository(AggregatorDbContext db)
     : EfRepository<RoleAssignment, RoleAssignmentId>(db), IRoleAssignmentRepository
 {

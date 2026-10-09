@@ -15,7 +15,7 @@ namespace ContainerForest.Aggregator.Application.Repositories;
 /// <param name="Actor">The current user.</param>
 /// <param name="Assignments">The actor's role assignments.</param>
 /// <param name="EditorEnvironments">See <see cref="AccessPolicy.EditorEnvironments"/>; ignored for administrators.</param>
-public sealed record RepositoryActor(User Actor, IReadOnlyList<RoleAssignment> Assignments, IReadOnlySet<EnvironmentId> EditorEnvironments)
+public sealed record RepositoryActor(Actor Actor, IReadOnlyList<RoleAssignment> Assignments, IReadOnlySet<EnvironmentId> EditorEnvironments)
 {
     public bool IsAdmin => Actor.IsAdmin;
 

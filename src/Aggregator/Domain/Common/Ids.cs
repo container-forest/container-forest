@@ -95,3 +95,10 @@ public readonly record struct AgeKeyId(Guid Value) : IStronglyTypedId<AgeKeyId>
     public static AgeKeyId From(Guid value) => new(value);
     public override string ToString() => Value.ToString();
 }
+
+public readonly record struct ApiTokenId(Guid Value) : IStronglyTypedId<ApiTokenId>
+{
+    public static ApiTokenId New() => new(Guid.CreateVersion7());
+    public static ApiTokenId From(Guid value) => new(value);
+    public override string ToString() => Value.ToString();
+}

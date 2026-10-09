@@ -105,5 +105,5 @@ public sealed class DeploymentService(
     }
 
     private sealed record VisibleStack(
-        User Actor, Stack Stack, DockerEnvironment Environment, IReadOnlyList<RoleAssignment> Assignments);
+        Actor Actor, Stack Stack, DockerEnvironment Environment, IReadOnlyList<RoleAssignment> Assignments);
 }

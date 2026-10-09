@@ -17,6 +17,54 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
 
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.ApiToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ExpiresAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Hint")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsReadOnly")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsRestricted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LastUsedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ApiTokens", (string)null);
+                });
+
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.DiscordLink", b =>
                 {
                     b.Property<Guid>("Id")
@@ -712,6 +760,41 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasDiscriminator().HasValue("Stack");
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.ApiToken", b =>
+                {
+                    b.HasOne("ContainerForest.Aggregator.Domain.Access.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsMany("ContainerForest.Aggregator.Domain.Access.ApiTokenEnvironment", "environments", b1 =>
+                        {
+                            b1.Property<Guid>("ApiTokenId")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<Guid>("EnvironmentId")
+                                .HasColumnType("TEXT");
+
+                            b1.HasKey("ApiTokenId", "EnvironmentId");
+
+                            b1.HasIndex("EnvironmentId");
+
+                            b1.ToTable("ApiTokenEnvironments", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("ApiTokenId");
+
+                            b1.HasOne("ContainerForest.Aggregator.Domain.Environments.DockerEnvironment", null)
+                                .WithMany()
+                                .HasForeignKey("EnvironmentId")
+                                .OnDelete(DeleteBehavior.Cascade)
+                                .IsRequired();
+                        });
+
+                    b.Navigation("environments");
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.DiscordLink", b =>

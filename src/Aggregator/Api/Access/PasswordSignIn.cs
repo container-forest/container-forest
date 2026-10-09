@@ -57,7 +57,7 @@ internal sealed class PasswordSignIn(SignInManager<AccountUser> signInManager, I
     /// <exception cref="PasswordRejectedException">The current password is wrong, or the new one fails the policy.</exception>
     public async Task ChangePasswordAsync(string currentPassword, string newPassword, CancellationToken cancellationToken)
     {
-        var user = await currentActor.GetAsync(cancellationToken);
+        var user = await currentActor.GetSignedInUserAsync(cancellationToken);
 
         // Users made through the dev endpoints have no account and so no password to change.
         var account = await Accounts.FindByIdAsync(user.Id.Value.ToString())

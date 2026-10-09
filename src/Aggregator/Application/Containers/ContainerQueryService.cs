@@ -63,7 +63,7 @@ public sealed class ContainerQueryService(
     }
 
     private static bool Can(
-        User user, DockerEnvironment environment, Stack? stack, IReadOnlyList<RoleAssignment> assignments, Permission permission) =>
+        Actor user, DockerEnvironment environment, Stack? stack, IReadOnlyList<RoleAssignment> assignments, Permission permission) =>
         stack is not null
             ? AccessPolicy.CanPerform(user, environment, stack, assignments, permission)
             : AccessPolicy.CanPerform(user, environment, assignments, permission);

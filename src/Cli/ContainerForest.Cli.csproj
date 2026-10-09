@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>forest</AssemblyName>
+    <RootNamespace>ContainerForest.Cli</RootNamespace>
+    <Version>0.1.0</Version>
+    <!-- One binary without a runtime: dotnet publish -r linux-x64 (ADR-0008). -->
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- The generated client lives in the repository like schema.gen.ts; its comments are not ours to fix. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Kiota.Bundle" />
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ContainerForest.Cli.Tests" />
+    <!-- End-to-end tests run the CLI against an aggregator in memory there. -->
+    <InternalsVisibleTo Include="ContainerForest.Aggregator.Api.Tests" />
+  </ItemGroup>
+
+</Project>

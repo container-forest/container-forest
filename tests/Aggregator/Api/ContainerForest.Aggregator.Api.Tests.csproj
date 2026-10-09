@@ -18,6 +18,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Aggregator\Api\ContainerForest.Aggregator.Api.csproj" />
+    <!-- CliEndToEndTests run the forest CLI against the aggregator in memory. -->
+    <ProjectReference Include="..\..\..\src\Cli\ContainerForest.Cli.csproj" />
   </ItemGroup>
 
 </Project>

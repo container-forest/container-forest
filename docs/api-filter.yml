@@ -1,10 +1,13 @@
-# Generated code is not documented: protobuf/gRPC types and EF Core migrations.
+# Generated code is not documented: protobuf/gRPC types, EF Core migrations and the CLI's Kiota client.
 apiRules:
 - exclude:
     uidRegex: ^ContainerForest\.Contracts\.
     type: Namespace
 - exclude:
     uidRegex: ^ContainerForest\.Aggregator\.Infrastructure\.Persistence\.Migrations
+    type: Namespace
+- exclude:
+    uidRegex: ^ContainerForest\.Cli\.Api\.Generated
     type: Namespace
 - exclude:
     uidRegex: ^Program$

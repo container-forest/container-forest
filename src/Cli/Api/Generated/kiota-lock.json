@@ -1,0 +1,43 @@
+{
+  "descriptionHash": "33F29A9C3911662A0C95C79090D8F7F4D8AFF7CAF0DE9BCF07FBFF38D4FE34597F1A31452FE298D5C2D0F1B29C2E333B8A6B3F35F783AF03F97C5E0E7F759219",
+  "descriptionLocation": "../../../Aggregator/Api/openapi/ContainerForest.Aggregator.Api.json",
+  "lockFileVersion": "1.0.0",
+  "kiotaVersion": "1.35.0",
+  "clientClassName": "ForestApiClient",
+  "typeAccessModifier": "Public",
+  "clientNamespaceName": "ContainerForest.Cli.Api.Generated",
+  "language": "CSharp",
+  "usesBackingStore": false,
+  "excludeBackwardCompatible": true,
+  "includeAdditionalData": true,
+  "disableSSLValidation": false,
+  "serializers": [
+    "Microsoft.Kiota.Serialization.Json.JsonSerializationWriterFactory",
+    "Microsoft.Kiota.Serialization.Text.TextSerializationWriterFactory",
+    "Microsoft.Kiota.Serialization.Form.FormSerializationWriterFactory",
+    "Microsoft.Kiota.Serialization.Multipart.MultipartSerializationWriterFactory"
+  ],
+  "deserializers": [
+    "Microsoft.Kiota.Serialization.Json.JsonParseNodeFactory",
+    "Microsoft.Kiota.Serialization.Text.TextParseNodeFactory",
+    "Microsoft.Kiota.Serialization.Form.FormParseNodeFactory"
+  ],
+  "structuredMimeTypes": [
+    "application/json",
+    "text/plain;q=0.9",
+    "application/x-www-form-urlencoded;q=0.2",
+    "multipart/form-data;q=0.1"
+  ],
+  "includePatterns": [],
+  "excludePatterns": [
+    "/api/webhooks/**",
+    "/api/deploy-hooks/**",
+    "/api/auth/**",
+    "/api/me/discord",
+    "/api/me/discord/**",
+    "/api/cli/authorizations/{userCode}/**",
+    "/api/cli/authorizations/{userCode}"
+  ],
+  "disabledValidationRules": [],
+  "allowedExternalOrigins": []
+}

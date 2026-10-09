@@ -25,6 +25,7 @@ ContainerForest.slnx
 .github/workflows/images.yml     Docker-образи: збірка на PR, публікація в GHCR з main
 docfx.json, toc.yml, index.md    конфігурація сайту документації
 scripts/install-sops.sh          sops і age-keygen для образу ЦА й CI (версії й контрольні суми)
+scripts/generate-cli-client.sh   клієнт API для CLI (Kiota) з OpenAPI-документа ЦА
 Directory.Build.props            спільні властивості .NET-проєктів
 Directory.Packages.props         версії NuGet-пакетів (central package management)
 dotnet-tools.json                локальні інструменти .NET (dotnet-ef, docfx)
@@ -38,6 +39,7 @@ src/
     Api/                         ASP.NET Core: REST, SignalR, gRPC; openapi/*.json
   Agent/                         .NET Worker Service
   DiscordBot/
+  Cli/                           CLI forest (NativeAOT); Api/Generated — клієнт Kiota
   Web/                           Vite + React + TS
 tests/                           дзеркалить src/
 deploy/                          compose-файли для ЦА з панеллю, агента й бота
@@ -179,6 +181,10 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    - Компоненти UI — shadcn/ui: `npm run ui:add -- table` (з `src/Web`) додає компонент у `src/components/ui` і переводить його іконки на Material Symbols; згенеровані файли комітяться. Якщо після цього `npm run typecheck` скаржиться на відсутню іконку, додайте її в `src/components/icons.ts` (назви — як у Lucide, іконки — з https://fonts.google.com/icons).
    - Docker-образ панелі (Caddy: статичні файли, проксі `/api`, `/hubs` і gRPC на ЦА, TLS — ADR-0005): `docker build -f src/Web/Dockerfile -t container-forest-web:dev .` (контекст — корінь репозиторію: панель вбудовує `deploy/agent/compose.yaml`).
 
+6. CLI `forest` (ADR-0008): `dotnet run --project src/Cli -- login http://localhost:5173`. Адреса — панелі (dev-сервер Vite з кроку 5): CLI відкриває в браузері її сторінку підтвердження, а API Vite проксює на ЦА. Конфігурацію з токеном CLI пише в `$XDG_CONFIG_HOME/container-forest/config.json`; для окремої тестової конфігурації задайте `XDG_CONFIG_HOME`. Без браузера: `--device` (код вводиться на `/cli/device`) або токен з екрана «API-токени»: `CF_URL=http://localhost:5173 CF_TOKEN=cf_pat_… dotnet run --project src/Cli -- env list`.
+   - Змінили API ЦА — після збірки `src/Aggregator/Api` перегенеруйте клієнт: `dotnet tool restore && scripts/generate-cli-client.sh`, згенеровані файли закомітьте (CI перевіряє).
+   - Один бінарник без рантайму (NativeAOT, потрібен clang): `dotnet publish src/Cli -r linux-x64 -c Release -o out` → `out/forest`.
+
 Тести: `dotnet test --solution ContainerForest.slnx`. Тести зі справжніми `sops` і `age-keygen` без них у `PATH` пропускаються (у CI — обов'язкові, `CF_TEST_REQUIRE_SOPS=1`). Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
 
 Docker-образ агента збирається з кореня репозиторію (контексту потрібні `src/Contracts` і `Directory.*.props`), а запускається так само, як у [прикладі розгортання](docs/architecture.md#розгортання-агента). Щоб підключити його до ЦА, запущеного локально через `dotnet run`, використовуйте `http://host.docker.internal:5081`:
@@ -232,7 +238,7 @@ dotnet ef migrations add <Name> --project src/Aggregator/Infrastructure --output
 GitHub Actions (`.github/workflows/ci.yml`) запускається на кожен PR і на пуш у `main`. PR мержиться лише із зеленим CI. Кроки:
 
 1. `dotnet restore` і `dotnet build` з `CI=true`: попередження компілятора й аналізаторів стають помилками (`Directory.Build.props`).
-2. Перевірка, що закомічений `src/Aggregator/Api/openapi/*.json` збігається з тим, що згенерувала збірка. Якщо крок упав — зберіть `src/Aggregator/Api` локально й закомітьте JSON.
+2. Перевірка, що закомічений `src/Aggregator/Api/openapi/*.json` збігається з тим, що згенерувала збірка. Якщо крок упав — зберіть `src/Aggregator/Api` локально й закомітьте JSON. Так само для клієнта CLI: `scripts/generate-cli-client.sh` не має нічого змінити в `src/Cli/Api/Generated`.
 3. `dotnet test --solution ContainerForest.slnx`.
 4. Окремий job для панелі (`src/Web`): `npm ci` → перевірка, що `src/api/schema.gen.ts` збігається з OpenAPI-документом → `npm run build` (перевірка типів і збірка) → перевірка, що `src/routeTree.gen.ts` закомічений актуальним.
 

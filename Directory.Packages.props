@@ -31,6 +31,10 @@
   <ItemGroup Label="Discord">
     <PackageVersion Include="Discord.Net" Version="3.20.1" />
   </ItemGroup>
+  <ItemGroup Label="CLI">
+    <PackageVersion Include="Microsoft.Kiota.Bundle" Version="2.1.2" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.12" />
+  </ItemGroup>
   <ItemGroup Label="Docker">
     <PackageVersion Include="Docker.DotNet.Enhanced" Version="4.3.3" />
   </ItemGroup>

@@ -15,8 +15,10 @@
     <Project Path="tests/Aggregator/Domain/ContainerForest.Aggregator.Domain.Tests.csproj" />
     <Project Path="tests/Aggregator/Infrastructure/ContainerForest.Aggregator.Infrastructure.Tests.csproj" />
     <Project Path="tests/Agent/ContainerForest.Agent.Tests.csproj" />
+    <Project Path="tests/Cli/ContainerForest.Cli.Tests.csproj" />
     <Project Path="tests/DiscordBot/ContainerForest.DiscordBot.Tests.csproj" />
   </Folder>
   <Project Path="src/Agent/ContainerForest.Agent.csproj" />
+  <Project Path="src/Cli/ContainerForest.Cli.csproj" />
   <Project Path="src/DiscordBot/ContainerForest.DiscordBot.csproj" />
 </Solution>

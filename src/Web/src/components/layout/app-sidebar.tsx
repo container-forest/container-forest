@@ -13,6 +13,7 @@ import {
   LogOutIcon,
   MessageCircleIcon,
   ServerIcon,
+  TokenIcon,
   SettingsIcon,
   UserIcon,
   UsersIcon,
@@ -256,6 +257,9 @@ export function SidebarContent({ onNavigate = () => {} }: { onNavigate?: () => v
           </NavItem>
           <NavItem active={at("/discord")} icon={MessageCircleIcon} label={t("layout.nav.discord")}>
             {(props) => <Link to="/discord" onClick={onNavigate} {...props} />}
+          </NavItem>
+          <NavItem active={at("/tokens")} icon={TokenIcon} label={t("layout.nav.tokens")}>
+            {(props) => <Link to="/tokens" onClick={onNavigate} {...props} />}
           </NavItem>
         </NavGroup>
         <div className="flex items-center justify-between gap-2 px-1">

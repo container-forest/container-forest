@@ -86,3 +86,34 @@ internal sealed class DiscordLinkConfiguration : IEntityTypeConfiguration<Discor
         builder.Ignore(l => l.IsLinked);
     }
 }
+
+internal sealed class ApiTokenConfiguration : IEntityTypeConfiguration<ApiToken>
+{
+    public void Configure(EntityTypeBuilder<ApiToken> builder)
+    {
+        builder.ToTable("ApiTokens");
+        builder.HasKey(t => t.Id);
+        builder.Property(t => t.Id).ValueGeneratedNever();
+        builder.HasOne<User>().WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(t => t.UserId);
+
+        builder.Property(t => t.Name).HasMaxLength(ApiToken.MaxNameLength);
+        builder.Property(t => t.TokenHash).HasMaxLength(EnvironmentConfiguration.Sha256HexLength);
+        builder.HasIndex(t => t.TokenHash).IsUnique();
+        builder.Property(t => t.Hint).HasMaxLength(ApiToken.Prefix.Length + ApiToken.HintLength);
+
+        builder.OwnsMany<ApiTokenEnvironment>("environments", environments =>
+        {
+            environments.ToTable("ApiTokenEnvironments");
+            environments.WithOwner().HasForeignKey("ApiTokenId");
+            environments.HasKey("ApiTokenId", nameof(ApiTokenEnvironment.EnvironmentId));
+
+            // A removed environment leaves the token restricted to the rest, or to nothing (ApiToken.Environments).
+            environments.HasOne<DockerEnvironment>().WithMany().HasForeignKey(e => e.EnvironmentId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Navigation("environments").UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Ignore(t => t.Environments);
+        builder.Ignore(t => t.Scope);
+    }
+}

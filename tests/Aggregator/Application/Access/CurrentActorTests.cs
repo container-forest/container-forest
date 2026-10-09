@@ -21,7 +21,10 @@ public class CurrentActorTests
     {
         var alice = SignIn(User.Create("alice", Now));
 
-        Assert.Same(alice, await actor.GetAsync(Ct));
+        var current = await actor.GetAsync(Ct);
+
+        Assert.Same(alice, current.User);
+        Assert.Same(AccessScope.Full, current.Scope);
     }
 
     [Fact]
@@ -58,7 +61,59 @@ public class CurrentActorTests
     {
         var admin = SignIn(User.CreateAdministrator("root", Now));
 
-        Assert.Same(admin, await actor.GetAdministratorAsync(Ct));
+        Assert.Same(admin, (await actor.GetAdministratorAsync(Ct)).User);
+    }
+
+    [Fact]
+    public async Task Token_carries_its_limits()
+    {
+        var alice = SignIn(User.Create("alice", Now));
+        var environmentId = EnvironmentId.New();
+        var (token, _) = ApiToken.Create(alice.Id, "ci", readOnly: true, [environmentId], expiresAt: null, Now);
+        currentUser.UseToken(token);
+
+        var current = await actor.GetAsync(Ct);
+
+        Assert.True(current.Scope.IsReadOnly);
+        Assert.True(current.Scope.Reaches(environmentId));
+        Assert.False(current.Scope.Reaches(EnvironmentId.New()));
+        Assert.Equal(token.Id, actor.ApiTokenId);
+    }
+
+    [Fact]
+    public async Task Administrator_check_denies_an_administrators_restricted_token()
+    {
+        var admin = SignIn(User.CreateAdministrator("root", Now));
+        currentUser.UseToken(ApiToken.Create(admin.Id, "ci", readOnly: false, [EnvironmentId.New()], null, Now).Token);
+
+        var denied = await Assert.ThrowsAsync<AccessDeniedException>(() => actor.GetAdministratorAsync(Ct));
+        Assert.Contains("limited to some environments", denied.Message);
+    }
+
+    [Fact]
+    public async Task Administrator_check_passes_an_administrators_unrestricted_token()
+    {
+        var admin = SignIn(User.CreateAdministrator("root", Now));
+        currentUser.UseToken(ApiToken.Create(admin.Id, "cli", readOnly: false, null, null, Now).Token);
+
+        Assert.Same(admin, (await actor.GetAdministratorAsync(Ct)).User);
+    }
+
+    [Fact]
+    public async Task Signed_in_user_is_the_sessions_user()
+    {
+        var alice = SignIn(User.Create("alice", Now));
+
+        Assert.Same(alice, await actor.GetSignedInUserAsync(Ct));
+    }
+
+    [Fact]
+    public async Task Signed_in_user_denies_a_token()
+    {
+        var alice = SignIn(User.Create("alice", Now));
+        currentUser.UseToken(ApiToken.Create(alice.Id, "cli", readOnly: false, null, null, Now).Token);
+
+        await Assert.ThrowsAsync<AccessDeniedException>(() => actor.GetSignedInUserAsync(Ct));
     }
 
     private User SignIn(User user)

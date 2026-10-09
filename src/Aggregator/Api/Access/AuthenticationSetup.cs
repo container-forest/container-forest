@@ -8,12 +8,19 @@ internal static class AuthenticationSetup
 {
     public const string SessionCookieName = "cf_session";
 
-    /// <summary>Development only: the dev header when the request has one, the session cookie otherwise.</summary>
-    private const string DevOrCookieScheme = "DevOrCookie";
+    /// <summary>
+    /// Picks the scheme of a request: an API token when it has a bearer credential, otherwise (in Development) the dev
+    /// header when it has one, otherwise the session cookie.
+    /// </summary>
+    private const string DefaultScheme = "Default";
+
+    /// <summary>Requires a session (cookie or, in Development, the dev header), not an API token: the live hub.</summary>
+    public const string SessionPolicy = "Session";
 
     /// <summary>
-    /// The <c>cf_session</c> cookie of a password sign-in. In Development the X-Dev-User header keeps working
-    /// next to it, so the rest of the team can act as any user without a password.
+    /// The <c>cf_session</c> cookie of a password sign-in and the <c>Authorization: Bearer</c> API tokens of the CLI.
+    /// In Development the X-Dev-User header keeps working next to them, so the rest of the team can act as any user
+    /// without a password.
     /// </summary>
     public static IServiceCollection AddSessionAuthentication(this IServiceCollection services, IHostEnvironment environment)
     {
@@ -24,9 +31,9 @@ internal static class AuthenticationSetup
         // other sessions right away, not after the default 30 minutes. The price is a lookup per request.
         services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.Zero);
 
-        var authentication = services.AddAuthentication(
-            environment.IsDevelopment() ? DevOrCookieScheme : IdentityConstants.ApplicationScheme);
+        var authentication = services.AddAuthentication(DefaultScheme);
         authentication.AddIdentityCookies();
+        authentication.AddScheme<AuthenticationSchemeOptions, ApiTokenAuthenticationHandler>(ApiTokenAuthenticationHandler.SchemeName, null);
         services.ConfigureApplicationCookie(options =>
         {
             options.Cookie.Name = SessionCookieName;
@@ -43,15 +50,20 @@ internal static class AuthenticationSetup
             options.Events.OnRedirectToAccessDenied = context => WriteStatus(context, StatusCodes.Status403Forbidden);
         });
 
-        if (environment.IsDevelopment())
+        var isDevelopment = environment.IsDevelopment();
+        if (isDevelopment)
         {
-            authentication
-                .AddScheme<AuthenticationSchemeOptions, DevUserAuthenticationHandler>(DevUserAuthenticationHandler.SchemeName, null)
-                .AddPolicyScheme(DevOrCookieScheme, null, options => options.ForwardDefaultSelector = context =>
-                    context.Request.Headers.ContainsKey(DevUserAuthenticationHandler.HeaderName)
-                        ? DevUserAuthenticationHandler.SchemeName
-                        : IdentityConstants.ApplicationScheme);
+            authentication.AddScheme<AuthenticationSchemeOptions, DevUserAuthenticationHandler>(DevUserAuthenticationHandler.SchemeName, null);
         }
+
+        authentication.AddPolicyScheme(DefaultScheme, null, options => options.ForwardDefaultSelector = context =>
+            ApiTokenAuthenticationHandler.HasBearer(context.Request) ? ApiTokenAuthenticationHandler.SchemeName
+            : isDevelopment && context.Request.Headers.ContainsKey(DevUserAuthenticationHandler.HeaderName) ? DevUserAuthenticationHandler.SchemeName
+            : IdentityConstants.ApplicationScheme);
+
+        services.AddAuthorizationBuilder().AddPolicy(SessionPolicy, policy => policy
+            .RequireAuthenticatedUser()
+            .RequireAssertion(context => ApiTokenClaims.TokenIdOf(context.User) is null));
 
         return services;
     }

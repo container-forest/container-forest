@@ -19,6 +19,7 @@ import { Route as AuthedGitConnectionsRouteImport } from './routes/_authed/git-c
 import { Route as AuthedKeysRouteImport } from './routes/_authed/keys'
 import { Route as AuthedNotificationsRouteRouteImport } from './routes/_authed/notifications/route'
 import { Route as AuthedRepositoriesRouteImport } from './routes/_authed/repositories'
+import { Route as AuthedTokensRouteImport } from './routes/_authed/tokens'
 import { Route as AuthedDeploymentsDeploymentIdRouteImport } from './routes/_authed/deployments/$deploymentId'
 import { Route as AuthedEnvironmentsIndexRouteImport } from './routes/_authed/environments/index'
 import { Route as AuthedEnvironmentsEnvironmentIdRouteImport } from './routes/_authed/environments/$environmentId'
@@ -81,6 +82,11 @@ const AuthedNotificationsRouteRoute =
 const AuthedRepositoriesRoute = AuthedRepositoriesRouteImport.update({
   id: '/repositories',
   path: '/repositories',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedTokensRoute = AuthedTokensRouteImport.update({
+  id: '/tokens',
+  path: '/tokens',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedDeploymentsDeploymentIdRoute =
@@ -168,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/git-connections': typeof AuthedGitConnectionsRoute
   '/keys': typeof AuthedKeysRoute
   '/repositories': typeof AuthedRepositoriesRoute
+  '/tokens': typeof AuthedTokensRoute
   '/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
   '/environments/$environmentId': typeof AuthedEnvironmentsEnvironmentIdRoute
   '/notifications/history': typeof AuthedNotificationsHistoryRoute
@@ -190,6 +197,7 @@ export interface FileRoutesByTo {
   '/git-connections': typeof AuthedGitConnectionsRoute
   '/keys': typeof AuthedKeysRoute
   '/repositories': typeof AuthedRepositoriesRoute
+  '/tokens': typeof AuthedTokensRoute
   '/': typeof AuthedIndexRoute
   '/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
   '/environments/$environmentId': typeof AuthedEnvironmentsEnvironmentIdRoute
@@ -216,6 +224,7 @@ export interface FileRoutesById {
   '/_authed/git-connections': typeof AuthedGitConnectionsRoute
   '/_authed/keys': typeof AuthedKeysRoute
   '/_authed/repositories': typeof AuthedRepositoriesRoute
+  '/_authed/tokens': typeof AuthedTokensRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
   '/_authed/environments/$environmentId': typeof AuthedEnvironmentsEnvironmentIdRoute
@@ -243,6 +252,7 @@ export interface FileRouteTypes {
     | '/git-connections'
     | '/keys'
     | '/repositories'
+    | '/tokens'
     | '/deployments/$deploymentId'
     | '/environments/$environmentId'
     | '/notifications/history'
@@ -265,6 +275,7 @@ export interface FileRouteTypes {
     | '/git-connections'
     | '/keys'
     | '/repositories'
+    | '/tokens'
     | '/'
     | '/deployments/$deploymentId'
     | '/environments/$environmentId'
@@ -290,6 +301,7 @@ export interface FileRouteTypes {
     | '/_authed/git-connections'
     | '/_authed/keys'
     | '/_authed/repositories'
+    | '/_authed/tokens'
     | '/_authed/'
     | '/_authed/deployments/$deploymentId'
     | '/_authed/environments/$environmentId'
@@ -381,6 +393,13 @@ declare module '@tanstack/react-router' {
       path: '/repositories'
       fullPath: '/repositories'
       preLoaderRoute: typeof AuthedRepositoriesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/tokens': {
+      id: '/_authed/tokens'
+      path: '/tokens'
+      fullPath: '/tokens'
+      preLoaderRoute: typeof AuthedTokensRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/deployments/$deploymentId': {
@@ -507,6 +526,7 @@ interface AuthedRouteChildren {
   AuthedGitConnectionsRoute: typeof AuthedGitConnectionsRoute
   AuthedKeysRoute: typeof AuthedKeysRoute
   AuthedRepositoriesRoute: typeof AuthedRepositoriesRoute
+  AuthedTokensRoute: typeof AuthedTokensRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedDeploymentsDeploymentIdRoute: typeof AuthedDeploymentsDeploymentIdRoute
   AuthedEnvironmentsEnvironmentIdRoute: typeof AuthedEnvironmentsEnvironmentIdRoute
@@ -527,6 +547,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedGitConnectionsRoute: AuthedGitConnectionsRoute,
   AuthedKeysRoute: AuthedKeysRoute,
   AuthedRepositoriesRoute: AuthedRepositoriesRoute,
+  AuthedTokensRoute: AuthedTokensRoute,
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedDeploymentsDeploymentIdRoute: AuthedDeploymentsDeploymentIdRoute,
   AuthedEnvironmentsEnvironmentIdRoute: AuthedEnvironmentsEnvironmentIdRoute,

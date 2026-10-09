@@ -60,7 +60,7 @@ public sealed class StackCommandService(
     }
 
     private async Task<StackCommandResult> RunAsync(
-        User actor,
+        Actor actor,
         DockerEnvironment environment,
         Stack stack,
         IReadOnlyList<RoleAssignment> assignments,

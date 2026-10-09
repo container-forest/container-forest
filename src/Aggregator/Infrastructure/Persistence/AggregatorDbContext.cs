@@ -54,6 +54,8 @@ public sealed class AggregatorDbContext : IdentityUserContext<AccountUser, Guid>
 
     public DbSet<DiscordLink> DiscordLinks => Set<DiscordLink>();
 
+    public DbSet<ApiToken> ApiTokens => Set<ApiToken>();
+
     public DbSet<NotificationChannel> NotificationChannels => Set<NotificationChannel>();
 
     public DbSet<NotificationRule> NotificationRules => Set<NotificationRule>();
@@ -96,6 +98,7 @@ public sealed class AggregatorDbContext : IdentityUserContext<AccountUser, Guid>
         configurationBuilder.AddStronglyTypedId<NotificationId>();
         configurationBuilder.AddStronglyTypedId<RegistryCredentialId>();
         configurationBuilder.AddStronglyTypedId<AgeKeyId>();
+        configurationBuilder.AddStronglyTypedId<ApiTokenId>();
 
         // SQLite has no DateTimeOffset type: stored as text it cannot be compared or ordered in queries.
         configurationBuilder.Properties<DateTimeOffset>().HaveConversion<DateTimeOffsetToBinaryConverter>();

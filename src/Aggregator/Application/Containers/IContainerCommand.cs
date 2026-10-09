@@ -19,7 +19,7 @@ public interface IContainerCommand
 /// <summary>Who runs the command and on what.</summary>
 /// <param name="Stack">The managed stack the container belongs to (by its compose project label), or null.</param>
 public sealed record ContainerCommandContext(
-    User Actor,
+    Actor Actor,
     DockerEnvironment Environment,
     ContainerSnapshot Container,
     Stack? Stack);

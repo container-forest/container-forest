@@ -38,7 +38,7 @@ public sealed class DiscordLinkService(
     /// <summary>A new one-time code for the current user; the previous code stops working.</summary>
     public async Task<DiscordLinkCode> IssueCodeAsync(CancellationToken cancellationToken)
     {
-        var user = await currentActor.GetAsync(cancellationToken);
+        var user = await currentActor.GetSignedInUserAsync(cancellationToken);
         var link = await links.FindAsync(user.Id, cancellationToken);
         if (link is null)
         {
@@ -53,7 +53,7 @@ public sealed class DiscordLinkService(
 
     public async Task UnlinkAsync(CancellationToken cancellationToken)
     {
-        var user = await currentActor.GetAsync(cancellationToken);
+        var user = await currentActor.GetSignedInUserAsync(cancellationToken);
         if (await links.FindAsync(user.Id, cancellationToken) is { IsLinked: true } link)
         {
             link.Unlink();

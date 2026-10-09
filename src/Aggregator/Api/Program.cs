@@ -28,6 +28,7 @@ builder.Services.AddScoped<ClaimsCurrentUser>();
 builder.Services.AddScoped<ICurrentUser>(sp => sp.GetRequiredService<ClaimsCurrentUser>());
 builder.Services.AddSessionAuthentication(builder.Environment);
 builder.Services.AddCliAuthorizationRateLimits();
+DiscordSignIn.AddTo(builder.Services, builder.Configuration, builder.Environment);
 
 builder.Services.AddGrpc()
     .AddServiceOptions<BotGatewayService>(options => options.Interceptors.Add<BotGatewayInterceptor>());
@@ -54,6 +55,7 @@ app.MapGrpcService<AgentGatewayService>();
 app.MapGrpcService<BotGatewayService>();
 app.MapAuthEndpoints();
 app.MapPasskeyEndpoints();
+app.MapDiscordAuthEndpoints();
 app.MapMeEndpoints();
 app.MapApiTokenEndpoints();
 app.MapCliAuthorizationEndpoints();

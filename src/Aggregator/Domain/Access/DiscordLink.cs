@@ -3,8 +3,9 @@ using ContainerForest.Aggregator.Domain.Common;
 namespace ContainerForest.Aggregator.Domain.Access;
 
 /// <summary>
-/// A user's link to a Discord account, which lets the Discord bot act for them. One per user; its id is the
-/// user's id. The user gets a one-time code in the panel and types it in Discord to complete the link.
+/// A user's link to a Discord account, which lets the Discord bot act for them and the user sign in with Discord.
+/// One per user; its id is the user's id. The user links either through Discord's OAuth2 sign-in in the panel, or
+/// with a one-time code from the panel typed in Discord.
 /// </summary>
 /// <remarks>
 /// A Discord account links to at most one user; the service moves the link when the same Discord account
@@ -66,6 +67,26 @@ public sealed class DiscordLink : Entity<UserId>
         LinkedAt = now;
         PendingCodeHash = null;
         PendingCodeExpiresAt = null;
+    }
+
+    /// <summary>
+    /// Links the Discord account Discord itself vouched for, after the user signed in to Discord through OAuth2
+    /// (ADR-0009): no code needed. A pending code stays valid.
+    /// </summary>
+    public void LinkVerified(ulong discordUserId, string discordUserName, DateTimeOffset now)
+    {
+        DiscordUserId = discordUserId;
+        DiscordUserName = NormalizeDiscordUserName(discordUserName);
+        LinkedAt = now;
+    }
+
+    /// <summary>The name changes in Discord; the panel shows the current one after each Discord sign-in.</summary>
+    public void UpdateDiscordUserName(string discordUserName)
+    {
+        if (IsLinked)
+        {
+            DiscordUserName = NormalizeDiscordUserName(discordUserName);
+        }
     }
 
     /// <summary>Removes the link; the bot can no longer act for the user. A pending code stays valid.</summary>

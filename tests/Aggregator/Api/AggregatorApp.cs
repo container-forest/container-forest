@@ -50,6 +50,9 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
     private readonly string keyDirectory = Path.Combine(Path.GetTempPath(), $"cf-test-keys-{Guid.NewGuid():N}");
     private GrpcChannel? channel;
 
+    /// <summary>More settings or services for one test, applied after the defaults.</summary>
+    public Action<IWebHostBuilder>? Customize { get; init; }
+
     public StubGitSource Git { get; } = new();
 
     public StubSops Sops { get; } = new();
@@ -139,6 +142,7 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
             services.Replace(ServiceDescriptor.Singleton<IAgeKeyGenerator>(Sops));
             services.Replace(ServiceDescriptor.Singleton<ISopsDecryptor>(Sops));
         });
+        Customize?.Invoke(builder);
     }
 
     protected override void ConfigureClient(HttpClient client)

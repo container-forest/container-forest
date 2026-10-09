@@ -8,7 +8,7 @@ public static class ExitCodes
     /// <summary>The operation failed: the aggregator refused it, or an agent or compose reported an error.</summary>
     public const int Failed = 1;
 
-    /// <summary>The command line is wrong; System.CommandLine uses it for parse errors too.</summary>
+    /// <summary>The command line is wrong: a parse error, a missing confirmation, an unusable address.</summary>
     public const int Usage = 2;
 
     /// <summary>No credentials, or the aggregator does not accept them.</summary>

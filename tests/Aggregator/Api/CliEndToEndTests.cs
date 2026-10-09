@@ -133,6 +133,60 @@ public sealed class CliEndToEndTests : IDisposable
         Assert.Contains("--yes", result.Error);
     }
 
+    [Fact]
+    public async Task Administrator_creates_a_user_with_a_role_from_the_command_line()
+    {
+        await using var app = new AggregatorApp();
+        var environment = await app.CreateEnvironmentAsync("r2");
+        var token = await CreateTokenAsync(app);
+        string[] connection = ["--url", "http://localhost", "--token", token];
+
+        var created = await RunAsync(app, null, "a long enough password\n", [.. connection, "user", "create", "alice"]);
+        var granted = await RunAsync(app, null, "", [.. connection, "user", "role", "grant", "alice", "-e", "r2", "--role", "operator"]);
+        var shown = await RunAsync(app, null, "", [.. connection, "user", "show", "alice", "-o", "json"]);
+
+        Assert.Equal(0, created.ExitCode);
+        Assert.Equal(0, granted.ExitCode);
+        var role = Assert.Single(JsonDocument.Parse(shown.Output).RootElement.GetProperty("roleAssignments").EnumerateArray());
+        Assert.Equal("Operator", role.GetProperty("role").GetString());
+        Assert.Equal(environment.Id, role.GetProperty("environmentId").GetGuid());
+    }
+
+    [Fact]
+    public async Task Repository_and_notification_rule_are_added_from_the_command_line()
+    {
+        await using var app = new AggregatorApp();
+        await app.CreateEnvironmentAsync("r2");
+        var token = await CreateTokenAsync(app);
+        string[] connection = ["--url", "http://localhost", "--token", token];
+
+        var repository = await RunAsync(app, null, "", [.. connection, "repo", "add", "app", "--url", "https://git.example.com/app.git"]);
+        var repositories = await RunAsync(app, null, "", [.. connection, "repo", "list"]);
+        await RunAsync(app, null, "", [.. connection, "notification", "channel", "add", "ops", "--discord-channel", "123456789012345678"]);
+        var rule = await RunAsync(app, null, "", [.. connection, "notification", "rule", "add", "ops", "--event", "all", "-e", "r2"]);
+        var rules = await RunAsync(app, null, "", [.. connection, "notification", "rule", "list", "ops", "-o", "json"]);
+
+        Assert.Equal(0, repository.ExitCode);
+        Assert.Contains("https://git.example.com/app.git", repositories.Output);
+        Assert.Equal(0, rule.ExitCode);
+        Assert.Equal(6, Assert.Single(JsonDocument.Parse(rules.Output).RootElement.EnumerateArray()).GetProperty("events").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Administrators_restricted_token_cannot_manage_users()
+    {
+        await using var app = new AggregatorApp();
+        var environment = await app.CreateEnvironmentAsync("r2");
+        var response = await app.CreateClient().PostAsJsonAsync(
+            "/api/me/tokens", new { name = "ci", readOnly = false, environmentIds = new[] { environment.Id } }, Ct);
+        var token = (await response.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct)).GetProperty("token").GetString()!;
+
+        var result = await RunAsync(app, null, "", "--url", "http://localhost", "--token", token, "user", "list");
+
+        Assert.Equal(4, result.ExitCode);
+        Assert.Contains("limited to some environments", result.Error);
+    }
+
     private async Task<CliResult> RunAsync(AggregatorApp app, IBrowser? browser, string input, params string[] args)
     {
         var output = new StringWriter();

@@ -19,12 +19,18 @@ public class CommandTreeTests
     [InlineData("login forest.example.com --device")]
     [InlineData("deployment logs 01a11fb3-4e54-7703-afb3-13230a32e6e9 -f")]
     [InlineData("-o json env list")]
+    [InlineData("user role grant alice -e r2 --role Operator")]
+    [InlineData("connection add team --prefix https://gitea.example.com/team/ --env r2 --env l2 --with-token")]
+    [InlineData("notification rule add ops --event DeploymentFailed --event AgentOffline -e r2 --stack web")]
+    [InlineData("repo update app --public")]
     public void Commands_parse(string commandLine) => Assert.Empty(Root.Parse(commandLine).Errors);
 
     [Theory]
     [InlineData("stack deploy")]
     [InlineData("stack deploy-on-push web maybe")]
     [InlineData("env registry set ghcr.io")]
+    [InlineData("user role grant alice -e r2 --role Root")]
+    [InlineData("user set-admin alice maybe")]
     public void Wrong_command_lines_are_refused(string commandLine) => Assert.NotEmpty(Root.Parse(commandLine).Errors);
 
     [Fact]

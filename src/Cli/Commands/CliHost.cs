@@ -19,8 +19,12 @@ public sealed class CliHost(
     ConfigStore configStore,
     ForestApiFactory apiFactory,
     IBrowser browser,
-    TimeProvider time)
+    TimeProvider time,
+    bool interactiveTerminal = false)
 {
+    /// <summary>Standard input is a person at a terminal, not a pipe: secrets are then typed without echo.</summary>
+    public bool InteractiveTerminal { get; } = interactiveTerminal;
+
     public TextReader Input { get; } = input;
 
     public Func<string, string?> GetVariable { get; } = getVariable;
@@ -43,7 +47,8 @@ public sealed class CliHost(
         ConfigStore.Default(Environment.GetEnvironmentVariable),
         new ForestApiFactory(),
         new SystemBrowser(),
-        TimeProvider.System);
+        TimeProvider.System,
+        interactiveTerminal: !Console.IsInputRedirected);
 
     /// <summary>
     /// Runs a command: resolves the credentials it needs, then turns every expected failure into a message on

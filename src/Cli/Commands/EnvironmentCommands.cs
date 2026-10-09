@@ -259,7 +259,7 @@ internal sealed class RegistryListCommand() : EnvironmentCommand("list", "List r
     }
 }
 
-internal sealed class RegistrySetCommand() : EnvironmentCommand("set", "Set the login for a registry; the password is read from standard input (administrators).")
+internal sealed class RegistrySetCommand() : EnvironmentCommand("set", "Set the login for a registry; the password is typed or read from standard input (administrators).")
 {
     private readonly Argument<string> server = new("server") { Description = "Registry host, e.g. ghcr.io." };
     private readonly Option<string> username = new("--username", "-u") { Description = "User name.", Required = true };
@@ -273,12 +273,7 @@ internal sealed class RegistrySetCommand() : EnvironmentCommand("set", "Set the 
 
     protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment)
     {
-        // Never an option: it would show in the process list and the shell history.
-        var password = (await context.Host.Input.ReadToEndAsync(context.CancellationToken)).TrimEnd('\r', '\n');
-        if (password.Length == 0)
-        {
-            throw new CliException("Pass the password or token on standard input, e.g. 'forest env registry set ghcr.io -u me < token.txt'.", ExitCodes.Usage);
-        }
+        var password = await SecretInput.ReadAsync(context, "Password or token");
 
         var credential = await context.Api.SetRegistryCredentialAsync(
             environment.Id!.Value, context.Value(server), context.Value(username)!, password, context.CancellationToken);

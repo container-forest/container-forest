@@ -3,6 +3,7 @@
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.Activate;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.Admin;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.Deactivate;
+using ContainerForest.Cli.Api.Generated.Api.Users.Item.Passkeys;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.Password;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.RoleAssignments;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.Tokens;
@@ -39,6 +40,11 @@ namespace ContainerForest.Cli.Api.Generated.Api.Users.Item
         public global::ContainerForest.Cli.Api.Generated.Api.Users.Item.Deactivate.DeactivateRequestBuilder Deactivate
         {
             get => new global::ContainerForest.Cli.Api.Generated.Api.Users.Item.Deactivate.DeactivateRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The passkeys property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.Users.Item.Passkeys.PasskeysRequestBuilder Passkeys
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.Users.Item.Passkeys.PasskeysRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>The password property</summary>
         public global::ContainerForest.Cli.Api.Generated.Api.Users.Item.Password.PasswordRequestBuilder Password

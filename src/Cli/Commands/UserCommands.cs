@@ -269,3 +269,45 @@ internal sealed class UserRevokeTokenCommand() : UserCommand("revoke", "Revoke a
         return ExitCodes.Ok;
     }
 }
+
+internal sealed class UserPasskeysCommand() : UserCommand("list", "List a user's passkeys (administrators).")
+{
+    protected override async Task<int> ExecuteAsync(CommandContext context, UserResponse user)
+    {
+        var passkeys = await context.Api.ListUserPasskeysAsync(user.Id!.Value, context.CancellationToken);
+        await context.Output.ListAsync(
+            passkeys,
+            items =>
+            {
+                var table = new Table("NAME", "ADDED", "SYNCED", "ID");
+                foreach (var p in items)
+                {
+                    table.AddRow(p.Name, CliOutput.Time(p.CreatedAt), CliOutput.YesNo(p.IsBackedUp), p.Id);
+                }
+
+                return table;
+            },
+            $"{user.UserName} has no passkeys.");
+        return ExitCodes.Ok;
+    }
+}
+
+internal sealed class UserRemovePasskeyCommand() : UserCommand("remove", "Remove a user's passkey, e.g. of a lost device (administrators).")
+{
+    private readonly Argument<string> passkey = new("passkey") { Description = "Passkey id, see 'forest user passkey list'." };
+    private readonly Option<bool> yes = Confirmation.Option();
+
+    protected override void ConfigureUser(Command command)
+    {
+        command.Add(passkey);
+        command.Add(yes);
+    }
+
+    protected override async Task<int> ExecuteAsync(CommandContext context, UserResponse user)
+    {
+        Confirmation.Require(context, yes, $"remove a passkey of {user.UserName}; it will no longer sign them in");
+        await context.Api.RemoveUserPasskeyAsync(user.Id!.Value, context.Value(passkey), context.CancellationToken);
+        context.Output.Done($"Passkey of {user.UserName} removed.");
+        return ExitCodes.Ok;
+    }
+}

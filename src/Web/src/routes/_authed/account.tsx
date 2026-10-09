@@ -7,6 +7,7 @@ import { useChangePasswordMutation } from "@/api/auth";
 import { hasStatus } from "@/api/client";
 import { ErrorText, FieldError, PasswordReasons } from "@/components/form-messages";
 import { Loader2Icon } from "@/components/icons";
+import { PasskeysCard } from "@/components/passkeys/passkeys-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,7 +34,7 @@ type ChangePasswordForm = z.infer<typeof changePasswordSchema>;
 
 const emptyForm: ChangePasswordForm = { currentPassword: "", newPassword: "", confirmPassword: "" };
 
-/** The signed-in user's own account: changing the password. */
+/** The signed-in user's own account: changing the password, passkeys. */
 function AccountScreen() {
   const { t } = useTranslation();
   const { me } = Route.useRouteContext();
@@ -111,6 +112,8 @@ function AccountScreen() {
           </form>
         </CardContent>
       </Card>
+
+      <PasskeysCard />
     </div>
   );
 }

@@ -16,6 +16,27 @@ export const discordLinkQuery = queryOptions({
   queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/discord", { signal })),
 });
 
+/** Ways to sign in the aggregator offers; anonymous, for the login screen. */
+export const signInMethodsQuery = queryOptions({
+  queryKey: ["auth", "methods"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/auth/methods", { signal })),
+  staleTime: Infinity,
+});
+
+/** The signed-in user's passkeys, oldest first. */
+export const passkeysQuery = queryOptions({
+  queryKey: ["me", "passkeys"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/passkeys", { signal })),
+});
+
+/** Another user's passkeys. Administrators only. */
+export const userPasskeysQuery = (userId: string) =>
+  queryOptions({
+    queryKey: ["users", userId, "passkeys"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/users/{userId}/passkeys", { params: { path: { userId } }, signal })),
+  });
+
 /** The signed-in user's API tokens, newest first; never the tokens themselves. */
 export const apiTokensQuery = queryOptions({
   queryKey: ["me", "tokens"],

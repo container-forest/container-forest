@@ -194,6 +194,10 @@ const uk = {
       button: "Увійти з passkey",
       refused: "Цей passkey не прийнято. Можливо, його видалено або користувача вимкнено.",
     },
+    discord: {
+      button: "Увійти через Discord",
+      failed: "Не вдалося ввійти через Discord. Вхід працює лише для Discord-акаунта, прив'язаного до користувача container-forest.",
+    },
     errors: {
       userNameRequired: "Введіть ім'я користувача.",
       passwordRequired: "Введіть пароль.",
@@ -626,6 +630,14 @@ const uk = {
     failed: "Не вдалося скопіювати",
   },
   discord: {
+    oauth: {
+      title: "Прив'язати через Discord",
+      description: "Увійдіть у Discord на його сторінці, і акаунт прив'яжеться без коду. Після цього ним можна й входити в панель.",
+      link: "Прив'язати через Discord",
+      relink: "Прив'язати інший акаунт",
+      done: "Discord-акаунт прив'язано.",
+      failed: "Не вдалося прив'язати Discord-акаунт. Спробуйте ще раз або скористайтеся кодом нижче.",
+    },
     title: "Прив'язка Discord",
     description: "Після прив'язки бот container-forest у Discord діє від вашого імені й з вашими правами.",
     status: {

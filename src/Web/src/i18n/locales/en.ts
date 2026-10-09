@@ -192,6 +192,10 @@ const en: Translation = {
       button: "Sign in with a passkey",
       refused: "This passkey was not accepted. It may have been removed, or the user deactivated.",
     },
+    discord: {
+      button: "Sign in with Discord",
+      failed: "Could not sign in with Discord. It works only for a Discord account linked to a container-forest user.",
+    },
     errors: {
       userNameRequired: "Enter your user name.",
       passwordRequired: "Enter your password.",
@@ -624,6 +628,14 @@ const en: Translation = {
     failed: "Could not copy",
   },
   discord: {
+    oauth: {
+      title: "Link with Discord",
+      description: "Sign in to Discord on its page and the account is linked without a code. After that you can also sign in to the panel with it.",
+      link: "Link with Discord",
+      relink: "Link another account",
+      done: "Discord account linked.",
+      failed: "Could not link the Discord account. Try again or use the code below.",
+    },
     title: "Discord link",
     description: "Once linked, the container-forest bot in Discord acts for you, with your permissions.",
     status: {

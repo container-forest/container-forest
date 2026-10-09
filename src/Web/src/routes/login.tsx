@@ -9,7 +9,7 @@ import { useLoginMutation } from "@/api/auth";
 import { isUnauthorized } from "@/api/client";
 import { signInWithPasskey, usePasskeyLoginMutation } from "@/api/passkeys";
 import { meQuery, signInMethodsQuery } from "@/api/queries";
-import { KeyIcon, Loader2Icon } from "@/components/icons";
+import { KeyIcon, Loader2Icon, MessageCircleIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,6 +26,8 @@ const searchSchema = z.object({
     .refine((value) => value.startsWith("/") && !value.startsWith("//"))
     .optional()
     .catch(undefined),
+  // Set by the aggregator when a Discord sign-in did not work out (ADR-0009).
+  error: z.literal("discord").optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/login")({
@@ -46,13 +48,16 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 function LoginScreen() {
   const { t } = useTranslation();
-  const { redirect } = Route.useSearch();
+  const { redirect, error: signInError } = Route.useSearch();
   const navigate = useNavigate();
   const login = useLoginMutation();
   const queryClient = useQueryClient();
   const passkeyLogin = usePasskeyLoginMutation();
   const methods = useQuery(signInMethodsQuery);
   const offerPasskeys = methods.data?.passkey === true && passkeysSupported();
+  const offerDiscord = methods.data?.discord === true;
+  // A browser navigation, not a fetch: Discord's page comes next, and the aggregator brings the browser back.
+  const discordHref = `/api/auth/discord/login?redirect=${encodeURIComponent(redirect ?? "/")}`;
   const autofill = useRef<AbortController | null>(null);
   const {
     register,
@@ -172,17 +177,32 @@ function LoginScreen() {
             </Button>
           </form>
 
-          {offerPasskeys && (
+          {(offerPasskeys || offerDiscord) && (
             <div className="mt-4 grid gap-3">
               <div className="text-muted-foreground flex items-center gap-3 text-xs">
                 <span className="bg-border h-px flex-1" />
                 {t("login.passkey.or")}
                 <span className="bg-border h-px flex-1" />
               </div>
-              <Button type="button" variant="outline" className="w-full" disabled={login.isPending || passkeyLogin.isPending} onClick={onPasskey}>
-                {passkeyLogin.isPending ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : <KeyIcon data-icon="inline-start" />}
-                {t("login.passkey.button")}
-              </Button>
+              {offerPasskeys && (
+                <Button type="button" variant="outline" className="w-full" disabled={login.isPending || passkeyLogin.isPending} onClick={onPasskey}>
+                  {passkeyLogin.isPending ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : <KeyIcon data-icon="inline-start" />}
+                  {t("login.passkey.button")}
+                </Button>
+              )}
+              {offerDiscord && (
+                <Button asChild variant="outline" className="w-full">
+                  <a href={discordHref}>
+                    <MessageCircleIcon data-icon="inline-start" />
+                    {t("login.discord.button")}
+                  </a>
+                </Button>
+              )}
+              {signInError === "discord" && (
+                <p role="alert" className="text-destructive text-sm">
+                  {t("login.discord.failed")}
+                </p>
+              )}
               {passkeyError && (
                 <p role="alert" className="text-destructive text-sm">
                   {isUnauthorized(passkeyError)

@@ -1,18 +1,26 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type DiscordLinkCode, useIssueDiscordLinkCodeMutation, useUnlinkDiscordMutation } from "@/api/discord";
-import { discordLinkQuery } from "@/api/queries";
-import { CheckIcon, CopyIcon, LinkIcon, Loader2Icon, RefreshCwIcon, UnlinkIcon } from "@/components/icons";
+import { discordLinkQuery, signInMethodsQuery } from "@/api/queries";
+import { CheckIcon, CopyIcon, LinkIcon, Loader2Icon, MessageCircleIcon, RefreshCwIcon, UnlinkIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMinutesSeconds, useSecondsLeft } from "@/hooks/use-seconds-left";
+import { z } from "zod";
 
 /** How often the status is reloaded while a code waits for /link, so the screen notices the bot redeeming it. */
 const LINK_POLL_INTERVAL_MS = 3000;
 
+// The aggregator comes back here after linking through Discord's OAuth2 (ADR-0009).
+const searchSchema = z.object({
+  linked: z.literal("discord").optional().catch(undefined),
+  error: z.literal("discord").optional().catch(undefined),
+});
+
 export const Route = createFileRoute("/_authed/discord")({
+  validateSearch: searchSchema,
   loader: ({ context }) => context.queryClient.ensureQueryData(discordLinkQuery),
   component: DiscordScreen,
   errorComponent: DiscordLoadError,
@@ -44,6 +52,8 @@ function DiscordScreen() {
 
       <LinkStatusCard linked={link.linked} discordUserName={link.discordUserName} linkedAt={link.linkedAt} />
 
+      <OAuthLinkCard relink={link.linked} />
+
       <LinkCodeCard
         relink={link.linked}
         code={code}
@@ -54,6 +64,42 @@ function DiscordScreen() {
         }}
       />
     </div>
+  );
+}
+
+/** Linking through Discord's own sign-in: one click, no code; shown when the aggregator has Discord sign-in set up. */
+function OAuthLinkCard({ relink }: { relink: boolean }) {
+  const { t } = useTranslation();
+  const { linked, error } = Route.useSearch();
+  const methods = useQuery(signInMethodsQuery);
+  if (methods.data?.discord !== true) {
+    return null;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("discord.oauth.title")}</CardTitle>
+        <CardDescription>{t("discord.oauth.description")}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        {linked === "discord" && <p role="status" className="text-sm">{t("discord.oauth.done")}</p>}
+        {error === "discord" && (
+          <p role="alert" className="text-destructive text-sm">
+            {t("discord.oauth.failed")}
+          </p>
+        )}
+        <div>
+          {/* A browser navigation to Discord's page; the aggregator brings the browser back here. */}
+          <Button asChild>
+            <a href="/api/me/discord/oauth">
+              <MessageCircleIcon data-icon="inline-start" />
+              {relink ? t("discord.oauth.relink") : t("discord.oauth.link")}
+            </a>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

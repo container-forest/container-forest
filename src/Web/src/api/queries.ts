@@ -30,6 +30,15 @@ export const userApiTokensQuery = (userId: string) =>
       unwrap(await api.GET("/api/users/{userId}/tokens", { params: { path: { userId } }, signal })),
   });
 
+/** A CLI login waiting for the signed-in user's decision; 404 once decided or expired. */
+export const cliAuthorizationQuery = (userCode: string) =>
+  queryOptions({
+    queryKey: ["cli-authorizations", userCode],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/cli/authorizations/{userCode}", { params: { path: { userCode } }, signal })),
+    retry: false,
+  });
+
 /** Environments the signed-in user may see, with their agents' status, in name order. */
 export const environmentsQuery = queryOptions({
   queryKey: ["environments"],

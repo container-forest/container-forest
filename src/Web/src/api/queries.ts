@@ -16,6 +16,20 @@ export const discordLinkQuery = queryOptions({
   queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/discord", { signal })),
 });
 
+/** The signed-in user's API tokens, newest first; never the tokens themselves. */
+export const apiTokensQuery = queryOptions({
+  queryKey: ["me", "tokens"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/tokens", { signal })),
+});
+
+/** Another user's API tokens, newest first. Administrators only. */
+export const userApiTokensQuery = (userId: string) =>
+  queryOptions({
+    queryKey: ["users", userId, "tokens"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/users/{userId}/tokens", { params: { path: { userId } }, signal })),
+  });
+
 /** Environments the signed-in user may see, with their agents' status, in name order. */
 export const environmentsQuery = queryOptions({
   queryKey: ["environments"],

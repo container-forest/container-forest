@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { UserTokensCard } from "@/components/tokens/user-tokens-card";
 import { GrantRoleForm } from "@/components/users/grant-role-form";
 import { ResetPasswordDialog } from "@/components/users/reset-password-dialog";
 import { UserKindBadge, UserStatusBadge } from "@/components/users/user-badges";
@@ -79,6 +80,7 @@ function UserScreen() {
       <RenameCard key={user.userName} user={user} />
       <AccessCard user={user} />
       <RolesCard user={user} assignments={roleAssignments} />
+      <UserTokensCard userId={user.id} />
     </div>
   );
 }

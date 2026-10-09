@@ -153,6 +153,26 @@ internal sealed class InMemoryApiTokens : InMemoryRepository<ApiToken, ApiTokenI
         Task.FromResult(Items.Count(t => t.UserId == userId));
 }
 
+internal sealed class InMemoryCliAuthorizations : InMemoryRepository<CliAuthorization, CliAuthorizationId>, ICliAuthorizationRepository
+{
+    public int Count => Items.Count;
+
+    public Task<CliAuthorization?> FindByDeviceCodeHashAsync(string deviceCodeHash, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.SingleOrDefault(a => a.DeviceCodeHash == deviceCodeHash));
+
+    public Task<CliAuthorization?> FindByUserCodeHashAsync(string userCodeHash, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.SingleOrDefault(a => a.UserCodeHash == userCodeHash));
+
+    public Task<int> CountUnexpiredAsync(DateTimeOffset now, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.Count(a => a.ExpiresAt > now));
+
+    public Task RemoveExpiredAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        Items.RemoveAll(a => a.ExpiresAt <= now);
+        return Task.CompletedTask;
+    }
+}
+
 internal sealed class InMemoryRoleAssignments : InMemoryRepository<RoleAssignment, RoleAssignmentId>, IRoleAssignmentRepository
 {
     public Task<IReadOnlyList<RoleAssignment>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>

@@ -65,6 +65,80 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.ToTable("ApiTokens", (string)null);
                 });
 
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.CliAuthorization", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ApprovedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ClientName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DeviceCodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ExpiresAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("HostName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("LastPolledAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RequestedFrom")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("TokenExpiresAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TokenName")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("TokenReadOnly")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("TokenRestricted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserCodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedBy");
+
+                    b.HasIndex("DeviceCodeHash")
+                        .IsUnique();
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("UserCodeHash")
+                        .IsUnique();
+
+                    b.ToTable("CliAuthorizations", (string)null);
+                });
+
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.DiscordLink", b =>
                 {
                     b.Property<Guid>("Id")
@@ -795,6 +869,40 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         });
 
                     b.Navigation("environments");
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.CliAuthorization", b =>
+                {
+                    b.HasOne("ContainerForest.Aggregator.Domain.Access.User", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovedBy")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.OwnsMany("ContainerForest.Aggregator.Domain.Access.CliAuthorizationEnvironment", "tokenEnvironments", b1 =>
+                        {
+                            b1.Property<Guid>("CliAuthorizationId")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<Guid>("EnvironmentId")
+                                .HasColumnType("TEXT");
+
+                            b1.HasKey("CliAuthorizationId", "EnvironmentId");
+
+                            b1.HasIndex("EnvironmentId");
+
+                            b1.ToTable("CliAuthorizationEnvironments", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("CliAuthorizationId");
+
+                            b1.HasOne("ContainerForest.Aggregator.Domain.Environments.DockerEnvironment", null)
+                                .WithMany()
+                                .HasForeignKey("EnvironmentId")
+                                .OnDelete(DeleteBehavior.Cascade)
+                                .IsRequired();
+                        });
+
+                    b.Navigation("tokenEnvironments");
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.DiscordLink", b =>

@@ -50,6 +50,7 @@ public static class DependencyInjection
         services.AddScoped<IRoleAssignmentRepository, RoleAssignmentRepository>();
         services.AddScoped<IDiscordLinkRepository, DiscordLinkRepository>();
         services.AddScoped<IApiTokenRepository, ApiTokenRepository>();
+        services.AddScoped<ICliAuthorizationRepository, CliAuthorizationRepository>();
         services.AddScoped<INotificationChannelRepository, NotificationChannelRepository>();
         services.AddScoped<INotificationRuleRepository, NotificationRuleRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();

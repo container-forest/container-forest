@@ -86,17 +86,8 @@ public sealed class ApiToken : Entity<ApiTokenId>
         DateTimeOffset? expiresAt,
         DateTimeOffset now)
     {
-        var normalizedName = NormalizeName(name);
-        if (expiresAt is { } expiry && expiry <= now)
-        {
-            throw new DomainValidationException("The expiry of a token must be in the future.");
-        }
-
+        var normalizedName = ValidateOptions(name, environmentIds, expiresAt, now);
         var restrictedTo = environmentIds?.ToHashSet();
-        if (restrictedTo is { Count: 0 })
-        {
-            throw new DomainValidationException("A token limited to environments needs at least one environment.");
-        }
 
         var secret = Prefix + SecretToken.Generate();
         var token = new ApiToken(ApiTokenId.New(), userId, normalizedName, SecretToken.Hash(secret), secret[..(Prefix.Length + HintLength)], now)
@@ -112,6 +103,28 @@ public sealed class ApiToken : Entity<ApiTokenId>
         }
 
         return (token, secret);
+    }
+
+    /// <summary>
+    /// Checks the options of a token before it exists, e.g. when a CLI login is approved and the token is created only
+    /// when the CLI picks it up. Returns the normalized name.
+    /// </summary>
+    /// <exception cref="DomainValidationException">The name is empty or too long, the environment list is empty, or the expiry has passed.</exception>
+    public static string ValidateOptions(
+        string name, IEnumerable<EnvironmentId>? environmentIds, DateTimeOffset? expiresAt, DateTimeOffset now)
+    {
+        var normalizedName = NormalizeName(name);
+        if (expiresAt is { } expiry && expiry <= now)
+        {
+            throw new DomainValidationException("The expiry of a token must be in the future.");
+        }
+
+        if (environmentIds is not null && !environmentIds.Any())
+        {
+            throw new DomainValidationException("A token limited to environments needs at least one environment.");
+        }
+
+        return normalizedName;
     }
 
     /// <summary>True when the value has the shape of an API token, so it should be checked as one.</summary>

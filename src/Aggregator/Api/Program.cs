@@ -27,6 +27,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ClaimsCurrentUser>();
 builder.Services.AddScoped<ICurrentUser>(sp => sp.GetRequiredService<ClaimsCurrentUser>());
 builder.Services.AddSessionAuthentication(builder.Environment);
+builder.Services.AddCliAuthorizationRateLimits();
 
 builder.Services.AddGrpc()
     .AddServiceOptions<BotGatewayService>(options => options.Interceptors.Add<BotGatewayInterceptor>());
@@ -46,6 +47,7 @@ app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseReadOnlyTokens();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapOpenApi();
 app.MapGrpcService<AgentGatewayService>();
@@ -53,6 +55,7 @@ app.MapGrpcService<BotGatewayService>();
 app.MapAuthEndpoints();
 app.MapMeEndpoints();
 app.MapApiTokenEndpoints();
+app.MapCliAuthorizationEndpoints();
 app.MapUserEndpoints();
 app.MapEnvironmentEndpoints();
 app.MapAgeKeyEndpoints();

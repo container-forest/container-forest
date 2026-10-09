@@ -102,3 +102,10 @@ public readonly record struct ApiTokenId(Guid Value) : IStronglyTypedId<ApiToken
     public static ApiTokenId From(Guid value) => new(value);
     public override string ToString() => Value.ToString();
 }
+
+public readonly record struct CliAuthorizationId(Guid Value) : IStronglyTypedId<CliAuthorizationId>
+{
+    public static CliAuthorizationId New() => new(Guid.CreateVersion7());
+    public static CliAuthorizationId From(Guid value) => new(value);
+    public override string ToString() => Value.ToString();
+}

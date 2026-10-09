@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using ContainerForest.Aggregator.Domain.Common;
 
 namespace ContainerForest.Aggregator.Domain.Access;
@@ -17,9 +16,6 @@ public sealed class DiscordLink : Entity<UserId>
     public const int MaxDiscordUserNameLength = 64;
 
     public static readonly TimeSpan CodeLifetime = TimeSpan.FromMinutes(10);
-
-    // No look-alikes (0/O, 1/I/L), so a code read off the screen is typed correctly.
-    private const string CodeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
     private DiscordLink(UserId userId)
         : base(userId)
@@ -47,15 +43,14 @@ public sealed class DiscordLink : Entity<UserId>
     /// <summary>Issues a new code, replacing any previous one. Returns the code; only its hash is kept.</summary>
     public string IssueCode(DateTimeOffset now)
     {
-        var code = RandomNumberGenerator.GetString(CodeAlphabet, CodeLength);
+        var code = OneTimeCode.Generate(CodeLength);
         PendingCodeHash = HashCode(code);
         PendingCodeExpiresAt = now + CodeLifetime;
         return code;
     }
 
     /// <summary>Hash of a code as the user typed it: case, spaces and dashes do not matter.</summary>
-    public static string HashCode(string code) =>
-        SecretToken.Hash(new string(code.Where(c => c is not (' ' or '-')).Select(char.ToUpperInvariant).ToArray()));
+    public static string HashCode(string code) => OneTimeCode.Hash(code);
 
     /// <summary>Links the Discord account with the pending code, which is used up.</summary>
     /// <exception cref="DomainValidationException">There is no pending code, or it has expired.</exception>

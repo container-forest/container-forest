@@ -101,6 +101,22 @@ internal sealed class ApiTokenRepository(AggregatorDbContext db) : EfRepository<
         Set.CountAsync(t => t.UserId == userId, cancellationToken);
 }
 
+internal sealed class CliAuthorizationRepository(AggregatorDbContext db)
+    : EfRepository<CliAuthorization, CliAuthorizationId>(db), ICliAuthorizationRepository
+{
+    public Task<CliAuthorization?> FindByDeviceCodeHashAsync(string deviceCodeHash, CancellationToken cancellationToken) =>
+        Set.SingleOrDefaultAsync(a => a.DeviceCodeHash == deviceCodeHash, cancellationToken);
+
+    public Task<CliAuthorization?> FindByUserCodeHashAsync(string userCodeHash, CancellationToken cancellationToken) =>
+        Set.SingleOrDefaultAsync(a => a.UserCodeHash == userCodeHash, cancellationToken);
+
+    public Task<int> CountUnexpiredAsync(DateTimeOffset now, CancellationToken cancellationToken) =>
+        Set.CountAsync(a => a.ExpiresAt > now, cancellationToken);
+
+    public Task RemoveExpiredAsync(DateTimeOffset now, CancellationToken cancellationToken) =>
+        Set.Where(a => a.ExpiresAt <= now).ExecuteDeleteAsync(cancellationToken);
+}
+
 internal sealed class RoleAssignmentRepository(AggregatorDbContext db)
     : EfRepository<RoleAssignment, RoleAssignmentId>(db), IRoleAssignmentRepository
 {

@@ -45,6 +45,7 @@ export { default as SettingsIcon } from "~icons/material-symbols/settings-rounde
 export { default as ShieldMinusIcon } from "~icons/material-symbols/remove-moderator-rounded";
 export { default as ShieldPlusIcon } from "~icons/material-symbols/add-moderator-rounded";
 export { default as SquareIcon } from "~icons/material-symbols/stop-rounded";
+export { default as TerminalIcon } from "~icons/material-symbols/terminal-rounded";
 export { default as TokenIcon } from "~icons/material-symbols/token-rounded";
 export { default as Trash2Icon } from "~icons/material-symbols/delete-outline-rounded";
 export { default as UnlinkIcon } from "~icons/material-symbols/link-off-rounded";

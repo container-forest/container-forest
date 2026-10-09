@@ -117,3 +117,39 @@ internal sealed class ApiTokenConfiguration : IEntityTypeConfiguration<ApiToken>
         builder.Ignore(t => t.Scope);
     }
 }
+
+internal sealed class CliAuthorizationConfiguration : IEntityTypeConfiguration<CliAuthorization>
+{
+    public void Configure(EntityTypeBuilder<CliAuthorization> builder)
+    {
+        builder.ToTable("CliAuthorizations");
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).ValueGeneratedNever();
+
+        builder.Property(a => a.DeviceCodeHash).HasMaxLength(EnvironmentConfiguration.Sha256HexLength);
+        builder.HasIndex(a => a.DeviceCodeHash).IsUnique();
+        builder.Property(a => a.UserCodeHash).HasMaxLength(EnvironmentConfiguration.Sha256HexLength);
+        builder.HasIndex(a => a.UserCodeHash).IsUnique();
+        builder.HasIndex(a => a.ExpiresAt);
+
+        builder.Property(a => a.ClientName).HasMaxLength(CliAuthorization.MaxClientNameLength);
+        builder.Property(a => a.HostName).HasMaxLength(CliAuthorization.MaxHostNameLength);
+        builder.Property(a => a.RequestedFrom).HasMaxLength(CliAuthorization.MaxAddressLength);
+        builder.Property(a => a.Status).HasConversion<string>().HasMaxLength(16);
+        builder.Property(a => a.TokenName).HasMaxLength(ApiToken.MaxNameLength);
+
+        // A deleted user takes their approvals along.
+        builder.HasOne<User>().WithMany().HasForeignKey(a => a.ApprovedBy).OnDelete(DeleteBehavior.Cascade);
+
+        builder.OwnsMany<CliAuthorizationEnvironment>("tokenEnvironments", environments =>
+        {
+            environments.ToTable("CliAuthorizationEnvironments");
+            environments.WithOwner().HasForeignKey("CliAuthorizationId");
+            environments.HasKey("CliAuthorizationId", nameof(CliAuthorizationEnvironment.EnvironmentId));
+            environments.HasOne<DockerEnvironment>().WithMany().HasForeignKey(e => e.EnvironmentId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Navigation("tokenEnvironments").UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Ignore(a => a.TokenEnvironments);
+    }
+}

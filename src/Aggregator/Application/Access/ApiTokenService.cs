@@ -50,29 +50,45 @@ public sealed class ApiTokenService(
         CancellationToken cancellationToken)
     {
         var user = await currentActor.GetSignedInUserAsync(cancellationToken);
-        if (await tokens.CountForUserAsync(user.Id, cancellationToken) >= MaxTokensPerUser)
-        {
-            throw new DomainConflictException($"A user can have at most {MaxTokensPerUser} API tokens; revoke unused ones first.");
-        }
-
-        if (environmentIds is not null)
-        {
-            // An environment the user cannot see is as unknown as a missing one.
-            var assignments = await roleAssignments.ListForUserAsync(user.Id, cancellationToken);
-            foreach (var environmentId in environmentIds)
-            {
-                if (await environments.FindAsync(environmentId, cancellationToken) is not { } environment
-                    || !AccessPolicy.CanSee(user, environment, assignments))
-                {
-                    throw new NotFoundException("Environment", environmentId);
-                }
-            }
-        }
+        await EnsureRoomForTokenAsync(user.Id, cancellationToken);
+        await EnsureEnvironmentsVisibleAsync(user, environmentIds, cancellationToken);
 
         var (token, secret) = ApiToken.Create(user.Id, name, readOnly, environmentIds, expiresAt, time.GetUtcNow());
         tokens.Add(token);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return new CreatedApiToken(token, secret);
+    }
+
+    /// <exception cref="DomainConflictException">The user already has <see cref="MaxTokensPerUser"/> tokens.</exception>
+    public async Task EnsureRoomForTokenAsync(UserId userId, CancellationToken cancellationToken)
+    {
+        if (await tokens.CountForUserAsync(userId, cancellationToken) >= MaxTokensPerUser)
+        {
+            throw new DomainConflictException($"A user can have at most {MaxTokensPerUser} API tokens; revoke unused ones first.");
+        }
+    }
+
+    /// <summary>A token may be limited only to environments its user can see.</summary>
+    /// <param name="environmentIds">Null for every environment, which needs no check.</param>
+    /// <exception cref="NotFoundException">An environment does not exist or the user cannot see it.</exception>
+    public async Task EnsureEnvironmentsVisibleAsync(
+        User user, IReadOnlyCollection<EnvironmentId>? environmentIds, CancellationToken cancellationToken)
+    {
+        if (environmentIds is null)
+        {
+            return;
+        }
+
+        // An environment the user cannot see is as unknown as a missing one.
+        var assignments = await roleAssignments.ListForUserAsync(user.Id, cancellationToken);
+        foreach (var environmentId in environmentIds)
+        {
+            if (await environments.FindAsync(environmentId, cancellationToken) is not { } environment
+                || !AccessPolicy.CanSee(user, environment, assignments))
+            {
+                throw new NotFoundException("Environment", environmentId);
+            }
+        }
     }
 
     /// <exception cref="NotFoundException">The user has no such token.</exception>

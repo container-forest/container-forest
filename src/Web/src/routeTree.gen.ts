@@ -20,6 +20,8 @@ import { Route as AuthedKeysRouteImport } from './routes/_authed/keys'
 import { Route as AuthedNotificationsRouteRouteImport } from './routes/_authed/notifications/route'
 import { Route as AuthedRepositoriesRouteImport } from './routes/_authed/repositories'
 import { Route as AuthedTokensRouteImport } from './routes/_authed/tokens'
+import { Route as AuthedCliAuthorizeRouteImport } from './routes/_authed/cli/authorize'
+import { Route as AuthedCliDeviceRouteImport } from './routes/_authed/cli/device'
 import { Route as AuthedDeploymentsDeploymentIdRouteImport } from './routes/_authed/deployments/$deploymentId'
 import { Route as AuthedEnvironmentsIndexRouteImport } from './routes/_authed/environments/index'
 import { Route as AuthedEnvironmentsEnvironmentIdRouteImport } from './routes/_authed/environments/$environmentId'
@@ -87,6 +89,16 @@ const AuthedRepositoriesRoute = AuthedRepositoriesRouteImport.update({
 const AuthedTokensRoute = AuthedTokensRouteImport.update({
   id: '/tokens',
   path: '/tokens',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedCliAuthorizeRoute = AuthedCliAuthorizeRouteImport.update({
+  id: '/cli/authorize',
+  path: '/cli/authorize',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedCliDeviceRoute = AuthedCliDeviceRouteImport.update({
+  id: '/cli/device',
+  path: '/cli/device',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedDeploymentsDeploymentIdRoute =
@@ -175,6 +187,8 @@ export interface FileRoutesByFullPath {
   '/keys': typeof AuthedKeysRoute
   '/repositories': typeof AuthedRepositoriesRoute
   '/tokens': typeof AuthedTokensRoute
+  '/cli/authorize': typeof AuthedCliAuthorizeRoute
+  '/cli/device': typeof AuthedCliDeviceRoute
   '/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
   '/environments/$environmentId': typeof AuthedEnvironmentsEnvironmentIdRoute
   '/notifications/history': typeof AuthedNotificationsHistoryRoute
@@ -199,6 +213,8 @@ export interface FileRoutesByTo {
   '/repositories': typeof AuthedRepositoriesRoute
   '/tokens': typeof AuthedTokensRoute
   '/': typeof AuthedIndexRoute
+  '/cli/authorize': typeof AuthedCliAuthorizeRoute
+  '/cli/device': typeof AuthedCliDeviceRoute
   '/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
   '/environments/$environmentId': typeof AuthedEnvironmentsEnvironmentIdRoute
   '/notifications/history': typeof AuthedNotificationsHistoryRoute
@@ -226,6 +242,8 @@ export interface FileRoutesById {
   '/_authed/repositories': typeof AuthedRepositoriesRoute
   '/_authed/tokens': typeof AuthedTokensRoute
   '/_authed/': typeof AuthedIndexRoute
+  '/_authed/cli/authorize': typeof AuthedCliAuthorizeRoute
+  '/_authed/cli/device': typeof AuthedCliDeviceRoute
   '/_authed/deployments/$deploymentId': typeof AuthedDeploymentsDeploymentIdRoute
   '/_authed/environments/$environmentId': typeof AuthedEnvironmentsEnvironmentIdRoute
   '/_authed/notifications/history': typeof AuthedNotificationsHistoryRoute
@@ -253,6 +271,8 @@ export interface FileRouteTypes {
     | '/keys'
     | '/repositories'
     | '/tokens'
+    | '/cli/authorize'
+    | '/cli/device'
     | '/deployments/$deploymentId'
     | '/environments/$environmentId'
     | '/notifications/history'
@@ -277,6 +297,8 @@ export interface FileRouteTypes {
     | '/repositories'
     | '/tokens'
     | '/'
+    | '/cli/authorize'
+    | '/cli/device'
     | '/deployments/$deploymentId'
     | '/environments/$environmentId'
     | '/notifications/history'
@@ -303,6 +325,8 @@ export interface FileRouteTypes {
     | '/_authed/repositories'
     | '/_authed/tokens'
     | '/_authed/'
+    | '/_authed/cli/authorize'
+    | '/_authed/cli/device'
     | '/_authed/deployments/$deploymentId'
     | '/_authed/environments/$environmentId'
     | '/_authed/notifications/history'
@@ -400,6 +424,20 @@ declare module '@tanstack/react-router' {
       path: '/tokens'
       fullPath: '/tokens'
       preLoaderRoute: typeof AuthedTokensRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/cli/authorize': {
+      id: '/_authed/cli/authorize'
+      path: '/cli/authorize'
+      fullPath: '/cli/authorize'
+      preLoaderRoute: typeof AuthedCliAuthorizeRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/cli/device': {
+      id: '/_authed/cli/device'
+      path: '/cli/device'
+      fullPath: '/cli/device'
+      preLoaderRoute: typeof AuthedCliDeviceRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/deployments/$deploymentId': {
@@ -528,6 +566,8 @@ interface AuthedRouteChildren {
   AuthedRepositoriesRoute: typeof AuthedRepositoriesRoute
   AuthedTokensRoute: typeof AuthedTokensRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedCliAuthorizeRoute: typeof AuthedCliAuthorizeRoute
+  AuthedCliDeviceRoute: typeof AuthedCliDeviceRoute
   AuthedDeploymentsDeploymentIdRoute: typeof AuthedDeploymentsDeploymentIdRoute
   AuthedEnvironmentsEnvironmentIdRoute: typeof AuthedEnvironmentsEnvironmentIdRoute
   AuthedUsersUserIdRoute: typeof AuthedUsersUserIdRoute
@@ -549,6 +589,8 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedRepositoriesRoute: AuthedRepositoriesRoute,
   AuthedTokensRoute: AuthedTokensRoute,
   AuthedIndexRoute: AuthedIndexRoute,
+  AuthedCliAuthorizeRoute: AuthedCliAuthorizeRoute,
+  AuthedCliDeviceRoute: AuthedCliDeviceRoute,
   AuthedDeploymentsDeploymentIdRoute: AuthedDeploymentsDeploymentIdRoute,
   AuthedEnvironmentsEnvironmentIdRoute: AuthedEnvironmentsEnvironmentIdRoute,
   AuthedUsersUserIdRoute: AuthedUsersUserIdRoute,

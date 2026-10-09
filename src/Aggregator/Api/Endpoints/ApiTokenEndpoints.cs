@@ -74,7 +74,7 @@ internal static class ApiTokenEndpoints
         return app;
     }
 
-    private static ApiTokenResponse ToResponse(ApiToken token, DateTimeOffset now) => new(
+    internal static ApiTokenResponse ToResponse(ApiToken token, DateTimeOffset now) => new(
         token.Id.Value,
         token.Name,
         token.Hint,

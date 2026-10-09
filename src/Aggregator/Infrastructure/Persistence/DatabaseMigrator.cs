@@ -1,3 +1,5 @@
+using ContainerForest.Aggregator.Infrastructure.Accounts;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +34,15 @@ internal sealed class DatabaseMigrator(IServiceScopeFactory scopeFactory, ILogge
 /// <summary>Lets `dotnet ef` create the context without starting the Api host.</summary>
 internal sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<AggregatorDbContext>
 {
-    public AggregatorDbContext CreateDbContext(string[] args) =>
-        new(new DbContextOptionsBuilder<AggregatorDbContext>().UseSqlite("Data Source=design-time.db").Options);
+    // Identity builds its tables from the IdentityOptions of the application's services (the schema version decides
+    // whether there is a passkeys table), so the migrations need the same options as the running aggregator.
+    public AggregatorDbContext CreateDbContext(string[] args)
+    {
+        var services = new ServiceCollection();
+        services.Configure<IdentityOptions>(AccountPolicy.Configure);
+        return new(new DbContextOptionsBuilder<AggregatorDbContext>()
+            .UseSqlite("Data Source=design-time.db")
+            .UseApplicationServiceProvider(services.BuildServiceProvider())
+            .Options);
+    }
 }

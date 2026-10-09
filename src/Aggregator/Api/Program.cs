@@ -53,6 +53,7 @@ app.MapOpenApi();
 app.MapGrpcService<AgentGatewayService>();
 app.MapGrpcService<BotGatewayService>();
 app.MapAuthEndpoints();
+app.MapPasskeyEndpoints();
 app.MapMeEndpoints();
 app.MapApiTokenEndpoints();
 app.MapCliAuthorizationEndpoints();

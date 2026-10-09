@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace ContainerForest.Aggregator.Infrastructure.Accounts;
 
-/// <summary>Password and lockout rules of ASP.NET Core Identity.</summary>
+/// <summary>Password, lockout and store rules of ASP.NET Core Identity.</summary>
 public static class AccountPolicy
 {
     /// <summary>Length is what makes a password strong; there are no character-class rules (NIST SP 800-63B).</summary>
@@ -25,5 +25,8 @@ public static class AccountPolicy
         options.Lockout.AllowedForNewUsers = true;
         options.Lockout.MaxFailedAccessAttempts = MaxFailedSignIns;
         options.Lockout.DefaultLockoutTimeSpan = LockoutDuration;
+
+        // Version 3 adds the passkeys table (AspNetUserPasskeys).
+        options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
     }
 }

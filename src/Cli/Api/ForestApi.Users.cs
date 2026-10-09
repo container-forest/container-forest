@@ -70,4 +70,10 @@ public sealed partial class ForestApi
 
     public Task RevokeUserTokenAsync(Guid userId, Guid tokenId, CancellationToken cancellationToken) =>
         Api.Users[userId].Tokens[tokenId].DeleteAsync(cancellationToken: cancellationToken);
+
+    public async Task<IReadOnlyList<PasskeyResponse>> ListUserPasskeysAsync(Guid userId, CancellationToken cancellationToken) =>
+        await Api.Users[userId].Passkeys.GetAsync(cancellationToken: cancellationToken) ?? [];
+
+    public Task RemoveUserPasskeyAsync(Guid userId, string passkeyId, CancellationToken cancellationToken) =>
+        Api.Users[userId].Passkeys[passkeyId].DeleteAsync(cancellationToken: cancellationToken);
 }

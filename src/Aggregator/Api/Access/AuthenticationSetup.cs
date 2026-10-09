@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication.Cookies;
 using ContainerForest.Aggregator.Infrastructure.Accounts;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -7,6 +8,9 @@ namespace ContainerForest.Aggregator.Api.Access;
 internal static class AuthenticationSetup
 {
     public const string SessionCookieName = "cf_session";
+
+    /// <summary>The challenge of a passkey sign-in or registration under way (ADR-0009).</summary>
+    public const string PasskeyCookieName = "cf_passkey";
 
     /// <summary>
     /// Picks the scheme of a request: an API token when it has a bearer credential, otherwise (in Development) the dev
@@ -26,6 +30,8 @@ internal static class AuthenticationSetup
     {
         new IdentityBuilder(typeof(AccountUser), services).AddSignInManager();
         services.AddScoped<PasswordSignIn>();
+        services.AddScoped<PasskeySignIn>();
+        services.AddScoped<PasskeyManagement>();
 
         // Check the security stamp on every request: a password change or a deactivation must end the user's
         // other sessions right away, not after the default 30 minutes. The price is a lookup per request.
@@ -51,6 +57,16 @@ internal static class AuthenticationSetup
         });
 
         var isDevelopment = environment.IsDevelopment();
+        // Identity keeps the passkey challenge in the two-factor cookie between the options and the answer.
+        services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFactorUserIdScheme, options =>
+        {
+            options.Cookie.Name = PasskeyCookieName;
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+            options.Cookie.SecurePolicy = environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+            options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+        });
+
         if (isDevelopment)
         {
             authentication.AddScheme<AuthenticationSchemeOptions, DevUserAuthenticationHandler>(DevUserAuthenticationHandler.SchemeName, null);

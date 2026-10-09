@@ -16,8 +16,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace ContainerForest.Aggregator.Infrastructure.Persistence;
 
 /// <summary>
-/// The aggregator's database, including the Identity tables for sign-in (AspNetUsers and its claims, logins and
-/// tokens). Identity's role tables are left out: roles are <see cref="RoleAssignment"/>s.
+/// The aggregator's database, including the Identity tables for sign-in (AspNetUsers and its claims, logins, tokens
+/// and passkeys). Identity's role tables are left out: roles are <see cref="RoleAssignment"/>s.
 /// </summary>
 /// <remarks>
 /// After a successful save it tells open panels what changed (<see cref="ILiveUpdates"/>): environments, stacks,

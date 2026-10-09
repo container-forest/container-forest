@@ -23,6 +23,7 @@ ContainerForest.slnx
 .github/workflows/ci.yml         CI: збірка й тести на кожен PR
 .github/workflows/docs.yml       сайт документації (DocFX) → GitHub Pages
 .github/workflows/images.yml     Docker-образи: збірка на PR, публікація в GHCR з main
+.github/workflows/cli.yml        CLI forest: AOT-збірка на PR, бінарники й реліз за тегом cli-v*
 docfx.json, toc.yml, index.md    конфігурація сайту документації
 scripts/install-sops.sh          sops і age-keygen для образу ЦА й CI (версії й контрольні суми)
 scripts/generate-cli-client.sh   клієнт API для CLI (Kiota) з OpenAPI-документа ЦА
@@ -184,6 +185,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
 6. CLI `forest` (ADR-0008): `dotnet run --project src/Cli -- login http://localhost:5173`. Адреса — панелі (dev-сервер Vite з кроку 5): CLI відкриває в браузері її сторінку підтвердження, а API Vite проксює на ЦА. Конфігурацію з токеном CLI пише в `$XDG_CONFIG_HOME/container-forest/config.json`; для окремої тестової конфігурації задайте `XDG_CONFIG_HOME`. Без браузера: `--device` (код вводиться на `/cli/device`) або токен з екрана «API-токени»: `CF_URL=http://localhost:5173 CF_TOKEN=cf_pat_… dotnet run --project src/Cli -- env list`.
    - Змінили API ЦА — після збірки `src/Aggregator/Api` перегенеруйте клієнт: `dotnet tool restore && scripts/generate-cli-client.sh`, згенеровані файли закомітьте (CI перевіряє).
    - Один бінарник без рантайму (NativeAOT, потрібен clang): `dotnet publish src/Cli -r linux-x64 -c Release -o out` → `out/forest`.
+   - Реліз: `git tag cli-v0.2.0 && git push origin cli-v0.2.0` — workflow `CLI` збирає бінарники для linux x64/arm64, macOS arm64 і Windows x64 і публікує їх у GitHub Releases разом із `SHA256SUMS`.
 
 Тести: `dotnet test --solution ContainerForest.slnx`. Тести зі справжніми `sops` і `age-keygen` без них у `PATH` пропускаються (у CI — обов'язкові, `CF_TEST_REQUIRE_SOPS=1`). Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
 

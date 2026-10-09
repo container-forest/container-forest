@@ -12,7 +12,7 @@ internal static class PasskeyEndpoints
     {
         var auth = app.MapGroup("/api/auth").WithTags("Account");
 
-        auth.MapGet("/methods", () => new SignInMethodsResponse(Password: true, Passkey: true, Discord: false))
+        auth.MapGet("/methods", (DiscordAuthOptions discord) => new SignInMethodsResponse(Password: true, Passkey: true, Discord: discord.IsConfigured))
             .WithName("GetSignInMethods");
 
         auth.MapPost("/passkey/options", async (PasskeySignIn signIn) => Options(await signIn.MakeRequestOptionsAsync()))

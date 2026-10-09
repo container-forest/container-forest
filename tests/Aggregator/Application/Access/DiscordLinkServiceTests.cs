@@ -94,6 +94,38 @@ public class DiscordLinkServiceTests
         await ServiceFor(null).LinkAsync(discordUserId, user.UserName, code.Code, Ct);
     }
 
+    [Fact]
+    public async Task Discord_sign_in_link_moves_the_account_like_a_code()
+    {
+        await ServiceFor(null).LinkVerifiedAsync(alice.Id, 42, "shared", Ct);
+
+        await ServiceFor(null).LinkVerifiedAsync(bob.Id, 42, "shared", Ct);
+
+        Assert.Same(bob, await ServiceFor(null).FindLinkedUserAsync(42, Ct));
+        Assert.False((await ServiceFor(alice).GetStatusAsync(Ct)).Linked);
+    }
+
+    [Fact]
+    public async Task Deactivated_user_cannot_link_through_discord()
+    {
+        bob.Deactivate();
+
+        await Assert.ThrowsAsync<AccessDeniedException>(() => ServiceFor(null).LinkVerifiedAsync(bob.Id, 42, "bob", Ct));
+    }
+
+    [Fact]
+    public async Task Discord_sign_in_finds_only_an_active_linked_user_and_refreshes_the_name()
+    {
+        await ServiceFor(null).LinkVerifiedAsync(alice.Id, 42, "alice", Ct);
+
+        Assert.Same(alice, await ServiceFor(null).FindUserForSignInAsync(42, "alice_renamed", Ct));
+        Assert.Equal("alice_renamed", (await ServiceFor(alice).GetStatusAsync(Ct)).DiscordUserName);
+        Assert.Null(await ServiceFor(null).FindUserForSignInAsync(7, "stranger", Ct));
+
+        alice.Deactivate();
+        Assert.Null(await ServiceFor(null).FindUserForSignInAsync(42, "alice", Ct));
+    }
+
     // A new service per acting user: CurrentActor remembers the user of its scope.
     private DiscordLinkService ServiceFor(User? user)
     {

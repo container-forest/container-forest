@@ -88,6 +88,56 @@ public sealed class DiscordLinkService(
         return user;
     }
 
+    /// <summary>
+    /// Links the Discord account Discord's OAuth2 sign-in confirmed to <paramref name="userId"/>, who started the
+    /// linking from a session in the panel. A Discord account linked to someone else moves, as with a code.
+    /// </summary>
+    /// <exception cref="NotFoundException">The user no longer exists.</exception>
+    /// <exception cref="AccessDeniedException">The user is deactivated.</exception>
+    public async Task<User> LinkVerifiedAsync(UserId userId, ulong discordUserId, string discordUserName, CancellationToken cancellationToken)
+    {
+        var user = await users.GetAsync(userId, cancellationToken);
+        if (!user.IsActive)
+        {
+            throw new AccessDeniedException($"User '{user.UserName}' is deactivated.");
+        }
+
+        var link = await links.FindAsync(user.Id, cancellationToken);
+        if (link is null)
+        {
+            link = DiscordLink.For(user.Id);
+            links.Add(link);
+        }
+
+        if (await links.FindByDiscordUserAsync(discordUserId, cancellationToken) is { } previous && !previous.Equals(link))
+        {
+            // Saved separately: the Discord id is unique, and the new link must not be written before the old one is gone.
+            previous.Unlink();
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        link.LinkVerified(discordUserId, discordUserName, time.GetUtcNow());
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return user;
+    }
+
+    /// <summary>
+    /// The active user a Discord sign-in is for, or null when the Discord account is linked to no one or to a
+    /// deactivated user. Keeps the Discord name of the link current.
+    /// </summary>
+    public async Task<User?> FindUserForSignInAsync(ulong discordUserId, string discordUserName, CancellationToken cancellationToken)
+    {
+        if (await links.FindByDiscordUserAsync(discordUserId, cancellationToken) is not { } link
+            || await users.FindAsync(link.Id, cancellationToken) is not { IsActive: true } user)
+        {
+            return null;
+        }
+
+        link.UpdateDiscordUserName(discordUserName);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return user;
+    }
+
     /// <summary>The user linked to the Discord account, or null when it is not linked.</summary>
     public async Task<User?> FindLinkedUserAsync(ulong discordUserId, CancellationToken cancellationToken) =>
         await links.FindByDiscordUserAsync(discordUserId, cancellationToken) is { } link

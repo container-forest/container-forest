@@ -64,4 +64,31 @@ public class DiscordLinkTests
         Assert.False(link.IsLinked);
         Assert.Null(link.DiscordUserName);
     }
+
+    [Fact]
+    public void Discord_sign_in_links_without_a_code_and_keeps_a_pending_one()
+    {
+        var link = DiscordLink.For(UserId.New());
+        link.IssueCode(TestData.Now);
+
+        link.LinkVerified(42, " alice\n ", TestData.Now);
+
+        Assert.True(link.IsLinked);
+        Assert.Equal(42ul, link.DiscordUserId);
+        Assert.Equal("alice", link.DiscordUserName);
+        Assert.NotNull(link.PendingCodeHash);
+    }
+
+    [Fact]
+    public void Discord_name_is_updated_only_while_linked()
+    {
+        var link = DiscordLink.For(UserId.New());
+
+        link.UpdateDiscordUserName("ghost");
+        Assert.Null(link.DiscordUserName);
+
+        link.LinkVerified(42, "alice", TestData.Now);
+        link.UpdateDiscordUserName("alice_new");
+        Assert.Equal("alice_new", link.DiscordUserName);
+    }
 }

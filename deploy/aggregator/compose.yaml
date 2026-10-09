@@ -10,6 +10,10 @@
 #       database has no users. Remove both lines once you have signed in.
 #   CF_BOTGATEWAY__TOKENHASHES__0=...
 #       Only with the Discord bot (deploy/discord-bot): SHA-256 of its service token, never the token itself.
+#   CF_DISCORDAUTH__CLIENTID=...
+#   CF_DISCORDAUTH__CLIENTSECRET=...
+#       Optional: sign-in and account linking with Discord (ADR-0009). The OAuth2 client of a Discord application
+#       (the bot's one will do) with the redirect https://<CF_DOMAIN>/api/auth/discord/callback.
 # The whole file is passed to the aggregator, so a variable that is not in it stays unset.
 services:
   aggregator:

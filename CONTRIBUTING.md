@@ -89,6 +89,12 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/users/<userId>/role-assignments -H 'content-type: application/json' -d '{"environmentId":"<id>","stackId":null,"role":"Operator"}'   # stackId — роль лише на стеку
    curl -H 'X-Dev-User: root' http://localhost:5080/api/users/<userId>   # користувач і його ролі
    ```
+   API-токени (ADR-0007): токен створює лише сесія (cookie або `X-Dev-User`), показується один раз; `readOnly`, `environmentIds` (null — усі) і `expiresAt` (null — без строку) обмежують його:
+   ```sh
+   TOKEN=$(curl -s -X POST -H 'X-Dev-User: root' http://localhost:5080/api/me/tokens -H 'content-type: application/json' -d '{"name":"laptop","readOnly":false,"environmentIds":null,"expiresAt":null}' | jq -r .token)
+   curl -H "Authorization: Bearer $TOKEN" http://localhost:5080/api/me
+   curl -X DELETE -H "Authorization: Bearer $TOKEN" http://localhost:5080/api/me/tokens/current   # відкликати сам токен
+   ```
    Деплой стеку з git-репозиторію (compose-файл має використовувати готові образи, `build:` відхиляється; для перевірки підходить `https://github.com/dockersamples/example-voting-app.git` з `composePath` = `docker-compose.images.yml`):
    ```sh
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/repositories -H 'content-type: application/json' -d '{"name":"infra","url":"https://github.com/<org>/<repo>.git","connectionId":null}'

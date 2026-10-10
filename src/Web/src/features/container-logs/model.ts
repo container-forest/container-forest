@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ApiError } from "@/api/client";
 import type { components } from "@/api/schema.gen";
+import { stripAnsi } from "@/features/container-logs/ansi";
 import { describeError } from "@/features/containers/model";
 import type { MessageKey } from "@/i18n";
 
@@ -31,11 +32,12 @@ export const containerLogsSearchSchema = z.object({
   auto: z.boolean().optional().catch(undefined),
   wrap: z.boolean().optional().catch(undefined),
   time: z.boolean().optional().catch(undefined),
+  color: z.boolean().optional().catch(undefined),
 });
 
 export type ContainerLogsSearch = z.infer<typeof containerLogsSearchSchema>;
 
-/** Values the URL leaves out: the default tail, all streams, wrapped lines with their time, no auto-refresh. */
+/** Values the URL leaves out: the default tail, all streams, wrapped coloured lines with their time, no auto-refresh. */
 export function viewOf(search: ContainerLogsSearch) {
   return {
     tail: search.tail ?? DEFAULT_TAIL,
@@ -44,6 +46,7 @@ export function viewOf(search: ContainerLogsSearch) {
     auto: search.auto ?? false,
     wrap: search.wrap ?? true,
     time: search.time ?? true,
+    color: search.color ?? true,
   };
 }
 
@@ -108,29 +111,46 @@ export function mergeLines(loaded: readonly LogLine[], newer: readonly LogLine[]
   return merged.length > MAX_LINES ? merged.slice(merged.length - MAX_LINES) : merged;
 }
 
-/** The lines the filters let through: one stream or both, and text containing the search, ignoring case. */
+/**
+ * The lines the filters let through: one stream or both, and text containing the search, ignoring case. The search
+ * looks at the text without colour codes, as it reads on screen.
+ */
 export function filterLines(lines: readonly LogLine[], stream: StreamFilter, query: string): LogLine[] {
   const text = query.trim().toLowerCase();
   return lines.filter(
     (line) =>
       (stream === "all" || line.stream.toLowerCase() === stream) &&
-      (text === "" || line.text.toLowerCase().includes(text)),
+      (text === "" || stripAnsi(line.text).toLowerCase().includes(text)),
   );
 }
 
-/** Lines as plain text for the clipboard, one per line, with the ISO time and stream when asked for. */
+/**
+ * Lines as plain text for the clipboard or a file, one per line, with the ISO time and stream when asked for.
+ * Colour codes are removed: in an editor they are only noise.
+ */
 export function formatForCopy(lines: readonly LogLine[], withTime: boolean): string {
   return lines
     .map((line) => {
+      const text = stripAnsi(line.text);
       if (!withTime) {
-        return line.text;
+        return text;
       }
 
       const ms = timeOf(line);
       const time = ms === null ? "-" : new Date(ms).toISOString();
-      return `${time} ${line.stream === "Stderr" ? "stderr" : "stdout"} ${line.text}`;
+      return `${time} ${line.stream === "Stderr" ? "stderr" : "stdout"} ${text}`;
     })
     .join("\n");
+}
+
+/** A file name for downloaded lines: the container and the local time of the download, e.g. `web-20261010-214325.log`. */
+export function logFileName(container: string, now: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  // The name comes from the URL; keep only characters that are safe in a file name everywhere.
+  const name = container.replace(/[^A-Za-z0-9_.-]+/g, "_") || "container";
+  return `${name}-${date}-${time}.log`;
 }
 
 /**

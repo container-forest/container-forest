@@ -105,11 +105,39 @@ public class SopsConfigFileTests
         Assert.EndsWith("stores:\n  yaml:\n    indent: 2\n", config.ToString(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Recipients_over_several_lines_are_read()
+    {
+        // The form the sops README shows.
+        var config = SopsConfigFile.Parse("""
+            creation_rules:
+              # a comment
+              - path_regex: ^r2/.*\.env$
+                age: >-
+                  age1one,
+                  age1two
+              - path_regex: ^l2/
+                age: age1three,
+                  age1four
+              - key_groups:
+                  - age:
+                      - age1five
+                    pgp:
+                      - ABCDEF
+            """);
+
+        Assert.Equal(["^r2/.*\\.env$", "^l2/", null], config.Rules.Select(r => r.PathRegex));
+        Assert.Equal(["age1one", "age1two"], config.Rules[0].AgeRecipients);
+        Assert.Equal(["age1three", "age1four"], config.Rules[1].AgeRecipients);
+        Assert.Equal(["key_groups"], config.Rules[2].OtherKeyTypes);
+        Assert.Equal(1, config.AddPrefixRule("l2/db/", ["db"], ["age1db"]));
+        Assert.Equal(0, config.AddPrefixRule("r2/bot/", ["bot"], ["age1bot"]));
+    }
+
     [Theory]
     [InlineData("keys: []\n")]
     [InlineData("creation_rules: [{age: age1x}]\n")]
     [InlineData("creation_rules:\n  - age:\n      - age1x\n")]
-    [InlineData("creation_rules:\n  - age: >-\n      age1x\n")]
     public void Forms_it_cannot_edit_are_refused(string text) =>
         Assert.Throws<CliException>(() => SopsConfigFile.Parse(text));
 

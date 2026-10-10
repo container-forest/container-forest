@@ -393,6 +393,9 @@ internal sealed class InMemoryAgeKeys : InMemoryRepository<AgeKey, AgeKeyId>, IA
             .Where(k => k.EnvironmentId == environmentId)
             .OrderByDescending(k => k.CreatedAt)
             .ToList());
+
+    public Task<IReadOnlyList<AgeKey>> FindByRecipientsAsync(IReadOnlyCollection<string> recipients, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<AgeKey>>(Items.Where(k => recipients.Contains(k.Recipient)).ToList());
 }
 
 /// <summary>Hands out <see cref="Keys"/> in order.</summary>

@@ -10,7 +10,7 @@ import { toggleEnvironment } from "@/features/git-connections/model";
 import { type CreateTokenForm, TOKEN_LIFETIMES } from "@/features/tokens/model";
 
 /**
- * The limits of a new API token: lifetime, read-only and environments. Shared by "New token" and the CLI login
+ * The limits of a new API token: lifetime, read-only, decrypting secrets and environments. Shared by "New token" and the CLI login
  * approval, which both create a token of the signed-in user.
  */
 export function TokenOptionsFields({
@@ -26,6 +26,7 @@ export function TokenOptionsFields({
   const { t } = useTranslation();
   const environments = useQuery({ ...environmentsQuery, enabled });
   const allEnvironments = useWatch({ control: form.control, name: "allEnvironments" });
+  const readOnly = useWatch({ control: form.control, name: "readOnly" });
   const errors = form.formState.errors;
 
   return (
@@ -61,7 +62,13 @@ export function TokenOptionsFields({
               <Checkbox
                 id={`${idPrefix}-read-only`}
                 checked={field.value}
-                onCheckedChange={(checked) => field.onChange(checked === true)}
+                onCheckedChange={(checked) => {
+                  field.onChange(checked === true);
+                  // A read-only token never decrypts secrets: the aggregator refuses the combination.
+                  if (checked === true) {
+                    form.setValue("secrets", false);
+                  }
+                }}
                 onBlur={field.onBlur}
                 ref={field.ref}
               />
@@ -72,6 +79,30 @@ export function TokenOptionsFields({
           </Label>
         </div>
         <p className="text-muted-foreground text-sm">{t("tokens.form.readOnlyHint")}</p>
+      </div>
+
+      <div className="grid gap-1">
+        <div className="flex items-center gap-2">
+          <Controller
+            control={form.control}
+            name="secrets"
+            render={({ field }) => (
+              <Checkbox
+                id={`${idPrefix}-secrets`}
+                checked={field.value}
+                disabled={readOnly}
+                onCheckedChange={(checked) => field.onChange(checked === true)}
+                onBlur={field.onBlur}
+                ref={field.ref}
+              />
+            )}
+          />
+          <Label htmlFor={`${idPrefix}-secrets`} className="font-normal">
+            {t("tokens.form.secrets")}
+          </Label>
+        </div>
+        <p className="text-muted-foreground text-sm">{t("tokens.form.secretsHint")}</p>
+        <FieldError id={`${idPrefix}-secrets-error`} message={errors.secrets?.message} />
       </div>
 
       <fieldset className="grid gap-2">

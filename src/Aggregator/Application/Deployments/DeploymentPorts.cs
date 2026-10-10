@@ -1,4 +1,5 @@
 using ContainerForest.Aggregator.Application.Common;
+using ContainerForest.Aggregator.Application.Secrets;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Repositories;
@@ -56,7 +57,15 @@ public sealed record GitAccess(GitCredentials? Credentials, bool IsTrustedHost)
 
 /// <param name="Files">Paths are relative to the requested directory.</param>
 /// <param name="SkippedPaths">Entries that cannot be deployed as files: symbolic links, submodules, unsupported names.</param>
-public sealed record GitSnapshot(CommitSha Commit, IReadOnlyList<SourceFile> Files, IReadOnlyList<string> SkippedPaths);
+/// <param name="OuterAttributes">
+/// The .gitattributes files of the directories above the one read (from the root down); those inside it are among
+/// <paramref name="Files"/>. They say which files the forest git filter encrypts (ADR-0010).
+/// </param>
+public sealed record GitSnapshot(
+    CommitSha Commit,
+    IReadOnlyList<SourceFile> Files,
+    IReadOnlyList<string> SkippedPaths,
+    IReadOnlyList<GitAttributesFile>? OuterAttributes = null);
 
 /// <param name="IsSecret">Decrypted from SOPS: the agent keeps it in memory (tmpfs), never on the host's disk.</param>
 public sealed record SourceFile(StackFilePath Path, byte[] Content, bool IsExecutable, bool IsSecret = false);

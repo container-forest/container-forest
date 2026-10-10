@@ -51,6 +51,7 @@ export function TokenTable({
                   <Badge variant={token.readOnly ? "outline" : "secondary"}>
                     {token.readOnly ? t("tokens.access.readOnly") : t("tokens.access.full")}
                   </Badge>
+                  {token.secrets && <Badge variant="secondary">{t("tokens.access.secrets")}</Badge>}
                   {names === null ? (
                     <Badge variant="outline">{t("tokens.access.allEnvironments")}</Badge>
                   ) : names.length === 0 ? (

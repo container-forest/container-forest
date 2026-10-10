@@ -17,7 +17,8 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 
 /// <param name="ClientName">What asks, e.g. "forest 0.1.0"; shown to the person, never trusted.</param>
 /// <param name="HostName">The machine the CLI runs on; shown to the person, never trusted.</param>
-public sealed record StartCliAuthorizationRequest(string ClientName, string HostName);
+/// <param name="Secrets">Asks for a token that may decrypt SOPS files (ADR-0010); the person decides when approving.</param>
+public sealed record StartCliAuthorizationRequest(string ClientName, string HostName, bool Secrets = false);
 
 /// <param name="DeviceCode">For the CLI only: it polls with it. Never shown.</param>
 /// <param name="UserCode">Shown to the person, e.g. "WDJB-MJHT".</param>
@@ -36,16 +37,19 @@ public sealed record CliAuthorizationStartedResponse(
 }
 
 /// <param name="RequestedFrom">The address the CLI's request came from, as the aggregator saw it; null when unknown.</param>
+/// <param name="SecretsRequested">The CLI asked for a token that may decrypt secrets; the page suggests it, the person decides.</param>
 public sealed record CliAuthorizationResponse(
     string UserCode,
     string ClientName,
     string HostName,
     string? RequestedFrom,
     DateTimeOffset CreatedAt,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt,
+    bool SecretsRequested);
 
 /// <summary>The limits of the token the CLI gets; the same as for <see cref="CreateApiTokenRequest"/>.</summary>
-public sealed record ApproveCliAuthorizationRequest(string Name, bool ReadOnly, IReadOnlyList<Guid>? EnvironmentIds, DateTimeOffset? ExpiresAt);
+public sealed record ApproveCliAuthorizationRequest(
+    string Name, bool ReadOnly, IReadOnlyList<Guid>? EnvironmentIds, DateTimeOffset? ExpiresAt, bool Secrets = false);
 
 public sealed record CliTokenRequest(string DeviceCode)
 {

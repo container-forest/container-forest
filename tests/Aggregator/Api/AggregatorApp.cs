@@ -141,6 +141,7 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
             services.Replace(ServiceDescriptor.Singleton<IGitSource>(Git));
             services.Replace(ServiceDescriptor.Singleton<IAgeKeyGenerator>(Sops));
             services.Replace(ServiceDescriptor.Singleton<ISopsDecryptor>(Sops));
+            services.Replace(ServiceDescriptor.Singleton<ISopsEncryptor>(Sops));
         });
         Customize?.Invoke(builder);
     }
@@ -205,16 +206,30 @@ internal sealed class StubGitSource : IGitSource
 
 /// <summary>
 /// Stands in for age-keygen and sops: keys are "AGE-SECRET-KEY-1TEST&lt;n&gt;", and a file decrypts to the text after
-/// "encrypted for &lt;identity&gt;: ". The real tools are tested in the infrastructure tests.
+/// "encrypted for &lt;identity&gt;: " up to the end of the line. Encryption writes that form for the first recipient,
+/// with the recipients in dotenv metadata. The real tools are tested in the infrastructure tests.
 /// </summary>
-internal sealed class StubSops : IAgeKeyGenerator, ISopsDecryptor
+internal sealed class StubSops : IAgeKeyGenerator, ISopsDecryptor, ISopsEncryptor
 {
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> identities = new();
     private int generated;
 
     public Task<GeneratedAgeKey> GenerateAsync(CancellationToken cancellationToken)
     {
         var n = Interlocked.Increment(ref generated);
-        return Task.FromResult(new GeneratedAgeKey($"age1{new string('q', 57)}{"023456789acdefghjklmnpqrstuvwxyz"[n % 32]}", $"AGE-SECRET-KEY-1TEST{n}"));
+        var key = new GeneratedAgeKey($"age1{new string('q', 57)}{"023456789acdefghjklmnpqrstuvwxyz"[n % 32]}", $"AGE-SECRET-KEY-1TEST{n}");
+        identities[key.Recipient] = key.Identity;
+        return Task.FromResult(key);
+    }
+
+    public Task<byte[]> EncryptAsync(
+        Domain.Stacks.StackFilePath path, byte[] content, SopsEncryptionRule rule, CancellationToken cancellationToken)
+    {
+        var identity = identities.GetValueOrDefault(rule.AgeRecipients[0], "unknown");
+        var text = $"encrypted for {identity}: {System.Text.Encoding.UTF8.GetString(content).TrimEnd('\n')}\n"
+            + string.Concat(rule.AgeRecipients.Select((r, i) => $"sops_age__list_{i}__map_recipient={r}\n"))
+            + "sops_version=3.13.3\n";
+        return Task.FromResult(System.Text.Encoding.UTF8.GetBytes(text));
     }
 
     public Task<byte[]> DecryptAsync(

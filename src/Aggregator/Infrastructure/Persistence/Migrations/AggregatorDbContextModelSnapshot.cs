@@ -22,6 +22,9 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("CanDecryptSecrets")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("CreatedAt")
                         .HasColumnType("INTEGER");
 
@@ -101,10 +104,16 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("SecretsRequested")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("TokenCanDecryptSecrets")
+                        .HasColumnType("INTEGER");
 
                     b.Property<long?>("TokenExpiresAt")
                         .HasColumnType("INTEGER");

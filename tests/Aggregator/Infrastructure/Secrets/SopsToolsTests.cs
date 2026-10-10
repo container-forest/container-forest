@@ -85,6 +85,52 @@ public sealed class SopsToolsTests
             Decryptor().DecryptAsync(StackFilePath.Parse(".env"), damaged, [key.Identity], Ct));
     }
 
+    [Theory]
+    [InlineData("secrets.yaml", "db:\n    password: hunter2\n")]
+    [InlineData(".env", "API_KEY=abc123\n")]
+    [InlineData("secrets/db_password", "raw-secret\n")]
+    public async Task Encrypts_for_the_recipients_of_the_rule(string path, string plainText)
+    {
+        RequireTools();
+        var generator = new AgeKeygenCli(Options);
+        var key = await generator.GenerateAsync(Ct);
+        var other = await generator.GenerateAsync(Ct);
+
+        var encrypted = await Decryptor().EncryptAsync(
+            StackFilePath.Parse(path), Encoding.UTF8.GetBytes(plainText), new SopsEncryptionRule([key.Recipient, other.Recipient]), Ct);
+
+        Assert.True(SopsFile.IsEncrypted(StackFilePath.Parse(path), encrypted));
+        Assert.DoesNotContain(plainText.Trim(), Encoding.UTF8.GetString(encrypted), StringComparison.Ordinal);
+        Assert.Equal(new[] { key.Recipient, other.Recipient }.Order(), SopsFile.AgeRecipients(encrypted).Order());
+        var decrypted = await Decryptor().DecryptAsync(StackFilePath.Parse(path), encrypted, [other.Identity], Ct);
+        Assert.Equal(plainText, Encoding.UTF8.GetString(decrypted));
+    }
+
+    [Fact]
+    public async Task Encryption_honours_which_keys_to_encrypt()
+    {
+        RequireTools();
+        var key = await new AgeKeygenCli(Options).GenerateAsync(Ct);
+
+        var encrypted = Encoding.UTF8.GetString(await Decryptor().EncryptAsync(
+            StackFilePath.Parse("app.yaml"), "name: web\npassword: hunter2\n"u8.ToArray(), new SopsEncryptionRule([key.Recipient], EncryptedRegex: "^password$"), Ct));
+
+        Assert.Contains("name: web", encrypted, StringComparison.Ordinal);
+        Assert.DoesNotContain("hunter2", encrypted, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Invalid_input_fails_without_quoting_it()
+    {
+        RequireTools();
+        var key = await new AgeKeygenCli(Options).GenerateAsync(Ct);
+
+        var error = await Assert.ThrowsAsync<SopsEncryptionException>(() => Decryptor().EncryptAsync(
+            StackFilePath.Parse("app.json"), "{\"password\": hunter2"u8.ToArray(), new SopsEncryptionRule([key.Recipient]), Ct));
+
+        Assert.DoesNotContain("hunter2", error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Missing_sops_is_a_readable_error()
     {

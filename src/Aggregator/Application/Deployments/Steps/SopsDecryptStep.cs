@@ -10,6 +10,11 @@ namespace ContainerForest.Aggregator.Application.Deployments.Steps;
 /// environment fails here instead of reaching this host. Decrypted files are marked secret: the agent keeps them in
 /// memory (tmpfs). The log names the files, never their content.
 /// </summary>
+/// <remarks>
+/// A file that .gitattributes puts under the forest git filter but that is not encrypted was committed in plain text
+/// from a clone without the filter (ADR-0010). The deployment fails: deploying it would hide the leak, and the secret
+/// is in the repository's history either way.
+/// </remarks>
 public sealed class SopsDecryptStep(IAgeKeyRepository keys, ISecretProtector protector, ISopsDecryptor sops) : IDeployStep
 {
     public string Name => "Decrypt SOPS files";
@@ -18,6 +23,7 @@ public sealed class SopsDecryptStep(IAgeKeyRepository keys, ISecretProtector pro
     {
         var source = context.Source;
         var encrypted = source.Files.Where(f => SopsFile.IsEncrypted(f.Path, f.Content)).ToList();
+        EnsureFilteredFilesEncrypted(context, encrypted);
         if (encrypted.Count == 0)
         {
             context.Info("No SOPS-encrypted files.");
@@ -57,6 +63,28 @@ public sealed class SopsDecryptStep(IAgeKeyRepository keys, ISecretProtector pro
         context.Info(
             $"Decrypted {Describe(encrypted)} with the {environmentKeys.Count} age key(s) of environment '{environment.Name}'; " +
             "the agent keeps them in memory only.");
+    }
+
+    private static void EnsureFilteredFilesEncrypted(DeployContext context, List<SourceFile> encrypted)
+    {
+        var directory = context.Stack.ComposePath.Directory;
+        string InRepository(string path) => directory.Length == 0 ? path : $"{directory}/{path}";
+
+        var source = context.Source;
+        var attributes = new GitAttributes((source.OuterAttributes ?? []).Concat(source.Files
+            .Where(f => f.Path.FileName == GitAttributes.FileName)
+            .Select(f => new GitAttributesFile(InRepository(f.Path.Directory).TrimEnd('/'), System.Text.Encoding.UTF8.GetString(f.Content)))));
+        var plain = source.Files
+            .Where(f => !encrypted.Contains(f) && attributes.IsFiltered(InRepository(f.Path.Value)))
+            .Select(f => f.Path.Value)
+            .ToList();
+        if (plain.Count > 0)
+        {
+            throw new DeploymentFailedException(
+                $"{plain.Count} file(s) marked filter=forest in .gitattributes are not encrypted ({string.Join(", ", plain)}): " +
+                "they were committed in plain text from a clone without the forest git filter. Treat the secrets as leaked: " +
+                "change them, then run 'forest git setup' in the clone and commit the files again.");
+        }
     }
 
     private static string Describe(List<SourceFile> files) =>

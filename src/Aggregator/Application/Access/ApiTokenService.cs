@@ -40,6 +40,7 @@ public sealed class ApiTokenService(
     }
 
     /// <param name="environmentIds">Null for every environment; otherwise environments the user can see.</param>
+    /// <param name="canDecryptSecrets">The token may have the aggregator decrypt SOPS files (ADR-0010).</param>
     /// <exception cref="NotFoundException">An environment does not exist or the user cannot see it.</exception>
     /// <exception cref="DomainConflictException">The user already has <see cref="MaxTokensPerUser"/> tokens.</exception>
     public async Task<CreatedApiToken> CreateAsync(
@@ -47,13 +48,15 @@ public sealed class ApiTokenService(
         bool readOnly,
         IReadOnlyCollection<EnvironmentId>? environmentIds,
         DateTimeOffset? expiresAt,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool canDecryptSecrets = false)
     {
         var user = await currentActor.GetSignedInUserAsync(cancellationToken);
         await EnsureRoomForTokenAsync(user.Id, cancellationToken);
         await EnsureEnvironmentsVisibleAsync(user, environmentIds, cancellationToken);
 
-        var (token, secret) = ApiToken.Create(user.Id, name, readOnly, environmentIds, expiresAt, time.GetUtcNow());
+        var (token, secret) = ApiToken.Create(
+            user.Id, name, readOnly, environmentIds, expiresAt, time.GetUtcNow(), canDecryptSecrets);
         tokens.Add(token);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return new CreatedApiToken(token, secret);

@@ -12,12 +12,14 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 // A token has its user's roles, minus its limits: read-only (every POST, PUT, PATCH and DELETE is 403), some
 // environments only (the others do not exist for it, and it has no administrator rights), an expiry. A token
 // never manages tokens, the password or the Discord link: a limited token must not mint wider credentials.
+// Decrypting SOPS files (/api/sops/decrypt, ADR-0010) needs a token created with Secrets; never with ReadOnly (400).
 // An unknown, revoked or expired token is 401; a deactivated user's token is 403.
 
 /// <param name="Hint">The prefix and first characters of the token, to tell it apart, e.g. "cf_pat_x7Kq2m".</param>
 /// <param name="EnvironmentIds">The environments a limited token reaches; null for all of them.</param>
 /// <param name="ExpiresAt">Null when the token does not expire.</param>
 /// <param name="LastUsedAt">Precise to about a minute; null when never used.</param>
+/// <param name="Secrets">May have the aggregator decrypt SOPS files of the environments where its user is an Editor.</param>
 public sealed record ApiTokenResponse(
     Guid Id,
     string Name,
@@ -27,11 +29,14 @@ public sealed record ApiTokenResponse(
     DateTimeOffset CreatedAt,
     DateTimeOffset? ExpiresAt,
     DateTimeOffset? LastUsedAt,
-    bool Expired);
+    bool Expired,
+    bool Secrets);
 
 /// <param name="EnvironmentIds">Null for every environment; otherwise at least one environment the user can see.</param>
 /// <param name="ExpiresAt">Null for a token that does not expire; otherwise in the future.</param>
-public sealed record CreateApiTokenRequest(string Name, bool ReadOnly, IReadOnlyList<Guid>? EnvironmentIds, DateTimeOffset? ExpiresAt);
+/// <param name="Secrets">May decrypt SOPS files (ADR-0010); false when omitted, not with ReadOnly.</param>
+public sealed record CreateApiTokenRequest(
+    string Name, bool ReadOnly, IReadOnlyList<Guid>? EnvironmentIds, DateTimeOffset? ExpiresAt, bool Secrets = false);
 
 /// <param name="Token">The secret; only its hash is kept, so it cannot be shown again.</param>
 public sealed record CreatedApiTokenResponse(ApiTokenResponse ApiToken, string Token)

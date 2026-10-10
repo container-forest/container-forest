@@ -111,4 +111,15 @@ public class CliAuthorizationTests
         Assert.Throws<DomainValidationException>(() => authorization.Approve(UserId.New(), "t", false, null, Now, Now));
         Assert.True(authorization.IsOpen(Now));
     }
+
+    [Fact]
+    public void Approved_token_may_decrypt_secrets_when_the_person_chooses_so()
+    {
+        var (authorization, _, _) = CliAuthorization.Start("forest", "laptop", null, Now, secretsRequested: true);
+        Assert.True(authorization.SecretsRequested);
+
+        authorization.Approve(UserId.New(), "forest", readOnly: false, null, null, Now, canDecryptSecrets: true);
+
+        Assert.True(authorization.IssueToken(Now).Token.CanDecryptSecrets);
+    }
 }

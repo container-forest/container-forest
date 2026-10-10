@@ -25,12 +25,17 @@ export const createTokenSchema = z
       .max(MAX_TOKEN_NAME, "tokens.form.nameTooLong" satisfies MessageKey),
     lifetime: z.enum(TOKEN_LIFETIMES),
     readOnly: z.boolean(),
+    secrets: z.boolean(),
     allEnvironments: z.boolean(),
     environmentIds: z.array(z.string()),
   })
   .refine((form) => form.allEnvironments || form.environmentIds.length > 0, {
     path: ["environmentIds"],
     message: "tokens.form.environmentsRequired" satisfies MessageKey,
+  })
+  .refine((form) => !(form.readOnly && form.secrets), {
+    path: ["secrets"],
+    message: "tokens.form.secretsReadOnly" satisfies MessageKey,
   });
 
 export type CreateTokenForm = z.infer<typeof createTokenSchema>;
@@ -39,6 +44,7 @@ export const emptyCreateTokenForm: CreateTokenForm = {
   name: "",
   lifetime: DEFAULT_TOKEN_LIFETIME,
   readOnly: false,
+  secrets: false,
   allEnvironments: true,
   environmentIds: [],
 };
@@ -60,6 +66,7 @@ export function toCreateTokenRequest(form: CreateTokenForm, now: Date): CreateAp
     readOnly: form.readOnly,
     environmentIds: form.allEnvironments ? null : form.environmentIds,
     expiresAt: expiryOf(form.lifetime, now),
+    secrets: form.secrets,
   };
 }
 

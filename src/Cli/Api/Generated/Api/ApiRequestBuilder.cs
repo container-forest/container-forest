@@ -9,6 +9,7 @@ using ContainerForest.Cli.Api.Generated.Api.NotificationChannels;
 using ContainerForest.Cli.Api.Generated.Api.NotificationRules;
 using ContainerForest.Cli.Api.Generated.Api.Notifications;
 using ContainerForest.Cli.Api.Generated.Api.Repositories;
+using ContainerForest.Cli.Api.Generated.Api.Sops;
 using ContainerForest.Cli.Api.Generated.Api.Stacks;
 using ContainerForest.Cli.Api.Generated.Api.Users;
 using Microsoft.Kiota.Abstractions.Extensions;
@@ -69,6 +70,11 @@ namespace ContainerForest.Cli.Api.Generated.Api
         public global::ContainerForest.Cli.Api.Generated.Api.Repositories.RepositoriesRequestBuilder Repositories
         {
             get => new global::ContainerForest.Cli.Api.Generated.Api.Repositories.RepositoriesRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The sops property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.Sops.SopsRequestBuilder Sops
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.Sops.SopsRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>The stacks property</summary>
         public global::ContainerForest.Cli.Api.Generated.Api.Stacks.StacksRequestBuilder Stacks

@@ -33,6 +33,11 @@ internal sealed class LoginCommand() : ForestCommand("login", "Sign in to an agg
 
     private readonly Option<string?> name = new("--name") { Description = "Context name; defaults to the server's host." };
 
+    private readonly Option<bool> secrets = new("--secrets")
+    {
+        Description = "Ask for a token that may decrypt SOPS secrets, for the git filter ('forest git setup'); you confirm it in the browser.",
+    };
+
     public override bool NeedsConnection => false;
 
     protected override void Configure(Command command)
@@ -42,6 +47,7 @@ internal sealed class LoginCommand() : ForestCommand("login", "Sign in to an agg
         command.Add(noBrowser);
         command.Add(withToken);
         command.Add(name);
+        command.Add(secrets);
     }
 
     protected override async Task<int> ExecuteAsync(CommandContext context)
@@ -70,7 +76,12 @@ internal sealed class LoginCommand() : ForestCommand("login", "Sign in to an agg
         else
         {
             var login = new BrowserLogin(host.ApiFactory.CreateAnonymous(url), host.Browser, host.Time, context.Output);
-            var issued = await login.RunAsync(context.Value(device), !context.Value(noBrowser), context.CancellationToken);
+            var issued = await login.RunAsync(context.Value(device), !context.Value(noBrowser), context.CancellationToken, context.Value(secrets));
+            if (context.Value(secrets) && issued.ApiToken?.Secrets != true)
+            {
+                context.Output.Note("The token may not decrypt secrets: the box was not ticked in the browser.");
+            }
+
             token = issued.Token ?? throw new CliException("The server approved the login but sent no token.");
             userName = issued.UserName ?? "?";
         }

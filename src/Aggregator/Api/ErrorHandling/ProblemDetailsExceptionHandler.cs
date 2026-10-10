@@ -1,6 +1,7 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Common;
+using ContainerForest.Aggregator.Application.Secrets;
 using ContainerForest.Aggregator.Application.Webhooks;
 using ContainerForest.Aggregator.Domain.Common;
 using Microsoft.AspNetCore.Diagnostics;
@@ -24,6 +25,9 @@ internal sealed class ProblemDetailsExceptionHandler(IProblemDetailsService prob
             AgentTimeoutException => (StatusCodes.Status504GatewayTimeout, "Agent timeout"),
             WebhookRejectedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
             WebhookPayloadException => (StatusCodes.Status400BadRequest, "Invalid payload"),
+            SopsConfigException => (StatusCodes.Status400BadRequest, "Unusable .sops.yaml"),
+            SopsDecryptionException => (StatusCodes.Status422UnprocessableEntity, "Cannot decrypt"),
+            SopsEncryptionException => (StatusCodes.Status422UnprocessableEntity, "Cannot encrypt"),
             AgentCommandFailedException failed => (StatusFor(failed.Kind), "Agent command failed"),
 
             // A body or parameter that does not bind (e.g. an object where an id is expected) is the caller's error, not ours.

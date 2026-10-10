@@ -187,7 +187,79 @@ public sealed class CliEndToEndTests : IDisposable
         Assert.Contains("limited to some environments", result.Error);
     }
 
-    private async Task<CliResult> RunAsync(AggregatorApp app, IBrowser? browser, string input, params string[] args)
+    [Fact]
+    public async Task Secrets_init_writes_the_environment_key_and_the_git_filter_works_through_the_aggregator()
+    {
+        await using var app = new AggregatorApp();
+        var environment = await app.CreateEnvironmentAsync("prod");
+        var key = await app.CreateClient().PostAsync($"/api/environments/{environment.Id}/age-keys", null, Ct);
+        var recipient = (await key.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct)).GetProperty("recipient").GetString()!;
+        var response = await app.CreateClient().PostAsJsonAsync("/api/me/tokens", new { name = "git", readOnly = false, secrets = true }, Ct);
+        var token = (await response.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct)).GetProperty("token").GetString()!;
+        await RunAsync(app, null, token, "login", "http://localhost", "--with-token");
+        var repository = Directory.CreateTempSubdirectory("cf-git-").FullName;
+        try
+        {
+            Git(repository, "init", "-q", "-b", "main");
+
+            var init = await RunInAsync(app, null, "", repository, null, null, "secrets", "init", "-e", "prod", "--recovery", "age1lggyhqrw2nlhcxprm67z43rta597azn8gknawjehu9d9dl0jq3yqqvfafg");
+
+            Assert.True(init.ExitCode == 0, init.Error);
+            Assert.Contains($"age: {recipient},age1lggyhqrw2nlhcxprm67z43rta597azn8gknawjehu9d9dl0jq3yqqvfafg", await File.ReadAllTextAsync(Path.Combine(repository, ".sops.yaml"), Ct));
+            Assert.Contains(".env filter=forest diff=forest", await File.ReadAllTextAsync(Path.Combine(repository, ".gitattributes"), Ct));
+            Assert.Contains("forest.context=localhost", Git(repository, "config", "--list"));
+            Assert.Contains("secrets check --staged", await File.ReadAllTextAsync(Path.Combine(repository, ".git", "hooks", "pre-commit"), Ct));
+
+            // git's side of the filter protocol: clean what git add stores, then smudge it back for checkout.
+            var requests = new MemoryStream();
+            var git = new Cli.Secrets.PktLineWriter(requests);
+            await git.WriteTextListAsync(["git-filter-client", "version=2"], Ct);
+            await git.WriteTextListAsync(["capability=clean", "capability=smudge"], Ct);
+            await git.WriteTextListAsync(["command=clean", "pathname=app/.env"], Ct);
+            await git.WriteContentAsync("TOKEN=s3cret\n"u8.ToArray(), Ct);
+            requests.Position = 0;
+            var responses = new MemoryStream();
+            var filter = await RunInAsync(app, null, "", repository, requests, responses, "git", "filter-process");
+
+            Assert.True(filter.ExitCode == 0, filter.Error);
+            responses.Position = 0;
+            var reader = new Cli.Secrets.PktLineReader(responses);
+            await reader.ReadTextListAsync(Ct);
+            await reader.ReadTextListAsync(Ct);
+            Assert.Equal(["status=success"], await reader.ReadTextListAsync(Ct));
+            var encrypted = await reader.ReadContentAsync(Ct);
+            Assert.Contains($"recipient={recipient}", Encoding.UTF8.GetString(encrypted));
+
+            var decrypted = await app.CreateClient().PostAsJsonAsync("/api/sops/decrypt", new { path = "app/.env", content = encrypted }, Ct);
+            Assert.Equal("TOKEN=s3cret", Encoding.UTF8.GetString((await decrypted.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct)).GetProperty("content").GetBytesFromBase64()));
+        }
+        finally
+        {
+            Directory.Delete(repository, recursive: true);
+        }
+    }
+
+    private static string Git(string directory, params string[] args)
+    {
+        var startInfo = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = directory, RedirectStandardOutput = true, RedirectStandardError = true };
+        foreach (var arg in args)
+        {
+            startInfo.ArgumentList.Add(arg);
+        }
+
+        using var process = System.Diagnostics.Process.Start(startInfo)!;
+        var output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+        Assert.True(process.ExitCode == 0, process.StandardError.ReadToEnd());
+        return output;
+    }
+
+    private Task<CliResult> RunAsync(AggregatorApp app, IBrowser? browser, string input, params string[] args) =>
+        RunInAsync(app, browser, input, null, null, null, args);
+
+    /// <summary>Runs the CLI in a directory (a git work tree), with byte streams for the git filter protocol.</summary>
+    private async Task<CliResult> RunInAsync(
+        AggregatorApp app, IBrowser? browser, string input, string? workingDirectory, Stream? stdin, Stream? stdout, params string[] args)
     {
         var output = new StringWriter();
         var error = new StringWriter();
@@ -199,7 +271,10 @@ public sealed class CliEndToEndTests : IDisposable
             new ConfigStore(configDirectory),
             new ForestApiFactory(() => app.Server.CreateHandler()),
             browser ?? new ApprovingBrowser(app),
-            TimeProvider.System);
+            TimeProvider.System,
+            standardInput: stdin,
+            standardOutput: stdout,
+            workingDirectory: workingDirectory);
         var code = await ForestCli.Build(host).Parse(args).InvokeAsync(new InvocationConfiguration { Output = output, Error = error }, Ct);
         return new CliResult(code, output.ToString(), error.ToString());
     }

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using ContainerForest.Aggregator.Application.Deployments;
+using ContainerForest.Aggregator.Application.Secrets;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Stacks;
 using LibGit2Sharp;
@@ -264,8 +265,33 @@ internal sealed partial class LibGit2SharpGitSource(
 
         var reader = new TreeReader(maxBytes, directory, cancellationToken);
         reader.Read(tree, prefix: "");
-        return new GitSnapshot(sha, reader.Files, reader.Skipped);
+        return new GitSnapshot(sha, reader.Files, reader.Skipped, OuterAttributes(commit, directory));
     }
+
+    /// <summary>The .gitattributes of the root and of each directory between it and the stack's directory.</summary>
+    private static List<GitAttributesFile> OuterAttributes(Commit commit, string directory)
+    {
+        var files = new List<GitAttributesFile>();
+        if (directory.Length == 0)
+        {
+            return files;
+        }
+
+        var segments = directory.Split('/');
+        for (var depth = 0; depth < segments.Length; depth++)
+        {
+            var parent = string.Join('/', segments[..depth]);
+            var path = parent.Length == 0 ? GitAttributes.FileName : $"{parent}/{GitAttributes.FileName}";
+            if (commit.Tree[path]?.Target is Blob { Size: <= MaxAttributesBytes } blob)
+            {
+                files.Add(new GitAttributesFile(parent, blob.GetContentText()));
+            }
+        }
+
+        return files;
+    }
+
+    private const long MaxAttributesBytes = 64 * 1024;
 
     private sealed class TreeReader(long maxBytes, string directory, CancellationToken cancellationToken)
     {

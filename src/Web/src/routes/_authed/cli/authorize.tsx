@@ -94,7 +94,8 @@ function ApproveForm({
   const deny = useDenyCliAuthorizationMutation(code);
   const form = useForm<CreateTokenForm>({
     resolver: zodResolver(createTokenSchema),
-    defaultValues: { ...emptyCreateTokenForm, name: defaultTokenName(request.hostName) },
+    // The CLI may ask for the right to decrypt secrets (forest login --secrets); the box is ticked, the person decides.
+    defaultValues: { ...emptyCreateTokenForm, name: defaultTokenName(request.hostName), secrets: request.secretsRequested },
   });
   const errors = form.formState.errors;
   const busy = approve.isPending || deny.isPending;
@@ -134,6 +135,7 @@ function ApproveForm({
         <CardHeader>
           <CardTitle>{t("cliLogin.token.title")}</CardTitle>
           <CardDescription>{t("cliLogin.token.description")}</CardDescription>
+          {request.secretsRequested && <CardDescription>{t("cliLogin.token.secretsRequested")}</CardDescription>}
         </CardHeader>
         <CardContent>
           <form className="grid gap-4" noValidate onSubmit={onSubmit}>

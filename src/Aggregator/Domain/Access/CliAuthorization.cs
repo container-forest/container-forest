@@ -34,9 +34,11 @@ public sealed class CliAuthorization : Entity<CliAuthorizationId>
         string clientName,
         string hostName,
         string? requestedFrom,
+        bool secretsRequested,
         DateTimeOffset now)
         : base(id)
     {
+        SecretsRequested = secretsRequested;
         DeviceCodeHash = deviceCodeHash;
         UserCodeHash = userCodeHash;
         ClientName = clientName;
@@ -69,6 +71,12 @@ public sealed class CliAuthorization : Entity<CliAuthorizationId>
     /// <summary>The address the request came from, as the aggregator saw it; null when unknown.</summary>
     public string? RequestedFrom { get; private init; }
 
+    /// <summary>
+    /// The CLI asks for a token that may decrypt secrets (<c>forest login --secrets</c>). Only a suggestion: the person
+    /// decides on the approval page.
+    /// </summary>
+    public bool SecretsRequested { get; private init; }
+
     public DateTimeOffset CreatedAt { get; private init; }
 
     public DateTimeOffset ExpiresAt { get; private init; }
@@ -86,14 +94,17 @@ public sealed class CliAuthorization : Entity<CliAuthorizationId>
 
     public bool TokenRestricted { get; private set; }
 
+    public bool TokenCanDecryptSecrets { get; private set; }
+
     public IReadOnlyCollection<EnvironmentId> TokenEnvironments => tokenEnvironments.Select(e => e.EnvironmentId).ToList();
 
     public DateTimeOffset? TokenExpiresAt { get; private set; }
 
     /// <summary>Starts a request. Returns it with the device code for the CLI and the user code for the person.</summary>
     /// <exception cref="DomainValidationException">The client or host name is empty or too long.</exception>
+    /// <param name="secretsRequested">The CLI asks for a token that may decrypt secrets; the person decides.</param>
     public static (CliAuthorization Authorization, string DeviceCode, string UserCode) Start(
-        string clientName, string hostName, string? requestedFrom, DateTimeOffset now)
+        string clientName, string hostName, string? requestedFrom, DateTimeOffset now, bool secretsRequested = false)
     {
         var deviceCode = SecretToken.Generate();
         var userCode = OneTimeCode.Generate(UserCodeLength);
@@ -104,6 +115,7 @@ public sealed class CliAuthorization : Entity<CliAuthorizationId>
             Clean(clientName, MaxClientNameLength, "Client name"),
             Clean(hostName, MaxHostNameLength, "Host name"),
             requestedFrom is null ? null : Truncate(requestedFrom, MaxAddressLength),
+            secretsRequested,
             now);
         return (authorization, deviceCode, userCode);
     }
@@ -126,6 +138,7 @@ public sealed class CliAuthorization : Entity<CliAuthorizationId>
 
     /// <summary>The person approves: the token will be theirs, with these limits.</summary>
     /// <param name="environmentIds">Null for every environment.</param>
+    /// <param name="canDecryptSecrets">The token may have the aggregator decrypt SOPS files (ADR-0010).</param>
     /// <exception cref="DomainConflictException">The request was already decided or has expired.</exception>
     /// <exception cref="DomainValidationException">The token's options are invalid.</exception>
     public void Approve(
@@ -134,11 +147,13 @@ public sealed class CliAuthorization : Entity<CliAuthorizationId>
         bool readOnly,
         IReadOnlyCollection<EnvironmentId>? environmentIds,
         DateTimeOffset? tokenExpiresAt,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        bool canDecryptSecrets = false)
     {
         EnsureOpen(now);
-        TokenName = ApiToken.ValidateOptions(tokenName, environmentIds, tokenExpiresAt, now);
+        TokenName = ApiToken.ValidateOptions(tokenName, readOnly, canDecryptSecrets, environmentIds, tokenExpiresAt, now);
         TokenReadOnly = readOnly;
+        TokenCanDecryptSecrets = canDecryptSecrets;
         TokenRestricted = environmentIds is not null;
         foreach (var environmentId in environmentIds?.Distinct() ?? [])
         {
@@ -191,7 +206,8 @@ public sealed class CliAuthorization : Entity<CliAuthorizationId>
             throw new DomainConflictException("The CLI login has not been approved.");
         }
 
-        return ApiToken.Create(userId, TokenName, TokenReadOnly, TokenRestricted ? TokenEnvironments : null, TokenExpiresAt, now);
+        return ApiToken.Create(
+            userId, TokenName, TokenReadOnly, TokenRestricted ? TokenEnvironments : null, TokenExpiresAt, now, TokenCanDecryptSecrets);
     }
 
     private void EnsureOpen(DateTimeOffset now)

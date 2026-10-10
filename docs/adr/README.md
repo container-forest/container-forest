@@ -13,3 +13,4 @@
 | [0007](0007-api-tokens.md) | Персональні API-токени з обмеженнями (лише читання, середовища, строк); перевірка прав через `Actor` зі scope облікових даних |
 | [0008](0008-cli.md) | CLI `forest`: вхід через браузер за device flow з loopback-сигналом, токен створюється лише при видачі; .NET + System.CommandLine + Kiota |
 | [0009](0009-passwordless-sign-in.md) | Вхід без пароля: passkeys ASP.NET Core Identity .NET 10; вхід і прив'язка через Discord OAuth2 з `DiscordLink` як єдиною ідентичністю |
+| [0010](0010-git-secrets-filter.md) | Git-фільтр для секретів SOPS: відкритий текст у клоні Editor'а, стандартні файли sops у git; ЦА розшифровує лише ключами середовищ, де людина — Editor, токену потрібен прапорець `secrets` |

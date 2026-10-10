@@ -214,4 +214,8 @@ internal sealed class AgeKeyRepository(AggregatorDbContext db) : EfRepository<Ag
     public async Task<IReadOnlyList<AgeKey>> ListByEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
         await Set.Where(k => k.EnvironmentId == environmentId).OrderByDescending(k => k.CreatedAt).ThenByDescending(k => k.Id)
             .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<AgeKey>> FindByRecipientsAsync(
+        IReadOnlyCollection<string> recipients, CancellationToken cancellationToken) =>
+        recipients.Count == 0 ? [] : await Set.Where(k => recipients.Contains(k.Recipient)).ToListAsync(cancellationToken);
 }

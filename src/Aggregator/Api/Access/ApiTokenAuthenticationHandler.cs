@@ -68,6 +68,7 @@ internal static class ApiTokenClaims
     public const string ReadOnly = "cf:read-only";
     public const string Restricted = "cf:restricted";
     public const string Environment = "cf:environment";
+    public const string Secrets = "cf:secrets";
 
     public static IEnumerable<Claim> For(ApiToken token)
     {
@@ -76,6 +77,11 @@ internal static class ApiTokenClaims
         if (token.IsReadOnly)
         {
             yield return new Claim(ReadOnly, "true");
+        }
+
+        if (token.CanDecryptSecrets)
+        {
+            yield return new Claim(Secrets, "true");
         }
 
         if (token.IsRestricted)
@@ -104,6 +110,6 @@ internal static class ApiTokenClaims
         var environments = principal.HasClaim(Restricted, "true")
             ? principal.FindAll(Environment).Select(c => EnvironmentId.From(Guid.Parse(c.Value)))
             : null;
-        return new AccessScope(environments, IsReadOnly(principal));
+        return new AccessScope(environments, IsReadOnly(principal), principal.HasClaim(Secrets, "true"));
     }
 }

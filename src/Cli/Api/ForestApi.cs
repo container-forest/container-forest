@@ -21,10 +21,12 @@ public sealed partial class ForestApi(ForestApiClient client, Uri server)
     public Task RevokeCurrentTokenAsync(CancellationToken cancellationToken) =>
         Api.Me.Tokens.Current.DeleteAsync(cancellationToken: cancellationToken);
 
-    public async Task<CliAuthorizationStartedResponse> StartLoginAsync(string clientName, string hostName, CancellationToken cancellationToken) =>
+    /// <param name="secrets">Ask for a token that may decrypt secrets; the person decides on the approval page.</param>
+    public async Task<CliAuthorizationStartedResponse> StartLoginAsync(
+        string clientName, string hostName, bool secrets, CancellationToken cancellationToken) =>
         Required(
             await Api.Cli.Authorizations.PostAsync(
-                new StartCliAuthorizationRequest { ClientName = clientName, HostName = hostName },
+                new StartCliAuthorizationRequest { ClientName = clientName, HostName = hostName, Secrets = secrets },
                 cancellationToken: cancellationToken),
             "the started login");
 

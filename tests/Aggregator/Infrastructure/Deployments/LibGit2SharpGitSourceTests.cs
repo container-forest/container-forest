@@ -95,6 +95,26 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
     }
 
     [Fact]
+    public async Task Reads_the_gitattributes_of_the_directories_above()
+    {
+        Commit(new()
+        {
+            [".gitattributes"] = "*.env filter=forest\n",
+            ["apps/.gitattributes"] = "local.env -filter\n",
+            ["apps/web/.gitattributes"] = "inside\n",
+            ["apps/web/compose.yaml"] = "services: {}",
+            ["other/.gitattributes"] = "elsewhere\n",
+        });
+
+        var snapshot = await Fetch("apps/web");
+
+        Assert.Equal(
+            [("", "*.env filter=forest\n"), ("apps", "local.env -filter\n")],
+            snapshot.OuterAttributes!.Select(f => (f.Directory, f.Content)));
+        Assert.Contains(snapshot.Files, f => f.Path.Value == ".gitattributes");
+    }
+
+    [Fact]
     public async Task Second_fetch_sees_new_commits()
     {
         Commit(new() { ["compose.yaml"] = "v1" });

@@ -772,6 +772,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sops/decrypt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["DecryptSopsFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sops/encrypt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["EncryptSopsFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/git-connections": {
         parameters: {
             query?: never;
@@ -1185,6 +1217,7 @@ export interface components {
             /** Format: date-time */
             lastUsedAt: null | string;
             expired: boolean;
+            secrets: boolean;
         };
         ApproveCliAuthorizationRequest: {
             name: string;
@@ -1192,6 +1225,8 @@ export interface components {
             environmentIds: null | string[];
             /** Format: date-time */
             expiresAt: null | string;
+            /** @default false */
+            secrets: boolean;
         };
         ChangePasswordRequest: {
             currentPassword: string;
@@ -1215,6 +1250,7 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             expiresAt: string;
+            secretsRequested: boolean;
         };
         CliAuthorizationStartedResponse: {
             deviceCode: string;
@@ -1267,6 +1303,8 @@ export interface components {
             environmentIds: null | string[];
             /** Format: date-time */
             expiresAt: null | string;
+            /** @default false */
+            secrets: boolean;
         };
         CreatedApiTokenResponse: {
             apiToken: components["schemas"]["ApiTokenResponse"];
@@ -1604,6 +1642,21 @@ export interface components {
             passkey: boolean;
             discord: boolean;
         };
+        SopsContentResponse: {
+            /** Format: byte */
+            content: string;
+        };
+        SopsDecryptRequest: {
+            path: string;
+            /** Format: byte */
+            content: string;
+        };
+        SopsEncryptRequest: {
+            path: string;
+            sopsConfig: string;
+            /** Format: byte */
+            content: string;
+        };
         StackCommandResponse: {
             succeeded: boolean;
             error: null | string;
@@ -1634,6 +1687,8 @@ export interface components {
         StartCliAuthorizationRequest: {
             clientName: string;
             hostName: string;
+            /** @default false */
+            secrets: boolean;
         };
         UpdateEnvironmentRequest: {
             name: string;
@@ -4726,6 +4781,144 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DecryptSopsFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SopsDecryptRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SopsContentResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    EncryptSopsFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SopsEncryptRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SopsContentResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

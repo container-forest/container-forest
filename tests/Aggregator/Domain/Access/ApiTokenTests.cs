@@ -25,6 +25,19 @@ public class ApiTokenTests
 
         Assert.False(token.Scope.IsRestricted);
         Assert.False(token.Scope.IsReadOnly);
+        Assert.False(token.Scope.CanDecryptSecrets);
+    }
+
+    [Fact]
+    public void Decrypting_secrets_is_a_right_given_explicitly_and_never_to_a_read_only_token()
+    {
+        var (token, _) = ApiToken.Create(UserId.New(), "git", readOnly: false, null, null, Now, canDecryptSecrets: true);
+
+        Assert.True(token.CanDecryptSecrets);
+        Assert.True(token.Scope.CanDecryptSecrets);
+        Assert.True(AccessScope.Full.CanDecryptSecrets);
+        Assert.Throws<DomainValidationException>(() =>
+            ApiToken.Create(UserId.New(), "git", readOnly: true, null, null, Now, canDecryptSecrets: true));
     }
 
     [Fact]

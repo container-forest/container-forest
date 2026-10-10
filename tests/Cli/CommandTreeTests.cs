@@ -23,6 +23,14 @@ public class CommandTreeTests
     [InlineData("connection add team --prefix https://gitea.example.com/team/ --env r2 --env l2 --with-token")]
     [InlineData("notification rule add ops --event DeploymentFailed --event AgentOffline -e r2 --stack web")]
     [InlineData("repo update app --public")]
+    [InlineData("login forest.example.com --secrets")]
+    [InlineData("secrets init --rule stacks/prod/=prod --rule stacks/staging/=staging --recovery age1x")]
+    [InlineData("secrets init -e prod -e staging --pattern '*.secret.yaml'")]
+    [InlineData("secrets add app/.env secrets/db")]
+    [InlineData("secrets check --staged")]
+    [InlineData("secrets updatekeys")]
+    [InlineData("git setup --local-sops")]
+    [InlineData("git textconv /tmp/x_.env")]
     public void Commands_parse(string commandLine) => Assert.Empty(Root.Parse(commandLine).Errors);
 
     [Theory]

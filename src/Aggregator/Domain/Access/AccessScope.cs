@@ -12,16 +12,24 @@ public sealed class AccessScope
 
     /// <param name="environments">The only environments the request may reach; null for all of them.</param>
     /// <param name="readOnly">Only <see cref="Permission.View"/> and <see cref="Permission.ViewLogs"/>.</param>
-    public AccessScope(IEnumerable<EnvironmentId>? environments, bool readOnly)
+    /// <param name="canDecryptSecrets">May ask the aggregator to decrypt SOPS files (ADR-0010).</param>
+    public AccessScope(IEnumerable<EnvironmentId>? environments, bool readOnly, bool canDecryptSecrets = false)
     {
         this.environments = environments?.ToHashSet();
         IsReadOnly = readOnly;
+        CanDecryptSecrets = canDecryptSecrets && !readOnly;
     }
 
-    /// <summary>No limits: the user's own rights.</summary>
-    public static AccessScope Full { get; } = new(null, readOnly: false);
+    /// <summary>No limits: the user's own rights, including decrypting the secrets they may deploy.</summary>
+    public static AccessScope Full { get; } = new(null, readOnly: false, canDecryptSecrets: true);
 
     public bool IsReadOnly { get; }
+
+    /// <summary>
+    /// May have the aggregator decrypt SOPS files of the environments where the user is an Editor (ADR-0010). A session
+    /// may; an API token only when it was created with this right, since tokens live in files and CI and leak more often.
+    /// </summary>
+    public bool CanDecryptSecrets { get; }
 
     /// <summary>Limited to <see cref="Environments"/>. Such a request has no administrator rights.</summary>
     public bool IsRestricted => environments is not null;

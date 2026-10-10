@@ -492,6 +492,7 @@ const en: Translation = {
     access: {
       full: "Full",
       readOnly: "Read-only",
+      secrets: "Secrets",
       allEnvironments: "All environments",
       noEnvironments: "No environments",
     },
@@ -518,6 +519,10 @@ const en: Translation = {
       lifetime: "Expires in",
       readOnly: "Read-only",
       readOnlyHint: "Viewing stacks, containers, logs and deployments; no changes, deployments or container actions.",
+      secrets: "Decrypt secrets",
+      secretsHint:
+        "For the git filter of the CLI: the aggregator decrypts SOPS files of environments where you are an Editor. Only for a workstation, not for CI.",
+      secretsReadOnly: "A read-only token cannot decrypt secrets.",
       environments: "Environments",
       allEnvironments: "All environments, including future ones",
       environmentsHint:
@@ -560,6 +565,7 @@ const en: Translation = {
     token: {
       title: "Token for the CLI",
       description: "The CLI gets an API token with your roles and these limits. You can revoke it on the API tokens screen.",
+      secretsRequested: "The CLI asks for the right to decrypt secrets ('forest login --secrets'), which its git filter needs. Untick it if you do not need it.",
     },
     done: {
       approved: "Sign-in approved",

@@ -20,8 +20,20 @@ public sealed class CliHost(
     ForestApiFactory apiFactory,
     IBrowser browser,
     TimeProvider time,
-    bool interactiveTerminal = false)
+    bool interactiveTerminal = false,
+    Stream? standardInput = null,
+    Stream? standardOutput = null,
+    string? workingDirectory = null)
 {
+    /// <summary>Standard input as bytes, for the git filter's binary protocol.</summary>
+    public Stream StandardInput => standardInput ?? Console.OpenStandardInput();
+
+    /// <summary>Standard output as bytes, for the git filter's binary protocol and decrypted files.</summary>
+    public Stream StandardOutput => standardOutput ?? Console.OpenStandardOutput();
+
+    /// <summary>Where git commands of the secrets commands run.</summary>
+    public string WorkingDirectory => workingDirectory ?? Directory.GetCurrentDirectory();
+
     /// <summary>Standard input is a person at a terminal, not a pipe: secrets are then typed without echo.</summary>
     public bool InteractiveTerminal { get; } = interactiveTerminal;
 

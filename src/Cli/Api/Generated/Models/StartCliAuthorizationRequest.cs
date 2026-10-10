@@ -30,12 +30,15 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #else
         public string HostName { get; set; }
 #endif
+        /// <summary>The secrets property</summary>
+        public bool? Secrets { get; set; }
         /// <summary>
         /// Instantiates a new <see cref="global::ContainerForest.Cli.Api.Generated.Models.StartCliAuthorizationRequest"/> and sets the default values.
         /// </summary>
         public StartCliAuthorizationRequest()
         {
             AdditionalData = new Dictionary<string, object>();
+            Secrets = false;
         }
         /// <summary>
         /// Creates a new instance of the appropriate class based on discriminator value
@@ -57,6 +60,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             {
                 { "clientName", n => { ClientName = n.GetStringValue(); } },
                 { "hostName", n => { HostName = n.GetStringValue(); } },
+                { "secrets", n => { Secrets = n.GetBoolValue(); } },
             };
         }
         /// <summary>
@@ -68,6 +72,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             if(ReferenceEquals(writer, null)) throw new ArgumentNullException(nameof(writer));
             writer.WriteStringValue("clientName", ClientName);
             writer.WriteStringValue("hostName", HostName);
+            writer.WriteBoolValue("secrets", Secrets);
             writer.WriteAdditionalData(AdditionalData);
         }
     }

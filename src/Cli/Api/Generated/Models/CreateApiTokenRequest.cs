@@ -34,12 +34,15 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #endif
         /// <summary>The readOnly property</summary>
         public bool? ReadOnly { get; set; }
+        /// <summary>The secrets property</summary>
+        public bool? Secrets { get; set; }
         /// <summary>
         /// Instantiates a new <see cref="global::ContainerForest.Cli.Api.Generated.Models.CreateApiTokenRequest"/> and sets the default values.
         /// </summary>
         public CreateApiTokenRequest()
         {
             AdditionalData = new Dictionary<string, object>();
+            Secrets = false;
         }
         /// <summary>
         /// Creates a new instance of the appropriate class based on discriminator value
@@ -63,6 +66,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
                 { "expiresAt", n => { ExpiresAt = n.GetDateTimeOffsetValue(); } },
                 { "name", n => { Name = n.GetStringValue(); } },
                 { "readOnly", n => { ReadOnly = n.GetBoolValue(); } },
+                { "secrets", n => { Secrets = n.GetBoolValue(); } },
             };
         }
         /// <summary>
@@ -76,6 +80,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             writer.WriteDateTimeOffsetValue("expiresAt", ExpiresAt);
             writer.WriteStringValue("name", Name);
             writer.WriteBoolValue("readOnly", ReadOnly);
+            writer.WriteBoolValue("secrets", Secrets);
             writer.WriteAdditionalData(AdditionalData);
         }
     }

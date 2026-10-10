@@ -14,10 +14,11 @@ internal sealed class BrowserLogin(ForestApi api, IBrowser browser, TimeProvider
     /// <summary>How much longer to wait after the server asks the CLI to slow down.</summary>
     private static readonly TimeSpan SlowDownStep = TimeSpan.FromSeconds(5);
 
+    /// <param name="secrets">Ask for a token that may decrypt secrets (the git filter, ADR-0010).</param>
     /// <exception cref="CliException">The person denied the login, or it expired.</exception>
-    public async Task<CliTokenResponse> RunAsync(bool device, bool openBrowser, CancellationToken cancellationToken)
+    public async Task<CliTokenResponse> RunAsync(bool device, bool openBrowser, CancellationToken cancellationToken, bool secrets = false)
     {
-        var started = await api.StartLoginAsync($"forest {CliVersion.Current}", Environment.MachineName, cancellationToken);
+        var started = await api.StartLoginAsync($"forest {CliVersion.Current}", Environment.MachineName, secrets, cancellationToken);
         var deviceCode = ForestApi.Required(started.DeviceCode, "device code");
         var userCode = ForestApi.Required(started.UserCode, "user code");
 

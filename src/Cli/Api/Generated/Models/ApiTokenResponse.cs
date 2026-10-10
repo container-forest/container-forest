@@ -50,6 +50,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #endif
         /// <summary>The readOnly property</summary>
         public bool? ReadOnly { get; set; }
+        /// <summary>The secrets property</summary>
+        public bool? Secrets { get; set; }
         /// <summary>
         /// Instantiates a new <see cref="global::ContainerForest.Cli.Api.Generated.Models.ApiTokenResponse"/> and sets the default values.
         /// </summary>
@@ -84,6 +86,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
                 { "lastUsedAt", n => { LastUsedAt = n.GetDateTimeOffsetValue(); } },
                 { "name", n => { Name = n.GetStringValue(); } },
                 { "readOnly", n => { ReadOnly = n.GetBoolValue(); } },
+                { "secrets", n => { Secrets = n.GetBoolValue(); } },
             };
         }
         /// <summary>
@@ -102,6 +105,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             writer.WriteDateTimeOffsetValue("lastUsedAt", LastUsedAt);
             writer.WriteStringValue("name", Name);
             writer.WriteBoolValue("readOnly", ReadOnly);
+            writer.WriteBoolValue("secrets", Secrets);
             writer.WriteAdditionalData(AdditionalData);
         }
     }

@@ -1,16 +1,17 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { cn } from "cn";
-import { useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { containerLogsQuery, environmentsQuery } from "@/api/queries";
-import { ArrowLeftIcon, CopyIcon, FilterXIcon, Loader2Icon, RefreshCwIcon, SearchIcon } from "@/components/icons";
+import { ArrowLeftIcon, CopyIcon, DownloadIcon, FilterXIcon, Loader2Icon, RefreshCwIcon, SearchIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { MessageKey } from "@/i18n";
+import { type AnsiStyle, parseAnsi, stripAnsi } from "@/features/container-logs/ansi";
 import {
   type ContainerLogsSearch,
   type LogLine,
@@ -19,12 +20,14 @@ import {
   describeLogsError,
   filterLines,
   formatForCopy,
+  logFileName,
   streamFilters,
   tailOptions,
   timeOf,
   viewOf,
 } from "@/features/container-logs/model";
 import type { Environment } from "@/features/containers/model";
+import { downloadText } from "@/lib/download";
 
 /** How often auto-refresh asks for newer lines; there is no live log stream (follow) yet. */
 const AUTO_REFRESH_MS = 5_000;
@@ -39,7 +42,7 @@ export const Route = createFileRoute("/_authed/containers_/$environmentId/$conta
   errorComponent: ContainerLogsLoadError,
 });
 
-/** The end of one container's log: how many lines, which stream, search, auto-refresh, wrapping and copying. */
+/** The end of one container's log: how many lines, which stream, search, auto-refresh, wrapping, colours, copying and saving. */
 function ContainerLogsScreen() {
   const { t } = useTranslation();
   const { environmentId, containerId } = Route.useParams();
@@ -140,6 +143,11 @@ function ContainerLog({
     }
   };
 
+  const download = () => {
+    downloadText(formatForCopy(shown, view.time), logFileName(container, new Date()));
+    setNotice({ kind: "success", key: "containerLogs.downloaded", count: shown.length });
+  };
+
   const timeFormat = new Intl.DateTimeFormat(i18n.resolvedLanguage, {
     month: "2-digit",
     day: "2-digit",
@@ -221,6 +229,11 @@ function ContainerLog({
           <CopyIcon data-icon="inline-start" />
           {t("containerLogs.copy")}
         </Button>
+
+        <Button variant="outline" disabled={shown.length === 0} onClick={download}>
+          <DownloadIcon data-icon="inline-start" />
+          {t("containerLogs.download")}
+        </Button>
       </div>
 
       <div className="flex flex-wrap gap-x-6 gap-y-2">
@@ -241,6 +254,12 @@ function ContainerLog({
           label={t("containerLogs.showTime")}
           checked={view.time}
           onChange={(checked) => setSearch({ time: checked ? undefined : false })}
+        />
+        <Option
+          id="log-color"
+          label={t("containerLogs.showColors")}
+          checked={view.color}
+          onChange={(checked) => setSearch({ color: checked ? undefined : false })}
         />
       </div>
 
@@ -286,7 +305,7 @@ function ContainerLog({
             ) : (
               shown.map((line, index) => (
                 // Lines have no id; the list only grows at the end, so the position is stable.
-                <LogRow key={index} line={line} wrap={view.wrap} time={view.time ? formatTime(line, timeFormat) : undefined} />
+                <LogRow key={index} line={line} wrap={view.wrap} color={view.color} time={view.time ? formatTime(line, timeFormat) : undefined} />
               ))
             )}
           </div>
@@ -312,7 +331,7 @@ function formatTime(line: LogLine, format: Intl.DateTimeFormat): string {
   return ms === null ? "—" : format.format(ms);
 }
 
-function LogRow({ line, wrap, time }: { line: LogLine; wrap: boolean; time: string | undefined }) {
+function LogRow({ line, wrap, color, time }: { line: LogLine; wrap: boolean; color: boolean; time: string | undefined }) {
   const { t } = useTranslation();
   const stderr = line.stream === "Stderr";
 
@@ -326,9 +345,41 @@ function LogRow({ line, wrap, time }: { line: LogLine; wrap: boolean; time: stri
     >
       {time !== undefined && <span className="text-muted-foreground shrink-0 select-none">{time}</span>}
       {stderr && <span className="sr-only">{t("containerLogs.streams.stderr")}: </span>}
-      <span className={wrap ? "break-all whitespace-pre-wrap" : "whitespace-pre"}>{line.text}</span>
+      <span className={wrap ? "break-all whitespace-pre-wrap" : "whitespace-pre"}>
+        {color
+          ? parseAnsi(line.text).map((segment, index) =>
+              Object.keys(segment.style).length === 0 ? (
+                segment.text
+              ) : (
+                // Segments of a line never move, so the position is a stable key.
+                <span key={index} style={cssOf(segment.style)}>
+                  {segment.text}
+                </span>
+              ),
+            )
+          : stripAnsi(line.text)}
+      </span>
     </div>
   );
+}
+
+/**
+ * Inline style for a run of coloured text. React applies it through the CSSOM, which the panel's CSP allows.
+ * Inverse swaps the colours, falling back to the log's own text and background colours.
+ */
+function cssOf(style: AnsiStyle): CSSProperties {
+  const color = style.inverse ? (style.background ?? "var(--background)") : style.color;
+  const background = style.inverse ? (style.color ?? "var(--foreground)") : style.background;
+  const decorations = [style.underline && "underline", style.strike && "line-through"].filter(Boolean);
+
+  return {
+    color,
+    backgroundColor: background,
+    fontWeight: style.bold ? 700 : undefined,
+    opacity: style.dim ? 0.7 : undefined,
+    fontStyle: style.italic ? "italic" : undefined,
+    textDecorationLine: decorations.length > 0 ? decorations.join(" ") : undefined,
+  };
 }
 
 function Option({

@@ -50,6 +50,26 @@ internal sealed class GitSetupCommand() : ForestCommand("setup", "Turn the fores
     }
 }
 
+/// <summary>
+/// <c>forest git teardown</c>: turns the forest filter off in this clone; the secret files go back to the ciphertext
+/// git has. The opposite of <c>forest git setup</c>, e.g. before the clone or the machine goes to someone else.
+/// </summary>
+internal sealed class GitTeardownCommand() : ForestCommand("teardown", "Turn the forest git filter off in this clone: secret files become ciphertext again.")
+{
+    public override bool NeedsConnection => false;
+
+    protected override Task<int> ExecuteAsync(CommandContext context)
+    {
+        var tree = GitWorkTree.Open(context.Host.WorkingDirectory);
+        var encrypted = GitFilterSetup.Remove(tree, context.Output);
+        context.Output.Done($"The forest filter is off in this clone; {encrypted} decrypted file(s) are ciphertext again.");
+        context.Output.Note(
+            "Plain text may still be elsewhere: stashes, copies, your editor's backups. The API token stays in the CLI " +
+            "context; 'forest logout' revokes it.");
+        return Task.FromResult(ExitCodes.Ok);
+    }
+}
+
 /// <summary><c>forest git filter-process</c>: the filter git runs (filter.forest.process); not for people.</summary>
 internal sealed class GitFilterProcessCommand() : ForestCommand("filter-process", "The git filter itself; git runs it, see 'forest git setup'.")
 {

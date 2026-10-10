@@ -42,6 +42,12 @@ internal sealed class GitWorkTree
 
     public void SetConfig(string key, string value) => Run(Root, ["config", "--local", key, value]);
 
+    /// <summary>Removes a key from the repository's own config; a key that is not there is fine.</summary>
+    public void UnsetConfig(string key) => RunRaw(Root, ["config", "--local", "--unset-all", key], null);
+
+    /// <summary>Removes a whole section (e.g. filter.forest) from the repository's own config, if it is there.</summary>
+    public void RemoveConfigSection(string section) => RunRaw(Root, ["config", "--local", "--remove-section", section], null);
+
     /// <summary>Tracked files, relative to the root.</summary>
     public IReadOnlyList<string> TrackedFiles() => Split0(Run(Root, ["ls-files", "-z"]));
 
@@ -93,6 +99,15 @@ internal sealed class GitWorkTree
         foreach (var chunk in paths.Chunk(500))
         {
             Run(Root, ["checkout", "--", .. chunk]);
+        }
+    }
+
+    /// <summary>Stages the files as they are in the work tree.</summary>
+    public void Stage(IReadOnlyList<string> paths)
+    {
+        foreach (var chunk in paths.Chunk(500))
+        {
+            Run(Root, ["add", "--", .. chunk]);
         }
     }
 

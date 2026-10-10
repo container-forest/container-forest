@@ -69,6 +69,126 @@ public sealed class SecretsCommandsTests : IDisposable
     }
 
     [Fact]
+    public async Task Removed_file_stays_a_sops_file_in_git_and_its_own_line_goes()
+    {
+        Write(".gitattributes", "/app/.env filter=forest diff=forest\n/db/.env filter=forest diff=forest\n");
+        var encrypted = System.Text.Encoding.UTF8.GetString(FakeSops.Wrap("TOKEN=x"));
+        Write("app/.env", encrypted);
+        Write("db/.env", encrypted);
+        Git("add", "-A");
+        Git("commit", "-qm", "secrets");
+
+        var (code, _, error) = await RunAsync("secrets", "remove", "app/.env");
+
+        Assert.True(code == ExitCodes.Ok, error);
+        Assert.Equal("/db/.env filter=forest diff=forest\n", Read(".gitattributes"));
+        Assert.Equal(encrypted, Read("app/.env"));
+        Assert.Equal(" M .gitattributes\n", GitOutput("status", "--porcelain"));
+    }
+
+    [Fact]
+    public async Task File_a_pattern_covers_gets_a_line_that_unsets_the_filter()
+    {
+        Write(".gitattributes", "*.env filter=forest diff=forest\n");
+        Write("app/.env", System.Text.Encoding.UTF8.GetString(FakeSops.Wrap("TOKEN=x")));
+        Git("add", "-A");
+        Git("commit", "-qm", "secrets");
+
+        var (code, _, error) = await RunAsync("secrets", "remove", "app/.env");
+
+        Assert.True(code == ExitCodes.Ok, error);
+        Assert.EndsWith("/app/.env -filter -diff\n", Read(".gitattributes"), StringComparison.Ordinal);
+        Assert.Contains("filter: unset", GitOutput("check-attr", "filter", "--", "app/.env"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Removing_keeps_ciphertext_only_when_git_has_it()
+    {
+        Write(".gitattributes", "*.env filter=forest diff=forest\n");
+        Write("leaked/.env", "TOKEN=x\n");
+        Git("add", "-A");
+        Git("commit", "-qm", "leak");
+        Write("new/.env", "TOKEN=y\n");
+
+        var (leaked, _, leakedError) = await RunAsync("secrets", "remove", "leaked/.env");
+        var (untracked, _, untrackedError) = await RunAsync("secrets", "remove", "new/.env");
+        var (notFiltered, _, _) = await RunAsync("secrets", "remove", "README.md");
+
+        Assert.Equal(ExitCodes.Usage, leaked);
+        Assert.Contains("--plain", leakedError, StringComparison.Ordinal);
+        Assert.Equal(ExitCodes.Usage, untracked);
+        Assert.Contains("Not in git yet", untrackedError, StringComparison.Ordinal);
+        Assert.Equal(ExitCodes.Usage, notFiltered);
+        Assert.Equal("*.env filter=forest diff=forest\n", Read(".gitattributes"));
+    }
+
+    [Fact]
+    public async Task Plain_needs_yes_and_stages_the_decrypted_text()
+    {
+        Write(".gitattributes", "*.env filter=forest diff=forest\n");
+        Git("add", "-A");
+        Git("commit", "-qm", "attributes");
+        Write("app/.env", "LOG_LEVEL=debug\n");
+
+        var (unconfirmed, _, _) = await RunAsync("secrets", "remove", "app/.env", "--plain");
+        var (code, _, error) = await RunAsync("secrets", "remove", "app/.env", "--plain", "--yes");
+
+        Assert.Equal(ExitCodes.Usage, unconfirmed);
+        Assert.True(code == ExitCodes.Ok, error);
+        Assert.Equal("LOG_LEVEL=debug\n", GitOutput("show", ":app/.env"));
+    }
+
+    [Fact]
+    public async Task Plain_refuses_a_file_that_is_not_decrypted_here()
+    {
+        Write(".gitattributes", "*.env filter=forest diff=forest\n");
+        Write("app/.env", System.Text.Encoding.UTF8.GetString(FakeSops.Wrap("TOKEN=x")));
+        Git("add", "-A");
+        Git("commit", "-qm", "secrets");
+
+        var (code, _, error) = await RunAsync("secrets", "remove", "app/.env", "--plain", "--yes");
+
+        Assert.Equal(ExitCodes.Failed, code);
+        Assert.Contains("Not decrypted in this clone", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Teardown_removes_what_setup_wrote_and_encrypts_the_files_again()
+    {
+        Write(".gitattributes", "*.env filter=forest diff=forest\n");
+        var encrypted = System.Text.Encoding.UTF8.GetString(FakeSops.Wrap("TOKEN=x"));
+        Write("app/.env", encrypted);
+        Git("add", "-A");
+        Git("commit", "-qm", "secrets");
+        Write("app/.env", "TOKEN=x\n"); // as smudge left it
+        Git("config", "forest.context", "prod");
+        Git("config", "diff.forest.textconv", "forest git textconv");
+        Write(".git/hooks/pre-commit", $"#!/bin/sh\n{Cli.Secrets.GitFilterSetup.HookMarker}\nexec forest secrets check --staged\n");
+        Write(".git/forest/key", "k");
+
+        var (code, _, error) = await RunAsync("git", "teardown");
+
+        Assert.True(code == ExitCodes.Ok, error);
+        Assert.Equal(encrypted, Read("app/.env"));
+        Assert.DoesNotContain("forest", GitOutput("config", "--local", "--list"), StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(repository, ".git", "hooks", "pre-commit")));
+        Assert.False(Directory.Exists(Path.Combine(repository, ".git", "forest")));
+        Assert.Equal("*.env filter=forest diff=forest\n", Read(".gitattributes"));
+    }
+
+    [Fact]
+    public async Task Teardown_leaves_a_hook_it_did_not_write()
+    {
+        Write(".git/hooks/pre-commit", "#!/bin/sh\nmake lint && forest secrets check --staged\n");
+
+        var (code, _, error) = await RunAsync("git", "teardown");
+
+        Assert.Equal(ExitCodes.Ok, code);
+        Assert.True(File.Exists(Path.Combine(repository, ".git", "hooks", "pre-commit")));
+        Assert.Contains("remove its 'secrets check' line yourself", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Outside_a_repository_the_commands_say_so()
     {
         var elsewhere = Directory.CreateTempSubdirectory("cf-not-git-").FullName;
@@ -110,6 +230,23 @@ public sealed class SecretsCommandsTests : IDisposable
         var full = Path.Combine(repository, path);
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         File.WriteAllText(full, content);
+    }
+
+    private string Read(string path) => File.ReadAllText(Path.Combine(repository, path));
+
+    private string GitOutput(params string[] args)
+    {
+        var startInfo = new ProcessStartInfo("git") { WorkingDirectory = repository, RedirectStandardError = true, RedirectStandardOutput = true };
+        foreach (var arg in args)
+        {
+            startInfo.ArgumentList.Add(arg);
+        }
+
+        using var process = Process.Start(startInfo)!;
+        var output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+        Assert.True(process.ExitCode == 0, process.StandardError.ReadToEnd());
+        return output;
     }
 
     private void Git(params string[] args)

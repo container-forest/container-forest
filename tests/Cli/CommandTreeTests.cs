@@ -29,6 +29,11 @@ public class CommandTreeTests
     [InlineData("secrets add app/.env secrets/db")]
     [InlineData("secrets check --staged")]
     [InlineData("secrets updatekeys")]
+    [InlineData("secrets remove app/.env --plain --yes")]
+    [InlineData("secrets rule list")]
+    [InlineData("secrets rule add stacks/staging/=staging --recovery age1x")]
+    [InlineData("secrets rule remove stacks/staging/")]
+    [InlineData("git teardown")]
     [InlineData("git setup --local-sops")]
     [InlineData("git textconv /tmp/x_.env")]
     public void Commands_parse(string commandLine) => Assert.Empty(Root.Parse(commandLine).Errors);
@@ -39,6 +44,8 @@ public class CommandTreeTests
     [InlineData("env registry set ghcr.io")]
     [InlineData("user role grant alice -e r2 --role Root")]
     [InlineData("user set-admin alice maybe")]
+    [InlineData("secrets remove")]
+    [InlineData("secrets rule add")]
     public void Wrong_command_lines_are_refused(string commandLine) => Assert.NotEmpty(Root.Parse(commandLine).Errors);
 
     [Fact]

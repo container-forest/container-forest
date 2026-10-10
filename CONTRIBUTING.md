@@ -136,6 +136,13 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    curl -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/age-keys
    sops encrypt --age <recipient>,<ваш ключ> --in-place .env   # або правило в .sops.yaml
    ```
+   Git-фільтр (ADR-0010) у тестовому репозиторії: CLI з кроку 6 має бути в `PATH` як `forest` (git запускає його сам), токен — із правом розшифровувати секрети:
+   ```sh
+   forest login --secrets http://localhost:5173     # у браузері лишити галочку «Розшифрування секретів»
+   forest secrets init -e local                      # .sops.yaml, .gitattributes, фільтр і pre-commit хук
+   printf 'TOKEN=s3cret\n' > .env && git add .env && git show :.env   # у git — зашифрований файл
+   ```
+   Для `dotnet run` без опублікованого бінарника підійде обгортка `forest` у `PATH`: `exec dotnet <репозиторій>/src/Cli/bin/Debug/net10.0/forest.dll "$@"`.
 
    Образи з приватного registry: креди задаються на середовищі (лише адміністратор; пароль ніколи не повертається). Повторний `PUT` для того самого `server` замінює логін:
    ```sh

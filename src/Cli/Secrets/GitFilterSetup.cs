@@ -33,6 +33,46 @@ internal static class GitFilterSetup
     }
 
     /// <summary>
+    /// Turns the filter off in a clone (<c>forest git teardown</c>): what <see cref="Apply"/> wrote goes, the files it
+    /// decrypted are checked out again as the ciphertext git has, and the filter cache of the clone is deleted.
+    /// .gitattributes and .sops.yaml stay: they belong to the repository, not to the clone.
+    /// </summary>
+    /// <returns>How many files were encrypted again in the work tree.</returns>
+    /// <exception cref="CliException">A decrypted file has changes that are not committed; they would be lost.</exception>
+    public static int Remove(GitWorkTree tree, CliOutput output)
+    {
+        var filtered = tree.Filtered(tree.TrackedFiles());
+        var decrypted = filtered.Where(p => tree.WorkTreeFile(p) is { } content && !SopsFiles.IsEncrypted(p, content)).ToList();
+        if (tree.GetConfig("filter.forest.process") is not null)
+        {
+            // Checked while the filter still works: a changed plain text would be overwritten by the ciphertext.
+            var changed = decrypted.Where(p => !tree.IsUnmodified(p)).ToList();
+            if (changed.Count > 0)
+            {
+                throw new CliException(
+                    $"Changed and not committed: {string.Join(", ", changed)}. Commit or discard the changes first.", ExitCodes.Failed);
+            }
+        }
+
+        tree.RemoveConfigSection("filter.forest");
+        tree.RemoveConfigSection("diff.forest");
+        foreach (var key in new[] { ContextKey, LocalSopsKey, SopsPathKey })
+        {
+            tree.UnsetConfig(key);
+        }
+
+        RemoveHook(tree, output);
+        tree.CheckOutAgain(decrypted);
+        var cache = Path.Combine(tree.GitDirectory, "forest");
+        if (Directory.Exists(cache))
+        {
+            Directory.Delete(cache, recursive: true);
+        }
+
+        return decrypted.Count;
+    }
+
+    /// <summary>
     /// How git should start this CLI: the absolute path of this binary when it is forest itself (not dotnet running
     /// it), quoted for the shell git starts filters with.
     /// </summary>
@@ -57,6 +97,25 @@ internal static class GitFilterSetup
 
         var decrypted = filtered.Count(p => tree.WorkTreeFile(p) is { } content && !SopsFiles.IsEncrypted(p, content));
         return (decrypted, filtered.Count);
+    }
+
+    private static void RemoveHook(GitWorkTree tree, CliOutput output)
+    {
+        var hook = tree.GitPath("hooks/pre-commit");
+        if (!File.Exists(hook))
+        {
+            return;
+        }
+
+        var text = File.ReadAllText(hook);
+        if (text.Contains(HookMarker, StringComparison.Ordinal))
+        {
+            File.Delete(hook);
+        }
+        else if (text.Contains("secrets check", StringComparison.Ordinal))
+        {
+            output.Note($"{hook} is not the one 'forest git setup' wrote: remove its 'secrets check' line yourself.");
+        }
     }
 
     private static void InstallHook(GitWorkTree tree, string executable, CliOutput output)

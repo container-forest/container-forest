@@ -239,6 +239,50 @@ public sealed class CliEndToEndTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task Secrets_rules_are_added_listed_and_removed_with_the_environment_keys()
+    {
+        const string Recovery = "age1lggyhqrw2nlhcxprm67z43rta597azn8gknawjehu9d9dl0jq3yqqvfafg";
+        await using var app = new AggregatorApp();
+        await app.CreateEnvironmentAsync("prod");
+        var staging = await app.CreateEnvironmentAsync("staging");
+        foreach (var environment in (await app.CreateClient().GetFromJsonAsync<JsonElement[]>("/api/environments", AggregatorApp.Json, Ct))!)
+        {
+            await app.CreateClient().PostAsync($"/api/environments/{environment.GetProperty("id").GetGuid()}/age-keys", null, Ct);
+        }
+
+        var stagingKey = (await app.CreateClient().GetFromJsonAsync<JsonElement[]>($"/api/environments/{staging.Id}/age-keys", AggregatorApp.Json, Ct))![0]
+            .GetProperty("recipient").GetString()!;
+        await RunAsync(app, null, await CreateTokenAsync(app), "login", "http://localhost", "--with-token");
+        var repository = Directory.CreateTempSubdirectory("cf-git-").FullName;
+        try
+        {
+            Git(repository, "init", "-q", "-b", "main");
+            var init = await RunInAsync(app, null, "", repository, null, null, "secrets", "init", "-e", "prod", "--recovery", Recovery);
+            Assert.True(init.ExitCode == 0, init.Error);
+
+            var added = await RunInAsync(app, null, "", repository, null, null, "secrets", "rule", "add", "stacks/staging/=staging");
+            var listed = await RunInAsync(app, null, "", repository, null, null, "secrets", "rule", "list");
+
+            Assert.True(added.ExitCode == 0, added.Error);
+            Assert.Contains("rule 1 of 2, before (every other file)", added.Output + added.Error, StringComparison.Ordinal);
+            var config = await File.ReadAllTextAsync(Path.Combine(repository, ".sops.yaml"), Ct);
+            Assert.Contains($"  - path_regex: '^stacks/staging/'\n    age: {stagingKey},{Recovery}\n", config, StringComparison.Ordinal);
+            Assert.True(config.IndexOf("staging", StringComparison.Ordinal) < config.IndexOf("environment prod", StringComparison.Ordinal));
+            Assert.Matches(@"stacks/staging/\s+staging\s+1", listed.Output);
+            Assert.Matches(@"\(every other file\)\s+prod\s+1", listed.Output);
+
+            var removed = await RunInAsync(app, null, "", repository, null, null, "secrets", "rule", "remove", "stacks/staging/");
+
+            Assert.True(removed.ExitCode == 0, removed.Error);
+            Assert.DoesNotContain("staging", await File.ReadAllTextAsync(Path.Combine(repository, ".sops.yaml"), Ct), StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(repository, recursive: true);
+        }
+    }
+
     private static string Git(string directory, params string[] args)
     {
         var startInfo = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = directory, RedirectStandardOutput = true, RedirectStandardError = true };

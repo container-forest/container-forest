@@ -55,6 +55,67 @@ internal static class SecretsFiles
         }
     }
 
+    /// <summary>
+    /// Takes files out from under the filter: drops the line 'forest secrets add' or 'adopt' wrote for a file, and
+    /// for a file a pattern covers, adds a line that unsets the filter for it. Puts .gitattributes back when a file is
+    /// still under the filter afterwards (a .gitattributes deeper in the tree sets it).
+    /// </summary>
+    /// <exception cref="CliException">A file is still under the filter.</exception>
+    public static void RemoveAttributes(GitWorkTree tree, IReadOnlyList<string> paths, string comment)
+    {
+        var path = Path.Combine(tree.Root, Attributes);
+        var original = File.Exists(path) ? File.ReadAllText(path) : "";
+        var own = paths.Select(p => $"/{p} {FilterAttributes}").ToHashSet(StringComparer.Ordinal);
+        var lines = original.Split('\n').ToList();
+        if (lines.Count > 0 && lines[^1].Length == 0)
+        {
+            lines.RemoveAt(lines.Count - 1);
+        }
+
+        lines.RemoveAll(l => own.Contains(l.Trim()));
+        var text = new StringBuilder();
+        foreach (var line in lines)
+        {
+            text.Append(line).Append('\n');
+        }
+
+        File.WriteAllText(path, text.ToString());
+        var covered = tree.Filtered(paths);
+        if (covered.Count > 0)
+        {
+            text.Append("# ").Append(comment).Append('\n');
+            foreach (var file in covered)
+            {
+                text.Append('/').Append(file).Append(" -filter -diff\n");
+            }
+
+            File.WriteAllText(path, text.ToString());
+        }
+
+        var still = tree.Filtered(paths);
+        if (still.Count > 0)
+        {
+            File.WriteAllText(path, original);
+            throw new CliException(
+                $"{string.Join(", ", still)}: another .gitattributes puts it under the filter; edit that one yourself.", ExitCodes.Failed);
+        }
+    }
+
+    /// <summary>The environments you can see, by the age public keys they have.</summary>
+    public static async Task<Dictionary<string, string>> EnvironmentsByRecipientAsync(CommandContext context)
+    {
+        var environmentsByRecipient = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var environment in await context.Api.ListEnvironmentsAsync(context.CancellationToken))
+        {
+            foreach (var key in await context.Api.ListAgeKeysAsync(environment.Id!.Value, context.CancellationToken))
+            {
+                environmentsByRecipient[key.Recipient!] = environment.Name!;
+            }
+        }
+
+        return environmentsByRecipient;
+    }
+
     /// <summary>A path the user typed, relative to the working directory, as a path in the repository.</summary>
     public static string InRepository(GitWorkTree tree, string workingDirectory, string path)
     {
@@ -135,7 +196,7 @@ internal sealed class SecretsInitCommand() : ForestCommand("init", "Write .sops.
                 ? (p.TrimStart('/'), e)
                 : throw new CliException($"--rule {rule}: expected <path prefix>=<environment>.", ExitCodes.Usage);
             var environment = await api.ResolveEnvironmentAsync(environmentName, null, ct);
-            AppendRule(config, $"^{EscapeRegex(prefix)}", [environment.Name!], [await RecipientAsync(context, environment), .. recoveryKeys]);
+            AppendRule(config, SopsConfigFile.PrefixRegex(prefix), [environment.Name!], [await RecipientAsync(context, environment), .. recoveryKeys]);
         }
 
         var names = context.Value(environments) is { Length: > 0 } named ? named : null;
@@ -178,7 +239,7 @@ internal sealed class SecretsInitCommand() : ForestCommand("init", "Write .sops.
         return ExitCodes.Ok;
     }
 
-    private static async Task<string> RecipientAsync(CommandContext context, EnvironmentResponse environment)
+    internal static async Task<string> RecipientAsync(CommandContext context, EnvironmentResponse environment)
     {
         var keys = await context.Api.ListAgeKeysAsync(environment.Id!.Value, context.CancellationToken);
         return keys.FirstOrDefault()?.Recipient
@@ -189,26 +250,10 @@ internal sealed class SecretsInitCommand() : ForestCommand("init", "Write .sops.
 
     private static void AppendRule(StringBuilder config, string? pathRegex, IReadOnlyList<string> environmentNames, IReadOnlyList<string> recipients)
     {
-        config.Append("  # ").Append(environmentNames.Count == 1 ? "environment " : "environments ").AppendJoin(", ", environmentNames).Append('\n');
-        config.Append(pathRegex is null ? "  - age: " : $"  - path_regex: '{pathRegex.Replace("'", "''", StringComparison.Ordinal)}'\n    age: ")
-            .AppendJoin(',', recipients.Distinct()).Append('\n');
-    }
-
-    // RE2, which sops uses, accepts a backslash only before punctuation; escape just the metacharacters.
-    private static string EscapeRegex(string text)
-    {
-        var escaped = new StringBuilder();
-        foreach (var c in text)
+        foreach (var line in SopsConfigFile.RuleLines(pathRegex, environmentNames, recipients))
         {
-            if (@"\.+*?()|[]{}^$".Contains(c, StringComparison.Ordinal))
-            {
-                escaped.Append('\\');
-            }
-
-            escaped.Append(c);
+            config.Append(line).Append('\n');
         }
-
-        return escaped.ToString();
     }
 }
 
@@ -285,6 +330,99 @@ internal sealed class SecretsAddCommand() : ForestCommand("add", "Put files unde
         // Stage the tracked ones through the clean filter now, so the next commit has them encrypted.
         tree.Renormalize(inGit);
         context.Output.Done($"{added} file(s) added to .gitattributes; commit it{(inGit.Count > 0 ? " with the re-encrypted files" : "")}.");
+        return Task.FromResult(ExitCodes.Ok);
+    }
+}
+
+/// <summary>
+/// <c>forest secrets remove &lt;file&gt;…</c>: takes files out from under the filter. By default git keeps them as the
+/// sops files they are, and the clone gets the ciphertext back (edit them with sops from now on); with
+/// <c>--plain</c> the decrypted text is staged for the next commit, for a file that turned out to be no secret.
+/// </summary>
+internal sealed class SecretsRemoveCommand() : ForestCommand("remove", "Take files out from under the forest filter: kept encrypted in git, or with --plain committed as plain text.")
+{
+    private readonly Argument<string[]> files = new("file") { Description = "Files under the filter.", Arity = ArgumentArity.OneOrMore };
+
+    private readonly Option<bool> plain = new("--plain") { Description = "Stage the decrypted text: the file is no secret any more (needs --yes)." };
+
+    private readonly Option<bool> yes = Confirmation.Option();
+
+    public override bool NeedsConnection => false;
+
+    protected override void Configure(Command command)
+    {
+        command.Add(files);
+        command.Add(plain);
+        command.Add(yes);
+    }
+
+    protected override Task<int> ExecuteAsync(CommandContext context)
+    {
+        var tree = GitWorkTree.Open(context.Host.WorkingDirectory);
+        var paths = context.Value(files).Select(f => SecretsFiles.InRepository(tree, context.Host.WorkingDirectory, f)).Distinct().ToList();
+        var notFiltered = paths.Except(tree.Filtered(paths)).ToList();
+        if (notFiltered.Count > 0)
+        {
+            throw new CliException($"Not under filter=forest: {string.Join(", ", notFiltered)}.", ExitCodes.Usage);
+        }
+
+        var tracked = tree.TrackedFiles().ToHashSet(StringComparer.Ordinal);
+        var asPlain = context.Value(plain);
+        if (asPlain)
+        {
+            Confirmation.Require(context, yes, $"commit {string.Join(", ", paths)} as plain text that anyone who can read the repository sees");
+            var encrypted = paths.Where(p => tree.WorkTreeFile(p) is not { } content || SopsFiles.IsEncrypted(p, content)).ToList();
+            if (encrypted.Count > 0)
+            {
+                throw new CliException($"Not decrypted in this clone, so there is no plain text to commit: {string.Join(", ", encrypted)}.", ExitCodes.Failed);
+            }
+        }
+        else
+        {
+            var untracked = paths.Where(p => !tracked.Contains(p)).ToList();
+            if (untracked.Count > 0)
+            {
+                throw new CliException(
+                    $"Not in git yet, so there is no encrypted file to keep: {string.Join(", ", untracked)}. Delete it, or use --plain.", ExitCodes.Usage);
+            }
+
+            var plainInGit = paths.Where(p => !SopsFiles.IsEncrypted(p, tree.IndexBlob(p))).ToList();
+            if (plainInGit.Count > 0)
+            {
+                throw new CliException(
+                    $"Plain text in git already, so there is no encrypted file to keep: {string.Join(", ", plainInGit)}. Use --plain.", ExitCodes.Usage);
+            }
+
+            // Checked while the filter still applies: the plain text is about to be replaced by what git has.
+            var changed = paths.Where(p => !tree.IsUnmodified(p)).ToList();
+            if (changed.Count > 0)
+            {
+                throw new CliException(
+                    $"Changed and not committed: {string.Join(", ", changed)}. Commit or discard the changes first.", ExitCodes.Failed);
+            }
+        }
+
+        SecretsFiles.RemoveAttributes(tree, paths, "Taken out from under the filter by 'forest secrets remove' (ADR-0010).");
+        var cache = FilterCache.Open(tree.GitDirectory);
+        cache.Forget(paths);
+        cache.Save();
+        var inGit = paths.Where(tracked.Contains).ToList();
+        if (asPlain)
+        {
+            tree.Stage(paths);
+            context.Output.Done($"{paths.Count} file(s) staged as plain text; commit them with .gitattributes.");
+            if (inGit.Count > 0)
+            {
+                context.Output.Note("The encrypted versions stay in the history; anyone with an environment key of theirs can still read them.");
+            }
+        }
+        else
+        {
+            tree.CheckOutAgain(inGit);
+            context.Output.Done($"{paths.Count} file(s) are sops files outside the filter now; commit .gitattributes.");
+            context.Output.Note("They are encrypted in this clone too: edit them with sops, which needs an age key of your own among their recipients.");
+        }
+
         return Task.FromResult(ExitCodes.Ok);
     }
 }
@@ -368,14 +506,7 @@ internal sealed class SecretsStatusCommand() : ForestCommand("status", "Show the
     protected override async Task<int> ExecuteAsync(CommandContext context)
     {
         var tree = GitWorkTree.Open(context.Host.WorkingDirectory);
-        var environmentsByRecipient = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var environment in await context.Api.ListEnvironmentsAsync(context.CancellationToken))
-        {
-            foreach (var key in await context.Api.ListAgeKeysAsync(environment.Id!.Value, context.CancellationToken))
-            {
-                environmentsByRecipient[key.Recipient!] = environment.Name!;
-            }
-        }
+        var environmentsByRecipient = await SecretsFiles.EnvironmentsByRecipientAsync(context);
 
         var files = new List<SecretFileStatus>();
         foreach (var path in tree.Filtered(tree.TrackedFiles()))

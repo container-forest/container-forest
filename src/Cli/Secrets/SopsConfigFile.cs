@@ -180,6 +180,8 @@ internal sealed partial class SopsConfigFile
     /// <summary>One creation rule: its lines as they are in the file, and what the commands need to know of it.</summary>
     internal sealed class Rule(List<string> lines)
     {
+        private static readonly string[] SampleFiles = ["file", ".env", "app.env", "secrets/file", "app/.env", "values.yaml", "config.json"];
+
         public List<string> Lines { get; } = lines;
 
         /// <summary>null: the rule matches every file.</summary>
@@ -211,7 +213,8 @@ internal sealed partial class SopsConfigFile
 
             try
             {
-                return Regex.IsMatch(prefix + "file", PathRegex, RegexOptions.NonBacktracking, TimeSpan.FromSeconds(1));
+                // Whether a regex can match some path under the prefix is not decidable cheaply: try the usual secret files.
+                return SampleFiles.Any(f => Regex.IsMatch(prefix + f, PathRegex, RegexOptions.NonBacktracking, TimeSpan.FromSeconds(1)));
             }
             catch (ArgumentException)
             {
@@ -222,17 +225,37 @@ internal sealed partial class SopsConfigFile
         public void Read(string indent)
         {
             Indent = indent;
-            var keys = new List<string>();
+            var values = new List<(string Key, int Column, List<string> Parts)>();
             foreach (var line in Lines.Where(l => l.Trim().Length > 0 && !l.TrimStart().StartsWith('#')))
             {
+                var column = line.Length - line.TrimStart().Length;
+                if (values.Count > 0 && column > values[^1].Column)
+                {
+                    // A deeper line continues the value above: a multi-line or block scalar (age: >-), or the
+                    // nested lists of key_groups, which only their key type is needed of.
+                    if (values[^1].Key is "age" or "path_regex" && line.TrimStart().StartsWith("- ", StringComparison.Ordinal))
+                    {
+                        throw Unsupported($"{values[^1].Key} as a list is not a value sops reads");
+                    }
+
+                    values[^1].Parts.Add(WithoutComment(line.Trim()));
+                    continue;
+                }
+
                 var match = KeyValue().Match(line);
                 if (!match.Success)
                 {
                     throw Unsupported($"'{line.Trim()}' is not a key this command understands");
                 }
 
-                var (key, value) = (match.Groups["key"].Value, Unquote(WithoutComment(match.Groups["value"].Value)));
-                keys.Add(key);
+                var value = WithoutComment(match.Groups["value"].Value);
+                values.Add((match.Groups["key"].Value, match.Groups["key"].Index, IsBlockIndicator(value) ? [] : [value]));
+            }
+
+            foreach (var (key, _, parts) in values)
+            {
+                // Folded the way YAML folds a plain or '>' scalar; recipients are split on commas and trimmed anyway.
+                var value = Unquote(string.Join(' ', parts));
                 switch (key)
                 {
                     case "path_regex":
@@ -244,8 +267,12 @@ internal sealed partial class SopsConfigFile
                 }
             }
 
-            OtherKeyTypes = keys.Where(k => k is "pgp" or "kms" or "gcp_kms" or "azure_keyvault" or "hc_vault_transit_uri" or "key_groups").ToList();
+            OtherKeyTypes = values.Select(v => v.Key)
+                .Where(k => k is "pgp" or "kms" or "gcp_kms" or "azure_keyvault" or "hc_vault_transit_uri" or "key_groups")
+                .ToList();
         }
+
+        private static bool IsBlockIndicator(string value) => value is ">" or ">-" or ">+" or "|" or "|-" or "|+";
 
         /// <summary>The prefix of a path_regex 'forest secrets init' or 'rule add' wrote; null for any other regex.</summary>
         public static string? AsPrefix(string pathRegex)

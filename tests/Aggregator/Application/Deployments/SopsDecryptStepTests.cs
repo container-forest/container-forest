@@ -2,6 +2,7 @@ using System.Text;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Deployments.Steps;
+using ContainerForest.Aggregator.Application.Secrets;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
 using static ContainerForest.Aggregator.Application.Tests.Deployments.DeployFixtures;
@@ -96,6 +97,36 @@ public class SopsDecryptStepTests
 
         Assert.Contains(OldRecipient, error.Message, StringComparison.Ordinal);
         Assert.Empty(sops.Calls);
+    }
+
+    [Fact]
+    public async Task Plain_file_under_the_forest_filter_fails_the_deployment()
+    {
+        var context = Fetched(
+            "apps/web/compose.yaml",
+            File("compose.yaml", "services: {}"),
+            File(".gitattributes", "local.env filter=forest\n"),
+            File("local.env", "TOKEN=hunter2"),
+            Encrypted(".env", "identity", "TOKEN=x"));
+        context.Source = context.Source with { OuterAttributes = [new GitAttributesFile("", ".env filter=forest\n")] };
+        AddKey(context.Environment, OldRecipient, "identity", Now);
+
+        var error = await Assert.ThrowsAsync<DeploymentFailedException>(() => Step().ExecuteAsync(context, Ct));
+
+        Assert.Contains("(local.env)", error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("hunter2", error.Message, StringComparison.Ordinal);
+        Assert.Empty(sops.Calls);
+    }
+
+    [Fact]
+    public async Task Encrypted_files_under_the_forest_filter_deploy()
+    {
+        var context = Fetched("compose.yaml", File(".gitattributes", "*.env filter=forest\n"), Encrypted(".env", "identity", "TOKEN=x"));
+        AddKey(context.Environment, OldRecipient, "identity", Now);
+
+        await Step().ExecuteAsync(context, Ct);
+
+        Assert.Single(context.Source.Files, f => f.IsSecret);
     }
 
     private SopsDecryptStep Step() => new(keys, protector, sops);

@@ -60,6 +60,12 @@ public sealed class ApiToken : Entity<ApiTokenId>
     public bool IsRestricted { get; private init; }
 
     /// <summary>
+    /// May have the aggregator decrypt SOPS files, as the git filter of the CLI does (ADR-0010). Off unless asked for;
+    /// never together with <see cref="IsReadOnly"/>.
+    /// </summary>
+    public bool CanDecryptSecrets { get; private init; }
+
+    /// <summary>
     /// The environments a restricted token reaches. An environment removed later disappears from here; a restricted
     /// token whose environments are all gone reaches nothing, never everything.
     /// </summary>
@@ -72,21 +78,23 @@ public sealed class ApiToken : Entity<ApiTokenId>
 
     public DateTimeOffset? LastUsedAt { get; private set; }
 
-    public AccessScope Scope => new(IsRestricted ? Environments : null, IsReadOnly);
+    public AccessScope Scope => new(IsRestricted ? Environments : null, IsReadOnly, CanDecryptSecrets);
 
     /// <summary>Creates a token and returns it with its secret, which is not kept anywhere.</summary>
     /// <param name="environmentIds">Null for every environment; otherwise at least one.</param>
     /// <param name="expiresAt">Null for a token that does not expire; otherwise in the future.</param>
-    /// <exception cref="DomainValidationException">The name is empty or too long, the environment list is empty, or the expiry has passed.</exception>
+    /// <param name="canDecryptSecrets">May have the aggregator decrypt SOPS files; not with <paramref name="readOnly"/>.</param>
+    /// <exception cref="DomainValidationException">The name is empty or too long, the environment list is empty, the expiry has passed, or a read-only token asks to decrypt secrets.</exception>
     public static (ApiToken Token, string Secret) Create(
         UserId userId,
         string name,
         bool readOnly,
         IEnumerable<EnvironmentId>? environmentIds,
         DateTimeOffset? expiresAt,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        bool canDecryptSecrets = false)
     {
-        var normalizedName = ValidateOptions(name, environmentIds, expiresAt, now);
+        var normalizedName = ValidateOptions(name, readOnly, canDecryptSecrets, environmentIds, expiresAt, now);
         var restrictedTo = environmentIds?.ToHashSet();
 
         var secret = Prefix + SecretToken.Generate();
@@ -94,6 +102,7 @@ public sealed class ApiToken : Entity<ApiTokenId>
         {
             IsReadOnly = readOnly,
             IsRestricted = restrictedTo is not null,
+            CanDecryptSecrets = canDecryptSecrets,
             ExpiresAt = expiresAt,
         };
 
@@ -109,11 +118,22 @@ public sealed class ApiToken : Entity<ApiTokenId>
     /// Checks the options of a token before it exists, e.g. when a CLI login is approved and the token is created only
     /// when the CLI picks it up. Returns the normalized name.
     /// </summary>
-    /// <exception cref="DomainValidationException">The name is empty or too long, the environment list is empty, or the expiry has passed.</exception>
+    /// <exception cref="DomainValidationException">The name is empty or too long, the environment list is empty, the expiry has passed, or a read-only token asks to decrypt secrets.</exception>
     public static string ValidateOptions(
-        string name, IEnumerable<EnvironmentId>? environmentIds, DateTimeOffset? expiresAt, DateTimeOffset now)
+        string name,
+        bool readOnly,
+        bool canDecryptSecrets,
+        IEnumerable<EnvironmentId>? environmentIds,
+        DateTimeOffset? expiresAt,
+        DateTimeOffset now)
     {
         var normalizedName = NormalizeName(name);
+        if (readOnly && canDecryptSecrets)
+        {
+            // Decrypting is for those who may change the secrets: the right is an Editor's, and a read-only token is none.
+            throw new DomainValidationException("A read-only token cannot decrypt secrets.");
+        }
+
         if (expiresAt is { } expiry && expiry <= now)
         {
             throw new DomainValidationException("The expiry of a token must be in the future.");

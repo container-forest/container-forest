@@ -3696,6 +3696,166 @@
         }
       }
     },
+    "/api/sops/decrypt": {
+      "post": {
+        "tags": [
+          "SOPS"
+        ],
+        "operationId": "DecryptSopsFile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SopsDecryptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SopsContentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sops/encrypt": {
+      "post": {
+        "tags": [
+          "SOPS"
+        ],
+        "operationId": "EncryptSopsFile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SopsEncryptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SopsContentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/git-connections": {
       "get": {
         "tags": [
@@ -6450,7 +6610,8 @@
           "createdAt",
           "expiresAt",
           "lastUsedAt",
-          "expired"
+          "expired",
+          "secrets"
         ],
         "type": "object",
         "properties": {
@@ -6497,6 +6658,9 @@
           },
           "expired": {
             "type": "boolean"
+          },
+          "secrets": {
+            "type": "boolean"
           }
         }
       },
@@ -6531,6 +6695,10 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "secrets": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -6587,7 +6755,8 @@
           "hostName",
           "requestedFrom",
           "createdAt",
-          "expiresAt"
+          "expiresAt",
+          "secretsRequested"
         ],
         "type": "object",
         "properties": {
@@ -6613,6 +6782,9 @@
           "expiresAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "secretsRequested": {
+            "type": "boolean"
           }
         }
       },
@@ -6846,6 +7018,10 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "secrets": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -8128,6 +8304,54 @@
           }
         }
       },
+      "SopsContentResponse": {
+        "required": [
+          "content"
+        ],
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "format": "byte"
+          }
+        }
+      },
+      "SopsDecryptRequest": {
+        "required": [
+          "path",
+          "content"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string",
+            "format": "byte"
+          }
+        }
+      },
+      "SopsEncryptRequest": {
+        "required": [
+          "path",
+          "sopsConfig",
+          "content"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sopsConfig": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string",
+            "format": "byte"
+          }
+        }
+      },
       "StackCommandResponse": {
         "required": [
           "succeeded",
@@ -8249,6 +8473,10 @@
           },
           "hostName": {
             "type": "string"
+          },
+          "secrets": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -8516,6 +8744,9 @@
     },
     {
       "name": "Age keys"
+    },
+    {
+      "name": "SOPS"
     },
     {
       "name": "Git connections"

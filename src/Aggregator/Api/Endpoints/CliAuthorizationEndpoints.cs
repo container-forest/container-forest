@@ -37,7 +37,7 @@ internal static class CliAuthorizationEndpoints
                 StartCliAuthorizationRequest request, HttpContext http, CliAuthorizationService service, CancellationToken ct) =>
             {
                 var started = await service.StartAsync(
-                    request.ClientName, request.HostName, http.Connection.RemoteIpAddress?.ToString(), ct);
+                    request.ClientName, request.HostName, http.Connection.RemoteIpAddress?.ToString(), ct, request.Secrets);
                 return new CliAuthorizationStartedResponse(
                     started.DeviceCode,
                     started.UserCode,
@@ -81,7 +81,8 @@ internal static class CliAuthorizationEndpoints
                     authorization.HostName,
                     authorization.RequestedFrom,
                     authorization.CreatedAt,
-                    authorization.ExpiresAt);
+                    authorization.ExpiresAt,
+                    authorization.SecretsRequested);
             })
             .WithName("GetCliAuthorization");
 
@@ -94,7 +95,8 @@ internal static class CliAuthorizationEndpoints
                     request.ReadOnly,
                     request.EnvironmentIds?.Select(EnvironmentId.From).ToList(),
                     request.ExpiresAt,
-                    ct);
+                    ct,
+                    request.Secrets);
                 return TypedResults.NoContent();
             })
             .WithName("ApproveCliAuthorization")

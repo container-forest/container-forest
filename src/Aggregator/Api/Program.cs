@@ -9,6 +9,7 @@ using ContainerForest.Aggregator.Application;
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Live;
 using ContainerForest.Aggregator.Infrastructure;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables(prefix: "CF_");
@@ -28,6 +29,7 @@ builder.Services.AddScoped<ClaimsCurrentUser>();
 builder.Services.AddScoped<ICurrentUser>(sp => sp.GetRequiredService<ClaimsCurrentUser>());
 builder.Services.AddSessionAuthentication(builder.Environment);
 builder.Services.AddCliAuthorizationRateLimits();
+builder.Services.Configure<RateLimiterOptions>(options => options.AddSopsRateLimit());
 DiscordSignIn.AddTo(builder.Services, builder.Configuration, builder.Environment);
 
 builder.Services.AddGrpc()
@@ -62,6 +64,7 @@ app.MapCliAuthorizationEndpoints();
 app.MapUserEndpoints();
 app.MapEnvironmentEndpoints();
 app.MapAgeKeyEndpoints();
+app.MapSopsEndpoints();
 app.MapGitConnectionEndpoints();
 app.MapStackEndpoints();
 app.MapWebhookEndpoints();

@@ -32,6 +32,13 @@ public static partial class SopsFile
         };
     }
 
+    /// <summary>
+    /// The age recipients named in the file's metadata. Only a hint for choosing keys: whoever wrote the file chose what
+    /// it says, so the keys are still limited to what the caller may use, and sops decides with the keys themselves.
+    /// </summary>
+    public static IReadOnlySet<string> AgeRecipients(byte[] content) =>
+        AgeRecipient().Matches(Text(content)).Select(m => m.Value).ToHashSet(StringComparer.Ordinal);
+
     private static SopsFormat FormatOf(StackFilePath path)
     {
         var name = path.FileName;
@@ -74,6 +81,10 @@ public static partial class SopsFile
 
     [GeneratedRegex(@"^sops:[ \t]*\r?$", RegexOptions.Multiline)]
     private static partial Regex YamlMetadata();
+
+    // "age1" and 58 lowercase Bech32 characters, not part of a longer word.
+    [GeneratedRegex(@"(?<![0-9a-z])age1[02-9ac-hj-np-z]{58}(?![0-9a-z])")]
+    private static partial Regex AgeRecipient();
 
     [GeneratedRegex(@"^sops_version=", RegexOptions.Multiline)]
     private static partial Regex DotenvMetadata();

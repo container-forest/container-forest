@@ -27,7 +27,8 @@ internal static class ApiTokenEndpoints
                     request.ReadOnly,
                     request.EnvironmentIds?.Select(EnvironmentId.From).ToList(),
                     request.ExpiresAt,
-                    ct);
+                    ct,
+                    request.Secrets);
                 return TypedResults.Created(
                     $"/api/me/tokens/{created.Token.Id}",
                     new CreatedApiTokenResponse(ToResponse(created.Token, time.GetUtcNow()), created.Secret));
@@ -83,5 +84,6 @@ internal static class ApiTokenEndpoints
         token.CreatedAt,
         token.ExpiresAt,
         token.LastUsedAt,
-        token.IsExpired(now));
+        token.IsExpired(now),
+        token.CanDecryptSecrets);
 }

@@ -42,9 +42,10 @@ public sealed class CliAuthorizationService(
     public const int MaxOpenRequests = 500;
 
     /// <param name="requestedFrom">The client's address as the aggregator sees it; shown to the person who approves.</param>
+    /// <param name="secretsRequested">The CLI asks for a token that may decrypt secrets; the person decides.</param>
     /// <exception cref="DomainConflictException">Too many requests are open.</exception>
     public async Task<StartedCliAuthorization> StartAsync(
-        string clientName, string hostName, string? requestedFrom, CancellationToken cancellationToken)
+        string clientName, string hostName, string? requestedFrom, CancellationToken cancellationToken, bool secretsRequested = false)
     {
         var now = time.GetUtcNow();
         await authorizations.RemoveExpiredAsync(now, cancellationToken);
@@ -53,7 +54,7 @@ public sealed class CliAuthorizationService(
             throw new DomainConflictException("Too many CLI logins are waiting; try again in a few minutes.");
         }
 
-        var (authorization, deviceCode, userCode) = CliAuthorization.Start(clientName, hostName, requestedFrom, now);
+        var (authorization, deviceCode, userCode) = CliAuthorization.Start(clientName, hostName, requestedFrom, now, secretsRequested);
         authorizations.Add(authorization);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return new StartedCliAuthorization(authorization, deviceCode, CliAuthorization.FormatUserCode(userCode));
@@ -69,6 +70,7 @@ public sealed class CliAuthorizationService(
 
     /// <summary>Approves the request: the CLI gets a token of the current user with these limits.</summary>
     /// <param name="environmentIds">Null for every environment; otherwise environments the user can see.</param>
+    /// <param name="canDecryptSecrets">The token may have the aggregator decrypt SOPS files (ADR-0010).</param>
     /// <exception cref="NotFoundException">No open request has this code, or an environment is unknown.</exception>
     public async Task ApproveAsync(
         string userCode,
@@ -76,14 +78,15 @@ public sealed class CliAuthorizationService(
         bool readOnly,
         IReadOnlyCollection<EnvironmentId>? environmentIds,
         DateTimeOffset? tokenExpiresAt,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool canDecryptSecrets = false)
     {
         var user = await currentActor.GetSignedInUserAsync(cancellationToken);
         var authorization = await FindOpenAsync(userCode, cancellationToken);
         await apiTokens.EnsureRoomForTokenAsync(user.Id, cancellationToken);
         await apiTokens.EnsureEnvironmentsVisibleAsync(user, environmentIds, cancellationToken);
 
-        authorization.Approve(user.Id, tokenName, readOnly, environmentIds, tokenExpiresAt, time.GetUtcNow());
+        authorization.Approve(user.Id, tokenName, readOnly, environmentIds, tokenExpiresAt, time.GetUtcNow(), canDecryptSecrets);
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

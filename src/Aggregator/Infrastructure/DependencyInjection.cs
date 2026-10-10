@@ -127,7 +127,10 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(SopsOptions.SectionName))
             .Validate(o => o.IsValid(), "Sops paths must be set and Sops:Timeout must be positive.")
             .ValidateOnStart();
-        services.AddSingleton<ISopsDecryptor, SopsCli>();
+        services.AddSingleton<SopsCli>();
+        services.AddSingleton<ISopsDecryptor>(sp => sp.GetRequiredService<SopsCli>());
+        services.AddSingleton<ISopsEncryptor>(sp => sp.GetRequiredService<SopsCli>());
+        services.AddSingleton<ISopsConfigReader, YamlSopsConfigReader>();
         services.AddSingleton<IAgeKeyGenerator, AgeKeygenCli>();
         services.AddSingleton<DeploymentQueue>();
         services.AddSingleton<IDeploymentQueue>(sp => sp.GetRequiredService<DeploymentQueue>());

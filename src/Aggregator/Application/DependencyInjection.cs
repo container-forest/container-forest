@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<GitConnectionService>();
         services.AddScoped<RegistryCredentialService>();
         services.AddScoped<AgeKeyService>();
+        services.AddScoped<SopsSecretsService>();
         services.AddScoped<StackService>();
         services.AddScoped<StackCommandService>();
         services.AddScoped<DeploymentService>();

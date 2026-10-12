@@ -76,7 +76,7 @@ export function CreateTokenDialog() {
               </div>
             </div>
             <p className="text-muted-foreground text-sm">{t("tokens.created.howTo")}</p>
-            <code className="bg-muted rounded-md px-3 py-2 font-mono text-xs break-all">
+            <code className="bg-muted rounded-md px-3 py-2 font-mono text-xs break-words">
               curl -H "Authorization: Bearer $CF_TOKEN" {window.location.origin}/api/me
             </code>
             <DialogFooter>

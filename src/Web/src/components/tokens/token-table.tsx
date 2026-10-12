@@ -44,6 +44,11 @@ export function TokenTable({
                 <div className="grid gap-1">
                   <span className="font-medium break-all">{token.name}</span>
                   <code className="text-muted-foreground font-mono text-xs">{token.hint}…</code>
+                  {/* The expiry column is hidden on narrow screens, but when a token stops working still matters there. */}
+                  <div className="text-muted-foreground flex flex-wrap items-center gap-x-1 text-xs md:hidden">
+                    {token.expiresAt !== null && <span>{t("tokens.columns.expires")}</span>}
+                    <TokenExpiry token={token} state={state} />
+                  </div>
                 </div>
               </TableCell>
               <TableCell>
@@ -66,15 +71,7 @@ export function TokenTable({
                 </div>
               </TableCell>
               <TableCell className="hidden text-sm whitespace-nowrap md:table-cell">
-                {token.expiresAt === null ? (
-                  t("tokens.never")
-                ) : (
-                  <span className="flex flex-wrap items-center gap-2">
-                    {formatDate(token.expiresAt, i18n.resolvedLanguage)}
-                    {state === "expired" && <Badge variant="destructive">{t("tokens.state.expired")}</Badge>}
-                    {state === "expiresSoon" && <Badge variant="outline">{t("tokens.state.expiresSoon")}</Badge>}
-                  </span>
-                )}
+                <TokenExpiry token={token} state={state} />
               </TableCell>
               <TableCell className="hidden text-sm whitespace-nowrap lg:table-cell">
                 {token.lastUsedAt === null ? t("tokens.neverUsed") : formatDateTime(token.lastUsedAt, i18n.resolvedLanguage)}
@@ -100,5 +97,22 @@ export function TokenTable({
         })}
       </TableBody>
     </Table>
+  );
+}
+
+/** When the token expires, marked when it already has or is about to. */
+function TokenExpiry({ token, state }: { token: ApiToken; state: ReturnType<typeof tokenState> }) {
+  const { t, i18n } = useTranslation();
+
+  if (token.expiresAt === null) {
+    return t("tokens.never");
+  }
+
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      {formatDate(token.expiresAt, i18n.resolvedLanguage)}
+      {state === "expired" && <Badge variant="destructive">{t("tokens.state.expired")}</Badge>}
+      {state === "expiresSoon" && <Badge variant="outline">{t("tokens.state.expiresSoon")}</Badge>}
+    </span>
   );
 }

@@ -1,5 +1,7 @@
+using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 
 namespace ContainerForest.Aggregator.Application.Access;
@@ -24,6 +26,7 @@ public sealed class DiscordLinkService(
     IDiscordLinkRepository links,
     IUserRepository users,
     IUnitOfWork unitOfWork,
+    IAuditTrail audit,
     TimeProvider time)
 {
     public async Task<DiscordLinkStatus> GetStatusAsync(CancellationToken cancellationToken)
@@ -56,8 +59,12 @@ public sealed class DiscordLinkService(
         var user = await currentActor.GetSignedInUserAsync(cancellationToken);
         if (await links.FindAsync(user.Id, cancellationToken) is { IsLinked: true } link)
         {
+            var discordName = link.DiscordUserName;
             link.Unlink();
             await unitOfWork.SaveChangesAsync(cancellationToken);
+            await audit.RecordAsync(
+                AuditAction.DiscordUnlinked, AuditOutcome.Succeeded, new UserAuditTarget(user.Id, user.UserName),
+                $"Discord: {discordName}", cancellationToken);
         }
     }
 
@@ -85,6 +92,11 @@ public sealed class DiscordLinkService(
 
         link.CompleteLink(discordUserId, discordUserName, time.GetUtcNow());
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // The bot calls this for whoever typed the code; the user it links is the one who acted.
+        await audit.RecordAsync(
+            AuditAction.DiscordLinked, AuditOutcome.Succeeded, new UserAuditTarget(user.Id, user.UserName),
+            $"Discord: {discordUserName}, with a code", cancellationToken, new AuditPerson(user.Id, user.UserName, AuditChannel.Bot));
         return user;
     }
 
@@ -118,6 +130,11 @@ public sealed class DiscordLinkService(
 
         link.LinkVerified(discordUserId, discordUserName, time.GetUtcNow());
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Discord's callback carries no session cookie (it is SameSite=Strict); the user started it from the panel.
+        await audit.RecordAsync(
+            AuditAction.DiscordLinked, AuditOutcome.Succeeded, new UserAuditTarget(user.Id, user.UserName),
+            $"Discord: {discordUserName}, through Discord", cancellationToken, new AuditPerson(user.Id, user.UserName, AuditChannel.Panel));
         return user;
     }
 

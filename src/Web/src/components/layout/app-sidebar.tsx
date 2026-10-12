@@ -7,6 +7,7 @@ import { environmentsQuery, meQuery, stackQuery } from "@/api/queries";
 import {
   BellIcon,
   BoxIcon,
+  FileSearchIcon,
   FolderGitIcon,
   KeyIcon,
   LayersIcon,
@@ -245,6 +246,11 @@ export function SidebarContent({ onNavigate = () => {} }: { onNavigate?: () => v
           {isAdmin && (
             <NavItem active={at("/notifications")} icon={BellIcon} label={t("layout.nav.notifications")}>
               {(props) => <Link to="/notifications" onClick={onNavigate} {...props} />}
+            </NavItem>
+          )}
+          {isAdmin && (
+            <NavItem active={at("/audit")} icon={FileSearchIcon} label={t("layout.nav.audit")}>
+              {(props) => <Link to="/audit" onClick={onNavigate} {...props} />}
             </NavItem>
           )}
         </NavGroup>

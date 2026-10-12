@@ -32,7 +32,7 @@ public class VisibilityTests
     {
         var actor = new CurrentActor(currentUser, users);
         environmentService = new EnvironmentService(
-            actor, environments, roleAssignments, stacks, unitOfWork, agent, TimeProvider.System);
+            actor, environments, roleAssignments, stacks, unitOfWork, agent, new FakeAuditTrail(), TimeProvider.System);
         containerService = new ContainerQueryService(actor, environments, stacks, roleAssignments, agent);
 
         users.Add(alice);
@@ -113,7 +113,7 @@ public class VisibilityTests
         users.Add(admin);
         var adminService = new EnvironmentService(
             new CurrentActor(new FakeCurrentUser { Id = admin.Id }, users),
-            environments, roleAssignments, stacks, unitOfWork, agent, TimeProvider.System);
+            environments, roleAssignments, stacks, unitOfWork, agent, new FakeAuditTrail(), TimeProvider.System);
 
         var created = await adminService.CreateAsync("new", isPrivate: true, Ct);
         Assert.False(string.IsNullOrEmpty(created.EnrollmentToken.Token));

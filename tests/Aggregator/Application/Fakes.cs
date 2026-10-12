@@ -1,5 +1,6 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
+using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
@@ -8,6 +9,7 @@ using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Secrets;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
@@ -428,5 +430,36 @@ internal sealed class FakeSopsDecryptor : ISopsDecryptor
         }
 
         throw new SopsDecryptionException("none of this environment's age keys is a recipient of the file.");
+    }
+}
+
+/// <summary>Keeps what would go into the audit log, classifying outcomes as <see cref="AuditTrail"/> does.</summary>
+internal sealed class FakeAuditTrail : IAuditTrail
+{
+    public List<(AuditAction Action, AuditOutcome Outcome, AuditTarget? Target, string? Details)> Entries { get; } = [];
+
+    public async Task<T> RunAsync<T>(AuditDraft draft, Func<Task<T>> work, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await work();
+            Entries.Add((draft.Action, draft.Failure is null ? AuditOutcome.Succeeded : AuditOutcome.Failed, draft.Target, Join(draft.Details, draft.Failure)));
+            return result;
+        }
+        catch (Exception exception) when (exception is not UnauthenticatedException)
+        {
+            var (outcome, reason) = AuditOutcomes.Of(exception);
+            Entries.Add((draft.Action, outcome, draft.Target, Join(draft.Details, reason)));
+            throw;
+        }
+    }
+
+    private static string? Join(string? details, string? reason) => details is null ? reason : reason is null ? details : $"{details}. {reason}";
+
+    public Task RecordAsync(
+        AuditAction action, AuditOutcome outcome, AuditTarget? target, string? details, CancellationToken cancellationToken, AuditPerson? actingAs = null)
+    {
+        Entries.Add((action, outcome, target, details));
+        return Task.CompletedTask;
     }
 }

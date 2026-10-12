@@ -165,6 +165,7 @@ public class SopsSecretsServiceTests
         decryptor,
         encryptor,
         new FakeSopsConfigReader(),
+        new FakeAuditTrail(),
         NullLogger<SopsSecretsService>.Instance);
 
     private static StackFilePath Env => StackFilePath.Parse("secrets/.env");

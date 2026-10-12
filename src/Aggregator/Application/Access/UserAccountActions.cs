@@ -1,4 +1,5 @@
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 
 namespace ContainerForest.Aggregator.Application.Access;
@@ -12,6 +13,12 @@ public sealed record UserActionContext(IUserRepository Users, IAccountStore Acco
 /// </summary>
 public abstract class UserAccountAction
 {
+    /// <summary>How the change appears in the audit log.</summary>
+    public abstract AuditAction AuditAction { get; }
+
+    /// <summary>What else the audit log should say about the change, e.g. the new name. Never a password.</summary>
+    public virtual string? AuditDetails => null;
+
     /// <summary>Whether the user's existing sessions must end, so the change applies to them right away.</summary>
     protected virtual bool EndsSessions => false;
 
@@ -52,6 +59,8 @@ public abstract class AdministratorRemovingAction : UserAccountAction
 
 public sealed class DeactivateUserAction : AdministratorRemovingAction
 {
+    public override AuditAction AuditAction => AuditAction.UserDeactivated;
+
     protected override Task ApplyAsync(User user, UserActionContext context, CancellationToken cancellationToken)
     {
         user.Deactivate();
@@ -61,6 +70,8 @@ public sealed class DeactivateUserAction : AdministratorRemovingAction
 
 public sealed class RevokeAdminAction : AdministratorRemovingAction
 {
+    public override AuditAction AuditAction => AuditAction.AdminRevoked;
+
     protected override Task ApplyAsync(User user, UserActionContext context, CancellationToken cancellationToken)
     {
         user.RevokeAdmin();
@@ -70,6 +81,8 @@ public sealed class RevokeAdminAction : AdministratorRemovingAction
 
 public sealed class ActivateUserAction : UserAccountAction
 {
+    public override AuditAction AuditAction => AuditAction.UserActivated;
+
     protected override Task ApplyAsync(User user, UserActionContext context, CancellationToken cancellationToken)
     {
         user.Activate();
@@ -80,6 +93,8 @@ public sealed class ActivateUserAction : UserAccountAction
 /// <summary>Only an active user can become an administrator (see <see cref="User.GrantAdmin"/>).</summary>
 public sealed class GrantAdminAction : UserAccountAction
 {
+    public override AuditAction AuditAction => AuditAction.AdminGranted;
+
     protected override Task ApplyAsync(User user, UserActionContext context, CancellationToken cancellationToken)
     {
         user.GrantAdmin();
@@ -90,6 +105,10 @@ public sealed class GrantAdminAction : UserAccountAction
 /// <summary>User names are unique regardless of case; changing only the case of one's own name is fine.</summary>
 public sealed class RenameUserAction(string userName) : UserAccountAction
 {
+    public override AuditAction AuditAction => AuditAction.UserRenamed;
+
+    public override string? AuditDetails => $"New name: {userName.Trim()}";
+
     protected override async Task CheckAsync(User user, UserActionContext context, CancellationToken cancellationToken)
     {
         var existing = await context.Users.FindByUserNameAsync(userName.Trim(), cancellationToken);
@@ -109,12 +128,16 @@ public sealed class RenameUserAction(string userName) : UserAccountAction
 /// <summary>Sets a password the administrator hands over; the account store ends the user's sessions with it.</summary>
 public sealed class ResetPasswordAction(string newPassword) : UserAccountAction
 {
+    public override AuditAction AuditAction => AuditAction.PasswordReset;
+
     protected override Task ApplyAsync(User user, UserActionContext context, CancellationToken cancellationToken) =>
         context.Accounts.SetPasswordAsync(user, newPassword, cancellationToken);
 }
 
 public sealed class UnlockUserAction : UserAccountAction
 {
+    public override AuditAction AuditAction => AuditAction.UserUnlocked;
+
     protected override Task ApplyAsync(User user, UserActionContext context, CancellationToken cancellationToken) =>
         context.Accounts.UnlockAsync(user.Id, cancellationToken);
 }

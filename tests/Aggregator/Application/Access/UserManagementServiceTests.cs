@@ -2,6 +2,7 @@ using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Tests.Deployments;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Environments;
 using ContainerForest.Aggregator.Domain.Stacks;
@@ -14,6 +15,7 @@ public class UserManagementServiceTests
     private const string Password = "a long enough password";
 
     private readonly InMemoryUsers users = new();
+    private readonly FakeAuditTrail audit = new();
     private readonly InMemoryRoleAssignments roleAssignments = new();
     private readonly InMemoryEnvironments environments = new();
     private readonly InMemoryStacks stacks = new();
@@ -40,7 +42,7 @@ public class UserManagementServiceTests
         stacks.Add(web);
         currentUser.Id = admin.Id;
         service = new UserManagementService(
-            new CurrentActor(currentUser, users), users, roleAssignments, environments, stacks, accounts, unitOfWork, new FixedTime(Now));
+            new CurrentActor(currentUser, users), users, roleAssignments, environments, stacks, accounts, unitOfWork, audit, new FixedTime(Now));
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -238,5 +240,47 @@ public class UserManagementServiceTests
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.ChangeRoleAsync(admin.Id, granted.Id, Role.Editor, Ct));
         await Assert.ThrowsAsync<NotFoundException>(() => service.RevokeRoleAsync(admin.Id, granted.Id, Ct));
+    }
+
+    [Fact]
+    public async Task Changes_are_recorded_under_their_own_action()
+    {
+        currentUser.Id = admin.Id;
+        var bob = await service.CreateAsync("bob", Password, isAdmin: false, Ct);
+        await service.RenameAsync(bob.User.Id, "robert", Ct);
+        await service.DeactivateAsync(bob.User.Id, Ct);
+        await Assert.ThrowsAsync<DomainConflictException>(() => service.DeactivateAsync(admin.Id, Ct));
+
+        Assert.Equal(
+            [
+                (AuditAction.UserCreated, AuditOutcome.Succeeded, "bob", null),
+                (AuditAction.UserRenamed, AuditOutcome.Succeeded, "bob", "New name: robert"),
+                (AuditAction.UserDeactivated, AuditOutcome.Succeeded, "robert", null),
+                (AuditAction.UserDeactivated, AuditOutcome.Failed, "root", "'root' is the last active administrator: nobody else could manage users."),
+            ],
+            audit.Entries.Select(e => (e.Action, e.Outcome, e.Target?.Name, e.Details)));
+    }
+
+    [Fact]
+    public async Task A_refused_change_is_recorded_as_denied()
+    {
+        currentUser.Id = alice.Id;
+
+        await Assert.ThrowsAsync<AccessDeniedException>(() => service.DeactivateAsync(admin.Id, Ct));
+
+        var entry = Assert.Single(audit.Entries);
+        Assert.Equal((AuditAction.UserDeactivated, AuditOutcome.Denied), (entry.Action, entry.Outcome));
+    }
+
+    [Fact]
+    public async Task A_granted_role_is_recorded_with_its_scope()
+    {
+        currentUser.Id = admin.Id;
+
+        await service.GrantRoleAsync(alice.Id, prod.Id, null, Role.Operator, Ct);
+
+        var entry = Assert.Single(audit.Entries);
+        Assert.Equal((AuditAction.RoleGranted, "alice", "Role: Operator on prod"), (entry.Action, entry.Target?.Name, entry.Details));
+        Assert.Equal(prod.Id, entry.Target?.EnvironmentId);
     }
 }

@@ -38,6 +38,7 @@ public class DeploymentServiceTests
             new FakeUnitOfWork(),
             queue,
             agent,
+            new FakeAuditTrail(),
             new FixedTime(Now));
         users.Add(alice);
         currentUser.Id = alice.Id;

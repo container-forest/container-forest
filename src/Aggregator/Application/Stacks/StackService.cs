@@ -1,9 +1,11 @@
 using ContainerForest.Aggregator.Application.Access;
+using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Environments;
 using ContainerForest.Aggregator.Domain.Repositories;
@@ -49,10 +51,11 @@ public sealed class StackService(
     IRoleAssignmentRepository roleAssignments,
     IDeploymentRepository deployments,
     IUnitOfWork unitOfWork,
+    IAuditTrail audit,
     TimeProvider time)
 {
     /// <summary>Adds a stack. It is deployed separately, see <c>DeploymentService</c>.</summary>
-    public async Task<StackSummary> CreateAsync(
+    public Task<StackSummary> CreateAsync(
         EnvironmentId environmentId,
         string name,
         RepositoryId repositoryId,
@@ -60,39 +63,44 @@ public sealed class StackService(
         string composePath,
         CancellationToken cancellationToken)
     {
-        var actor = await currentActor.GetAsync(cancellationToken);
-        var environment = await environments.FindAsync(environmentId, cancellationToken);
-        var assignments = await roleAssignments.ListForUserAsync(actor.Id, cancellationToken);
-        if (environment is null || !AccessPolicy.CanSee(actor, environment, assignments))
+        var draft = new AuditDraft(AuditAction.StackCreated, new StackAuditTarget(null, name.Trim(), environmentId)) { Details = $"{branch.Trim()} · {composePath.Trim()}" };
+        return audit.RunAsync(draft, async () =>
         {
-            throw new NotFoundException("Environment", environmentId);
-        }
+            var actor = await currentActor.GetAsync(cancellationToken);
+            var environment = await environments.FindAsync(environmentId, cancellationToken);
+            var assignments = await roleAssignments.ListForUserAsync(actor.Id, cancellationToken);
+            if (environment is null || !AccessPolicy.CanSee(actor, environment, assignments))
+            {
+                throw new NotFoundException("Environment", environmentId);
+            }
 
-        // A stack's compose file can mount anything on the host, so adding one takes the same role as deploying.
-        if (!AccessPolicy.CanPerform(actor, environment, assignments, Permission.Deploy))
-        {
-            throw new AccessDeniedException($"Adding stacks to environment '{environment.Name}' requires the Editor role on it.");
-        }
+            // A stack's compose file can mount anything on the host, so adding one takes the same role as deploying.
+            if (!AccessPolicy.CanPerform(actor, environment, assignments, Permission.Deploy))
+            {
+                throw new AccessDeniedException($"Adding stacks to environment '{environment.Name}' requires the Editor role on it.");
+            }
 
-        var stackName = StackName.Parse(name);
-        var repository = await UsableRepositoryAsync(repositoryId, environment, cancellationToken);
-        var stack = Stack.Create(
-            environment.Id,
-            stackName,
-            repository.Id,
-            BranchName.Parse(branch),
-            StackFilePath.Parse(composePath),
-            isSystem: false,
-            time.GetUtcNow());
+            var stackName = StackName.Parse(name);
+            var repository = await UsableRepositoryAsync(repositoryId, environment, cancellationToken);
+            var stack = Stack.Create(
+                environment.Id,
+                stackName,
+                repository.Id,
+                BranchName.Parse(branch),
+                StackFilePath.Parse(composePath),
+                isSystem: false,
+                time.GetUtcNow());
+            draft.Target = new StackAuditTarget(stack.Id, stack.Name.Value, stack.EnvironmentId);
 
-        if (await stacks.FindByNameAsync(environment.Id, stackName, cancellationToken) is not null)
-        {
-            throw new DomainConflictException($"Environment '{environment.Name}' already has a stack '{stackName}'.");
-        }
+            if (await stacks.FindByNameAsync(environment.Id, stackName, cancellationToken) is not null)
+            {
+                throw new DomainConflictException($"Environment '{environment.Name}' already has a stack '{stackName}'.");
+            }
 
-        stacks.Add(stack);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+            stacks.Add(stack);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+        }, cancellationToken);
     }
 
     /// <summary>Stacks of the environment the current user may see, in name order.</summary>
@@ -125,28 +133,33 @@ public sealed class StackService(
     /// Points the stack at another repository, branch or compose file; the next deployment uses them. The stack's
     /// name stays: it is the compose project and the directory on the host.
     /// </summary>
-    public async Task<StackSummary> ChangeSourceAsync(
+    public Task<StackSummary> ChangeSourceAsync(
         StackId stackId, RepositoryId repositoryId, string branch, string composePath, CancellationToken cancellationToken)
     {
-        var (actor, stack, environment, assignments) = await LoadVisibleAsync(stackId, cancellationToken);
-        if (!AccessPolicy.CanPerform(actor, environment, stack, assignments, Permission.Deploy))
+        var draft = new AuditDraft(AuditAction.StackSourceChanged) { Details = $"{branch.Trim()} · {composePath.Trim()}" };
+        return audit.RunAsync(draft, async () =>
         {
-            throw new AccessDeniedException($"Changing stack '{stack.Name}' requires the Editor role.");
-        }
+            var (actor, stack, environment, assignments) = await LoadVisibleAsync(stackId, cancellationToken);
+            draft.Target = new StackAuditTarget(stack.Id, stack.Name.Value, stack.EnvironmentId);
+            if (!AccessPolicy.CanPerform(actor, environment, stack, assignments, Permission.Deploy))
+            {
+                throw new AccessDeniedException($"Changing stack '{stack.Name}' requires the Editor role.");
+            }
 
-        var branchName = BranchName.Parse(branch);
-        var path = StackFilePath.Parse(composePath);
-        var repository = await UsableRepositoryAsync(repositoryId, environment, cancellationToken);
+            var branchName = BranchName.Parse(branch);
+            var path = StackFilePath.Parse(composePath);
+            var repository = await UsableRepositoryAsync(repositoryId, environment, cancellationToken);
 
-        // A queued deployment reads the source when it runs; changing it underneath would deploy something nobody asked for.
-        if (await deployments.HasUnfinishedAsync(stack.Id, cancellationToken))
-        {
-            throw new DomainConflictException($"Stack '{stack.Name}' has a deployment in progress; change it after that.");
-        }
+            // A queued deployment reads the source when it runs; changing it underneath would deploy something nobody asked for.
+            if (await deployments.HasUnfinishedAsync(stack.Id, cancellationToken))
+            {
+                throw new DomainConflictException($"Stack '{stack.Name}' has a deployment in progress; change it after that.");
+            }
 
-        stack.ChangeSource(repository.Id, branchName, path);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+            stack.ChangeSource(repository.Id, branchName, path);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+        }, cancellationToken);
     }
 
     /// <summary>
@@ -182,21 +195,31 @@ public sealed class StackService(
     /// Creates the stack's deploy hook, or replaces its token. The token is returned once and only its hash is kept.
     /// The same role as deploying, since every call then deploys.
     /// </summary>
-    public async Task<(StackSummary Stack, string Token)> CreateDeployHookAsync(StackId stackId, CancellationToken cancellationToken)
+    public Task<(StackSummary Stack, string Token)> CreateDeployHookAsync(StackId stackId, CancellationToken cancellationToken)
     {
-        var (actor, stack, environment, assignments) = await LoadDeployableAsync(stackId, cancellationToken);
-        var token = SecretToken.Generate();
-        stack.SetDeployHook(SecretToken.Hash(token));
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return (Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken)), token);
+        var draft = new AuditDraft(AuditAction.DeployHookCreated);
+        return audit.RunAsync(draft, async () =>
+        {
+            var (actor, stack, environment, assignments) = await LoadDeployableAsync(stackId, cancellationToken);
+            draft.Target = new StackAuditTarget(stack.Id, stack.Name.Value, stack.EnvironmentId);
+            var token = SecretToken.Generate();
+            stack.SetDeployHook(SecretToken.Hash(token));
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return (Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken)), token);
+        }, cancellationToken);
     }
 
-    public async Task<StackSummary> RemoveDeployHookAsync(StackId stackId, CancellationToken cancellationToken)
+    public Task<StackSummary> RemoveDeployHookAsync(StackId stackId, CancellationToken cancellationToken)
     {
-        var (actor, stack, environment, assignments) = await LoadDeployableAsync(stackId, cancellationToken);
-        stack.RemoveDeployHook();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+        var draft = new AuditDraft(AuditAction.DeployHookRemoved);
+        return audit.RunAsync(draft, async () =>
+        {
+            var (actor, stack, environment, assignments) = await LoadDeployableAsync(stackId, cancellationToken);
+            draft.Target = new StackAuditTarget(stack.Id, stack.Name.Value, stack.EnvironmentId);
+            stack.RemoveDeployHook();
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+        }, cancellationToken);
     }
 
     /// <summary>
@@ -206,24 +229,29 @@ public sealed class StackService(
     /// </summary>
     /// <exception cref="AccessDeniedException">The user is not an Editor of the environment.</exception>
     /// <exception cref="DomainConflictException">A system stack, a deployed one, or one with a deployment in progress.</exception>
-    public async Task RemoveAsync(StackId stackId, CancellationToken cancellationToken)
+    public Task RemoveAsync(StackId stackId, CancellationToken cancellationToken)
     {
-        var (actor, stack, environment, assignments) = await LoadVisibleAsync(stackId, cancellationToken);
-        if (!CanRemove(actor, environment, assignments))
+        var draft = new AuditDraft(AuditAction.StackRemoved);
+        return audit.RunAsync(draft, async () =>
         {
-            throw new AccessDeniedException($"Removing stack '{stack.Name}' requires the Editor role on environment '{environment.Name}'.");
-        }
+            var (actor, stack, environment, assignments) = await LoadVisibleAsync(stackId, cancellationToken);
+            draft.Target = new StackAuditTarget(stack.Id, stack.Name.Value, stack.EnvironmentId);
+            if (!CanRemove(actor, environment, assignments))
+            {
+                throw new AccessDeniedException($"Removing stack '{stack.Name}' requires the Editor role on environment '{environment.Name}'.");
+            }
 
-        stack.EnsureRemovable();
+            stack.EnsureRemovable();
 
-        // The worker would deploy a stack that is no longer there, and the deployment's row would block the delete.
-        if (await deployments.HasUnfinishedAsync(stack.Id, cancellationToken))
-        {
-            throw new DomainConflictException($"Stack '{stack.Name}' has a deployment in progress; remove it after that.");
-        }
+            // The worker would deploy a stack that is no longer there, and the deployment's row would block the delete.
+            if (await deployments.HasUnfinishedAsync(stack.Id, cancellationToken))
+            {
+                throw new DomainConflictException($"Stack '{stack.Name}' has a deployment in progress; remove it after that.");
+            }
 
-        stacks.Remove(stack);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            stacks.Remove(stack);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
     }
 
     // The role that adds stacks: a stack's own Editor did not add it and may not drop the roles others have on it.

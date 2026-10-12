@@ -1,9 +1,11 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
+using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Environments;
 using ContainerForest.Aggregator.Domain.Stacks;
@@ -18,7 +20,8 @@ public sealed class StackCommandService(
     IRoleAssignmentRepository roleAssignments,
     IDeploymentRepository deployments,
     IUnitOfWork unitOfWork,
-    IAgentChannel agents)
+    IAgentChannel agents,
+    IAuditTrail audit)
 {
     /// <param name="stopTimeout">Per container; <see cref="StackCommand.DefaultStopTimeout"/> when null.</param>
     /// <returns>The compose output; a failed compose run is a result with an error, see <see cref="StackCommand.ExecuteAsync"/>.</returns>
@@ -59,7 +62,31 @@ public sealed class StackCommandService(
         return await RunAsync(actor, environment, stack, assignments, action, stopTimeout, cancellationToken);
     }
 
-    private async Task<StackCommandResult> RunAsync(
+    private Task<StackCommandResult> RunAsync(
+        Actor actor,
+        DockerEnvironment environment,
+        Stack stack,
+        IReadOnlyList<RoleAssignment> assignments,
+        StackAction action,
+        TimeSpan? stopTimeout,
+        CancellationToken cancellationToken)
+    {
+        var draft = new AuditDraft(
+            action == StackAction.Down ? AuditAction.StackTakenDown : AuditAction.StackRestarted,
+            new StackAuditTarget(stack.Id, stack.Name.Value, environment.Id));
+        return audit.RunAsync(draft, async () =>
+        {
+            var result = await RunCommandAsync(actor, environment, stack, assignments, action, stopTimeout, cancellationToken);
+            if (!result.Succeeded)
+            {
+                draft.Fail(result.Error ?? "Compose failed.");
+            }
+
+            return result;
+        }, cancellationToken);
+    }
+
+    private async Task<StackCommandResult> RunCommandAsync(
         Actor actor,
         DockerEnvironment environment,
         Stack stack,

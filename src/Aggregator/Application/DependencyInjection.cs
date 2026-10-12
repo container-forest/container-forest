@@ -1,5 +1,6 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
+using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Deployments.Steps;
@@ -23,6 +24,8 @@ public static class DependencyInjection
         services.AddScoped<EnvironmentService>();
         services.AddScoped<AgentEnrollmentService>();
         services.AddScoped<CurrentActor>();
+        services.AddScoped<IAuditTrail, AuditTrail>();
+        services.AddScoped<AuditService>();
         services.AddScoped<DiscordLinkService>();
         services.AddScoped<ApiTokenService>();
         services.AddScoped<ApiTokenAuthenticator>();

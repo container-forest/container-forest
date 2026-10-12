@@ -150,7 +150,7 @@ public class ApiTokenServiceTests
     }
 
     private ApiTokenService Service() => new(
-        new CurrentActor(currentUser, users), tokens, users, roleAssignments, environments, unitOfWork, new FixedTime(Now));
+        new CurrentActor(currentUser, users), tokens, users, roleAssignments, environments, unitOfWork, new FakeAuditTrail(), new FixedTime(Now));
 
     private ApiTokenAuthenticator Authenticator(DateTimeOffset now) => new(tokens, unitOfWork, new FixedTime(now));
 }

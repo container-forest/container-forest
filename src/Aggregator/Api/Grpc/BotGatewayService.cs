@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using ContainerForest.Aggregator.Api.Access;
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Containers;
@@ -248,7 +249,7 @@ public sealed class BotGatewayService(
                 BotGatewayInterceptor.AccountNotLinked);
 
         context.GetHttpContext().User = new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())], authenticationType: "DiscordBot"));
+            [new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())], authenticationType: HttpRequestOrigin.BotAuthenticationType));
     }
 
     private static EnvironmentId ParseEnvironmentId(string value) =>

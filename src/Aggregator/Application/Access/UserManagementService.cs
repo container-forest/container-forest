@@ -1,7 +1,9 @@
+using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Stacks;
 
@@ -25,7 +27,7 @@ public sealed record UserDetails(UserSummary User, IReadOnlyList<RoleAssignmentV
 
 /// <summary>
 /// User management for administrators: accounts, the admin flag, passwords and roles on environments and stacks.
-/// Every method is for administrators only.
+/// Every method is for administrators only. Every change is recorded in the audit log, refused and failed ones too.
 /// </summary>
 public sealed class UserManagementService(
     CurrentActor currentActor,
@@ -35,6 +37,7 @@ public sealed class UserManagementService(
     IStackRepository stacks,
     IAccountStore accounts,
     IUnitOfWork unitOfWork,
+    IAuditTrail audit,
     TimeProvider time)
 {
     public async Task<IReadOnlyList<UserSummary>> ListAsync(CancellationToken cancellationToken)
@@ -65,7 +68,17 @@ public sealed class UserManagementService(
     }
 
     /// <param name="password">Initial password; the administrator hands it over.</param>
-    public async Task<UserSummary> CreateAsync(string userName, string password, bool isAdmin, CancellationToken cancellationToken)
+    public Task<UserSummary> CreateAsync(string userName, string password, bool isAdmin, CancellationToken cancellationToken)
+    {
+        var draft = new AuditDraft(AuditAction.UserCreated, new UserAuditTarget(null, userName.Trim()))
+        {
+            Details = isAdmin ? "Administrator" : null,
+        };
+        return audit.RunAsync(draft, () => CreateUserAsync(draft, userName, password, isAdmin, cancellationToken), cancellationToken);
+    }
+
+    private async Task<UserSummary> CreateUserAsync(
+        AuditDraft draft, string userName, string password, bool isAdmin, CancellationToken cancellationToken)
     {
         await currentActor.GetAdministratorAsync(cancellationToken);
         var now = time.GetUtcNow();
@@ -75,6 +88,7 @@ public sealed class UserManagementService(
             throw new DomainConflictException($"User '{existing.UserName}' already exists.");
         }
 
+        draft.Target = new UserAuditTarget(user.Id, user.UserName);
         users.Add(user);
         try
         {
@@ -111,7 +125,23 @@ public sealed class UserManagementService(
     /// Grants a role on an environment (<paramref name="stackId"/> null) or on one of its stacks. A user has at
     /// most one role per scope: a second one is a conflict, change the existing one instead.
     /// </summary>
-    public async Task<RoleAssignmentView> GrantRoleAsync(
+    public Task<RoleAssignmentView> GrantRoleAsync(
+        UserId userId, EnvironmentId environmentId, StackId? stackId, Role role, CancellationToken cancellationToken)
+    {
+        var draft = new AuditDraft(AuditAction.RoleGranted, new RoleAssignmentAuditTarget(null, userId.ToString(), environmentId, stackId))
+        {
+            Details = $"Role: {role}",
+        };
+        return audit.RunAsync(draft, async () =>
+        {
+            var view = await GrantRoleCoreAsync(userId, environmentId, stackId, role, cancellationToken);
+            draft.Target = TargetOf(view, await NameOfAsync(userId, cancellationToken));
+            draft.Details = $"Role: {role} on {ScopeOf(view)}";
+            return view;
+        }, cancellationToken);
+    }
+
+    private async Task<RoleAssignmentView> GrantRoleCoreAsync(
         UserId userId, EnvironmentId environmentId, StackId? stackId, Role role, CancellationToken cancellationToken)
     {
         await currentActor.GetAdministratorAsync(cancellationToken);
@@ -153,31 +183,64 @@ public sealed class UserManagementService(
         return await ViewAsync(assignment, cancellationToken);
     }
 
-    public async Task<RoleAssignmentView> ChangeRoleAsync(
+    public Task<RoleAssignmentView> ChangeRoleAsync(
         UserId userId, RoleAssignmentId assignmentId, Role role, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-        var assignment = await GetAssignmentAsync(userId, assignmentId, cancellationToken);
-        assignment.ChangeRole(role);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return await ViewAsync(assignment, cancellationToken);
+        var draft = new AuditDraft(AuditAction.RoleChanged, new UserAuditTarget(userId, userId.ToString())) { Details = $"Role: {role}" };
+        return audit.RunAsync(draft, async () =>
+        {
+            await currentActor.GetAdministratorAsync(cancellationToken);
+            var assignment = await GetAssignmentAsync(userId, assignmentId, cancellationToken);
+            var before = await ViewAsync(assignment, cancellationToken);
+            draft.Target = TargetOf(before, await NameOfAsync(userId, cancellationToken));
+            draft.Details = $"Role: {before.Role} → {role} on {ScopeOf(before)}";
+
+            assignment.ChangeRole(role);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return await ViewAsync(assignment, cancellationToken);
+        }, cancellationToken);
     }
 
-    public async Task RevokeRoleAsync(UserId userId, RoleAssignmentId assignmentId, CancellationToken cancellationToken)
+    public Task RevokeRoleAsync(UserId userId, RoleAssignmentId assignmentId, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-        roleAssignments.Remove(await GetAssignmentAsync(userId, assignmentId, cancellationToken));
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        var draft = new AuditDraft(AuditAction.RoleRevoked, new UserAuditTarget(userId, userId.ToString()));
+        return audit.RunAsync(draft, async () =>
+        {
+            await currentActor.GetAdministratorAsync(cancellationToken);
+            var assignment = await GetAssignmentAsync(userId, assignmentId, cancellationToken);
+            var view = await ViewAsync(assignment, cancellationToken);
+            draft.Target = TargetOf(view, await NameOfAsync(userId, cancellationToken));
+            draft.Details = $"Role: {view.Role} on {ScopeOf(view)}";
+
+            roleAssignments.Remove(assignment);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
     }
 
-    private async Task<UserSummary> RunAsync(UserId id, UserAccountAction action, CancellationToken cancellationToken)
+    /// <summary>Runs one change of a user, recorded under the action's own <see cref="UserAccountAction.AuditAction"/>.</summary>
+    private Task<UserSummary> RunAsync(UserId id, UserAccountAction action, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-        var user = await users.GetAsync(id, cancellationToken);
-        await action.ExecuteAsync(user, new UserActionContext(users, accounts), cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return await SummarizeAsync(user, cancellationToken);
+        var draft = new AuditDraft(action.AuditAction, new UserAuditTarget(id, id.ToString())) { Details = action.AuditDetails };
+        return audit.RunAsync(draft, async () =>
+        {
+            await currentActor.GetAdministratorAsync(cancellationToken);
+            var user = await users.GetAsync(id, cancellationToken);
+            draft.Target = new UserAuditTarget(user.Id, user.UserName);
+            await action.ExecuteAsync(user, new UserActionContext(users, accounts), cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return await SummarizeAsync(user, cancellationToken);
+        }, cancellationToken);
     }
+
+    /// <summary>The user's name for the audit log; their id when they do not exist.</summary>
+    private async Task<string> NameOfAsync(UserId id, CancellationToken cancellationToken) =>
+        (await users.FindAsync(id, cancellationToken))?.UserName ?? id.ToString();
+
+    private static RoleAssignmentAuditTarget TargetOf(RoleAssignmentView view, string userName) =>
+        new(view.Id, userName, view.EnvironmentId, view.StackId);
+
+    private static string ScopeOf(RoleAssignmentView view) =>
+        view.StackName is null ? view.EnvironmentName : $"{view.EnvironmentName}/{view.StackName}";
 
     private async Task<UserSummary> SummarizeAsync(User user, CancellationToken cancellationToken)
     {

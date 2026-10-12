@@ -1,5 +1,6 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
+using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
@@ -59,6 +60,7 @@ public static class DependencyInjection
         services.AddScoped<IDeploymentRepository, DeploymentRepository>();
         services.AddScoped<IRegistryCredentialRepository, RegistryCredentialRepository>();
         services.AddScoped<IAgeKeyRepository, AgeKeyRepository>();
+        services.AddScoped<IAuditLog, AuditLog>();
 
         // Accounts for signing in; the Api adds the sign-in manager and the session cookie.
         services.AddIdentityCore<AccountUser>(AccountPolicy.Configure)

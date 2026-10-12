@@ -2,6 +2,8 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using AspNet.Security.OAuth.Discord;
 using ContainerForest.Aggregator.Application.Access;
+using ContainerForest.Aggregator.Application.Audit;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Infrastructure.Accounts;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -31,7 +33,8 @@ internal sealed class DiscordAuthOptions
 /// own site (<see cref="ContinuePage"/>). Linking cannot rely on the session either: the user who started it travels,
 /// protected by Data Protection, in the OAuth state.
 /// </remarks>
-internal sealed class DiscordSignIn(SignInManager<AccountUser> signInManager, DiscordLinkService links, CurrentActor currentActor, ILogger<DiscordSignIn> logger)
+internal sealed class DiscordSignIn(
+    SignInManager<AccountUser> signInManager, DiscordLinkService links, CurrentActor currentActor, IAuditTrail audit, ILogger<DiscordSignIn> logger)
 {
     public const string Scheme = DiscordAuthenticationDefaults.AuthenticationScheme;
     public const string CallbackPath = "/api/auth/discord/callback";
@@ -165,12 +168,18 @@ internal sealed class DiscordSignIn(SignInManager<AccountUser> signInManager, Di
         // A Discord account linked to nobody gets no user (no sign-up through Discord); every refusal looks the same.
         var user = await links.FindUserForSignInAsync(discordId, discordName, cancellationToken);
         var account = user is null ? null : await signInManager.UserManager.FindByIdAsync(user.Id.Value.ToString());
-        if (account is null || await signInManager.UserManager.IsLockedOutAsync(account))
+        if (user is null || account is null || await signInManager.UserManager.IsLockedOutAsync(account))
         {
+            await audit.RecordAsync(
+                AuditAction.SignInFailed, AuditOutcome.Failed,
+                user is null ? null : new UserAuditTarget(user.Id, user.UserName),
+                user is null ? $"Discord: {discordName}. Not linked to an active user." : $"Discord: {discordName}. Locked out.",
+                cancellationToken, new AuditPerson(user?.Id, user?.UserName, AuditChannel.Anonymous));
             return LoginFailedPath;
         }
 
         await signInManager.SignInAsync(account, isPersistent: false, authenticationMethod: Scheme);
+        await PasswordSignIn.RecordSignInAsync(audit, user, $"Discord: {discordName}", cancellationToken);
         return SafePath(redirect);
     }
 

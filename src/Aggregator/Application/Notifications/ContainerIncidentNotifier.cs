@@ -35,6 +35,12 @@ public sealed record ContainerObservation(
         && int.TryParse(match.Groups[1].ValueSpan, out var code)
             ? code
             : null;
+
+    /// <summary>
+    /// Set by <see cref="ContainerIncidentWatch"/> on a "die" that came with the container's "oom": the kernel killed it
+    /// for exceeding its memory limit. Docker's event itself says nothing about it.
+    /// </summary>
+    public bool OutOfMemory { get; init; }
 }
 
 /// <summary>
@@ -73,7 +79,8 @@ public sealed partial class ContainerIncidentNotifier(
             observation.DisplayName,
             stackName,
             string.IsNullOrEmpty(observation.ServiceName) ? null : observation.ServiceName,
-            kind == NotificationEventKinds.ContainerDied ? observation.ExitCode : null);
+            kind == NotificationEventKinds.ContainerDied ? observation.ExitCode : null,
+            kind == NotificationEventKinds.ContainerDied && observation.OutOfMemory);
         var notificationEvent = new NotificationEvent(kind, environment.Id, stack?.Id, observation.OccurredAt, details);
 
         var created = await dispatcher.DispatchAsync(notificationEvent, Summarize(kind, details, environment.Name), cancellationToken);
@@ -94,6 +101,7 @@ public sealed partial class ContainerIncidentNotifier(
         var target = $"Container '{details.ContainerName}'{stack} on '{environmentName}'";
         return kind switch
         {
+            NotificationEventKinds.ContainerDied when details.OutOfMemory => $"{target} was killed: out of memory.",
             NotificationEventKinds.ContainerDied when details.ExitCode is { } code => $"{target} exited with code {code}.",
             NotificationEventKinds.ContainerDied => $"{target} stopped unexpectedly.",
             NotificationEventKinds.ContainerUnhealthy => $"{target} is unhealthy.",

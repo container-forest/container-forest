@@ -85,6 +85,55 @@ public sealed class ContainerIncidentWatchTests : IDisposable
         Assert.Null(Assert.IsType<ContainerNotificationDetails>(fixture.Notifications.All[0].Details).ExitCode);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Oom_with_the_death_marks_it_killed_for_memory(bool oomFirst)
+    {
+        // Docker reports oom before die; the other order is handled too.
+        if (oomFirst)
+        {
+            watch.Observe(Event("oom", "Up 5 minutes"));
+        }
+
+        watch.Observe(Event("die", "Exited (137) 1 second ago"));
+        if (!oomFirst)
+        {
+            watch.Observe(Event("oom", "Exited (137) 1 second ago"));
+        }
+
+        await WaitForAsync(1);
+
+        var details = Assert.IsType<ContainerNotificationDetails>(fixture.Notifications.All[0].Details);
+        Assert.True(details.OutOfMemory);
+        Assert.Equal(137, details.ExitCode);
+    }
+
+    [Fact]
+    public async Task Oom_without_a_death_is_not_notified_and_does_not_mark_a_later_crash()
+    {
+        // The kernel killed another process of the container; the container itself lives on.
+        watch.Observe(Event("oom", "Up 5 minutes"));
+        await Task.Delay(StopWait * 2, Ct);
+        Assert.Empty(fixture.Notifications.All);
+
+        watch.Observe(Event("die", "Exited (1) 1 second ago"));
+        await WaitForAsync(1);
+
+        Assert.False(Assert.IsType<ContainerNotificationDetails>(fixture.Notifications.All[0].Details).OutOfMemory);
+    }
+
+    [Fact]
+    public async Task Requested_stop_is_not_a_crash_even_with_an_oom()
+    {
+        watch.Observe(Event("oom", "Up 5 minutes"));
+        watch.Observe(Event("stop", "Exited (137) 1 second ago"));
+        watch.Observe(Event("die", "Exited (137) 1 second ago"));
+        await Task.Delay(StopWait * 4, Ct);
+
+        Assert.Empty(fixture.Notifications.All);
+    }
+
     [Fact]
     public async Task Unhealthy_is_notified_right_away_and_healthy_is_not()
     {

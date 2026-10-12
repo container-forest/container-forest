@@ -12,6 +12,9 @@ namespace ContainerForest.Aggregator.Application.Notifications;
 /// before or after it is a crash, unless the container exited with code 0: a one-off job that finished. Docker reports
 /// docker stop, restart and compose down as kill, stop, die; docker rm -f as kill, die, destroy; a crash as die alone.
 /// The agent does not forward "kill".</item>
+/// <item>"oom" of the container within <see cref="NotificationOptions.ContainerStopWait"/> before or after its crash marks
+/// it as killed for running out of memory. Docker reports it before "die"; an "oom" without a death (the kernel killed
+/// another process of the container) is not notified.</item>
 /// <item>"health_status: unhealthy" right away.</item>
 /// </list>
 /// One container gets at most one notification of a kind per <see cref="NotificationOptions.ContainerRepeatInterval"/>.
@@ -26,11 +29,13 @@ public sealed class ContainerIncidentWatch(
     public const string DieAction = "die";
     public const string StopAction = "stop";
     public const string DestroyAction = "destroy";
+    public const string OutOfMemoryAction = "oom";
     public const string UnhealthyAction = "health_status: unhealthy";
 
     private readonly Lock gate = new();
     private readonly Dictionary<(EnvironmentId, string), PendingDeath> deaths = [];
     private readonly Dictionary<(EnvironmentId, string), DateTimeOffset> requestedStops = [];
+    private readonly Dictionary<(EnvironmentId, string), DateTimeOffset> outOfMemory = [];
     private readonly Dictionary<(EnvironmentId, string, NotificationEventKinds), DateTimeOffset> lastNotified = [];
     private readonly CancellationTokenSource stopping = new();
     private bool disposed;
@@ -54,6 +59,9 @@ public sealed class ContainerIncidentWatch(
                 case StopAction or DestroyAction:
                     Requested(container);
                     break;
+                case OutOfMemoryAction:
+                    RanOutOfMemory(container);
+                    break;
                 case UnhealthyAction:
                     Raise(observation, NotificationEventKinds.ContainerUnhealthy);
                     break;
@@ -71,7 +79,9 @@ public sealed class ContainerIncidentWatch(
 
         if (!deaths.ContainsKey(container))
         {
-            var death = new PendingDeath(observation, CancellationTokenSource.CreateLinkedTokenSource(stopping.Token));
+            var killed = outOfMemory.Remove(container, out var oomAt) && time.GetUtcNow() - oomAt < options.ContainerStopWait;
+            var death = new PendingDeath(
+                observation with { OutOfMemory = killed }, CancellationTokenSource.CreateLinkedTokenSource(stopping.Token));
             deaths[container] = death;
             _ = NotifyUnlessStoppedAsync(container, death);
         }
@@ -90,13 +100,31 @@ public sealed class ContainerIncidentWatch(
             return;
         }
 
-        var now = time.GetUtcNow();
-        foreach (var stale in requestedStops.Where(e => now - e.Value >= options.ContainerStopWait).Select(e => e.Key).ToList())
+        Remember(requestedStops, container);
+    }
+
+    /// <summary>An "oom": the death being waited out, or the one about to come, was the kernel's doing. Called under the lock.</summary>
+    private void RanOutOfMemory((EnvironmentId, string) container)
+    {
+        if (deaths.TryGetValue(container, out var death))
         {
-            requestedStops.Remove(stale);
+            death.Observation = death.Observation with { OutOfMemory = true };
+            return;
         }
 
-        requestedStops[container] = now;
+        Remember(outOfMemory, container);
+    }
+
+    /// <summary>Records an event for the death to come, forgetting the ones older than the wait. Called under the lock.</summary>
+    private void Remember(Dictionary<(EnvironmentId, string), DateTimeOffset> events, (EnvironmentId, string) container)
+    {
+        var now = time.GetUtcNow();
+        foreach (var stale in events.Where(e => now - e.Value >= options.ContainerStopWait).Select(e => e.Key).ToList())
+        {
+            events.Remove(stale);
+        }
+
+        events[container] = now;
     }
 
     /// <summary>Cancels the deaths being waited out.</summary>
@@ -137,7 +165,7 @@ public sealed class ContainerIncidentWatch(
             }
 
             deaths.Remove(container);
-            if (death.Observation.ExitCode != 0)
+            if (death.Observation.ExitCode != 0 || death.Observation.OutOfMemory)
             {
                 Raise(death.Observation, NotificationEventKinds.ContainerDied);
             }
@@ -184,7 +212,8 @@ public sealed class ContainerIncidentWatch(
 
     private sealed class PendingDeath(ContainerObservation observation, CancellationTokenSource waiting)
     {
-        public ContainerObservation Observation { get; } = observation;
+        /// <summary>The "die"; an "oom" that comes after it marks it as <see cref="ContainerObservation.OutOfMemory"/>.</summary>
+        public ContainerObservation Observation { get; set; } = observation;
 
         /// <summary>Cancelled by the container's "stop".</summary>
         public CancellationTokenSource Waiting { get; } = waiting;

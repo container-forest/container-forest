@@ -32,6 +32,22 @@ public class ContainerIncidentNotifierTests
     }
 
     [Fact]
+    public async Task Container_killed_for_memory_says_so_instead_of_the_exit_code()
+    {
+        var ops = fixture.AddChannel("ops");
+        fixture.AddRule(NotificationRule.ForEverything(ops, NotificationEventKinds.All, Now));
+
+        await Notifier().NotifyAsync(
+            Observation("die", "Exited (137) 1 second ago") with { OutOfMemory = true }, NotificationEventKinds.ContainerDied, Ct);
+
+        var notification = Assert.Single(fixture.Notifications.All);
+        Assert.Equal("Container 'web-app-1' of stack 'web' on 'prod' was killed: out of memory.", notification.Summary);
+        Assert.Equal(
+            new ContainerNotificationDetails("0123456789abcdef", "web-app-1", fixture.Stack.Name, "app", 137, OutOfMemory: true),
+            notification.Details);
+    }
+
+    [Fact]
     public async Task Compose_project_that_is_not_a_managed_stack_is_the_environments_event()
     {
         var ops = fixture.AddChannel("ops");

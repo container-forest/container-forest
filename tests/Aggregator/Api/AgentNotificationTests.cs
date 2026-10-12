@@ -90,6 +90,26 @@ public class AgentNotificationTests
         Assert.Single(await ListAsync(app));
     }
 
+    [Fact]
+    public async Task Container_killed_for_memory_says_so_after_a_round_trip_through_the_database()
+    {
+        await using var app = new AggregatorApp
+        {
+            Customize = builder => builder.UseSetting("Notifications:ContainerStopWait", "00:00:00.1"),
+        };
+        await AddRuleForEverythingAsync(app);
+        await using var agent = await app.EnrollAndConnectAsync();
+
+        // The kernel's OOM killer: Docker reports oom, then die with 137 (SIGKILL).
+        await agent.SendAsync(new AgentMessage { ContainerEvent = new ContainerEvent { ContainerId = "c-oom", Action = "oom" } });
+        await agent.SendAsync(Died("c-oom", "Exited (137) 1 second ago"));
+
+        var notification = Assert.Single(await WaitForAsync(app, 1));
+        Assert.StartsWith("Container 'shop-db-1' of stack 'shop' on ", notification.Summary);
+        Assert.EndsWith(" was killed: out of memory.", notification.Summary);
+        Assert.True(Assert.IsType<ContainerNotificationDetails>(notification.Details).OutOfMemory);
+    }
+
     private static AgentMessage Died(string containerId, string status) => new()
     {
         ContainerEvent = new ContainerEvent

@@ -26,7 +26,7 @@ public class ContainerIncidentNotifierTests
         Assert.Equal(NotificationSeverity.Error, notification.Severity);
         Assert.Equal(fixture.Stack.Id, notification.StackId);
         Assert.Equal(Now, notification.OccurredAt);
-        Assert.Equal("Container 'web-app-1' of stack 'web' on 'prod' exited with code 137.", notification.Summary);
+        Assert.Equal("Container 'web-app-1' of stack 'web' on 'prod' exited with code 137 (SIGKILL).", notification.Summary);
         Assert.Equal(
             new ContainerNotificationDetails("0123456789abcdef", "web-app-1", fixture.Stack.Name, "app", 137),
             notification.Details);
@@ -130,6 +130,23 @@ public class ContainerIncidentNotifierTests
         var gone = Observation("die", null) with { ContainerName = null };
 
         Assert.Equal("0123456789ab", gone.DisplayName);
+    }
+
+    [Theory]
+    [InlineData(139, "exited with code 139 (SIGSEGV).")]
+    [InlineData(143, "exited with code 143 (SIGTERM).")]
+    [InlineData(134, "exited with code 134 (SIGABRT).")]
+    [InlineData(1, "exited with code 1.")]
+    [InlineData(128, "exited with code 128.")]
+    [InlineData(255, "exited with code 255.")]
+    [InlineData(-1, "exited with code -1.")]
+    public void Exit_code_of_a_signal_is_named(int exitCode, string ending)
+    {
+        var details = new ContainerNotificationDetails("0123456789abcdef", "web-app-1", null, null, exitCode);
+
+        var summary = ContainerIncidentNotifier.Summarize(NotificationEventKinds.ContainerDied, details, "prod");
+
+        Assert.Equal($"Container 'web-app-1' on 'prod' {ending}", summary);
     }
 
     private ContainerObservation Observation(string action, string? status, string? stack = "web", string? service = "app") =>

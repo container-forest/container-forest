@@ -115,12 +115,36 @@ public sealed partial class ContainerIncidentNotifier(
         return kind switch
         {
             NotificationEventKinds.ContainerDied when details.OutOfMemory => $"{target} was killed: out of memory.",
-            NotificationEventKinds.ContainerDied when details.ExitCode is { } code => $"{target} exited with code {code}.",
+            NotificationEventKinds.ContainerDied when details.ExitCode is { } code => SignalName(code) is { } signal
+                ? $"{target} exited with code {code} ({signal})."
+                : $"{target} exited with code {code}.",
             NotificationEventKinds.ContainerDied => $"{target} stopped unexpectedly.",
             NotificationEventKinds.ContainerUnhealthy => $"{target} is unhealthy.",
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Only container events are summarized here."),
         };
     }
+
+    /// <summary>
+    /// The signal behind an exit code above 128: a process killed by signal N exits with 128 + N, so 139 is a segfault
+    /// and 143 a SIGTERM the process did not handle. Null for other codes and for signals that rarely end a container.
+    /// </summary>
+    public static string? SignalName(int exitCode) => exitCode switch
+    {
+        129 => "SIGHUP",
+        130 => "SIGINT",
+        131 => "SIGQUIT",
+        132 => "SIGILL",
+        133 => "SIGTRAP",
+        134 => "SIGABRT",
+        135 => "SIGBUS",
+        136 => "SIGFPE",
+        137 => "SIGKILL",
+        139 => "SIGSEGV",
+        141 => "SIGPIPE",
+        142 => "SIGALRM",
+        143 => "SIGTERM",
+        _ => null,
+    };
 
     [GeneratedRegex(@"^(?:Exited|Restarting) \((-?\d+)\)", RegexOptions.CultureInvariant)]
     internal static partial Regex ExitedStatus();

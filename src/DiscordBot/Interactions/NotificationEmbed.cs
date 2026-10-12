@@ -1,5 +1,6 @@
 using ContainerForest.DiscordBot.Commands;
 using ContainerForest.DiscordBot.Forest;
+using ContainerForest.DiscordBot.Notifications;
 using Discord;
 
 namespace ContainerForest.DiscordBot.Interactions;
@@ -55,6 +56,14 @@ public static class NotificationEmbed
 
         return embed.Build();
     }
+
+    /// <summary>The buttons under the message: "Restart" for a container that died or turned unhealthy; null when there are none.</summary>
+    public static MessageComponent? Buttons(ForestNotification notification) =>
+        RestartContainerButton.TryCreate(notification, out var restart)
+            ? new ComponentBuilder()
+                .WithButton("Restart", restart.ToCustomId(), ButtonStyle.Secondary, new Emoji("🔄"))
+                .Build()
+            : null;
 
     private static string Title(NotificationKind kind) => kind switch
     {

@@ -47,7 +47,10 @@ public sealed class DiscordNotificationPoster : INotificationPoster
             }
 
             await messageChannel.SendMessageAsync(
-                embed: NotificationEmbed.Build(notification), allowedMentions: AllowedMentions.None, options: options);
+                embed: NotificationEmbed.Build(notification),
+                allowedMentions: AllowedMentions.None,
+                components: NotificationEmbed.Buttons(notification),
+                options: options);
             return DeliveryResult.Delivered;
         }
         catch (HttpException ex)

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using ContainerForest.DiscordBot.Commands;
 
 namespace ContainerForest.DiscordBot.Dashboard;
 
@@ -82,8 +83,7 @@ public abstract record DashboardRoute
 
     protected abstract IEnumerable<string> Parts();
 
-    protected static string Encode(Guid value) =>
-        Convert.ToBase64String(value.ToByteArray()).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    protected static string Encode(Guid value) => CompactGuid.Encode(value);
 
     protected static string Encode(StackOperation operation) => operation switch
     {
@@ -110,20 +110,7 @@ public abstract record DashboardRoute
         public bool Guid(out Guid value)
         {
             value = default;
-            if (!Take(out var text) || text.Length != 22)
-            {
-                return false;
-            }
-
-            var bytes = new byte[16];
-            var base64 = text.Replace('-', '+').Replace('_', '/') + "==";
-            if (!Convert.TryFromBase64String(base64, bytes, out var written) || written != 16)
-            {
-                return false;
-            }
-
-            value = new Guid(bytes);
-            return true;
+            return Take(out var text) && CompactGuid.TryDecode(text, out value);
         }
 
         public bool Operation(out StackOperation operation)

@@ -33,6 +33,7 @@ internal sealed class NotificationDetailsConverter()
                 ServiceName = c.ServiceName,
                 ExitCode = c.ExitCode,
                 OutOfMemory = c.OutOfMemory,
+                IsSystem = c.IsSystem,
             },
             Options),
         _ => throw new NotSupportedException($"{details.GetType().Name} cannot be stored yet."),
@@ -57,7 +58,8 @@ internal sealed class NotificationDetailsConverter()
                 stored.StackName is null ? null : StackName.Parse(stored.StackName),
                 stored.ServiceName,
                 stored.ExitCode,
-                stored.OutOfMemory),
+                stored.OutOfMemory,
+                stored.IsSystem),
             _ => throw new InvalidOperationException($"Unknown notification details type '{stored.Type}'."),
         };
     }
@@ -75,5 +77,7 @@ internal sealed class NotificationDetailsConverter()
         public int? ExitCode { get; init; }
 
         public bool OutOfMemory { get; init; }
+
+        public bool IsSystem { get; init; }
     }
 }

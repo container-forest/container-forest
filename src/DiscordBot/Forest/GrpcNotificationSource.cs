@@ -107,7 +107,8 @@ public sealed class GrpcNotificationSource(
                 n.Container.ContainerName,
                 NullIfEmpty(n.Container.StackName),
                 NullIfEmpty(n.Container.ServiceName),
-                n.Container.HasExitCode ? n.Container.ExitCode : null)
+                n.Container.HasExitCode ? n.Container.ExitCode : null,
+                n.Container.System)
             : null);
 
     private static string? NullIfEmpty(string value) => value is "" ? null : value;

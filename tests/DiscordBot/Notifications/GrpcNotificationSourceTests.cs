@@ -40,7 +40,7 @@ public sealed class GrpcNotificationSourceTests
             DiscordChannelId = 42,
             Kind = Proto.NotificationKind.ContainerDied,
             Severity = Proto.NotificationSeverity.Error,
-            Container = new Proto.ContainerDetails { ContainerId = "4f1c2a9e8b7d", ContainerName = "web-app-1", ExitCode = 137 },
+            Container = new Proto.ContainerDetails { ContainerId = "4f1c2a9e8b7d", ContainerName = "web-app-1", ExitCode = 137, System = true },
         });
         server.Gateway.Outgoing.Writer.Complete();
 
@@ -61,7 +61,7 @@ public sealed class GrpcNotificationSourceTests
             new DeploymentEvent("0199a1b2-0000-7000-8000-00000000000d", "0199a1b2-0000-7000-8000-00000000000s", "web", null, false, "compose failed"),
             deployment.Deployment);
         Assert.Null(deployment.Container);
-        Assert.Equal(new ContainerEvent("4f1c2a9e8b7d", "web-app-1", null, null, 137), received[1].Container);
+        Assert.Equal(new ContainerEvent("4f1c2a9e8b7d", "web-app-1", null, null, 137, IsSystem: true), received[1].Container);
         Assert.Equal([InMemoryAggregator.ServiceToken], server.Gateway.ReceivedTokens);
     }
 

@@ -87,11 +87,12 @@ public class AgentNotificationTests
         Assert.Equal("shop", notification.Container.StackName);
         Assert.Equal("db", notification.Container.ServiceName);
         Assert.Equal(2, notification.Container.ExitCode);
+        Assert.False(notification.Container.System);
         Assert.Single(await ListAsync(app));
     }
 
     [Fact]
-    public async Task Container_killed_for_memory_says_so_after_a_round_trip_through_the_database()
+    public async Task Container_killed_for_memory_keeps_its_details_through_the_database()
     {
         await using var app = new AggregatorApp
         {
@@ -102,15 +103,18 @@ public class AgentNotificationTests
 
         // The kernel's OOM killer: Docker reports oom, then die with 137 (SIGKILL).
         await agent.SendAsync(new AgentMessage { ContainerEvent = new ContainerEvent { ContainerId = "c-oom", Action = "oom" } });
-        await agent.SendAsync(Died("c-oom", "Exited (137) 1 second ago"));
+        // A system container (the agent's ContainerInfo.system): the bot offers it no Restart button.
+        await agent.SendAsync(Died("c-oom", "Exited (137) 1 second ago", system: true));
 
         var notification = Assert.Single(await WaitForAsync(app, 1));
         Assert.StartsWith("Container 'shop-db-1' of stack 'shop' on ", notification.Summary);
         Assert.EndsWith(" was killed: out of memory.", notification.Summary);
-        Assert.True(Assert.IsType<ContainerNotificationDetails>(notification.Details).OutOfMemory);
+        var details = Assert.IsType<ContainerNotificationDetails>(notification.Details);
+        Assert.True(details.OutOfMemory);
+        Assert.True(details.IsSystem);
     }
 
-    private static AgentMessage Died(string containerId, string status) => new()
+    private static AgentMessage Died(string containerId, string status, bool system = false) => new()
     {
         ContainerEvent = new ContainerEvent
         {
@@ -125,6 +129,7 @@ public class AgentNotificationTests
                 StackName = "shop",
                 ServiceName = "db",
                 StatusText = status,
+                System = system,
             },
         },
     };

@@ -60,13 +60,15 @@ public sealed record DeploymentNotificationDetails(
 /// <param name="ServiceName">The compose service; null outside compose.</param>
 /// <param name="ExitCode">Set for a container that died, when the agent's report still had it.</param>
 /// <param name="OutOfMemory">The kernel killed the container for exceeding its memory limit (Docker's "oom" event came with the death).</param>
+/// <param name="IsSystem">The container may only be started (system label or system stack): stopping it would cut a host off.</param>
 public sealed record ContainerNotificationDetails(
     string ContainerId,
     string ContainerName,
     StackName? StackName,
     string? ServiceName,
     int? ExitCode,
-    bool OutOfMemory = false) : NotificationDetails
+    bool OutOfMemory = false,
+    bool IsSystem = false) : NotificationDetails
 {
     public override bool Fits(NotificationEventKinds kind) => kind switch
     {

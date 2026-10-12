@@ -7,10 +7,14 @@ namespace ContainerForest.DiscordBot.Interactions;
 
 /// <summary>
 /// The buttons under notifications as Discord sees them. A notification is a channel message everyone there sees,
-/// so a click runs as the user who clicked, with their own permissions, and only that user sees the answer; the
-/// notification itself is not changed.
+/// so a click runs as the user who clicked, with their own permissions, and only that user sees the answer. A restart
+/// that worked is noted on the notification itself, so others in the channel do not restart the container again.
 /// </summary>
-public sealed class NotificationModule(RestartContainerCommand restart, IHostApplicationLifetime lifetime)
+public sealed partial class NotificationModule(
+    RestartContainerCommand restart,
+    IHostApplicationLifetime lifetime,
+    TimeProvider time,
+    ILogger<NotificationModule> logger)
     : InteractionModuleBase<SocketInteractionContext>
 {
     public const string OutdatedButtonMessage = "❌ This button is from an older version of the bot. Use /restart instead.";
@@ -26,9 +30,40 @@ public sealed class NotificationModule(RestartContainerCommand restart, IHostApp
         }
 
         // The environment by id: the resolver finds it among the environments the clicker can see, or says it is not there.
-        await restart.ExecuteAsync(
+        var reply = await restart.ExecuteAsync(
             new DiscordInteraction(Context.Interaction),
             new ContainerActionArgs(button.EnvironmentId.ToString(), button.ContainerName),
             lifetime.ApplicationStopping);
+        if (!reply.IsError && Context.Interaction is IComponentInteraction click)
+        {
+            await NoteRestartAsync(click.Message, Context.User.Id);
+        }
     }
+
+    // The restart is done and its answer sent: a note that fails (the message was deleted, Discord is down) only goes to the log.
+    private async Task NoteRestartAsync(IUserMessage notification, ulong discordUserId)
+    {
+        if (notification.Embeds.FirstOrDefault() is not { } embed)
+        {
+            return;
+        }
+
+        try
+        {
+            await notification.ModifyAsync(
+                message =>
+                {
+                    message.Embeds = new[] { NotificationEmbed.WithRestart(embed, discordUserId, time.GetUtcNow()) };
+                    message.AllowedMentions = AllowedMentions.None;
+                },
+                new RequestOptions { CancelToken = lifetime.ApplicationStopping });
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogNoteFailed(ex, notification.Id);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not note the restart on notification message {MessageId}")]
+    private partial void LogNoteFailed(Exception exception, ulong messageId);
 }

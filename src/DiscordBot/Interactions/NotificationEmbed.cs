@@ -57,6 +57,23 @@ public static class NotificationEmbed
         return embed.Build();
     }
 
+    /// <summary>The field that says who last acted on the notification's container.</summary>
+    public const string LastActionField = "Last action";
+
+    /// <summary>
+    /// The notification's embed with a line saying who restarted the container and when, so the channel knows someone
+    /// already did. A later restart replaces the line: the message keeps only the latest, as the bot keeps no state.
+    /// </summary>
+    public static Embed WithRestart(IEmbed notification, ulong discordUserId, DateTimeOffset at)
+    {
+        var embed = notification.ToEmbedBuilder();
+        embed.Fields.RemoveAll(field => field.Name == LastActionField);
+        // A mention in an embed shows the name but pings nobody; <t:…:R> shows "2 minutes ago" in the reader's own time.
+        return embed
+            .AddField(LastActionField, $"🔄 Restarted by <@{discordUserId}> <t:{at.ToUnixTimeSeconds()}:R>")
+            .Build();
+    }
+
     /// <summary>The buttons under the message: "Restart" for a container that died or turned unhealthy; null when there are none.</summary>
     public static MessageComponent? Buttons(ForestNotification notification) =>
         RestartContainerButton.TryCreate(notification, out var restart)

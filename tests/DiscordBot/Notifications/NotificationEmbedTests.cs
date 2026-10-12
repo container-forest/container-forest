@@ -86,4 +86,26 @@ public sealed class NotificationEmbedTests
             [("Environment", @"prod\_eu"), ("Container", "`web-app-1`"), ("Stack", "web"), ("Exit code", "137")],
             embed.Fields.Select(f => (f.Name, f.Value)));
     }
+
+    [Fact]
+    public void Restart_is_noted_once_with_the_latest_user_and_the_rest_kept()
+    {
+        var notification = NotificationEmbed.Build(Failed);
+        var first = new DateTimeOffset(2026, 10, 1, 12, 5, 0, TimeSpan.Zero);
+
+        var noted = NotificationEmbed.WithRestart(notification, 111, first);
+        var renoted = NotificationEmbed.WithRestart(noted, 222, first.AddMinutes(3));
+
+        Assert.Equal(
+            $"🔄 Restarted by <@111> <t:{first.ToUnixTimeSeconds()}:R>",
+            Assert.Single(noted.Fields, f => f.Name == NotificationEmbed.LastActionField).Value);
+        Assert.Equal(
+            $"🔄 Restarted by <@222> <t:{first.AddMinutes(3).ToUnixTimeSeconds()}:R>",
+            Assert.Single(renoted.Fields, f => f.Name == NotificationEmbed.LastActionField).Value);
+        Assert.Equal(
+            notification.Fields.Select(f => (f.Name, f.Value)),
+            renoted.Fields.Where(f => f.Name != NotificationEmbed.LastActionField).Select(f => (f.Name, f.Value)));
+        Assert.Equal((notification.Title, notification.Description, notification.Color, notification.Timestamp),
+            (renoted.Title, renoted.Description, renoted.Color, renoted.Timestamp));
+    }
 }

@@ -32,6 +32,7 @@ public sealed class NotificationRoutingTests : IAsyncLifetime
             .AddSingleton(TimeProvider.System)
             .AddSingleton<EnvironmentResolver>()
             .AddSingleton<RestartContainerCommand>()
+            .AddSingleton<ContainerLogsCommand>()
             .AddSingleton<DashboardService>()
             .AddSingleton<IHostApplicationLifetime, StoppedNever>()
             .BuildServiceProvider();
@@ -45,16 +46,18 @@ public sealed class NotificationRoutingTests : IAsyncLifetime
         return ValueTask.CompletedTask;
     }
 
-    [Fact]
-    public void RestartButton_ReachesTheNotificationModule_WithTheWholeRestOfTheId()
+    [Theory]
+    [InlineData(ContainerButtonAction.Restart)]
+    [InlineData(ContainerButtonAction.Logs)]
+    public void ContainerButtons_ReachTheNotificationModule_WithTheWholeRestOfTheId(ContainerButtonAction action)
     {
-        var id = new RestartContainerButton(Environment, "web-app-1").ToCustomId();
+        var id = new ContainerButton(action, Environment, "web-app-1").ToCustomId();
 
         var result = interactions.SearchComponentCommand(ComponentClick.With(id));
 
         Assert.True(result.IsSuccess, result.ErrorReason);
-        Assert.Equal(nameof(NotificationModule.RestartAsync), result.Command.MethodName);
-        Assert.Equal(id[(RestartContainerButton.Prefix.Length + 1)..], Assert.Single(result.RegexCaptureGroups));
+        Assert.Equal(nameof(NotificationModule.ClickAsync), result.Command.MethodName);
+        Assert.Equal(id[(ContainerButton.Prefix.Length + 1)..], Assert.Single(result.RegexCaptureGroups));
     }
 
     [Fact]

@@ -74,13 +74,28 @@ public static class NotificationEmbed
             .Build();
     }
 
-    /// <summary>The buttons under the message: "Restart" for a container that died or turned unhealthy; null when there are none.</summary>
-    public static MessageComponent? Buttons(ForestNotification notification) =>
-        RestartContainerButton.TryCreate(notification, out var restart)
-            ? new ComponentBuilder()
-                .WithButton("Restart", restart.ToCustomId(), ButtonStyle.Secondary, new Emoji("🔄"))
-                .Build()
-            : null;
+    /// <summary>The buttons under the message: "Restart" and "Logs" for a container that died or turned unhealthy; null when there are none.</summary>
+    public static MessageComponent? Buttons(ForestNotification notification)
+    {
+        var buttons = ContainerButton.For(notification);
+        if (buttons.Count == 0)
+        {
+            return null;
+        }
+
+        var row = new ComponentBuilder();
+        foreach (var button in buttons)
+        {
+            var (label, emoji) = button.Action switch
+            {
+                ContainerButtonAction.Restart => ("Restart", "🔄"),
+                _ => ("Logs", "📜"),
+            };
+            row.WithButton(label, button.ToCustomId(), ButtonStyle.Secondary, new Emoji(emoji));
+        }
+
+        return row.Build();
+    }
 
     private static string Title(NotificationKind kind) => kind switch
     {

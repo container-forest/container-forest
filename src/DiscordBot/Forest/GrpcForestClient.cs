@@ -80,6 +80,24 @@ public sealed class GrpcForestClient(
         await CallAsync(o => gateway.ControlContainerAsync(request, o), options.Value.ActionTimeout, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ForestLogLine>> GetContainerLogsAsync(
+        ulong discordUserId, string environmentId, string container, int tailLines, CancellationToken cancellationToken)
+    {
+        var request = new Proto.GetContainerLogsRequest
+        {
+            DiscordUserId = discordUserId,
+            EnvironmentId = environmentId,
+            Container = container,
+            TailLines = tailLines,
+        };
+        var response = await CallAsync(o => gateway.GetContainerLogsAsync(request, o), options.Value.QueryTimeout, cancellationToken);
+        return
+        [
+            .. response.Lines.Select(l => new ForestLogLine(
+                l.TimestampUnixMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(l.TimestampUnixMs) : null, l.Stderr, l.Text)),
+        ];
+    }
+
     public async Task<IReadOnlyList<ForestStack>> ListStacksAsync(
         ulong discordUserId, string environmentId, CancellationToken cancellationToken)
     {

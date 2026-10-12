@@ -309,6 +309,55 @@ public class BotGatewayTests
                 Ct));
     }
 
+    [Fact]
+    public async Task Viewer_reads_the_end_of_a_container_log()
+    {
+        await using var app = new AggregatorApp();
+        await app.CreateUserAsync("alice", isAdmin: false);
+        await using var agent = await app.EnrollAndConnectAsync();
+        await LinkAsync(app, "alice", AliceDiscordId);
+
+        // Public environments give an implicit Viewer role, and a Viewer may read logs.
+        var logs = app.BotGateway.GetContainerLogsAsync(
+            new GetContainerLogsRequest
+            {
+                DiscordUserId = AliceDiscordId, EnvironmentId = agent.EnvironmentId.ToString(), Container = "web-app-1", TailLines = 40,
+            },
+            BotHeaders(),
+            cancellationToken: Ct);
+        await AnswerListAsync(agent);
+        var command = await agent.ReceiveAsync();
+        Assert.Equal(ControllerMessage.BodyOneofCase.StreamContainerLogs, command.BodyCase);
+        Assert.Equal(("c1", 40), (command.StreamContainerLogs.ContainerId, command.StreamContainerLogs.TailLines));
+        await agent.SendAsync(new AgentMessage
+        {
+            LogBatch = new LogBatch
+            {
+                RequestId = command.RequestId,
+                Lines =
+                {
+                    new LogLine { Stream = LogStream.Stdout, TimestampUnixMs = 1_000, Text = "ready" },
+                    new LogLine { Stream = LogStream.Stderr, Text = "panic: boom" },
+                },
+            },
+        });
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
+
+        var lines = (await logs).Lines;
+        Assert.Equal(
+            [(1_000L, false, "ready"), (0L, true, "panic: boom")],
+            lines.Select(l => (l.TimestampUnixMs, l.Stderr, l.Text)));
+
+        var tooMany = await Assert.ThrowsAsync<RpcException>(() => app.BotGateway.GetContainerLogsAsync(
+            new GetContainerLogsRequest
+            {
+                DiscordUserId = AliceDiscordId, EnvironmentId = agent.EnvironmentId.ToString(), Container = "web-app-1", TailLines = 5001,
+            },
+            BotHeaders(),
+            cancellationToken: Ct).ResponseAsync);
+        Assert.Equal(StatusCode.InvalidArgument, tooMany.StatusCode);
+    }
+
     private sealed record IdView(Guid Id);
 
     private static async Task LinkAsync(AggregatorApp app, string userName, ulong discordUserId)

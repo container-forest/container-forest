@@ -45,6 +45,10 @@ service BotGateway {
   // Starts, stops or restarts a container. Returns once the agent has done it.
   rpc ControlContainer(ControlContainerRequest) returns (ControlContainerResponse);
 
+  // The last lines of a container's log, read once like the panel's log screen; needs the ViewLogs permission.
+  // Logs can hold secrets the application printed itself: the bot shows them only to the user who asked.
+  rpc GetContainerLogs(GetContainerLogsRequest) returns (GetContainerLogsResponse);
+
   // Stacks of an environment the user may see, each with what the user may do with it.
   rpc ListStacks(ListStacksRequest) returns (ListStacksResponse);
 
@@ -163,6 +167,26 @@ enum ContainerAction {
   CONTAINER_ACTION_START = 1;
   CONTAINER_ACTION_STOP = 2;
   CONTAINER_ACTION_RESTART = 3;
+}
+
+message GetContainerLogsRequest {
+  uint64 discord_user_id = 1;
+  string environment_id = 2;
+  string container = 3;
+  // 1 to 5000; unset means the aggregator's default (200).
+  optional int32 tail_lines = 4;
+}
+
+// Oldest first.
+message GetContainerLogsResponse {
+  repeated ContainerLogLine lines = 1;
+}
+
+// timestamp_unix_ms is 0 for a line without a time.
+message ContainerLogLine {
+  int64 timestamp_unix_ms = 1;
+  bool stderr = 2;
+  string text = 3;
 }
 
 message ListStacksRequest {

@@ -32,6 +32,12 @@ public interface IForestClient
         int? timeoutSeconds,
         CancellationToken cancellationToken);
 
+    /// <summary>The last lines of the container's log, oldest first.</summary>
+    /// <param name="container">A full id, an exact name or a unique id prefix, as in the docker CLI.</param>
+    /// <param name="tailLines">How many of the last lines, 1 to 5000.</param>
+    Task<IReadOnlyList<ForestLogLine>> GetContainerLogsAsync(
+        ulong discordUserId, string environmentId, string container, int tailLines, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<ForestStack>> ListStacksAsync(ulong discordUserId, string environmentId, CancellationToken cancellationToken);
 
     /// <summary>Returns once docker compose has finished; a failed compose run is a result, not an exception.</summary>

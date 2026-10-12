@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using ContainerForest.DiscordBot.Forest;
 
 namespace ContainerForest.DiscordBot.Commands;
@@ -95,6 +96,58 @@ public sealed class RestartContainerCommand(
 
     protected override string Done => "Restarted";
 }
+
+/// <summary>The end of a container's log, for the "Logs" button under a notification: as much as fits in one message.</summary>
+/// <remarks>
+/// Logs can hold secrets the application printed itself; the aggregator lets anyone with ViewLogs read them, as in the
+/// panel, and the reply, like every reply of the bot, is seen only by the user who asked.
+/// </remarks>
+public sealed partial class ContainerLogsCommand(
+    IForestClient forest, EnvironmentResolver environments, ILogger<ContainerLogsCommand> logger)
+    : BotCommand<ContainerActionArgs, ContainerLogs>(logger)
+{
+    /// <summary>More than fit in a message as a rule; the reply keeps the last ones that do.</summary>
+    public const int TailLines = 40;
+
+    /// <summary>A longer line (Docker allows 16 KB) would leave room for no other: it keeps its start.</summary>
+    public const int MaxLineLength = 300;
+
+    public override string Name => "logs";
+
+    protected override async Task<ContainerLogs> CallForestAsync(
+        BotUser user, ContainerActionArgs args, CancellationToken cancellationToken)
+    {
+        var environment = await environments.ResolveAsync(user, args.Environment, cancellationToken);
+        var lines = await forest.GetContainerLogsAsync(user.Id, environment.Id, args.Container.Trim(), TailLines, cancellationToken);
+        return new ContainerLogs(environment, lines);
+    }
+
+    protected override BotReply Format(ContainerLogs result, ContainerActionArgs args)
+    {
+        var header = $"📜 Log of {Markdown.Code(args.Container.Trim())} in **{Markdown.Escape(result.Environment.Name)}**";
+        var lines = result.Lines.Select(l => Readable(l.Text)).Where(l => l.Trim().Length > 0).ToList();
+        return BotReply.Success(lines.Count == 0
+            ? header + ": no lines."
+            : ReplyFormatter.WithOutput(header + ":", lines));
+    }
+
+    /// <summary>The line as a code block shows it: without terminal colours and control characters, cut to <see cref="MaxLineLength"/>.</summary>
+    public static string Readable(string text)
+    {
+        var plain = ControlCharacters().Replace(AnsiEscape().Replace(text, ""), "");
+        return plain.Length <= MaxLineLength ? plain : plain[..(MaxLineLength - 1)] + "…";
+    }
+
+    // CSI sequences (colours, cursor moves) and two-character escapes such as ESC 7; a lone ESC goes with the rest below.
+    [GeneratedRegex(@"\x1B(?:\[[0-?]*[ -/]*[@-~]|[0-Z\\-~])")]
+    private static partial Regex AnsiEscape();
+
+    [GeneratedRegex(@"[\x00-\x08\x0A-\x1F\x7F]")]
+    private static partial Regex ControlCharacters();
+}
+
+/// <summary>The lines of a log and the environment they were read in, for the reply.</summary>
+public sealed record ContainerLogs(ForestEnvironment Environment, IReadOnlyList<ForestLogLine> Lines);
 
 /// <summary>/link: links the Discord account with a one-time code from the panel.</summary>
 public sealed class LinkCommand(IForestClient forest, ILogger<LinkCommand> logger) : BotCommand<string, string>(logger)

@@ -1,8 +1,10 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
+using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Environments;
 
@@ -33,7 +35,7 @@ public sealed record EnvironmentSummary(
 
 /// <summary>
 /// Environments as the current user sees them; creating, changing and removing environments, enrollment tokens and
-/// revoking agents (administrators only).
+/// revoking agents (administrators only), each recorded in the audit log.
 /// </summary>
 public sealed class EnvironmentService(
     CurrentActor currentActor,
@@ -42,77 +44,99 @@ public sealed class EnvironmentService(
     IStackRepository stacks,
     IUnitOfWork unitOfWork,
     IAgentChannel agents,
+    IAuditTrail audit,
     TimeProvider time)
 {
-    public async Task<EnvironmentCreated> CreateAsync(string name, bool isPrivate, CancellationToken cancellationToken)
+    public Task<EnvironmentCreated> CreateAsync(string name, bool isPrivate, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-
-        var now = time.GetUtcNow();
-        var environment = DockerEnvironment.Create(name, isPrivate, now);
-        if (await environments.NameExistsAsync(environment.Name, cancellationToken))
+        var draft = new AuditDraft(AuditAction.EnvironmentCreated, new EnvironmentAuditTarget(null, name.Trim())) { Details = isPrivate ? "Private" : "Public" };
+        return audit.RunAsync(draft, async () =>
         {
-            throw new DomainConflictException($"Environment '{environment.Name}' already exists.");
-        }
+            await currentActor.GetAdministratorAsync(cancellationToken);
 
-        var token = IssueToken(environment, now);
-        environments.Add(environment);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return new EnvironmentCreated(environment.Id, environment.Name, token);
+            var now = time.GetUtcNow();
+            var environment = DockerEnvironment.Create(name, isPrivate, now);
+            draft.Target = new EnvironmentAuditTarget(environment.Id, environment.Name);
+            if (await environments.NameExistsAsync(environment.Name, cancellationToken))
+            {
+                throw new DomainConflictException($"Environment '{environment.Name}' already exists.");
+            }
+
+            var token = IssueToken(environment, now);
+            environments.Add(environment);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return new EnvironmentCreated(environment.Id, environment.Name, token);
+        }, cancellationToken);
     }
 
     /// <summary>Issues a new enrollment token, e.g. to reinstall the agent. The previous token stops working.</summary>
-    public async Task<EnrollmentToken> IssueEnrollmentTokenAsync(EnvironmentId id, CancellationToken cancellationToken)
+    public Task<EnrollmentToken> IssueEnrollmentTokenAsync(EnvironmentId id, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
+        var draft = new AuditDraft(AuditAction.EnrollmentTokenIssued, new EnvironmentAuditTarget(id, id.ToString()));
+        return audit.RunAsync(draft, async () =>
+        {
+            await currentActor.GetAdministratorAsync(cancellationToken);
 
-        var environment = await environments.GetAsync(id, cancellationToken);
-        var token = IssueToken(environment, time.GetUtcNow());
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return token;
+            var environment = await environments.GetAsync(id, cancellationToken);
+            draft.Target = new EnvironmentAuditTarget(environment.Id, environment.Name);
+            var token = IssueToken(environment, time.GetUtcNow());
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return token;
+        }, cancellationToken);
     }
 
     /// <summary>Renames the environment and makes it private or public.</summary>
-    public async Task<EnvironmentSummary> UpdateAsync(EnvironmentId id, string name, bool isPrivate, CancellationToken cancellationToken)
+    public Task<EnvironmentSummary> UpdateAsync(EnvironmentId id, string name, bool isPrivate, CancellationToken cancellationToken)
     {
-        var admin = await currentActor.GetAdministratorAsync(cancellationToken);
-        var environment = await environments.FindAsync(id, cancellationToken) ?? throw new NotFoundException("Environment", id);
-
-        // Compared with the others after normalizing the name, so the environment does not clash with itself.
-        var all = await environments.ListAsync(cancellationToken);
-        environment.Rename(name);
-        if (all.Any(e => e.Id != environment.Id && string.Equals(e.Name, environment.Name, StringComparison.OrdinalIgnoreCase)))
+        var draft = new AuditDraft(AuditAction.EnvironmentUpdated, new EnvironmentAuditTarget(id, id.ToString()));
+        return audit.RunAsync(draft, async () =>
         {
-            throw new DomainConflictException($"Environment '{environment.Name}' already exists.");
-        }
+            var admin = await currentActor.GetAdministratorAsync(cancellationToken);
+            var environment = await environments.FindAsync(id, cancellationToken) ?? throw new NotFoundException("Environment", id);
+            draft.Target = new EnvironmentAuditTarget(environment.Id, environment.Name);
+            draft.Details = $"Name: {name.Trim()}, {(isPrivate ? "private" : "public")}";
 
-        if (isPrivate)
-        {
-            environment.MakePrivate();
-        }
-        else
-        {
-            environment.MakePublic();
-        }
+            // Compared with the others after normalizing the name, so the environment does not clash with itself.
+            var all = await environments.ListAsync(cancellationToken);
+            environment.Rename(name);
+            if (all.Any(e => e.Id != environment.Id && string.Equals(e.Name, environment.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new DomainConflictException($"Environment '{environment.Name}' already exists.");
+            }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return Summarize(admin, environment, await roleAssignments.ListForUserAsync(admin.Id, cancellationToken));
+            if (isPrivate)
+            {
+                environment.MakePrivate();
+            }
+            else
+            {
+                environment.MakePublic();
+            }
+
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Summarize(admin, environment, await roleAssignments.ListForUserAsync(admin.Id, cancellationToken));
+        }, cancellationToken);
     }
 
     /// <summary>
     /// Forgets the agent's credentials and drops its connection: for a lost or compromised host. The agent cannot
     /// connect again until it is enrolled with a new token; containers on the host keep running.
     /// </summary>
-    public async Task RevokeAgentAsync(EnvironmentId id, CancellationToken cancellationToken)
+    public Task RevokeAgentAsync(EnvironmentId id, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-        var environment = await environments.FindAsync(id, cancellationToken) ?? throw new NotFoundException("Environment", id);
+        var draft = new AuditDraft(AuditAction.AgentRevoked, new EnvironmentAuditTarget(id, id.ToString()));
+        return audit.RunAsync(draft, async () =>
+        {
+            await currentActor.GetAdministratorAsync(cancellationToken);
+            var environment = await environments.FindAsync(id, cancellationToken) ?? throw new NotFoundException("Environment", id);
+            draft.Target = new EnvironmentAuditTarget(environment.Id, environment.Name);
 
-        environment.RevokeAgent();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            environment.RevokeAgent();
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // After saving: a reconnect that slips in between is refused, since the secret is already gone.
-        agents.Disconnect(environment.Id, "agent credentials revoked");
+            // After saving: a reconnect that slips in between is refused, since the secret is already gone.
+            agents.Disconnect(environment.Id, "agent credentials revoked");
+        }, cancellationToken);
     }
 
     /// <summary>
@@ -124,23 +148,28 @@ public sealed class EnvironmentService(
     /// </summary>
     /// <exception cref="NotFoundException">The environment does not exist.</exception>
     /// <exception cref="DomainConflictException">It still has stacks.</exception>
-    public async Task RemoveAsync(EnvironmentId id, CancellationToken cancellationToken)
+    public Task RemoveAsync(EnvironmentId id, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-        var environment = await environments.FindAsync(id, cancellationToken) ?? throw new NotFoundException("Environment", id);
-
-        var stackCount = (await stacks.ListByEnvironmentAsync(environment.Id, cancellationToken)).Count;
-        if (stackCount > 0)
+        var draft = new AuditDraft(AuditAction.EnvironmentRemoved, new EnvironmentAuditTarget(id, id.ToString()));
+        return audit.RunAsync(draft, async () =>
         {
-            throw new DomainConflictException(
-                $"Environment '{environment.Name}' has {stackCount} stack(s); take them down and remove them first.");
-        }
+            await currentActor.GetAdministratorAsync(cancellationToken);
+            var environment = await environments.FindAsync(id, cancellationToken) ?? throw new NotFoundException("Environment", id);
+            draft.Target = new EnvironmentAuditTarget(environment.Id, environment.Name);
 
-        environments.Remove(environment);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            var stackCount = (await stacks.ListByEnvironmentAsync(environment.Id, cancellationToken)).Count;
+            if (stackCount > 0)
+            {
+                throw new DomainConflictException(
+                    $"Environment '{environment.Name}' has {stackCount} stack(s); take them down and remove them first.");
+            }
 
-        // After saving, as for a revoked agent: a reconnect that slips in between finds no environment.
-        agents.Disconnect(environment.Id, "environment removed");
+            environments.Remove(environment);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            // After saving, as for a revoked agent: a reconnect that slips in between finds no environment.
+            agents.Disconnect(environment.Id, "environment removed");
+        }, cancellationToken);
     }
 
     /// <summary>Environments the current user may see, in name order.</summary>

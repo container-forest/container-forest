@@ -3,6 +3,7 @@ using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
@@ -14,6 +15,7 @@ namespace ContainerForest.Aggregator.Application.Tests.Stacks;
 public class StackCommandServiceTests
 {
     private readonly InMemoryUsers users = new();
+    private readonly FakeAuditTrail audit = new();
     private readonly InMemoryEnvironments environments = new();
     private readonly InMemoryStacks stacks = new();
     private readonly InMemoryRoleAssignments roleAssignments = new();
@@ -30,7 +32,7 @@ public class StackCommandServiceTests
     public StackCommandServiceTests()
     {
         service = new StackCommandService(
-            new CurrentActor(currentUser, users), environments, stacks, roleAssignments, deployments, unitOfWork, agent);
+            new CurrentActor(currentUser, users), environments, stacks, roleAssignments, deployments, unitOfWork, agent, audit);
         users.Add(alice);
         currentUser.Id = alice.Id;
         environments.Add(environment);
@@ -282,5 +284,19 @@ public class StackCommandServiceTests
             Now);
         stacks.Add(created);
         return created;
+    }
+
+    [Fact]
+    public async Task A_failed_compose_run_is_recorded_as_failed()
+    {
+        Grant(Role.Editor);
+        agent.DeployError = new AgentCommandFailedException(environment.Id, AgentErrorKind.CommandFailed, "docker compose down exited with code 1.");
+
+        await service.ExecuteAsync(stack.Id, StackAction.Down, null, Ct);
+
+        var entry = Assert.Single(audit.Entries);
+        Assert.Equal(
+            (AuditAction.StackTakenDown, AuditOutcome.Failed, "web", "docker compose down exited with code 1."),
+            (entry.Action, entry.Outcome, entry.Target?.Name, entry.Details));
     }
 }

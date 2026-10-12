@@ -1,6 +1,8 @@
 using ContainerForest.Aggregator.Application.Access;
+using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Environments;
 using ContainerForest.Aggregator.Domain.Stacks;
@@ -26,6 +28,7 @@ public sealed partial class SopsSecretsService(
     ISopsDecryptor decryptor,
     ISopsEncryptor encryptor,
     ISopsConfigReader configs,
+    IAuditTrail audit,
     ILogger<SopsSecretsService> logger)
 {
     /// <summary>Larger than any reasonable secrets file, small enough to keep in memory per request.</summary>
@@ -37,39 +40,43 @@ public sealed partial class SopsSecretsService(
     /// <exception cref="AccessDeniedException">The token may not decrypt secrets, or no recipient of the file is a key of an environment where the caller is an Editor.</exception>
     /// <exception cref="DomainValidationException">The content is not a SOPS file or is too large.</exception>
     /// <exception cref="SopsDecryptionException">No key of this aggregator is a recipient, or sops failed.</exception>
-    public async Task<byte[]> DecryptAsync(StackFilePath path, byte[] content, CancellationToken cancellationToken)
+    public Task<byte[]> DecryptAsync(StackFilePath path, byte[] content, CancellationToken cancellationToken)
     {
-        var actor = await currentActor.GetAsync(cancellationToken);
-        if (!actor.Scope.CanDecryptSecrets)
+        var draft = new AuditDraft(AuditAction.SecretsDecrypted, new FileAuditTarget(path.Value));
+        return audit.RunAsync(draft, async () =>
         {
-            throw new AccessDeniedException(
-                "This API token may not decrypt secrets. Create one with the right to decrypt secrets " +
-                "(forest login --secrets) or use the panel.");
-        }
+            var actor = await currentActor.GetAsync(cancellationToken);
+            if (!actor.Scope.CanDecryptSecrets)
+            {
+                throw new AccessDeniedException(
+                    "This API token may not decrypt secrets. Create one with the right to decrypt secrets " +
+                    "(forest login --secrets) or use the panel.");
+            }
 
-        EnsureSize(content);
-        if (!SopsFile.IsEncrypted(path, content))
-        {
-            throw new DomainValidationException($"'{path}' is not a SOPS-encrypted file.");
-        }
+            EnsureSize(content);
+            if (!SopsFile.IsEncrypted(path, content))
+            {
+                throw new DomainValidationException($"'{path}' is not a SOPS-encrypted file.");
+            }
 
-        var recipientKeys = await keys.FindByRecipientsAsync(SopsFile.AgeRecipients(content).ToList(), cancellationToken);
-        if (recipientKeys.Count == 0)
-        {
-            throw new SopsDecryptionException(
-                "no environment's age key is a recipient of the file; only its own recipients can decrypt it.");
-        }
+            var recipientKeys = await keys.FindByRecipientsAsync(SopsFile.AgeRecipients(content).ToList(), cancellationToken);
+            if (recipientKeys.Count == 0)
+            {
+                throw new SopsDecryptionException(
+                    "no environment's age key is a recipient of the file; only its own recipients can decrypt it.");
+            }
 
-        var usable = actor.IsAdmin ? recipientKeys : await EditableAsync(actor, recipientKeys, cancellationToken);
-        if (usable.Count == 0)
-        {
-            throw new AccessDeniedException(
-                "The file is encrypted for environments where you are not an Editor; only Editors decrypt their secrets.");
-        }
+            var usable = actor.IsAdmin ? recipientKeys : await EditableAsync(actor, recipientKeys, cancellationToken);
+            if (usable.Count == 0)
+            {
+                throw new AccessDeniedException(
+                    "The file is encrypted for environments where you are not an Editor; only Editors decrypt their secrets.");
+            }
 
-        var plain = await decryptor.DecryptAsync(path, content, usable.Select(Unprotect).ToList(), cancellationToken);
-        LogDecrypted(actor.UserName, path.Value, currentActor.ApiTokenId?.ToString() ?? "session");
-        return plain;
+            var plain = await decryptor.DecryptAsync(path, content, usable.Select(Unprotect).ToList(), cancellationToken);
+            LogDecrypted(actor.UserName, path.Value, currentActor.ApiTokenId?.ToString() ?? "session");
+            return plain;
+        }, cancellationToken);
     }
 
     /// <param name="config">The repository's <c>.sops.yaml</c>: the first rule matching <paramref name="path"/> applies.</param>
@@ -129,7 +136,7 @@ public sealed partial class SopsSecretsService(
         }
     }
 
-    // There is no audit log yet; until then the aggregator's log records who decrypted which file, never the content.
+    // Also in the audit log; the aggregator's log keeps it for whoever reads the logs. Never the content.
     [LoggerMessage(Level = LogLevel.Information, Message = "{User} decrypted {Path} with {Credentials}")]
     private partial void LogDecrypted(string user, string path, string credentials);
 }

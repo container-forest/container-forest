@@ -130,7 +130,7 @@ public class DiscordLinkServiceTests
     private DiscordLinkService ServiceFor(User? user)
     {
         currentUser.Id = user?.Id;
-        return new DiscordLinkService(new CurrentActor(currentUser, users), links, users, new FakeUnitOfWork(), time);
+        return new DiscordLinkService(new CurrentActor(currentUser, users), links, users, new FakeUnitOfWork(), new FakeAuditTrail(), time);
     }
 
     private sealed class MovableTime(DateTimeOffset now) : TimeProvider

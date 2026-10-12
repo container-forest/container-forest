@@ -18,6 +18,7 @@ dotnet kiota generate \
   --exclude-path "/api/webhooks/**" \
   --exclude-path "/api/deploy-hooks/**" \
   --exclude-path "/api/auth/**" \
+  --exclude-path "/api/audit" \
   --exclude-path "/api/me/discord" \
   --exclude-path "/api/me/passkeys" \
   --exclude-path "/api/me/passkeys/**" \

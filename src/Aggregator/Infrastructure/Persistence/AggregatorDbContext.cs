@@ -1,6 +1,7 @@
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Live;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
@@ -68,6 +69,8 @@ public sealed class AggregatorDbContext : IdentityUserContext<AccountUser, Guid>
 
     public DbSet<AgeKey> AgeKeys => Set<AgeKey>();
 
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         var changes = LiveChanges.Collect(ChangeTracker);
@@ -102,6 +105,7 @@ public sealed class AggregatorDbContext : IdentityUserContext<AccountUser, Guid>
         configurationBuilder.AddStronglyTypedId<AgeKeyId>();
         configurationBuilder.AddStronglyTypedId<ApiTokenId>();
         configurationBuilder.AddStronglyTypedId<CliAuthorizationId>();
+        configurationBuilder.AddStronglyTypedId<AuditEntryId>();
 
         // SQLite has no DateTimeOffset type: stored as text it cannot be compared or ordered in queries.
         configurationBuilder.Properties<DateTimeOffset>().HaveConversion<DateTimeOffsetToBinaryConverter>();

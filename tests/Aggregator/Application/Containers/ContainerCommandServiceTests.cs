@@ -3,6 +3,7 @@ using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Environments;
 using ContainerForest.Aggregator.Domain.Stacks;
@@ -14,6 +15,7 @@ public class ContainerCommandServiceTests
     private static readonly DateTimeOffset Now = new(2026, 9, 30, 12, 0, 0, TimeSpan.Zero);
 
     private readonly InMemoryUsers users = new();
+    private readonly FakeAuditTrail audit = new();
     private readonly InMemoryEnvironments environments = new();
     private readonly InMemoryStacks stacks = new();
     private readonly InMemoryRoleAssignments roleAssignments = new();
@@ -27,7 +29,7 @@ public class ContainerCommandServiceTests
     public ContainerCommandServiceTests()
     {
         service = new ContainerCommandService(
-            new CurrentActor(currentUser, users), environments, stacks, roleAssignments, agent);
+            new CurrentActor(currentUser, users), environments, stacks, roleAssignments, agent, audit);
         users.Add(alice);
         currentUser.Id = alice.Id;
         environments.Add(environment);
@@ -247,4 +249,17 @@ public class ContainerCommandServiceTests
 
     private void AddContainer(string id, string name, ContainerState state, string? stack = null, bool isSystem = false) =>
         agent.Containers.Add(new ContainerSnapshot(id, name, state, "nginx:1.27", stack, stack is null ? null : "app", "", null, isSystem));
+
+    [Fact]
+    public async Task Attempts_are_recorded_with_the_container_done_or_denied()
+    {
+        Grant(Role.Viewer);
+        AddContainer("c1", "web-app-1", ContainerState.Running);
+
+        await Assert.ThrowsAsync<AccessDeniedException>(() => Run(ContainerAction.Stop, "c1"));
+
+        var entry = Assert.Single(audit.Entries);
+        Assert.Equal((AuditAction.ContainerStopped, AuditOutcome.Denied, "web-app-1"), (entry.Action, entry.Outcome, entry.Target?.Name));
+        Assert.Equal(environment.Id, entry.Target?.EnvironmentId);
+    }
 }

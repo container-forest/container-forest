@@ -25,9 +25,9 @@ internal static class AuthEndpoints
             .WithName("Login")
             .ProducesProblem(StatusCodes.Status401Unauthorized);
 
-        group.MapPost("/logout", async (PasswordSignIn signIn) =>
+        group.MapPost("/logout", async (PasswordSignIn signIn, CancellationToken ct) =>
             {
-                await signIn.SignOutAsync();
+                await signIn.SignOutAsync(ct);
                 return TypedResults.NoContent();
             })
             .WithName("Logout");

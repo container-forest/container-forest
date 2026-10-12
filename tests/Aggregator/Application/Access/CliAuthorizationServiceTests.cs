@@ -135,7 +135,7 @@ public class CliAuthorizationServiceTests
     private CliAuthorizationService Service()
     {
         var actor = new CurrentActor(currentUser, users);
-        var apiTokens = new ApiTokenService(actor, tokens, users, roleAssignments, environments, unitOfWork, time);
+        var apiTokens = new ApiTokenService(actor, tokens, users, roleAssignments, environments, unitOfWork, new FakeAuditTrail(), time);
         return new CliAuthorizationService(actor, authorizations, tokens, users, apiTokens, unitOfWork, time);
     }
 

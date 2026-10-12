@@ -1,5 +1,5 @@
 {
-  "descriptionHash": "04923D2878B6D9669C748775035965C6D59B0B69EB06894FA880C112CF4D00E6EEF0D5E2AD7AFA720E3AC04FD11D918799012BE525AE39715975801F3659AB65",
+  "descriptionHash": "2E43B9886AABE078801AD5F268AF08B63CA8E74BB682C45047B454EC010DD5FFC4B9DB059420F408963953CADEA57E681663B20338112EEE06FE62DFE0EE587B",
   "descriptionLocation": "../../../Aggregator/Api/openapi/ContainerForest.Aggregator.Api.json",
   "lockFileVersion": "1.0.0",
   "kiotaVersion": "1.35.0",
@@ -33,6 +33,7 @@
     "/api/webhooks/**",
     "/api/deploy-hooks/**",
     "/api/auth/**",
+    "/api/audit",
     "/api/me/discord",
     "/api/me/passkeys",
     "/api/me/passkeys/**",

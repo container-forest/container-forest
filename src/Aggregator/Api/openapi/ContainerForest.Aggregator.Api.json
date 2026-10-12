@@ -45,6 +45,134 @@
         }
       }
     },
+    "/api/audit": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "operationId": "ListAuditEntries",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AuditCategory"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AuditAction"
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AuditOutcome"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "environmentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditPageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/webhooks/{repositoryId}": {
       "post": {
         "tags": [
@@ -6702,6 +6830,229 @@
           }
         }
       },
+      "AuditAction": {
+        "enum": [
+          "SignedIn",
+          "SignInFailed",
+          "SignedOut",
+          "PasswordChanged",
+          "DiscordLinked",
+          "DiscordUnlinked",
+          "UserCreated",
+          "UserRenamed",
+          "UserDeactivated",
+          "UserActivated",
+          "AdminGranted",
+          "AdminRevoked",
+          "PasswordReset",
+          "UserUnlocked",
+          "RoleGranted",
+          "RoleChanged",
+          "RoleRevoked",
+          "ApiTokenCreated",
+          "ApiTokenRevoked",
+          "EnvironmentCreated",
+          "EnvironmentUpdated",
+          "EnvironmentRemoved",
+          "EnrollmentTokenIssued",
+          "AgentRevoked",
+          "StackCreated",
+          "StackRemoved",
+          "StackSourceChanged",
+          "DeployHookCreated",
+          "DeployHookRemoved",
+          "StackRestarted",
+          "StackTakenDown",
+          "DeploymentQueued",
+          "ContainerStarted",
+          "ContainerStopped",
+          "ContainerRestarted",
+          "SecretsDecrypted"
+        ]
+      },
+      "AuditCategory": {
+        "enum": [
+          "Account",
+          "Users",
+          "Tokens",
+          "Environments",
+          "Stacks",
+          "Deployments",
+          "Containers",
+          "Secrets"
+        ]
+      },
+      "AuditChannel": {
+        "enum": [
+          "Panel",
+          "ApiToken",
+          "Bot",
+          "Anonymous"
+        ]
+      },
+      "AuditEntryResponse": {
+        "required": [
+          "id",
+          "occurredAt",
+          "action",
+          "category",
+          "outcome",
+          "actorId",
+          "actorName",
+          "channel",
+          "address",
+          "targetKind",
+          "targetId",
+          "targetName",
+          "environmentId",
+          "stackId",
+          "details"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "action": {
+            "$ref": "#/components/schemas/AuditAction"
+          },
+          "category": {
+            "$ref": "#/components/schemas/AuditCategory"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/AuditOutcome"
+          },
+          "actorId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "actorName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "channel": {
+            "$ref": "#/components/schemas/AuditChannel"
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "targetKind": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AuditTargetKind"
+              }
+            ]
+          },
+          "targetId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "targetName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "environmentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "stackId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "details": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AuditOutcome": {
+        "enum": [
+          "Succeeded",
+          "Denied",
+          "Failed"
+        ]
+      },
+      "AuditPageResponse": {
+        "required": [
+          "entries",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditEntryResponse"
+            }
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "AuditTargetKind": {
+        "enum": [
+          "User",
+          "RoleAssignment",
+          "ApiToken",
+          "Environment",
+          "Stack",
+          "Container",
+          "File",
+          null
+        ]
+      },
       "ChangePasswordRequest": {
         "required": [
           "currentPassword",
@@ -8729,6 +9080,9 @@
   "tags": [
     {
       "name": "Account"
+    },
+    {
+      "name": "Audit"
     },
     {
       "name": "Webhooks"

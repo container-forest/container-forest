@@ -20,6 +20,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListAuditEntries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/webhooks/{repositoryId}": {
         parameters: {
             query?: never;
@@ -1228,6 +1244,47 @@ export interface components {
             /** @default false */
             secrets: boolean;
         };
+        /** @enum {unknown} */
+        AuditAction: "SignedIn" | "SignInFailed" | "SignedOut" | "PasswordChanged" | "DiscordLinked" | "DiscordUnlinked" | "UserCreated" | "UserRenamed" | "UserDeactivated" | "UserActivated" | "AdminGranted" | "AdminRevoked" | "PasswordReset" | "UserUnlocked" | "RoleGranted" | "RoleChanged" | "RoleRevoked" | "ApiTokenCreated" | "ApiTokenRevoked" | "EnvironmentCreated" | "EnvironmentUpdated" | "EnvironmentRemoved" | "EnrollmentTokenIssued" | "AgentRevoked" | "StackCreated" | "StackRemoved" | "StackSourceChanged" | "DeployHookCreated" | "DeployHookRemoved" | "StackRestarted" | "StackTakenDown" | "DeploymentQueued" | "ContainerStarted" | "ContainerStopped" | "ContainerRestarted" | "SecretsDecrypted";
+        /** @enum {unknown} */
+        AuditCategory: "Account" | "Users" | "Tokens" | "Environments" | "Stacks" | "Deployments" | "Containers" | "Secrets";
+        /** @enum {unknown} */
+        AuditChannel: "Panel" | "ApiToken" | "Bot" | "Anonymous";
+        AuditEntryResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            occurredAt: string;
+            action: components["schemas"]["AuditAction"];
+            category: components["schemas"]["AuditCategory"];
+            outcome: components["schemas"]["AuditOutcome"];
+            /** Format: uuid */
+            actorId: null | string;
+            actorName: null | string;
+            channel: components["schemas"]["AuditChannel"];
+            address: null | string;
+            targetKind: null | components["schemas"]["AuditTargetKind"];
+            targetId: null | string;
+            targetName: null | string;
+            /** Format: uuid */
+            environmentId: null | string;
+            /** Format: uuid */
+            stackId: null | string;
+            details: null | string;
+        };
+        /** @enum {unknown} */
+        AuditOutcome: "Succeeded" | "Denied" | "Failed";
+        AuditPageResponse: {
+            entries: components["schemas"]["AuditEntryResponse"][];
+            /** Format: int32 */
+            total: number | string;
+            /** Format: int32 */
+            page: number | string;
+            /** Format: int32 */
+            pageSize: number | string;
+        };
+        /** @enum {unknown} */
+        AuditTargetKind: "User" | "RoleAssignment" | "ApiToken" | "Environment" | "Stack" | "Container" | "File" | null;
         ChangePasswordRequest: {
             currentPassword: string;
             newPassword: string;
@@ -1777,6 +1834,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListAuditEntries: {
+        parameters: {
+            query?: {
+                category?: components["schemas"]["AuditCategory"];
+                action?: components["schemas"]["AuditAction"];
+                outcome?: components["schemas"]["AuditOutcome"];
+                userId?: string;
+                environmentId?: string;
+                search?: string;
+                from?: string;
+                to?: string;
+                page?: number | string;
+                pageSize?: number | string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditPageResponse"];
                 };
             };
             /** @description Unauthorized */

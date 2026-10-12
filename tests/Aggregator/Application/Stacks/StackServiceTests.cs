@@ -37,7 +37,7 @@ public class StackServiceTests
     {
         var actor = new CurrentActor(currentUser, users);
         service = new StackService(
-            actor, environments, stacks, repositories, connections, roleAssignments, deployments, unitOfWork, new FixedTime(Now));
+            actor, environments, stacks, repositories, connections, roleAssignments, deployments, unitOfWork, new FakeAuditTrail(), new FixedTime(Now));
         repositoryService = new RepositoryService(
             new RepositoryAccess(actor, roleAssignments, stacks, environments),
             repositories,

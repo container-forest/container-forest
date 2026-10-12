@@ -19,6 +19,7 @@ export { default as ChevronsUpDownIcon } from "~icons/material-symbols/unfold-mo
 export { default as CircleIcon } from "~icons/material-symbols/circle";
 export { default as CopyIcon } from "~icons/material-symbols/content-copy-rounded";
 export { default as DownloadIcon } from "~icons/material-symbols/download-rounded";
+export { default as FileSearchIcon } from "~icons/material-symbols/manage-search-rounded";
 export { default as FilterXIcon } from "~icons/material-symbols/filter-alt-off-rounded";
 export { default as FolderGitIcon } from "~icons/material-symbols/folder-code-rounded";
 export { default as KeyIcon } from "~icons/material-symbols/key-rounded";

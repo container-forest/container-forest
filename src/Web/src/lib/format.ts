@@ -7,3 +7,8 @@ export function formatDateTime(value: string, language: string | undefined): str
 export function formatDate(value: string, language: string | undefined): string {
   return new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(value));
 }
+
+/** A date and time to the second, for logs where the order of close events matters. */
+export function formatTimestamp(value: string, language: string | undefined): string {
+  return new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "medium" }).format(new Date(value));
+}

@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+import type { AuditQuery } from "@/features/audit/model";
 import { type LogLine, MAX_LINES, mergeLines, nextSince, shouldRetryLoad } from "@/features/container-logs/model";
 import { api, unwrap } from "./client";
 
@@ -133,6 +134,13 @@ export const userQuery = (id: string) =>
   queryOptions({
     queryKey: ["users", id],
     queryFn: async ({ signal }) => unwrap(await api.GET("/api/users/{id}", { params: { path: { id } }, signal })),
+  });
+
+/** One page of the audit log for the filters, newest first. Administrators only. */
+export const auditQuery = (query: AuditQuery) =>
+  queryOptions({
+    queryKey: ["audit", query],
+    queryFn: async ({ signal }) => unwrap(await api.GET("/api/audit", { params: { query }, signal })),
   });
 
 /** Git repositories stacks are deployed from, by name. Administrators and editors only. */

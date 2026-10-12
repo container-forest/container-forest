@@ -1,9 +1,11 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
+using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
@@ -21,6 +23,7 @@ public sealed class DeploymentService(
     IUnitOfWork unitOfWork,
     IDeploymentQueue queue,
     IAgentChannel agents,
+    IAuditTrail audit,
     TimeProvider time)
 {
     public const int HistoryLimit = 50;
@@ -32,6 +35,22 @@ public sealed class DeploymentService(
     public async Task<Deployment> QueueAsync(StackId stackId, ImagePullPolicy pullPolicy, CancellationToken cancellationToken)
     {
         var (actor, stack, environment, assignments) = await LoadVisibleStackAsync(stackId, cancellationToken);
+        var draft = new AuditDraft(AuditAction.DeploymentQueued, new StackAuditTarget(stack.Id, stack.Name.Value, environment.Id))
+        {
+            Details = pullPolicy == ImagePullPolicy.Always ? "Redeploy with pull" : "Redeploy",
+        };
+        return await audit.RunAsync(
+            draft, () => QueueVisibleAsync(actor, stack, environment, assignments, pullPolicy, cancellationToken), cancellationToken);
+    }
+
+    private async Task<Deployment> QueueVisibleAsync(
+        Actor actor,
+        Stack stack,
+        DockerEnvironment environment,
+        IReadOnlyList<RoleAssignment> assignments,
+        ImagePullPolicy pullPolicy,
+        CancellationToken cancellationToken)
+    {
 
         var operation = pullPolicy == ImagePullPolicy.Always ? StackOperation.RedeployWithPull : StackOperation.Redeploy;
         if (!AccessPolicy.CanPerform(actor, environment, stack, assignments, operation))

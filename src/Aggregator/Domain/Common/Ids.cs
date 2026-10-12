@@ -109,3 +109,10 @@ public readonly record struct CliAuthorizationId(Guid Value) : IStronglyTypedId<
     public static CliAuthorizationId From(Guid value) => new(value);
     public override string ToString() => Value.ToString();
 }
+
+public readonly record struct AuditEntryId(Guid Value) : IStronglyTypedId<AuditEntryId>
+{
+    public static AuditEntryId New() => new(Guid.CreateVersion7());
+    public static AuditEntryId From(Guid value) => new(value);
+    public override string ToString() => Value.ToString();
+}

@@ -1,0 +1,103 @@
+namespace ContainerForest.Aggregator.Domain.Audit;
+
+/// <summary>What was done. Stored by name, so new actions can be added anywhere in the list.</summary>
+public enum AuditAction
+{
+    // Account: the user's own sign-in and credentials.
+    SignedIn,
+    SignInFailed,
+    SignedOut,
+    PasswordChanged,
+    DiscordLinked,
+    DiscordUnlinked,
+
+    // Users: an administrator's changes to other users.
+    UserCreated,
+    UserRenamed,
+    UserDeactivated,
+    UserActivated,
+    AdminGranted,
+    AdminRevoked,
+    PasswordReset,
+    UserUnlocked,
+    RoleGranted,
+    RoleChanged,
+    RoleRevoked,
+
+    // Tokens.
+    ApiTokenCreated,
+    ApiTokenRevoked,
+
+    // Environments.
+    EnvironmentCreated,
+    EnvironmentUpdated,
+    EnvironmentRemoved,
+    EnrollmentTokenIssued,
+    AgentRevoked,
+
+    // Stacks.
+    StackCreated,
+    StackRemoved,
+    StackSourceChanged,
+    DeployHookCreated,
+    DeployHookRemoved,
+    StackRestarted,
+    StackTakenDown,
+
+    // Deployments.
+    DeploymentQueued,
+
+    // Containers.
+    ContainerStarted,
+    ContainerStopped,
+    ContainerRestarted,
+
+    // Secrets.
+    SecretsDecrypted,
+}
+
+/// <summary>Groups of actions, for filtering the log.</summary>
+public enum AuditCategory
+{
+    Account,
+    Users,
+    Tokens,
+    Environments,
+    Stacks,
+    Deployments,
+    Containers,
+    Secrets,
+}
+
+/// <summary>How the attempt ended.</summary>
+public enum AuditOutcome
+{
+    Succeeded,
+
+    /// <summary>The actor lacked the permission; nothing changed.</summary>
+    Denied,
+
+    /// <summary>Allowed, but did not go through: invalid input, a conflict, an offline agent, a failed compose run.</summary>
+    Failed,
+}
+
+public static class AuditActions
+{
+    public static AuditCategory CategoryOf(AuditAction action) => action switch
+    {
+        AuditAction.SignedIn or AuditAction.SignInFailed or AuditAction.SignedOut or AuditAction.PasswordChanged
+            or AuditAction.DiscordLinked or AuditAction.DiscordUnlinked => AuditCategory.Account,
+        AuditAction.UserCreated or AuditAction.UserRenamed or AuditAction.UserDeactivated or AuditAction.UserActivated
+            or AuditAction.AdminGranted or AuditAction.AdminRevoked or AuditAction.PasswordReset or AuditAction.UserUnlocked
+            or AuditAction.RoleGranted or AuditAction.RoleChanged or AuditAction.RoleRevoked => AuditCategory.Users,
+        AuditAction.ApiTokenCreated or AuditAction.ApiTokenRevoked => AuditCategory.Tokens,
+        AuditAction.EnvironmentCreated or AuditAction.EnvironmentUpdated or AuditAction.EnvironmentRemoved
+            or AuditAction.EnrollmentTokenIssued or AuditAction.AgentRevoked => AuditCategory.Environments,
+        AuditAction.StackCreated or AuditAction.StackRemoved or AuditAction.StackSourceChanged or AuditAction.DeployHookCreated
+            or AuditAction.DeployHookRemoved or AuditAction.StackRestarted or AuditAction.StackTakenDown => AuditCategory.Stacks,
+        AuditAction.DeploymentQueued => AuditCategory.Deployments,
+        AuditAction.ContainerStarted or AuditAction.ContainerStopped or AuditAction.ContainerRestarted => AuditCategory.Containers,
+        AuditAction.SecretsDecrypted => AuditCategory.Secrets,
+        _ => throw new ArgumentOutOfRangeException(nameof(action), action, "Unknown audit action."),
+    };
+}

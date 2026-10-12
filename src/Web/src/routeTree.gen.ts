@@ -13,6 +13,7 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAccountRouteImport } from './routes/_authed/account'
+import { Route as AuthedAuditRouteImport } from './routes/_authed/audit'
 import { Route as AuthedContainersRouteImport } from './routes/_authed/containers'
 import { Route as AuthedDiscordRouteImport } from './routes/_authed/discord'
 import { Route as AuthedGitConnectionsRouteImport } from './routes/_authed/git-connections'
@@ -53,6 +54,11 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
 const AuthedAccountRoute = AuthedAccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedAuditRoute = AuthedAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedContainersRoute = AuthedContainersRouteImport.update({
@@ -181,6 +187,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/notifications': typeof AuthedNotificationsRouteRouteWithChildren
   '/account': typeof AuthedAccountRoute
+  '/audit': typeof AuthedAuditRoute
   '/containers': typeof AuthedContainersRoute
   '/discord': typeof AuthedDiscordRoute
   '/git-connections': typeof AuthedGitConnectionsRoute
@@ -206,6 +213,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/account': typeof AuthedAccountRoute
+  '/audit': typeof AuthedAuditRoute
   '/containers': typeof AuthedContainersRoute
   '/discord': typeof AuthedDiscordRoute
   '/git-connections': typeof AuthedGitConnectionsRoute
@@ -235,6 +243,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_authed/notifications': typeof AuthedNotificationsRouteRouteWithChildren
   '/_authed/account': typeof AuthedAccountRoute
+  '/_authed/audit': typeof AuthedAuditRoute
   '/_authed/containers': typeof AuthedContainersRoute
   '/_authed/discord': typeof AuthedDiscordRoute
   '/_authed/git-connections': typeof AuthedGitConnectionsRoute
@@ -265,6 +274,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/notifications'
     | '/account'
+    | '/audit'
     | '/containers'
     | '/discord'
     | '/git-connections'
@@ -290,6 +300,7 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/account'
+    | '/audit'
     | '/containers'
     | '/discord'
     | '/git-connections'
@@ -318,6 +329,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/_authed/notifications'
     | '/_authed/account'
+    | '/_authed/audit'
     | '/_authed/containers'
     | '/_authed/discord'
     | '/_authed/git-connections'
@@ -375,6 +387,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AuthedAccountRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/audit': {
+      id: '/_authed/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AuthedAuditRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/containers': {
@@ -559,6 +578,7 @@ const AuthedNotificationsRouteRouteWithChildren =
 interface AuthedRouteChildren {
   AuthedNotificationsRouteRoute: typeof AuthedNotificationsRouteRouteWithChildren
   AuthedAccountRoute: typeof AuthedAccountRoute
+  AuthedAuditRoute: typeof AuthedAuditRoute
   AuthedContainersRoute: typeof AuthedContainersRoute
   AuthedDiscordRoute: typeof AuthedDiscordRoute
   AuthedGitConnectionsRoute: typeof AuthedGitConnectionsRoute
@@ -582,6 +602,7 @@ interface AuthedRouteChildren {
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedNotificationsRouteRoute: AuthedNotificationsRouteRouteWithChildren,
   AuthedAccountRoute: AuthedAccountRoute,
+  AuthedAuditRoute: AuthedAuditRoute,
   AuthedContainersRoute: AuthedContainersRoute,
   AuthedDiscordRoute: AuthedDiscordRoute,
   AuthedGitConnectionsRoute: AuthedGitConnectionsRoute,

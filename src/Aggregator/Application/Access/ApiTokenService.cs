@@ -1,6 +1,8 @@
+using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Domain.Access;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 
 namespace ContainerForest.Aggregator.Application.Access;
@@ -29,6 +31,7 @@ public sealed class ApiTokenService(
     IRoleAssignmentRepository roleAssignments,
     IEnvironmentRepository environments,
     IUnitOfWork unitOfWork,
+    IAuditTrail audit,
     TimeProvider time)
 {
     public const int MaxTokensPerUser = 50;
@@ -43,13 +46,33 @@ public sealed class ApiTokenService(
     /// <param name="canDecryptSecrets">The token may have the aggregator decrypt SOPS files (ADR-0010).</param>
     /// <exception cref="NotFoundException">An environment does not exist or the user cannot see it.</exception>
     /// <exception cref="DomainConflictException">The user already has <see cref="MaxTokensPerUser"/> tokens.</exception>
-    public async Task<CreatedApiToken> CreateAsync(
+    public Task<CreatedApiToken> CreateAsync(
         string name,
         bool readOnly,
         IReadOnlyCollection<EnvironmentId>? environmentIds,
         DateTimeOffset? expiresAt,
         CancellationToken cancellationToken,
         bool canDecryptSecrets = false)
+    {
+        var draft = new AuditDraft(AuditAction.ApiTokenCreated, new ApiTokenAuditTarget(null, name.Trim()))
+        {
+            Details = LimitsOf(readOnly, environmentIds, expiresAt, canDecryptSecrets),
+        };
+        return audit.RunAsync(draft, async () =>
+        {
+            var created = await CreateTokenAsync(name, readOnly, environmentIds, expiresAt, canDecryptSecrets, cancellationToken);
+            draft.Target = new ApiTokenAuditTarget(created.Token.Id, created.Token.Name);
+            return created;
+        }, cancellationToken);
+    }
+
+    private async Task<CreatedApiToken> CreateTokenAsync(
+        string name,
+        bool readOnly,
+        IReadOnlyCollection<EnvironmentId>? environmentIds,
+        DateTimeOffset? expiresAt,
+        bool canDecryptSecrets,
+        CancellationToken cancellationToken)
     {
         var user = await currentActor.GetSignedInUserAsync(cancellationToken);
         await EnsureRoomForTokenAsync(user.Id, cancellationToken);
@@ -134,7 +157,33 @@ public sealed class ApiTokenService(
             throw new NotFoundException(nameof(ApiToken), id);
         }
 
-        tokens.Remove(token);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        var tokenOwner = await users.FindAsync(owner, cancellationToken);
+        var draft = new AuditDraft(AuditAction.ApiTokenRevoked, new ApiTokenAuditTarget(token.Id, token.Name))
+        {
+            Details = tokenOwner is null ? null : $"Owner: {tokenOwner.UserName}",
+        };
+        await audit.RunAsync(draft, async () =>
+        {
+            tokens.Remove(token);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
+    }
+
+    private static string LimitsOf(
+        bool readOnly, IReadOnlyCollection<EnvironmentId>? environmentIds, DateTimeOffset? expiresAt, bool canDecryptSecrets)
+    {
+        var limits = new List<string> { readOnly ? "read-only" : "full access" };
+        if (environmentIds is not null)
+        {
+            limits.Add($"{environmentIds.Count} environment(s)");
+        }
+
+        if (canDecryptSecrets)
+        {
+            limits.Add("decrypts secrets");
+        }
+
+        limits.Add(expiresAt is { } at ? $"expires {at:yyyy-MM-dd}" : "no expiry");
+        return string.Join(", ", limits);
     }
 }

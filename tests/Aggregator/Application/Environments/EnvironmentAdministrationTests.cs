@@ -31,7 +31,7 @@ public class EnvironmentAdministrationTests
 
     // CurrentActor remembers its user for the request, as in the aggregator, so each user gets its own service.
     private EnvironmentService ServiceFor(User user) => new(
-        new CurrentActor(new FakeCurrentUser { Id = user.Id }, users), environments, roleAssignments, stacks, unitOfWork, agent, new Deployments.FixedTime(Now));
+        new CurrentActor(new FakeCurrentUser { Id = user.Id }, users), environments, roleAssignments, stacks, unitOfWork, agent, new FakeAuditTrail(), new Deployments.FixedTime(Now));
 
     [Fact]
     public async Task Environment_is_renamed_and_made_private()

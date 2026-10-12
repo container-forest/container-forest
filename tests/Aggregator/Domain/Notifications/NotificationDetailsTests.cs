@@ -81,6 +81,22 @@ public class NotificationDetailsTests
     }
 
     [Fact]
+    public void Container_details_describe_a_death_with_its_exit_code_or_a_failed_health_check()
+    {
+        var died = new ContainerNotificationDetails("abc123", "web-db-1", stack.Name, "db", ExitCode: 1);
+        var unhealthy = died with { ExitCode = null };
+
+        Assert.True(died.Fits(NotificationEventKinds.ContainerDied));
+        Assert.False(died.Fits(NotificationEventKinds.ContainerUnhealthy));
+        Assert.True(unhealthy.Fits(NotificationEventKinds.ContainerDied));
+        Assert.True(unhealthy.Fits(NotificationEventKinds.ContainerUnhealthy));
+        Assert.False(unhealthy.Fits(NotificationEventKinds.DeploymentFailed));
+        Assert.False((unhealthy with { OutOfMemory = true }).Fits(NotificationEventKinds.ContainerUnhealthy));
+        Assert.Throws<DomainValidationException>(
+            () => new NotificationEvent(NotificationEventKinds.AgentOffline, stack.EnvironmentId, null, Now, unhealthy).EnsureValid());
+    }
+
+    [Fact]
     public void Notification_keeps_the_details()
     {
         var channel = NotificationChannel.CreateDiscord("ops", 123, Now);

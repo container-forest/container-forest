@@ -15,6 +15,7 @@ internal sealed class NotificationDetailsConverter()
     : ValueConverter<NotificationDetails, string>(details => Serialize(details), json => Deserialize(json))
 {
     private const string DeploymentType = "deployment";
+    private const string ContainerType = "container";
 
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 
@@ -23,6 +24,16 @@ internal sealed class NotificationDetailsConverter()
         DeploymentNotificationDetails d => JsonSerializer.Serialize(
             new StoredDetails(
                 DeploymentType, d.DeploymentId.Value, d.StackId.Value, d.StackName.Value, d.Commit?.Value, d.PulledImages, d.Error),
+            Options),
+        ContainerNotificationDetails c => JsonSerializer.Serialize(
+            new StoredDetails(ContainerType, null, null, c.StackName?.Value, null, false, null)
+            {
+                ContainerId = c.ContainerId,
+                ContainerName = c.ContainerName,
+                ServiceName = c.ServiceName,
+                ExitCode = c.ExitCode,
+                OutOfMemory = c.OutOfMemory,
+            },
             Options),
         _ => throw new NotSupportedException($"{details.GetType().Name} cannot be stored yet."),
     };
@@ -40,11 +51,29 @@ internal sealed class NotificationDetailsConverter()
                 stored.Commit is null ? null : CommitSha.Parse(stored.Commit),
                 stored.PulledImages,
                 stored.Error),
+            ContainerType => new ContainerNotificationDetails(
+                stored.ContainerId!,
+                stored.ContainerName!,
+                stored.StackName is null ? null : StackName.Parse(stored.StackName),
+                stored.ServiceName,
+                stored.ExitCode,
+                stored.OutOfMemory),
             _ => throw new InvalidOperationException($"Unknown notification details type '{stored.Type}'."),
         };
     }
 
-    /// <summary>The union of all kinds' fields; each kind uses its own.</summary>
+    /// <summary>The union of all kinds' fields; each kind uses its own. Fields added later are optional, so older rows still read.</summary>
     private sealed record StoredDetails(
-        string Type, Guid? DeploymentId, Guid? StackId, string? StackName, string? Commit, bool PulledImages, string? Error);
+        string Type, Guid? DeploymentId, Guid? StackId, string? StackName, string? Commit, bool PulledImages, string? Error)
+    {
+        public string? ContainerId { get; init; }
+
+        public string? ContainerName { get; init; }
+
+        public string? ServiceName { get; init; }
+
+        public int? ExitCode { get; init; }
+
+        public bool OutOfMemory { get; init; }
+    }
 }

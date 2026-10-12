@@ -188,6 +188,7 @@ public sealed class AgentGatewayService(
             container?.StatusText)
         {
             IsSystem = container?.System ?? false,
+            ReportedExitCode = containerEvent.HasExitCode ? containerEvent.ExitCode : null,
         };
     }
 

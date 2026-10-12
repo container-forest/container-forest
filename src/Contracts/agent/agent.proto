@@ -78,11 +78,14 @@ message Heartbeat {}
 
 // action is the Docker event action ("start", "die", "health_status: healthy", ...).
 // container holds the state after the event; it is absent when the container no longer exists.
+// exit_code is the code the container's process exited with, from Docker's "die" event; unset for other actions and
+// from older agents. Unlike container.status_text it is still there when a restart policy has started the container again.
 message ContainerEvent {
   string container_id = 1;
   string action = 2;
   int64 timestamp_unix_ms = 3;
   ContainerInfo container = 4;
+  optional int32 exit_code = 5;
 }
 
 // stack_name and service_name come from the compose labels and are empty for containers outside compose.

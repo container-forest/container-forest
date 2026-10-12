@@ -114,6 +114,26 @@ public class AgentNotificationTests
         Assert.True(details.IsSystem);
     }
 
+    [Fact]
+    public async Task Exit_code_of_the_event_survives_a_restart_policy()
+    {
+        await using var app = new AggregatorApp
+        {
+            Customize = builder => builder.UseSetting("Notifications:ContainerStopWait", "00:00:00.1"),
+        };
+        await AddRuleForEverythingAsync(app);
+        await using var agent = await app.EnrollAndConnectAsync();
+
+        // restart: unless-stopped: by the time the agent looks the container up, Docker has started it again.
+        var died = Died("c-restarted", "Up Less than a second");
+        died.ContainerEvent.ExitCode = 3;
+        await agent.SendAsync(died);
+
+        var notification = Assert.Single(await WaitForAsync(app, 1));
+        Assert.EndsWith(" exited with code 3.", notification.Summary);
+        Assert.Equal(3, Assert.IsType<ContainerNotificationDetails>(notification.Details).ExitCode);
+    }
+
     private static AgentMessage Died(string containerId, string status, bool system = false) => new()
     {
         ContainerEvent = new ContainerEvent

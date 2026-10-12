@@ -24,11 +24,13 @@ public sealed class ContainerEventForwarderTests : IDisposable
         var run = Start();
 
         await docker.Events.Writer.WriteAsync(new DockerContainerEvent("c1", "exec_start: sh -c 'echo $TOKEN'", At), Ct);
-        await docker.Events.Writer.WriteAsync(new DockerContainerEvent("c1", "die", At), Ct);
+        await docker.Events.Writer.WriteAsync(new DockerContainerEvent("c1", "die", At, ExitCode: 3), Ct);
 
         var message = (await stream.NextAsync()).ContainerEvent;
         Assert.Equal(("c1", "die", At.ToUnixTimeMilliseconds()), (message.ContainerId, message.Action, message.TimestampUnixMs));
         Assert.Equal((ContainerState.Exited, "web"), (message.Container.State, message.Container.StackName));
+        Assert.True(message.HasExitCode);
+        Assert.Equal(3, message.ExitCode);
         Assert.DoesNotContain(docker.Calls, c => c.Contains("exec", StringComparison.Ordinal));
         await StopAsync(run);
     }
@@ -58,6 +60,7 @@ public sealed class ContainerEventForwarderTests : IDisposable
         var message = (await stream.NextAsync()).ContainerEvent;
         Assert.Equal(("c1", "start"), (message.ContainerId, message.Action));
         Assert.Null(message.Container);
+        Assert.False(message.HasExitCode);
         await StopAsync(run);
     }
 

@@ -27,10 +27,19 @@ public sealed record ContainerObservation(
         !string.IsNullOrEmpty(ContainerName) ? ContainerName : ContainerId[..Math.Min(12, ContainerId.Length)];
 
     /// <summary>
-    /// The exit code in Docker's status: 137 of "Exited (137) 1 second ago", or 1 of "Restarting (1) …" for a container
-    /// its restart policy is about to start again; null if it is not there.
+    /// The exit code of a "die" as the agent read it from the Docker event; null for other actions and from older
+    /// agents, which did not send it.
     /// </summary>
-    public int? ExitCode =>
+    public int? ReportedExitCode { get; init; }
+
+    /// <summary>
+    /// <see cref="ReportedExitCode"/>, or else the exit code in Docker's status: 137 of "Exited (137) 1 second ago", or
+    /// 1 of "Restarting (1) …" for a container its restart policy is about to start again; null if neither has it,
+    /// e.g. an older agent's report of a container that is already "Up" again.
+    /// </summary>
+    public int? ExitCode => ReportedExitCode ?? StatusExitCode;
+
+    private int? StatusExitCode =>
         StatusText is not null && ContainerIncidentNotifier.ExitedStatus().Match(StatusText) is { Success: true } match
         && int.TryParse(match.Groups[1].ValueSpan, out var code)
             ? code

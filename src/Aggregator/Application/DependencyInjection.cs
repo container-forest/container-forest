@@ -60,6 +60,8 @@ public static class DependencyInjection
         services.AddScoped<NotificationDispatcher>();
         services.AddScoped<NotificationDeliveryService>();
         services.AddScoped<IDeploymentObserver, DeploymentNotifier>();
+        services.AddScoped<AgentConnectivityNotifier>();
+        services.AddSingleton<AgentConnectivityWatch>();
 
         // Asked in this order: Gitea also sends GitHub's headers.
         services.AddSingleton<GitWebhookProvider, GiteaWebhook>();

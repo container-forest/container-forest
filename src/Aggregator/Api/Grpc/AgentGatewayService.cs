@@ -1,5 +1,6 @@
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Deployments;
+using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Infrastructure.Agents;
 using ContainerForest.Contracts.Agent;
@@ -13,6 +14,7 @@ public sealed class AgentGatewayService(
     IServiceScopeFactory scopeFactory,
     AgentRegistry registry,
     ContainerEventCoalescer containerEvents,
+    AgentConnectivityWatch connectivity,
     IOptions<AgentGatewayOptions> options,
     TimeProvider time,
     ILogger<AgentGatewayService> logger) : AgentGateway.AgentGatewayBase
@@ -55,6 +57,7 @@ public sealed class AgentGatewayService(
 
         var session = new AgentSession(environmentId, responseStream, time.GetUtcNow(), logger);
         registry.Open(session);
+        connectivity.Connected(environmentId, session.ConnectedAt);
         logger.LogInformation(
             "Agent {AgentVersion} of environment {EnvironmentId} connected (session {SessionId}, Docker {DockerVersion})",
             hello.AgentVersion, environmentId, session.SessionId, hello.DockerVersion);
@@ -74,6 +77,7 @@ public sealed class AgentGatewayService(
             // Only the current session records the disconnect; a replaced one would overwrite newer data.
             if (registry.Remove(session, reason))
             {
+                connectivity.Disconnected(session.EnvironmentId, session.LastMessageAt);
                 await RecordDisconnectedAsync(session);
             }
         }

@@ -23,7 +23,9 @@ public sealed record DeploymentEvent(
 
 /// <param name="StackName">Null for a container outside compose.</param>
 /// <param name="ExitCode">Set when the container died.</param>
-public sealed record ContainerEvent(string ContainerId, string ContainerName, string? StackName, string? ServiceName, int? ExitCode);
+/// <param name="IsSystem">The container may only be started (a part of container-forest itself): no Restart button.</param>
+public sealed record ContainerEvent(
+    string ContainerId, string ContainerName, string? StackName, string? ServiceName, int? ExitCode, bool IsSystem = false);
 
 /// <summary>What happened; <see cref="Unknown"/> for a kind this bot does not know yet.</summary>
 public enum NotificationKind

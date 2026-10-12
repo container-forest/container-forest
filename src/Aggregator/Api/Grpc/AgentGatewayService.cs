@@ -15,6 +15,7 @@ public sealed class AgentGatewayService(
     AgentRegistry registry,
     ContainerEventCoalescer containerEvents,
     AgentConnectivityWatch connectivity,
+    ContainerIncidentWatch containerIncidents,
     IOptions<AgentGatewayOptions> options,
     TimeProvider time,
     ILogger<AgentGatewayService> logger) : AgentGateway.AgentGatewayBase
@@ -162,13 +163,32 @@ public sealed class AgentGatewayService(
                 logger.LogWarning("Environment {EnvironmentId} sent a second Hello; ignoring it", session.EnvironmentId);
                 break;
             case AgentMessage.BodyOneofCase.ContainerEvent:
-                // Only "something changed" goes on: panels reload the containers through the API, with its checks.
+                // Panels get only "something changed" and reload the containers through the API, with its checks;
+                // crashes and failed health checks become notifications for the channels administrators chose.
                 containerEvents.Report(session.EnvironmentId);
+                containerIncidents.Observe(ToObservation(session.EnvironmentId, message.ContainerEvent));
                 break;
             default:
                 logger.LogTrace("Ignoring {MessageType} from environment {EnvironmentId}", message.BodyCase, session.EnvironmentId);
                 break;
         }
+    }
+
+    private ContainerObservation ToObservation(EnvironmentId environmentId, ContainerEvent containerEvent)
+    {
+        var container = containerEvent.Container;
+        return new ContainerObservation(
+            environmentId,
+            containerEvent.ContainerId,
+            containerEvent.Action,
+            containerEvent.TimestampUnixMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(containerEvent.TimestampUnixMs) : time.GetUtcNow(),
+            container?.Name,
+            container?.StackName,
+            container?.ServiceName,
+            container?.StatusText)
+        {
+            IsSystem = container?.System ?? false,
+        };
     }
 
     /// <summary>File secrets live on tmpfs and are gone after a reboot; the stacks that had them are deployed again.</summary>

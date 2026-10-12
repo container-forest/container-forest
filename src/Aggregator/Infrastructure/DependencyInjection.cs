@@ -120,7 +120,7 @@ public static class DependencyInjection
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<DeploymentOptions>>().Value);
         services.AddOptions<NotificationOptions>()
             .Bind(configuration.GetSection(NotificationOptions.SectionName))
-            .Validate(o => o.IsValid(), "Notifications:AgentOfflineDelay must be positive.")
+            .Validate(o => o.IsValid(), "Notifications delays must be positive.")
             .ValidateOnStart();
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<NotificationOptions>>().Value);
         services.AddOptions<GitOptions>()

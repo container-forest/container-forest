@@ -1,6 +1,7 @@
 using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Notifications;
+using ContainerForest.Aggregator.Domain.Stacks;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ContainerForest.Aggregator.Application.Tests.Notifications;
@@ -80,6 +81,26 @@ public class ContainerIncidentNotifierTests
         Assert.Null(details.StackName);
         Assert.Null(details.ServiceName);
         Assert.Null(details.ExitCode);
+    }
+
+    [Fact]
+    public async Task Container_with_the_system_label_or_of_a_system_stack_is_marked_as_one()
+    {
+        var ops = fixture.AddChannel("ops");
+        fixture.AddRule(NotificationRule.ForEverything(ops, NotificationEventKinds.All, Now));
+        var system = Stack.Create(
+            fixture.Environment.Id, StackName.Parse("forest"), RepositoryId.New(), BranchName.Parse("main"),
+            StackFilePath.Parse("compose.yaml"), isSystem: true, Now);
+        fixture.Stacks.Add(system);
+
+        await Notifier().NotifyAsync(
+            Observation("die", "Exited (1) 1 second ago", stack: null) with { IsSystem = true }, NotificationEventKinds.ContainerDied, Ct);
+        await Notifier().NotifyAsync(Observation("die", "Exited (1) 1 second ago", stack: "forest"), NotificationEventKinds.ContainerDied, Ct);
+        await Notifier().NotifyAsync(Observation("die", "Exited (1) 1 second ago"), NotificationEventKinds.ContainerDied, Ct);
+
+        Assert.Equal(
+            [true, true, false],
+            fixture.Notifications.All.Select(n => Assert.IsType<ContainerNotificationDetails>(n.Details).IsSystem).ToList());
     }
 
     [Fact]

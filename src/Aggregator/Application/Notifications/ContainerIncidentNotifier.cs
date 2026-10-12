@@ -41,6 +41,9 @@ public sealed record ContainerObservation(
     /// for exceeding its memory limit. Docker's event itself says nothing about it.
     /// </summary>
     public bool OutOfMemory { get; init; }
+
+    /// <summary>The container carries the label com.container-forest.system (the agent's <c>ContainerInfo.system</c>).</summary>
+    public bool IsSystem { get; init; }
 }
 
 /// <summary>
@@ -80,7 +83,8 @@ public sealed partial class ContainerIncidentNotifier(
             stackName,
             string.IsNullOrEmpty(observation.ServiceName) ? null : observation.ServiceName,
             kind == NotificationEventKinds.ContainerDied ? observation.ExitCode : null,
-            kind == NotificationEventKinds.ContainerDied && observation.OutOfMemory);
+            kind == NotificationEventKinds.ContainerDied && observation.OutOfMemory,
+            observation.IsSystem || stack?.IsSystem == true);
         var notificationEvent = new NotificationEvent(kind, environment.Id, stack?.Id, observation.OccurredAt, details);
 
         var created = await dispatcher.DispatchAsync(notificationEvent, Summarize(kind, details, environment.Name), cancellationToken);

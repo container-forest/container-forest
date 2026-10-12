@@ -45,6 +45,7 @@ internal static class NotificationMessages
                 ContainerName = container.ContainerName,
                 StackName = container.StackName?.Value ?? "",
                 ServiceName = container.ServiceName ?? "",
+                System = container.IsSystem,
             };
             if (container.ExitCode is { } exitCode)
             {

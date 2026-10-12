@@ -8,9 +8,12 @@ internal sealed class DiscordInteraction(IDiscordInteraction interaction) : ICom
 {
     public BotUser User { get; } = new(interaction.User.Id, interaction.User.Username);
 
-    // Ephemeral from the start: a deferred reply keeps the visibility it was deferred with.
-    public Task DeferAsync(CancellationToken cancellationToken) =>
-        interaction.DeferAsync(ephemeral: true, Options(cancellationToken));
+    // Ephemeral from the start: a deferred reply keeps the visibility it was deferred with. A button's plain defer
+    // would make the reply an edit of the message the button is on (a notification everyone in the channel sees),
+    // so a button gets a new "thinking…" reply of its own.
+    public Task DeferAsync(CancellationToken cancellationToken) => interaction is IComponentInteraction button
+        ? button.DeferLoadingAsync(ephemeral: true, Options(cancellationToken))
+        : interaction.DeferAsync(ephemeral: true, Options(cancellationToken));
 
     public Task RespondAsync(BotReply reply, CancellationToken cancellationToken) =>
         interaction.ModifyOriginalResponseAsync(

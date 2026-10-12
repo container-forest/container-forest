@@ -185,7 +185,10 @@ public sealed class AgentGatewayService(
             container?.Name,
             container?.StackName,
             container?.ServiceName,
-            container?.StatusText);
+            container?.StatusText)
+        {
+            IsSystem = container?.System ?? false,
+        };
     }
 
     /// <summary>File secrets live on tmpfs and are gone after a reboot; the stacks that had them are deployed again.</summary>

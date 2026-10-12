@@ -300,12 +300,14 @@ message DeploymentDetails {
 }
 
 // stack_name and service_name are empty for containers outside compose; exit_code is set for CONTAINER_DIED.
+// system: the container may only be started (label com.container-forest.system or a system stack), so the bot offers no restart.
 message ContainerDetails {
   string container_id = 1;
   string container_name = 2;
   string stack_name = 3;
   string service_name = 4;
   optional int32 exit_code = 5;
+  bool system = 6;
 }
 
 // error explains a failed post (e.g. the bot may not write to the channel); it is shown in the panel.

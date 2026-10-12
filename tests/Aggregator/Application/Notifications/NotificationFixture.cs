@@ -4,6 +4,7 @@ using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Environments;
 using ContainerForest.Aggregator.Domain.Notifications;
 using ContainerForest.Aggregator.Domain.Stacks;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ContainerForest.Aggregator.Application.Tests.Notifications;
@@ -63,6 +64,7 @@ internal sealed class NotificationFixture
             StackFilePath.Parse("compose.yaml"),
             isSystem: false,
             Now);
+        Stacks.Add(Stack);
     }
 
     public DockerEnvironment Environment { get; }
@@ -70,6 +72,8 @@ internal sealed class NotificationFixture
     public Stack Stack { get; }
 
     public InMemoryEnvironments Environments { get; } = new();
+
+    public InMemoryStacks Stacks { get; } = new();
 
     public InMemoryNotificationChannels Channels { get; } = new();
 
@@ -116,4 +120,22 @@ internal sealed class NotificationFixture
         Notifications.Add(notification);
         return notification;
     }
+}
+
+/// <summary>What the notification watches need from DI: a scope with their notifiers over the fixture's repositories.</summary>
+internal sealed class NotifierScopes(NotificationFixture fixture) : IServiceScopeFactory, IServiceScope, IServiceProvider
+{
+    public IServiceProvider ServiceProvider => this;
+
+    public IServiceScope CreateScope() => this;
+
+    public object? GetService(Type serviceType) =>
+        serviceType == typeof(AgentConnectivityNotifier)
+            ? new AgentConnectivityNotifier(fixture.Dispatcher(), fixture.Environments, NullLogger<AgentConnectivityNotifier>.Instance)
+            : serviceType == typeof(ContainerIncidentNotifier)
+                ? new ContainerIncidentNotifier(
+                    fixture.Dispatcher(), fixture.Environments, fixture.Stacks, NullLogger<ContainerIncidentNotifier>.Instance)
+                : null;
+
+    public void Dispose() { }
 }

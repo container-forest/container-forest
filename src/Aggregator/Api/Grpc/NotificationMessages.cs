@@ -37,6 +37,20 @@ internal static class NotificationMessages
                 Error = deployment.Error ?? "",
             };
         }
+        else if (notification.Details is ContainerNotificationDetails container)
+        {
+            message.Container = new ContainerDetails
+            {
+                ContainerId = container.ContainerId,
+                ContainerName = container.ContainerName,
+                StackName = container.StackName?.Value ?? "",
+                ServiceName = container.ServiceName ?? "",
+            };
+            if (container.ExitCode is { } exitCode)
+            {
+                message.Container.ExitCode = exitCode;
+            }
+        }
 
         return message;
     }

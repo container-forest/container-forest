@@ -1,6 +1,5 @@
 using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Domain.Notifications;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ContainerForest.Aggregator.Application.Tests.Notifications;
@@ -102,25 +101,5 @@ public sealed class AgentConnectivityWatchTests : IDisposable
         }
 
         Assert.Equal(count, Kinds().Count);
-    }
-
-    /// <summary>What the watch needs from DI: a scope with a notifier over the fixture's repositories.</summary>
-    private sealed class NotifierScopes(NotificationFixture fixture) : IServiceScopeFactory, IServiceScope, IServiceProvider
-    {
-        public IServiceProvider ServiceProvider => this;
-
-        public IServiceScope CreateScope() => this;
-
-        public object? GetService(Type serviceType)
-        {
-            if (serviceType != typeof(AgentConnectivityNotifier))
-            {
-                return null;
-            }
-
-            return new AgentConnectivityNotifier(fixture.Dispatcher(), fixture.Environments, NullLogger<AgentConnectivityNotifier>.Instance);
-        }
-
-        public void Dispose() { }
     }
 }

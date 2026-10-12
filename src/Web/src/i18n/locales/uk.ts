@@ -1228,6 +1228,7 @@ const uk = {
       ContainerUnhealthy: "Контейнер нездоровий",
       AgentOffline: "Агент офлайн",
       AgentOnline: "Агент знову онлайн",
+      ContainerHealthy: "Контейнер знову здоровий",
     },
     severity: {
       Info: "Інформація",
@@ -1329,7 +1330,6 @@ const uk = {
       form: {
         events: "Події",
         eventsRequired: "Оберіть хоча б одну подію.",
-        soon: "(ще не надсилається)",
         environment: "Середовище",
         anyEnvironment: "Усі середовища",
         environmentsFailed: "Не вдалося завантажити середовища.",

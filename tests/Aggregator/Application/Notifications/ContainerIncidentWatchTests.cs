@@ -165,6 +165,53 @@ public sealed class ContainerIncidentWatchTests : IDisposable
     }
 
     [Fact]
+    public async Task Healthy_again_follows_a_notified_unhealthy_once()
+    {
+        watch.Observe(Event("health_status: unhealthy", "Up 2 minutes (unhealthy)"));
+        await WaitForAsync(1);
+        watch.Observe(Event("health_status: healthy", "Up 3 minutes (healthy)"));
+        await WaitForAsync(2);
+        watch.Observe(Event("health_status: healthy", "Up 4 minutes (healthy)"));
+        await Task.Delay(StopWait * 4, Ct);
+
+        Assert.Equal(
+            [NotificationEventKinds.ContainerUnhealthy, NotificationEventKinds.ContainerHealthy],
+            fixture.Notifications.All.Select(n => n.Kind).ToList());
+        Assert.Equal(NotificationSeverity.Info, fixture.Notifications.All[1].Severity);
+    }
+
+    [Fact]
+    public async Task Unhealthy_within_the_repeat_interval_is_silent_and_so_is_its_recovery()
+    {
+        // The first pair went out; a flap a minute later would be noise both ways.
+        watch.Observe(Event("health_status: unhealthy", "Up 2 minutes (unhealthy)"));
+        await WaitForAsync(1);
+        watch.Observe(Event("health_status: healthy", "Up 3 minutes (healthy)"));
+        await WaitForAsync(2);
+        watch.Observe(Event("health_status: unhealthy", "Up 4 minutes (unhealthy)"));
+        watch.Observe(Event("health_status: healthy", "Up 5 minutes (healthy)"));
+        await Task.Delay(StopWait * 4, Ct);
+
+        Assert.Equal(2, fixture.Notifications.All.Count);
+    }
+
+    [Fact]
+    public async Task Recovery_is_not_held_back_by_an_earlier_recovery()
+    {
+        // The second unhealthy comes after the repeat interval, so it is sent; its recovery comes within the interval of
+        // the first recovery and must be sent all the same.
+        using var shortRepeat = Watch(TimeSpan.FromMilliseconds(400));
+
+        shortRepeat.Observe(Event("health_status: unhealthy", "Up 2 minutes (unhealthy)"));
+        await Task.Delay(300, Ct);
+        shortRepeat.Observe(Event("health_status: healthy", "Up 3 minutes (healthy)"));
+        await Task.Delay(200, Ct);
+        shortRepeat.Observe(Event("health_status: unhealthy", "Up 4 minutes (unhealthy)"));
+        shortRepeat.Observe(Event("health_status: healthy", "Up 5 minutes (healthy)"));
+        await WaitForAsync(4);
+    }
+
+    [Fact]
     public async Task Restart_loop_is_one_message_per_interval()
     {
         for (var crash = 0; crash < 3; crash++)

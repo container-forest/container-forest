@@ -20,16 +20,10 @@ export const notificationEventKinds = [
   "ContainerUnhealthy",
   "AgentOffline",
   "AgentOnline",
+  "ContainerHealthy",
 ] as const;
 
 export type NotificationEventKind = (typeof notificationEventKinds)[number];
-
-/** Kinds the aggregator raises today; the rest wait for the agent's container events and are marked in the form. */
-const raisedKinds: ReadonlySet<string> = new Set<NotificationEventKind>(["DeploymentSucceeded", "DeploymentFailed"]);
-
-export function isRaisedYet(kind: NotificationEventKind): boolean {
-  return raisedKinds.has(kind);
-}
 
 /** A kind from the aggregator that this panel knows; a newer aggregator may send one it does not. */
 export function isKnownKind(kind: string): kind is NotificationEventKind {

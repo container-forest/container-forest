@@ -65,12 +65,12 @@ public sealed partial class ContainerIncidentNotifier(
     IStackRepository stacks,
     ILogger<ContainerIncidentNotifier> logger)
 {
-    /// <param name="kind"><see cref="NotificationEventKinds.ContainerDied"/> or <see cref="NotificationEventKinds.ContainerUnhealthy"/>.</param>
+    /// <param name="kind"><see cref="NotificationEventKinds.ContainerDied"/>, <see cref="NotificationEventKinds.ContainerUnhealthy"/> or <see cref="NotificationEventKinds.ContainerHealthy"/>.</param>
     /// <returns>The notifications created; empty when no rule matches or the environment no longer exists.</returns>
     public async Task<IReadOnlyList<Notification>> NotifyAsync(
         ContainerObservation observation, NotificationEventKinds kind, CancellationToken cancellationToken)
     {
-        if (kind is not (NotificationEventKinds.ContainerDied or NotificationEventKinds.ContainerUnhealthy))
+        if (kind is not (NotificationEventKinds.ContainerDied or NotificationEventKinds.ContainerUnhealthy or NotificationEventKinds.ContainerHealthy))
         {
             throw new ArgumentOutOfRangeException(nameof(kind), kind, "Only container events are notified here.");
         }
@@ -120,6 +120,7 @@ public sealed partial class ContainerIncidentNotifier(
                 : $"{target} exited with code {code}.",
             NotificationEventKinds.ContainerDied => $"{target} stopped unexpectedly.",
             NotificationEventKinds.ContainerUnhealthy => $"{target} is unhealthy.",
+            NotificationEventKinds.ContainerHealthy => $"{target} is healthy again.",
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Only container events are summarized here."),
         };
     }

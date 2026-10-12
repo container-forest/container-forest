@@ -121,6 +121,7 @@ public sealed class GrpcNotificationSource(
         Proto.NotificationKind.ContainerUnhealthy => NotificationKind.ContainerUnhealthy,
         Proto.NotificationKind.AgentOffline => NotificationKind.AgentOffline,
         Proto.NotificationKind.AgentOnline => NotificationKind.AgentOnline,
+        Proto.NotificationKind.ContainerHealthy => NotificationKind.ContainerHealthy,
         _ => NotificationKind.Unknown,
     };
 

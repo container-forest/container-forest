@@ -108,4 +108,24 @@ public sealed class NotificationEmbedTests
         Assert.Equal((notification.Title, notification.Description, notification.Color, notification.Timestamp),
             (renoted.Title, renoted.Description, renoted.Color, renoted.Timestamp));
     }
+
+    [Fact]
+    public void Healthy_again_is_green_with_the_container_and_no_buttons()
+    {
+        var healthy = Failed with
+        {
+            Kind = NotificationKind.ContainerHealthy,
+            Severity = NotificationSeverity.Info,
+            Summary = "Container 'web-app-1' on 'prod_eu' is healthy again.",
+            Deployment = null,
+            Container = new ContainerEvent("4f1c2a9e8b7d", "web-app-1", null, null, null),
+        };
+
+        var embed = NotificationEmbed.Build(healthy);
+
+        Assert.Equal("💚 Container healthy again", embed.Title);
+        Assert.Equal(0x2ECC71u, embed.Color!.Value.RawValue);
+        Assert.Contains(embed.Fields, f => (f.Name, f.Value) == ("Container", "`web-app-1`"));
+        Assert.Null(NotificationEmbed.Buttons(healthy));
+    }
 }

@@ -2,9 +2,9 @@ import { useTranslation } from "react-i18next";
 import { FieldError } from "@/components/form-messages";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { isRaisedYet, notificationEventKinds, toggleKind } from "@/features/notifications/model";
+import { notificationEventKinds, toggleKind } from "@/features/notifications/model";
 
-/** A checkbox per event kind; kinds the aggregator does not raise yet are marked, so nobody waits for them. */
+/** A checkbox per event kind. */
 export function EventCheckboxes({
   idPrefix,
   value,
@@ -31,7 +31,6 @@ export function EventCheckboxes({
             />
             <Label htmlFor={`${idPrefix}-${kind}`} className="font-normal">
               {t(`notifications.events.${kind}`)}
-              {!isRaisedYet(kind) && <span className="text-muted-foreground text-xs">{t("notifications.rules.form.soon")}</span>}
             </Label>
           </div>
         ))}

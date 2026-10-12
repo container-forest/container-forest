@@ -54,7 +54,7 @@ public sealed record DeploymentNotificationDetails(
     };
 }
 
-/// <summary>A container that died or became unhealthy, as the agent reported it.</summary>
+/// <summary>A container that died, became unhealthy or healthy again, as the agent reported it.</summary>
 /// <param name="ContainerName">Docker's name without the leading slash; the short id when the container is already gone.</param>
 /// <param name="StackName">The compose project; null for a container outside compose. It need not be a managed stack.</param>
 /// <param name="ServiceName">The compose service; null outside compose.</param>
@@ -73,7 +73,7 @@ public sealed record ContainerNotificationDetails(
     public override bool Fits(NotificationEventKinds kind) => kind switch
     {
         NotificationEventKinds.ContainerDied => true,
-        NotificationEventKinds.ContainerUnhealthy => ExitCode is null && !OutOfMemory,
+        NotificationEventKinds.ContainerUnhealthy or NotificationEventKinds.ContainerHealthy => ExitCode is null && !OutOfMemory,
         _ => false,
     };
 }

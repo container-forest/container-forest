@@ -37,6 +37,7 @@ public enum NotificationKind
     ContainerUnhealthy,
     AgentOffline,
     AgentOnline,
+    ContainerHealthy,
 }
 
 public enum NotificationSeverity

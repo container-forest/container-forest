@@ -19,7 +19,11 @@ public enum NotificationEventKinds
     AgentOffline = 1 << 4,
     AgentOnline = 1 << 5,
 
-    All = DeploymentSucceeded | DeploymentFailed | ContainerDied | ContainerUnhealthy | AgentOffline | AgentOnline,
+    /// <summary>A container that was notified as unhealthy passes its health check again.</summary>
+    ContainerHealthy = 1 << 6,
+
+    All = DeploymentSucceeded | DeploymentFailed | ContainerDied | ContainerUnhealthy | AgentOffline | AgentOnline
+        | ContainerHealthy,
 }
 
 public enum NotificationSeverity

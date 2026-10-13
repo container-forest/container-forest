@@ -6,7 +6,7 @@ public sealed partial class ForestApi
 {
     /// <summary>Kinds of events a notification rule can match; NotificationEventKinds in the aggregator.</summary>
     public static readonly IReadOnlyList<string> NotificationEvents =
-        ["DeploymentSucceeded", "DeploymentFailed", "ContainerDied", "ContainerUnhealthy", "AgentOffline", "AgentOnline"];
+        ["DeploymentSucceeded", "DeploymentFailed", "ContainerDied", "ContainerUnhealthy", "AgentOffline", "AgentOnline", "ContainerHealthy"];
 
     public async Task<IReadOnlyList<NotificationChannelResponse>> ListNotificationChannelsAsync(CancellationToken cancellationToken) =>
         await Api.NotificationChannels.GetAsync(cancellationToken: cancellationToken) ?? [];

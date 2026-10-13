@@ -105,6 +105,7 @@ public static class NotificationEmbed
         NotificationKind.ContainerUnhealthy => "⚠️ Container unhealthy",
         NotificationKind.AgentOffline => "🔌 Agent offline",
         NotificationKind.AgentOnline => "🔌 Agent back online",
+        NotificationKind.ContainerHealthy => "💚 Container healthy again",
         _ => "Notification",
     };
 

@@ -304,6 +304,8 @@ enum NotificationKind {
   NOTIFICATION_KIND_CONTAINER_UNHEALTHY = 4;
   NOTIFICATION_KIND_AGENT_OFFLINE = 5;
   NOTIFICATION_KIND_AGENT_ONLINE = 6;
+  // A container that was notified as unhealthy passes its health check again; container details are set.
+  NOTIFICATION_KIND_CONTAINER_HEALTHY = 7;
 }
 
 enum NotificationSeverity {

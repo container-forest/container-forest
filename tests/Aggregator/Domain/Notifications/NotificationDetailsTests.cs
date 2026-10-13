@@ -92,6 +92,8 @@ public class NotificationDetailsTests
         Assert.True(unhealthy.Fits(NotificationEventKinds.ContainerUnhealthy));
         Assert.False(unhealthy.Fits(NotificationEventKinds.DeploymentFailed));
         Assert.False((unhealthy with { OutOfMemory = true }).Fits(NotificationEventKinds.ContainerUnhealthy));
+        Assert.True(unhealthy.Fits(NotificationEventKinds.ContainerHealthy));
+        Assert.False(died.Fits(NotificationEventKinds.ContainerHealthy));
         Assert.Throws<DomainValidationException>(
             () => new NotificationEvent(NotificationEventKinds.AgentOffline, stack.EnvironmentId, null, Now, unhealthy).EnsureValid());
     }

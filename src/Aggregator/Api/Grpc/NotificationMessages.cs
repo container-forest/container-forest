@@ -64,6 +64,7 @@ internal static class NotificationMessages
         NotificationEventKinds.ContainerUnhealthy => NotificationKind.ContainerUnhealthy,
         NotificationEventKinds.AgentOffline => NotificationKind.AgentOffline,
         NotificationEventKinds.AgentOnline => NotificationKind.AgentOnline,
+        NotificationEventKinds.ContainerHealthy => NotificationKind.ContainerHealthy,
         _ => NotificationKind.Unspecified,
     };
 

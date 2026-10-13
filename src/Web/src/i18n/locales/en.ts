@@ -1226,6 +1226,7 @@ const en: Translation = {
       ContainerUnhealthy: "Container unhealthy",
       AgentOffline: "Agent offline",
       AgentOnline: "Agent back online",
+      ContainerHealthy: "Container healthy again",
     },
     severity: {
       Info: "Info",
@@ -1327,7 +1328,6 @@ const en: Translation = {
       form: {
         events: "Events",
         eventsRequired: "Choose at least one event.",
-        soon: "(not sent yet)",
         environment: "Environment",
         anyEnvironment: "All environments",
         environmentsFailed: "Could not load the environments.",

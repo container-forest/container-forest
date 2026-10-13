@@ -15,11 +15,15 @@ namespace ContainerForest.Aggregator.Application.Notifications;
 /// <item>"oom" of the container within <see cref="NotificationOptions.ContainerStopWait"/> before or after its crash marks
 /// it as killed for running out of memory. Docker reports it before "die"; an "oom" without a death (the kernel killed
 /// another process of the container) is not notified.</item>
-/// <item>"health_status: unhealthy" right away.</item>
+/// <item>"health_status: unhealthy" right away, and "health_status: healthy" of a container whose unhealthy notification
+/// went out, once, whatever the repeat interval: it closes that notification.</item>
 /// </list>
 /// One container gets at most one notification of a kind per <see cref="NotificationOptions.ContainerRepeatInterval"/>.
 /// </summary>
-/// <remarks>The state lives in memory: deaths being waited out when the aggregator stops are not notified.</remarks>
+/// <remarks>
+/// The state lives in memory: deaths being waited out when the aggregator stops are not notified, nor is the recovery
+/// of a container that turned unhealthy before it.
+/// </remarks>
 public sealed class ContainerIncidentWatch(
     IServiceScopeFactory scopeFactory,
     NotificationOptions options,
@@ -31,12 +35,16 @@ public sealed class ContainerIncidentWatch(
     public const string DestroyAction = "destroy";
     public const string OutOfMemoryAction = "oom";
     public const string UnhealthyAction = "health_status: unhealthy";
+    public const string HealthyAction = "health_status: healthy";
 
     private readonly Lock gate = new();
     private readonly Dictionary<(EnvironmentId, string), PendingDeath> deaths = [];
     private readonly Dictionary<(EnvironmentId, string), DateTimeOffset> requestedStops = [];
     private readonly Dictionary<(EnvironmentId, string), DateTimeOffset> outOfMemory = [];
     private readonly Dictionary<(EnvironmentId, string, NotificationEventKinds), DateTimeOffset> lastNotified = [];
+
+    // By name, like lastNotified: containers whose unhealthy notification went out and that have not recovered since.
+    private readonly HashSet<(EnvironmentId, string)> unhealthy = [];
     private readonly CancellationTokenSource stopping = new();
     private bool disposed;
 
@@ -63,7 +71,19 @@ public sealed class ContainerIncidentWatch(
                     RanOutOfMemory(container);
                     break;
                 case UnhealthyAction:
-                    Raise(observation, NotificationEventKinds.ContainerUnhealthy);
+                    if (Raise(observation, NotificationEventKinds.ContainerUnhealthy))
+                    {
+                        unhealthy.Add((observation.EnvironmentId, observation.DisplayName));
+                    }
+
+                    break;
+                case HealthyAction:
+                    // Not throttled: it pairs with an unhealthy notification that was sent, and must not be lost after it.
+                    if (unhealthy.Remove((observation.EnvironmentId, observation.DisplayName)))
+                    {
+                        _ = NotifyAsync(observation, NotificationEventKinds.ContainerHealthy);
+                    }
+
                     break;
             }
         }
@@ -173,7 +193,8 @@ public sealed class ContainerIncidentWatch(
     }
 
     /// <summary>Sends the notification unless one of this kind about this container went out recently. Called under the lock.</summary>
-    private void Raise(ContainerObservation observation, NotificationEventKinds kind)
+    /// <returns>Whether it was sent.</returns>
+    private bool Raise(ContainerObservation observation, NotificationEventKinds kind)
     {
         var now = time.GetUtcNow();
 
@@ -181,7 +202,7 @@ public sealed class ContainerIncidentWatch(
         var key = (observation.EnvironmentId, observation.DisplayName, kind);
         if (lastNotified.TryGetValue(key, out var last) && now - last < options.ContainerRepeatInterval)
         {
-            return;
+            return false;
         }
 
         foreach (var stale in lastNotified.Where(e => now - e.Value >= options.ContainerRepeatInterval).Select(e => e.Key).ToList())
@@ -191,6 +212,7 @@ public sealed class ContainerIncidentWatch(
 
         lastNotified[key] = now;
         _ = NotifyAsync(observation, kind);
+        return true;
     }
 
     private async Task NotifyAsync(ContainerObservation observation, NotificationEventKinds kind)

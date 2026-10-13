@@ -125,6 +125,21 @@ public class ContainerIncidentNotifierTests
         Assert.Equal(exitCode, Observation("die", status).ExitCode);
 
     [Fact]
+    public async Task Healthy_again_is_info_without_an_exit_code()
+    {
+        var ops = fixture.AddChannel("ops");
+        fixture.AddRule(NotificationRule.ForStack(ops, fixture.Stack, NotificationEventKinds.ContainerHealthy, Now));
+
+        await Notifier().NotifyAsync(
+            Observation("health_status: healthy", "Up 5 minutes (healthy)"), NotificationEventKinds.ContainerHealthy, Ct);
+
+        var notification = Assert.Single(fixture.Notifications.All);
+        Assert.Equal(NotificationSeverity.Info, notification.Severity);
+        Assert.Equal("Container 'web-app-1' of stack 'web' on 'prod' is healthy again.", notification.Summary);
+        Assert.Null(Assert.IsType<ContainerNotificationDetails>(notification.Details).ExitCode);
+    }
+
+    [Fact]
     public void Container_that_is_gone_is_named_by_its_short_id()
     {
         var gone = Observation("die", null) with { ContainerName = null };

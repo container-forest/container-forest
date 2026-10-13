@@ -45,4 +45,5 @@ public interface IDockerGateway
 }
 
 /// <param name="Action">Docker's action, e.g. "start", "die", "health_status: unhealthy".</param>
-public sealed record DockerContainerEvent(string ContainerId, string Action, DateTimeOffset At);
+/// <param name="ExitCode">The exit code a "die" event carries; null for other actions.</param>
+public sealed record DockerContainerEvent(string ContainerId, string Action, DateTimeOffset At, int? ExitCode = null);

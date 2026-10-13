@@ -27,10 +27,19 @@ public sealed record ContainerObservation(
         !string.IsNullOrEmpty(ContainerName) ? ContainerName : ContainerId[..Math.Min(12, ContainerId.Length)];
 
     /// <summary>
-    /// The exit code in Docker's status: 137 of "Exited (137) 1 second ago", or 1 of "Restarting (1) …" for a container
-    /// its restart policy is about to start again; null if it is not there.
+    /// The exit code of a "die" as the agent read it from the Docker event; null for other actions and from older
+    /// agents, which did not send it.
     /// </summary>
-    public int? ExitCode =>
+    public int? ReportedExitCode { get; init; }
+
+    /// <summary>
+    /// <see cref="ReportedExitCode"/>, or else the exit code in Docker's status: 137 of "Exited (137) 1 second ago", or
+    /// 1 of "Restarting (1) …" for a container its restart policy is about to start again; null if neither has it,
+    /// e.g. an older agent's report of a container that is already "Up" again.
+    /// </summary>
+    public int? ExitCode => ReportedExitCode ?? StatusExitCode;
+
+    private int? StatusExitCode =>
         StatusText is not null && ContainerIncidentNotifier.ExitedStatus().Match(StatusText) is { Success: true } match
         && int.TryParse(match.Groups[1].ValueSpan, out var code)
             ? code
@@ -106,12 +115,36 @@ public sealed partial class ContainerIncidentNotifier(
         return kind switch
         {
             NotificationEventKinds.ContainerDied when details.OutOfMemory => $"{target} was killed: out of memory.",
-            NotificationEventKinds.ContainerDied when details.ExitCode is { } code => $"{target} exited with code {code}.",
+            NotificationEventKinds.ContainerDied when details.ExitCode is { } code => SignalName(code) is { } signal
+                ? $"{target} exited with code {code} ({signal})."
+                : $"{target} exited with code {code}.",
             NotificationEventKinds.ContainerDied => $"{target} stopped unexpectedly.",
             NotificationEventKinds.ContainerUnhealthy => $"{target} is unhealthy.",
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Only container events are summarized here."),
         };
     }
+
+    /// <summary>
+    /// The signal behind an exit code above 128: a process killed by signal N exits with 128 + N, so 139 is a segfault
+    /// and 143 a SIGTERM the process did not handle. Null for other codes and for signals that rarely end a container.
+    /// </summary>
+    public static string? SignalName(int exitCode) => exitCode switch
+    {
+        129 => "SIGHUP",
+        130 => "SIGINT",
+        131 => "SIGQUIT",
+        132 => "SIGILL",
+        133 => "SIGTRAP",
+        134 => "SIGABRT",
+        135 => "SIGBUS",
+        136 => "SIGFPE",
+        137 => "SIGKILL",
+        139 => "SIGSEGV",
+        141 => "SIGPIPE",
+        142 => "SIGALRM",
+        143 => "SIGTERM",
+        _ => null,
+    };
 
     [GeneratedRegex(@"^(?:Exited|Restarting) \((-?\d+)\)", RegexOptions.CultureInvariant)]
     internal static partial Regex ExitedStatus();

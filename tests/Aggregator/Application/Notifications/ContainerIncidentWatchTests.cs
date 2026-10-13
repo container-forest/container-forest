@@ -78,11 +78,31 @@ public sealed class ContainerIncidentWatchTests : IDisposable
     [Fact]
     public async Task Crash_already_restarted_by_docker_is_notified_without_an_exit_code()
     {
-        // With a restart policy the agent may find the container running again when it looks it up.
+        // With a restart policy the agent may find the container running again when it looks it up, and an older agent
+        // does not send the code from the event.
         watch.Observe(Event("die", "Up Less than a second"));
         await WaitForAsync(1);
 
         Assert.Null(Assert.IsType<ContainerNotificationDetails>(fixture.Notifications.All[0].Details).ExitCode);
+    }
+
+    [Fact]
+    public async Task Crash_already_restarted_by_docker_keeps_the_exit_code_of_the_event()
+    {
+        watch.Observe(Event("die", "Up Less than a second") with { ReportedExitCode = 3 });
+        await WaitForAsync(1);
+
+        Assert.Equal(3, Assert.IsType<ContainerNotificationDetails>(fixture.Notifications.All[0].Details).ExitCode);
+    }
+
+    [Fact]
+    public async Task Job_that_finished_and_was_started_again_is_not_a_crash()
+    {
+        // restart: always on a container that exits 0: the status no longer says so, the event does.
+        watch.Observe(Event("die", "Up Less than a second") with { ReportedExitCode = 0 });
+        await Task.Delay(StopWait * 4, Ct);
+
+        Assert.Empty(fixture.Notifications.All);
     }
 
     [Theory]

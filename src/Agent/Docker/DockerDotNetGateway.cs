@@ -108,7 +108,9 @@ public sealed class DockerDotNetGateway : IDockerGateway, IDisposable
             {
                 if (message.Actor?.ID is { Length: > 0 } id && message.Action is { Length: > 0 } action)
                 {
-                    await onEvent(new DockerContainerEvent(id, action, TimeOf(message)), cancellationToken);
+                    await onEvent(
+                        new DockerContainerEvent(id, action, TimeOf(message), ExitCodeOf(action, message.Actor.Attributes)),
+                        cancellationToken);
                 }
             }
         }
@@ -210,6 +212,13 @@ public sealed class DockerDotNetGateway : IDockerGateway, IDisposable
         message.TimeNano is { } nanoseconds and > 0
             ? DateTimeOffset.FromUnixTimeMilliseconds(nanoseconds / 1_000_000)
             : DateTimeOffset.UtcNow;
+
+    /// <summary>The "exitCode" attribute of a "die" event: the code the container's main process exited with.</summary>
+    public static int? ExitCodeOf(string action, IDictionary<string, string>? attributes) =>
+        action == "die" && attributes is not null && attributes.TryGetValue("exitCode", out var text)
+        && int.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var code)
+            ? code
+            : null;
 
     /// <summary>Passes each event on synchronously, in the order Docker reports them (Progress&lt;T&gt; would not keep it).</summary>
     private sealed class ChannelProgress(ChannelWriter<Message> writer) : IProgress<Message>

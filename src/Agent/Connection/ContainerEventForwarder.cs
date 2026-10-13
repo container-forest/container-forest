@@ -57,6 +57,11 @@ public sealed partial class ContainerEventForwarder(IDockerGateway docker, TimeP
             Action = dockerEvent.Action,
             TimestampUnixMs = dockerEvent.At.ToUnixTimeMilliseconds(),
         };
+        if (dockerEvent.ExitCode is { } exitCode)
+        {
+            message.ExitCode = exitCode;
+        }
+
         if (!ContainerEventFilter.IsRemoval(dockerEvent.Action) && await TryFindAsync(dockerEvent.ContainerId, cancellationToken) is { } container)
         {
             message.Container = container;

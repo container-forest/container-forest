@@ -12,28 +12,35 @@ namespace ContainerForest.DiscordBot.Interactions;
 /// </summary>
 public sealed partial class NotificationModule(
     RestartContainerCommand restart,
+    ContainerLogsCommand logs,
     IHostApplicationLifetime lifetime,
     TimeProvider time,
     ILogger<NotificationModule> logger)
     : InteractionModuleBase<SocketInteractionContext>
 {
-    public const string OutdatedButtonMessage = "❌ This button is from an older version of the bot. Use /restart instead.";
+    public const string OutdatedButtonMessage =
+        "❌ This button is from an older version of the bot. Use the slash commands or the panel instead.";
 
     /// <param name="rest">What the wildcard matched: the custom id after the prefix.</param>
-    [ComponentInteraction(RestartContainerButton.Prefix + ":*", ignoreGroupNames: true)]
-    public async Task RestartAsync(string rest)
+    [ComponentInteraction(ContainerButton.Prefix + ":*", ignoreGroupNames: true)]
+    public async Task ClickAsync(string rest)
     {
-        if (!RestartContainerButton.TryParse($"{RestartContainerButton.Prefix}:{rest}", out var button))
+        if (!ContainerButton.TryParse($"{ContainerButton.Prefix}:{rest}", out var button))
         {
             await RespondAsync(OutdatedButtonMessage, ephemeral: true, allowedMentions: AllowedMentions.None);
             return;
         }
 
         // The environment by id: the resolver finds it among the environments the clicker can see, or says it is not there.
-        var reply = await restart.ExecuteAsync(
-            new DiscordInteraction(Context.Interaction),
-            new ContainerActionArgs(button.EnvironmentId.ToString(), button.ContainerName),
-            lifetime.ApplicationStopping);
+        var interaction = new DiscordInteraction(Context.Interaction);
+        var container = new ContainerActionArgs(button.EnvironmentId.ToString(), button.ContainerName);
+        if (button.Action == ContainerButtonAction.Logs)
+        {
+            await logs.ExecuteAsync(interaction, container, lifetime.ApplicationStopping);
+            return;
+        }
+
+        var reply = await restart.ExecuteAsync(interaction, container, lifetime.ApplicationStopping);
         if (!reply.IsError && Context.Interaction is IComponentInteraction click)
         {
             await NoteRestartAsync(click.Message, Context.User.Id);

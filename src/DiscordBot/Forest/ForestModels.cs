@@ -88,3 +88,8 @@ public enum DeploymentStatus
     Failed,
     Cancelled,
 }
+
+/// <summary>One line of a container's log.</summary>
+/// <param name="At">Null for a line Docker gave no time.</param>
+/// <param name="IsStderr">The container wrote it to stderr.</param>
+public sealed record ForestLogLine(DateTimeOffset? At, bool IsStderr, string Text);

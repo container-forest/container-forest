@@ -29,6 +29,9 @@ internal sealed class StubForestClient : IForestClient
 
     public string LinkedUserName { get; set; } = "root";
 
+    /// <summary>What a log read answers with.</summary>
+    public List<ForestLogLine> LogLines { get; } = [];
+
     public async Task<ForestCaller?> GetCallerAsync(ulong discordUserId, CancellationToken cancellationToken)
     {
         await Enter($"caller {discordUserId}", cancellationToken);
@@ -66,6 +69,13 @@ internal sealed class StubForestClient : IForestClient
         await Enter(
             $"{action.ToString().ToLowerInvariant()} {discordUserId} {environmentId} {container} {timeoutSeconds?.ToString() ?? "default"}",
             cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ForestLogLine>> GetContainerLogsAsync(
+        ulong discordUserId, string environmentId, string container, int tailLines, CancellationToken cancellationToken)
+    {
+        await Enter($"logs {discordUserId} {environmentId} {container} {tailLines}", cancellationToken);
+        return LogLines;
     }
 
     public async Task<IReadOnlyList<ForestStack>> ListStacksAsync(

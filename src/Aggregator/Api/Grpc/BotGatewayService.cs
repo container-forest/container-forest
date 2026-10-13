@@ -13,6 +13,7 @@ using ContainerForest.Contracts.Bot;
 using Grpc.Core;
 using AgentContainerState = ContainerForest.Aggregator.Application.Agents.ContainerState;
 using BotContainerAction = ContainerForest.Contracts.Bot.ContainerAction;
+using BotContainerLogLine = ContainerForest.Contracts.Bot.ContainerLogLine;
 using BotDeploymentStatus = ContainerForest.Contracts.Bot.DeploymentStatus;
 using BotEnvironment = ContainerForest.Contracts.Bot.Environment;
 using BotStack = ContainerForest.Contracts.Bot.Stack;
@@ -20,6 +21,7 @@ using BotStackAction = ContainerForest.Contracts.Bot.StackAction;
 using ContainerAction = ContainerForest.Aggregator.Application.Containers.ContainerAction;
 using ContainerState = ContainerForest.Contracts.Bot.ContainerState;
 using DeploymentStatus = ContainerForest.Aggregator.Domain.Deployments.DeploymentStatus;
+using LogStream = ContainerForest.Aggregator.Application.Agents.LogStream;
 using StackAction = ContainerForest.Aggregator.Application.Stacks.StackAction;
 
 namespace ContainerForest.Aggregator.Api.Grpc;
@@ -34,6 +36,7 @@ public sealed class BotGatewayService(
     EnvironmentService environments,
     ContainerQueryService containerQueries,
     ContainerCommandService containerCommands,
+    ContainerLogService containerLogs,
     StackService stacks,
     StackCommandService stackCommands,
     DeploymentService deployments,
@@ -110,6 +113,26 @@ public sealed class BotGatewayService(
         await containerCommands.ExecuteAsync(
             ParseEnvironmentId(request.EnvironmentId), request.Container, action, stopTimeout, context.CancellationToken);
         return new ControlContainerResponse();
+    }
+
+    public override async Task<GetContainerLogsResponse> GetContainerLogs(GetContainerLogsRequest request, ServerCallContext context)
+    {
+        await ActAsAsync(request.DiscordUserId, context);
+        var lines = await containerLogs.ReadAsync(
+            ParseEnvironmentId(request.EnvironmentId),
+            request.Container,
+            request.HasTailLines ? request.TailLines : null,
+            since: null,
+            context.CancellationToken);
+
+        var response = new GetContainerLogsResponse();
+        response.Lines.AddRange(lines.Select(line => new BotContainerLogLine
+        {
+            TimestampUnixMs = line.At?.ToUnixTimeMilliseconds() ?? 0,
+            Stderr = line.Stream == LogStream.Stderr,
+            Text = line.Text,
+        }));
+        return response;
     }
 
     public override async Task<ListStacksResponse> ListStacks(ListStacksRequest request, ServerCallContext context)

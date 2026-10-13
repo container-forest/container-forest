@@ -15,7 +15,7 @@ public abstract class BotCommand<TArgs, TResult>(ILogger logger)
     /// <summary>The slash command's name, for the log.</summary>
     public abstract string Name { get; }
 
-    public async Task ExecuteAsync(ICommandInteraction interaction, TArgs args, CancellationToken cancellationToken)
+    public async Task<BotReply> ExecuteAsync(ICommandInteraction interaction, TArgs args, CancellationToken cancellationToken)
     {
         // Calls to the aggregator can take minutes (a stop waits for the container), far over Discord's 3 seconds.
         await interaction.DeferAsync(cancellationToken);
@@ -37,6 +37,7 @@ public abstract class BotCommand<TArgs, TResult>(ILogger logger)
         }
 
         await interaction.RespondAsync(reply, cancellationToken);
+        return reply;
     }
 
     protected abstract Task<TResult> CallForestAsync(BotUser user, TArgs args, CancellationToken cancellationToken);

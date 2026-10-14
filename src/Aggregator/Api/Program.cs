@@ -31,7 +31,7 @@ builder.Services.AddScoped<ICurrentUser>(sp => sp.GetRequiredService<ClaimsCurre
 builder.Services.AddScoped<IRequestOrigin, HttpRequestOrigin>();
 builder.Services.AddSessionAuthentication(builder.Environment);
 builder.Services.AddCliAuthorizationRateLimits();
-builder.Services.Configure<RateLimiterOptions>(options => options.AddSopsRateLimit());
+builder.Services.Configure<RateLimiterOptions>(options => options.AddSopsRateLimit().AddSignInRateLimit());
 DiscordSignIn.AddTo(builder.Services, builder.Configuration, builder.Environment);
 
 builder.Services.AddGrpc()

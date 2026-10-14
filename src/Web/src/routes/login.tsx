@@ -6,7 +6,7 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { useLoginMutation } from "@/api/auth";
-import { isUnauthorized } from "@/api/client";
+import { hasStatus, isUnauthorized } from "@/api/client";
 import { signInWithPasskey, usePasskeyLoginMutation } from "@/api/passkeys";
 import { meQuery, signInMethodsQuery } from "@/api/queries";
 import { KeyIcon, Loader2Icon, MessageCircleIcon } from "@/components/icons";
@@ -167,7 +167,11 @@ function LoginScreen() {
 
             {login.isError && (
               <p role="alert" className="text-destructive text-sm">
-                {isUnauthorized(login.error) ? t("login.errors.invalidCredentials") : t("login.errors.failed")}
+                {isUnauthorized(login.error)
+                  ? t("login.errors.invalidCredentials")
+                  : hasStatus(login.error, 429)
+                    ? t("login.errors.tooManyAttempts")
+                    : t("login.errors.failed")}
               </p>
             )}
 

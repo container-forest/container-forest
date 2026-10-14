@@ -153,5 +153,8 @@ public class AuditTrailTests
 
         public Task<AuditPage> ListAsync(AuditFilter filter, int skip, int take, CancellationToken cancellationToken) =>
             Task.FromResult(new AuditPage(Entries, Entries.Count));
+
+        public Task<int> RemoveOlderThanAsync(DateTimeOffset cutoff, CancellationToken cancellationToken) =>
+            Task.FromResult(Entries.RemoveAll(e => e.OccurredAt < cutoff));
     }
 }

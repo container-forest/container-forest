@@ -94,6 +94,8 @@ function AccountScreen() {
             {changePassword.isError &&
               (hasStatus(changePassword.error, 400) ? (
                 <PasswordReasons error={changePassword.error} heading={t("account.password.rejected")} />
+              ) : hasStatus(changePassword.error, 429) ? (
+                <ErrorText>{t("login.errors.tooManyAttempts")}</ErrorText>
               ) : (
                 <ErrorText>{t("account.password.failed")}</ErrorText>
               ))}

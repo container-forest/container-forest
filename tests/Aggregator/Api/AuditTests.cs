@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using ContainerForest.Aggregator.Application.Audit;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ContainerForest.Aggregator.Api.Tests;
 
@@ -119,6 +121,23 @@ public class AuditTests
         Assert.Equal(("ApiTokenCreated", "ci", "full access, no expiry"), (Text(tokenEntry, "action"), Text(tokenEntry, "targetName"), Text(tokenEntry, "details")));
         Assert.Equal(("ApiToken", "staging"), (Text(environmentEntry, "channel"), Text(environmentEntry, "targetName")));
         Assert.DoesNotContain(token!, await admin.GetStringAsync("/api/audit", Ct), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Only_entries_before_the_cutoff_are_removed()
+    {
+        await using var app = new AggregatorApp();
+        await app.CreateUserAsync("alice", isAdmin: false);
+        await app.CreateUserAsync("bob", isAdmin: false);
+        var log = app.Services.CreateScope().ServiceProvider.GetRequiredService<IAuditLog>();
+
+        var keptAll = await log.RemoveOlderThanAsync(DateTimeOffset.UtcNow.AddDays(-1), Ct);
+        var before = await ListAsync(app.CreateClient(), "category=Users");
+        var removed = await log.RemoveOlderThanAsync(DateTimeOffset.UtcNow.AddSeconds(1), Ct);
+
+        Assert.Equal((0, 2), (keptAll, before.Count));
+        Assert.True(removed >= 2);
+        Assert.Empty(await ListAsync(app.CreateClient(), "category=Users"));
     }
 
     private static async Task<List<JsonElement>> ListAsync(HttpClient client, string query)

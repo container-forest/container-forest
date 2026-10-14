@@ -34,6 +34,9 @@ internal sealed class AuditLog(AggregatorDbContext db, IServiceScopeFactory scop
         return new AuditPage(entries, total);
     }
 
+    public Task<int> RemoveOlderThanAsync(DateTimeOffset cutoff, CancellationToken cancellationToken) =>
+        db.AuditEntries.Where(e => e.OccurredAt < cutoff).ExecuteDeleteAsync(cancellationToken);
+
     private static IQueryable<AuditEntry> Apply(IQueryable<AuditEntry> query, AuditFilter filter)
     {
         if (filter.Category is { } category)

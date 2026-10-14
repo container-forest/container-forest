@@ -14,6 +14,9 @@ public interface IAuditLog
 
     /// <summary>Entries matching the filter, newest first, and how many match in total.</summary>
     Task<AuditPage> ListAsync(AuditFilter filter, int skip, int take, CancellationToken cancellationToken);
+
+    /// <summary>Removes the entries that occurred before <paramref name="cutoff"/>; returns how many.</summary>
+    Task<int> RemoveOlderThanAsync(DateTimeOffset cutoff, CancellationToken cancellationToken);
 }
 
 /// <summary>Which entries to show; every null field matches everything.</summary>

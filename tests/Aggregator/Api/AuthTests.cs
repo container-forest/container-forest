@@ -168,6 +168,22 @@ public class AuthTests
             reason => reason.GetString()!.Contains(AccountPolicy.MinPasswordLength.ToString(), StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task Too_many_sign_ins_from_one_address_are_turned_away()
+    {
+        await using var app = new AggregatorApp();
+        var browser = app.CreateBrowserClient();
+
+        // Different names, so no account's lockout stops them first: guessing one password across many users.
+        for (var i = 0; i < 20; i++)
+        {
+            await HttpAssert.StatusAsync(HttpStatusCode.Unauthorized, LoginAsync(browser, $"user{i}", "a common password guess"));
+        }
+
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.TooManyRequests, LoginAsync(browser, AggregatorApp.AdminUserName, AggregatorApp.AdminPassword));
+    }
+
     private static Task<HttpResponseMessage> LoginAsync(HttpClient client, string userName, string password, bool rememberMe = false) =>
         client.PostAsJsonAsync("/api/auth/login", new { userName, password, rememberMe }, Ct);
 

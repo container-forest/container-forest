@@ -103,6 +103,7 @@ public static class DependencyInjection
             services.AddHostedService<DatabaseMigrator>();
             services.AddHostedService<AdminBootstrapper>();
             services.AddHostedService<DeploymentWorker>();
+            services.AddHostedService<AuditRetention>();
         }
 
         services.AddOptions<AgentGatewayOptions>()
@@ -123,6 +124,11 @@ public static class DependencyInjection
             .Validate(o => o.IsValid(), "Notifications delays must be positive.")
             .ValidateOnStart();
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<NotificationOptions>>().Value);
+        services.AddOptions<AuditOptions>()
+            .Bind(configuration.GetSection(AuditOptions.SectionName))
+            .Validate(o => o.IsValid(), "Audit:RetentionDays must not be negative.")
+            .ValidateOnStart();
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<AuditOptions>>().Value);
         services.AddOptions<GitOptions>()
             .Bind(configuration.GetSection(GitOptions.SectionName))
             .Validate(o => o.IsValid(), "Git:MaxCacheBytes must be positive and Git:CacheDirectory set.")

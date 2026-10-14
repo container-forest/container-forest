@@ -45,6 +45,7 @@ import { UserKindBadge, UserStatusBadge } from "@/components/users/user-badges";
 import type { MessageKey } from "@/i18n";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { userNamePattern, userStatus } from "@/lib/users";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/users/$userId")({
   loader: ({ context, params }) => context.queryClient.ensureQueryData(userQuery(params.userId)),
@@ -285,9 +286,9 @@ function RolesCard({ user, assignments }: { user: User; assignments: RoleAssignm
           <TableHeader>
             <TableRow>
               <TableHead>{t("user.roles.environment")}</TableHead>
-              <TableHead>{t("user.roles.stack")}</TableHead>
+              <TableHead className="hidden sm:table-cell">{t("user.roles.stack")}</TableHead>
               <TableHead>{t("user.roles.role")}</TableHead>
-              <TableHead>{t("user.roles.grantedAt")}</TableHead>
+              <TableHead className="hidden md:table-cell">{t("user.roles.grantedAt")}</TableHead>
               <TableHead className="sr-only">{t("user.roles.actions")}</TableHead>
             </TableRow>
           </TableHeader>
@@ -301,8 +302,16 @@ function RolesCard({ user, assignments }: { user: User; assignments: RoleAssignm
             ) : (
               assignments.map((assignment) => (
                 <TableRow key={assignment.id}>
-                  <TableCell className="font-medium">{assignment.environmentName}</TableCell>
-                  <TableCell className={assignment.stackName === null ? "text-muted-foreground" : undefined}>
+                  <TableCell className="font-medium whitespace-normal break-words">
+                    {assignment.environmentName}
+                    {/* Narrow screens have no stack column: the stack goes under the environment. */}
+                    <span className="text-muted-foreground block text-xs font-normal sm:hidden">
+                      {assignment.stackName ?? t("user.roles.wholeEnvironment")}
+                    </span>
+                  </TableCell>
+                  <TableCell
+                    className={cn("hidden sm:table-cell", assignment.stackName === null && "text-muted-foreground")}
+                  >
                     {assignment.stackName ?? t("user.roles.wholeEnvironment")}
                   </TableCell>
                   <TableCell>
@@ -314,7 +323,7 @@ function RolesCard({ user, assignments }: { user: User; assignments: RoleAssignm
                         changeRole.mutate({ assignmentId: assignment.id, role: role as Role });
                       }}
                     >
-                      <SelectTrigger size="sm" className="w-36" aria-label={t("user.roles.role")}>
+                      <SelectTrigger size="sm" className="w-28 sm:w-36" aria-label={t("user.roles.role")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -326,7 +335,7 @@ function RolesCard({ user, assignments }: { user: User; assignments: RoleAssignm
                       </SelectContent>
                     </Select>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(assignment.grantedAt, i18n.resolvedLanguage)}</TableCell>
+                  <TableCell className="text-muted-foreground hidden md:table-cell">{formatDate(assignment.grantedAt, i18n.resolvedLanguage)}</TableCell>
                   <TableCell className="text-right">
                     <ConfirmAction
                       variant="ghost"
@@ -345,7 +354,7 @@ function RolesCard({ user, assignments }: { user: User; assignments: RoleAssignm
                       }}
                     >
                       <Trash2Icon data-icon="inline-start" />
-                      {t("user.roles.revoke")}
+                      <span className="sr-only sm:not-sr-only">{t("user.roles.revoke")}</span>
                     </ConfirmAction>
                   </TableCell>
                 </TableRow>

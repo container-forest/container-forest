@@ -202,6 +202,7 @@ const en: Translation = {
       passwordRequired: "Enter your password.",
       invalidCredentials: "Incorrect user name or password.",
       failed: "Could not sign in. Check your connection and try again.",
+      tooManyAttempts: "Too many attempts from this address. Wait a minute and try again.",
     },
   },
   containers: {

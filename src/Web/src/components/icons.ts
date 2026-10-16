@@ -21,6 +21,7 @@ export { default as CopyIcon } from "~icons/material-symbols/content-copy-rounde
 export { default as DownloadIcon } from "~icons/material-symbols/download-rounded";
 export { default as FileSearchIcon } from "~icons/material-symbols/manage-search-rounded";
 export { default as FilterXIcon } from "~icons/material-symbols/filter-alt-off-rounded";
+export { default as ForestIcon } from "~icons/material-symbols/forest-rounded";
 export { default as FolderGitIcon } from "~icons/material-symbols/folder-code-rounded";
 export { default as KeyIcon } from "~icons/material-symbols/key-rounded";
 export { default as LanguagesIcon } from "~icons/material-symbols/translate-rounded";

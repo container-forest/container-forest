@@ -9,6 +9,7 @@ import { HubProvider } from "@/components/live/hub-provider";
 import { LiveIndicator } from "@/components/live/live-indicator";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Brand } from "@/components/layout/brand";
 
 /**
  * Every page that needs a signed-in user lives under this pathless layout. A 401 from /api/me sends the
@@ -56,8 +57,8 @@ function AuthedLayout() {
                 <SidebarContent onNavigate={() => setMenuOpen(false)} />
               </SheetContent>
             </Sheet>
-            <Link to="/" className="font-heading text-base font-extrabold tracking-tight">
-              container<span className="text-emerald-500">-</span>forest
+            <Link to="/" className="text-base">
+              <Brand />
             </Link>
             <span className="ml-auto pr-2">
               <LiveIndicator />

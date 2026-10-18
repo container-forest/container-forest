@@ -56,23 +56,27 @@ internal sealed class GitWorkTree
         Split0(Run(Root, ["diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"]));
 
     /// <summary>Of the given files, those .gitattributes puts under the forest filter (as the index has the attributes).</summary>
-    public IReadOnlyList<string> Filtered(IReadOnlyList<string> paths)
+    public IReadOnlyList<string> Filtered(IReadOnlyList<string> paths) =>
+        Attribute(paths, "filter").Where(a => a.Value == FilterDriver).Select(a => a.Path).ToList();
+
+    /// <summary>
+    /// The value .gitattributes gives an attribute for each file: "set", "unset", "unspecified" or the value, as
+    /// git check-attr prints it.
+    /// </summary>
+    public IReadOnlyList<(string Path, string Value)> Attribute(IReadOnlyList<string> paths, string attribute)
     {
-        var filtered = new List<string>();
+        var values = new List<(string, string)>();
         foreach (var chunk in paths.Chunk(500))
         {
             // -z output: path NUL attribute NUL value NUL, for each path.
-            var fields = Split0(Run(Root, ["check-attr", "-z", "filter", "--", .. chunk]));
+            var fields = Split0(Run(Root, ["check-attr", "-z", attribute, "--", .. chunk]));
             for (var i = 0; i + 2 < fields.Count; i += 3)
             {
-                if (fields[i + 2] == FilterDriver)
-                {
-                    filtered.Add(fields[i]);
-                }
+                values.Add((fields[i], fields[i + 2]));
             }
         }
 
-        return filtered;
+        return values;
     }
 
     /// <summary>The file as the index holds it: what the next commit will contain.</summary>
@@ -89,17 +93,27 @@ internal sealed class GitWorkTree
     public bool IsUnmodified(string path) => RunRaw(Root, ["diff", "--quiet", "--", path], null).ExitCode == 0;
 
     /// <summary>Writes the files again from the index, through the smudge filter.</summary>
-    public void CheckOutAgain(IReadOnlyList<string> paths)
+    /// <returns>What git and the filter said on stderr, line by line: why a file stays encrypted, for one.</returns>
+    public IReadOnlyList<string> CheckOutAgain(IReadOnlyList<string> paths)
     {
         foreach (var path in paths)
         {
             File.Delete(Path.Combine(Root, path));
         }
 
+        var messages = new List<string>();
         foreach (var chunk in paths.Chunk(500))
         {
-            Run(Root, ["checkout", "--", .. chunk]);
+            var result = RunRaw(Root, ["checkout", "--", .. chunk], null);
+            if (result.ExitCode != 0)
+            {
+                throw Failed("checkout", result.ExitCode, result.Stderr);
+            }
+
+            messages.AddRange(result.Stderr.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
         }
+
+        return messages;
     }
 
     /// <summary>Stages the files as they are in the work tree.</summary>
@@ -109,6 +123,23 @@ internal sealed class GitWorkTree
         {
             Run(Root, ["add", "--", .. chunk]);
         }
+    }
+
+    /// <summary>
+    /// Stages exactly this content for a tracked file, past the filter and line ending conversion, and leaves the work
+    /// tree alone: its uncommitted changes stay unstaged.
+    /// </summary>
+    public void StageContent(string path, byte[] content)
+    {
+        // ls-files -s: "<mode> <object> <stage>\t<path>"
+        var mode = Text(Run(Root, ["ls-files", "-s", "--", path])).Split(' ', 2)[0];
+        var stored = RunRaw(Root, ["hash-object", "-w", "--no-filters", "--stdin"], content);
+        if (stored.ExitCode != 0)
+        {
+            throw Failed("hash-object", stored.ExitCode, stored.Stderr);
+        }
+
+        Run(Root, ["update-index", "--cacheinfo", $"{mode},{Text(stored.Stdout).Trim()},{path}"]);
     }
 
     /// <summary>Stages the files again through the clean filter, even when git thinks they did not change.</summary>
@@ -130,13 +161,13 @@ internal sealed class GitWorkTree
     private static byte[] Run(string directory, IReadOnlyList<string> arguments)
     {
         var result = RunRaw(directory, arguments, null);
-        if (result.ExitCode != 0)
-        {
-            var reason = result.Stderr.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim() ?? $"exit code {result.ExitCode}";
-            throw new CliException($"git {arguments[0]} failed: {reason}");
-        }
+        return result.ExitCode == 0 ? result.Stdout : throw Failed(arguments[0], result.ExitCode, result.Stderr);
+    }
 
-        return result.Stdout;
+    private static CliException Failed(string command, int exitCode, string stderr)
+    {
+        var reason = stderr.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim() ?? $"exit code {exitCode}";
+        return new CliException($"git {command} failed: {reason}");
     }
 
     private static (int ExitCode, byte[] Stdout, string Stderr) RunRaw(string directory, IReadOnlyList<string> arguments, byte[]? stdin)

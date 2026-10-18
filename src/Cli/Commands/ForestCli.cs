@@ -110,6 +110,7 @@ internal static class ForestCli
                 new SecretsStatusCommand(),
                 new SecretsCheckCommand(),
                 new SecretsUpdateKeysCommand(),
+                new SecretsFixEolCommand(),
                 new CommandGroup("rule", "The creation rules of .sops.yaml: which environments' keys encrypt which files.",
                     new SecretsRuleListCommand(),
                     new SecretsRuleAddCommand(),

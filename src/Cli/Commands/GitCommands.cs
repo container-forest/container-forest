@@ -1,5 +1,6 @@
 using System.CommandLine;
 using ContainerForest.Cli.Configuration;
+using ContainerForest.Cli.Output;
 using ContainerForest.Cli.Secrets;
 
 namespace ContainerForest.Cli.Commands;
@@ -28,18 +29,35 @@ internal sealed class GitSetupCommand() : ForestCommand("setup", "Turn the fores
         }
 
         var contextName = CurrentContextName(context);
-        var (decrypted, total) = GitFilterSetup.Apply(tree, contextName, GitFilterSetup.Executable(), context.Output);
+        var refreshed = GitFilterSetup.Apply(tree, contextName, GitFilterSetup.Executable(), context.Output);
         context.Output.Done(contextName is null
             ? "The forest filter is on; there is no context yet: run 'forest login --secrets <server>'."
-            : $"The forest filter is on for context '{contextName}': {decrypted} of {total} secret file(s) decrypted.");
-        if (decrypted < total)
+            : $"The forest filter is on for context '{contextName}': {refreshed.Decrypted} of {refreshed.Total} secret file(s) decrypted.");
+        Report(refreshed, context.Output);
+        SecretsFiles.NoteLineEndings(tree, tree.Filtered(tree.TrackedFiles()), context.Output);
+        return Task.FromResult(ExitCodes.Ok);
+    }
+
+    /// <summary>
+    /// Tells what the checkout of the secret files said: why a file stays encrypted, in the filter's own words, or the
+    /// usual reasons when it said nothing.
+    /// </summary>
+    internal static void Report(RefreshResult refreshed, CliOutput output)
+    {
+        foreach (var message in refreshed.Messages)
         {
-            context.Output.Note(
-                "Files you may not decrypt stay encrypted. To decrypt, you need the Editor role on their environment and a token " +
-                "with the right to decrypt secrets ('forest login --secrets'); then run 'forest git setup' again.");
+            output.Note(message);
         }
 
-        return Task.FromResult(ExitCodes.Ok);
+        if (refreshed.Decrypted == refreshed.Total)
+        {
+            return;
+        }
+
+        output.Note(refreshed.Messages.Count > 0
+            ? "Files that stay encrypted are named above with the reason; fix it, then run 'forest git setup' again."
+            : "Files you may not decrypt stay encrypted. To decrypt, you need the Editor role on their environment and a token " +
+              "with the right to decrypt secrets ('forest login --secrets'); then run 'forest git setup' again.");
     }
 
     /// <summary>The context named on the command line or in CF_CONTEXT, else the current one; null when there is none.</summary>

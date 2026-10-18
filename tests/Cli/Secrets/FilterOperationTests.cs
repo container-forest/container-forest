@@ -69,6 +69,45 @@ public sealed class FilterOperationTests : IDisposable
     }
 
     [Fact]
+    public async Task Dotenv_saved_with_crlf_is_encrypted_in_lf_and_counts_as_unchanged()
+    {
+        var services = Services(FilterCache.Open(gitDirectory));
+        var ciphertext = FakeSops.Wrap("TOKEN=s3cret\nDEBUG=1\n");
+        await new SmudgeOperation(services).RunAsync(".env", ciphertext, Ct);
+
+        var unchanged = await new CleanOperation(services).RunAsync(".env", "TOKEN=s3cret\r\nDEBUG=1\r\n"u8.ToArray(), Ct);
+        var changed = await new CleanOperation(services).RunAsync(".env", "TOKEN=other\r\n"u8.ToArray(), Ct);
+
+        Assert.Equal(ciphertext, unchanged.Content);
+        Assert.Equal("ENC1:TOKEN=other\n\nsops_version=3.13.3\n", Encoding.UTF8.GetString(changed.Content));
+    }
+
+    [Theory]
+    [InlineData("app/.env", "A=1\nB=2\n")]
+    [InlineData("config.INI", "[s]\nA=1\n")]
+    [InlineData("secrets.yaml", "a: b\r\n")]
+    [InlineData("secrets/cert.p12", "\r\n\u0001")]
+    public void Only_dotenv_and_ini_lose_cr_before_encryption(string path, string expected)
+    {
+        var input = expected.Contains('\r', StringComparison.Ordinal) ? expected : expected.Replace("\n", "\r\n", StringComparison.Ordinal);
+
+        Assert.Equal(expected, Encoding.UTF8.GetString(SopsFiles.PlainForSops(path, Encoding.UTF8.GetBytes(input))));
+    }
+
+    [Fact]
+    public async Task Ciphertext_with_crlf_that_fails_to_decrypt_says_what_to_do()
+    {
+        sops.Refusal = "sops failed with exit code 1: parsing time";
+        var crlf = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(FakeSops.Wrap("TOKEN=x")).Replace("\n", "\r\n", StringComparison.Ordinal));
+
+        var result = await new SmudgeOperation(Services(null)).RunAsync(".env", crlf, Ct);
+
+        Assert.Equal(crlf, result.Content);
+        Assert.Contains("CRLF line endings", error.ToString(), StringComparison.Ordinal);
+        Assert.Contains("forest secrets fix-eol", error.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Plain_text_is_never_passed_on_when_encryption_fails()
     {
         sops.Refusal = "aggregator unreachable";

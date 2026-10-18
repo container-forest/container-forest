@@ -57,6 +57,77 @@ public sealed class SecretsCommandsTests : IDisposable
     }
 
     [Fact]
+    public async Task Check_fails_on_ciphertext_with_crlf_and_notes_rules_without_eol()
+    {
+        Git("config", "core.autocrlf", "false");
+        Write(".gitattributes", "*.env filter=forest diff=forest\n");
+        Write("app/.env", System.Text.Encoding.UTF8.GetString(FakeSops.Wrap("TOKEN=x")).Replace("\n", "\r\n", StringComparison.Ordinal));
+        Git("add", "-A");
+
+        var (code, _, error) = await RunAsync("secrets", "check");
+
+        Assert.Equal(ExitCodes.Failed, code);
+        Assert.Contains("app/.env is encrypted in git with CRLF line endings", error, StringComparison.Ordinal);
+        Assert.Contains("fix-eol", error, StringComparison.Ordinal);
+        Assert.Contains("have no eol=lf", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Fix_eol_keeps_secret_files_in_lf_in_attributes_git_and_the_clone()
+    {
+        Git("config", "core.autocrlf", "false");
+        Write(".gitattributes", "# secrets\r\n*.env filter=forest diff=forest\r\n*.png binary\r\n/raw/** filter=forest -text\r\n");
+        var crlf = System.Text.Encoding.UTF8.GetString(FakeSops.Wrap("TOKEN=x")).Replace("\n", "\r\n", StringComparison.Ordinal);
+        Write("app/.env", crlf);
+        Write("db/.env", crlf);
+        Git("add", "-A");
+        Git("commit", "-qm", "secrets with crlf");
+        Write("db/.env", System.Text.Encoding.UTF8.GetString(FakeSops.Wrap("TOKEN=edited by hand")));
+
+        var (code, _, error) = await RunAsync("secrets", "fix-eol");
+
+        Assert.True(code == ExitCodes.Ok, error);
+        Assert.Equal("# secrets\r\n*.env filter=forest diff=forest eol=lf\r\n*.png binary\r\n/raw/** filter=forest -text\r\n", Read(".gitattributes"));
+        Assert.DoesNotContain("\r", GitOutput("show", ":app/.env"), StringComparison.Ordinal);
+        Assert.DoesNotContain("\r", GitOutput("show", ":db/.env"), StringComparison.Ordinal);
+        Assert.Equal(crlf.Replace("\r\n", "\n", StringComparison.Ordinal), Read("app/.env"));
+        Assert.Contains("TOKEN=edited by hand", Read("db/.env"), StringComparison.Ordinal);
+        Assert.Contains("db/.env is encrypted here and differs from git", error, StringComparison.Ordinal);
+        Assert.Contains("M  app/.env", GitOutput("status", "--porcelain"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Adding_a_file_writes_eol_lf_and_gives_it_to_the_old_lines()
+    {
+        Write(".gitattributes", ".env filter=forest diff=forest\n");
+        Git("config", "filter.forest.process", "forest git filter-process");
+        Write("app/secret.json", "{}");
+
+        var (code, _, error) = await RunAsync("secrets", "add", "app/secret.json");
+
+        Assert.True(code == ExitCodes.Ok, error);
+        Assert.Equal(
+            ".env filter=forest diff=forest eol=lf\n# Added by 'forest secrets add' (ADR-0010).\n/app/secret.json filter=forest diff=forest eol=lf\n",
+            Read(".gitattributes"));
+    }
+
+    [Fact]
+    public async Task Removing_drops_the_line_in_either_form()
+    {
+        Write(".gitattributes", "/a/.env filter=forest diff=forest eol=lf\n/b/.env filter=forest diff=forest\n");
+        var encrypted = System.Text.Encoding.UTF8.GetString(FakeSops.Wrap("TOKEN=x"));
+        Write("a/.env", encrypted);
+        Write("b/.env", encrypted);
+        Git("add", "-A");
+        Git("commit", "-qm", "secrets");
+
+        var (code, _, error) = await RunAsync("secrets", "remove", "a/.env", "b/.env");
+
+        Assert.True(code == ExitCodes.Ok, error);
+        Assert.Equal("", Read(".gitattributes"));
+    }
+
+    [Fact]
     public async Task Adding_a_file_needs_the_filter_set_up()
     {
         Write("app/.env", "TOKEN=x\n");

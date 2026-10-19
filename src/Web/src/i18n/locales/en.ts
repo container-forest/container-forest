@@ -163,6 +163,26 @@ const en: Translation = {
       },
     },
   },
+  appearance: {
+    title: "Appearance",
+    description: "A quiet seasonal backdrop behind the panel: it takes no clicks and covers no content. The choice is remembered in this browser.",
+    season: "Seasonal animation",
+    auto: "By the calendar (now: {{season}})",
+    off: "Off",
+    seasons: {
+      spring: "Spring: green leaves",
+      summer: "Summer: butterflies",
+      autumn: "Autumn: red and orange leaves",
+      winter: "Winter: snowflakes",
+    },
+    current: {
+      spring: "spring",
+      summer: "summer",
+      autumn: "autumn",
+      winter: "winter",
+    },
+    reducedMotion: "With “Reduce motion” on in the system, there is no animation whatever the choice.",
+  },
   account: {
     title: "My account",
     description: "You are signed in as {{name}}.",

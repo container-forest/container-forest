@@ -59,7 +59,7 @@ flowchart TB
     D1 --- S1
   end
   subgraph Host["Хост ЦА"]
-    Caddy["Caddy<br/>container-forest-web<br/>:443, TLS Let's Encrypt, файли панелі"]
+    Caddy["Caddy<br/>container-forest-web<br/>:443, TLS Let's Encrypt<br/>роздає SPA панелі (статичні файли)"]
     subgraph CA["Центральний агрегатор"]
       Rest["REST + SignalR :5080<br/>Identity, passkeys, Discord OAuth2,<br/>API-токени, вебхуки"]
       Grpc["gRPC :5081<br/>AgentGateway, BotGateway"]

@@ -56,7 +56,8 @@ flowchart TB
   subgraph EnvA["Середовище A"]
     EA1["Агент<br/>docker compose CLI"] -->|"Unix socket"| D1["Docker Engine"]
     S1[("/opt/container-forest/stacks<br/>/run/container-forest (tmpfs)")]
-    D1 --- S1
+    EA1 -->|"пише файли стеку й секрети"| S1
+    D1 -->|"монтує в контейнери"| S1
   end
   subgraph Host["Хост ЦА"]
     Caddy["Caddy<br/>container-forest-web<br/>:443, TLS Let's Encrypt<br/>роздає SPA панелі (статичні файли)"]
@@ -78,15 +79,16 @@ flowchart TB
   Git[("Git-репозиторії<br/>секрети зашифровані SOPS")]
   Reg[("Container registry")]
 
-  Bot -->|"gRPC<br/>x-bot-token + Discord ID"| Caddy
+  Bot -->|"gRPC: команди й потік сповіщень<br/>x-bot-token + Discord ID"| Caddy
   UI -->|"HTTPS REST + SignalR<br/>cookie cf_session"| Caddy
   Cli -->|"HTTPS REST<br/>Bearer cf_pat_…"| Caddy
   Hooks -->|"HTTPS POST<br/>HMAC / Bearer"| Caddy
-  EA1 -->|"gRPC bidi-стрім,<br/>ініціює агент"| Caddy
-  EA2 -->|"gRPC bidi-стрім,<br/>ініціює агент"| Caddy
+  EA1 -->|"gRPC bidi-стрім, ініціює агент<br/>↓ команди<br/>↑ результати, події контейнерів, логи"| Caddy
+  EA2 -->|"gRPC bidi-стрім, ініціює агент<br/>↓ команди<br/>↑ результати, події контейнерів, логи"| Caddy
   Pipe -->|"git fetch (HTTPS),<br/>токен лише на читання"| Git
   D1 -->|"docker pull,<br/>тимчасовий DOCKER_CONFIG"| Reg
   D2 -->|"docker pull"| Reg
+  Rest -->|"OAuth2: вхід і прив'язка акаунта"| Discord
 ```
 
 | Від → до | Протокол | Автентифікація |
@@ -98,6 +100,7 @@ flowchart TB
 | Агент → Docker | Unix socket | — (агент фактично має root на хості) |
 | Docker → registry | HTTPS | тимчасовий `DOCKER_CONFIG` з кредами від ЦА |
 | ЦА → Git | HTTPS | токен підключення лише на читання, лише під його префіксом (SSH не підтримується LibGit2Sharp) |
+| ЦА → Discord | HTTPS (OAuth2, вхід і прив'язка акаунта, ADR-0009) | client id і client secret застосунку Discord |
 
 ## Інваріанти безпеки
 
@@ -148,6 +151,49 @@ flowchart TB
 ## Підключення до git-серверів
 
 Приватні репозиторії ЦА тягне через **підключення** (ADR-0006): префікс адреси (`https://gitea.example.com/team/` — організація, весь сервер або один репозиторій), токен лише на читання й середовища, які можуть з них деплоїти. Токен надсилається лише на адреси під префіксом. Для Gitea, де токен не обмежується одним репозиторієм, підключенню дають токен службового користувача, доданого в команди з доступом на читання: що він бачить, вирішує Gitea, а підключення — яким середовищам це дозволено. Репозиторії під підключенням додають редактори без токенів. Репозиторій без підключення публічний; ЦА не тягне його з приватних адрес мережі (захист від SSRF), хіба що задано `Git:AllowPrivateHosts`.
+
+## Деплой стеку
+
+Деплой ставиться в чергу й виконується пайплайном кроків у ЦА; агент отримує готовий пакет і лише запускає `docker compose`. Секрети розшифровуються в ЦА ключами цільового середовища, а на хості лежать лише в tmpfs, тому після перезавантаження хоста ЦА сама повторно розгортає той самий коміт (rehydrate).
+
+```mermaid
+sequenceDiagram
+  participant T as Панель / CLI / бот /<br/>webhook / хук CI
+  participant CA as ЦА
+  participant G as Git-сервер
+  participant A as Агент
+  participant D as Docker Engine
+  participant R as Registry
+
+  T->>CA: деплой стеку
+  alt агент офлайн або стек уже деплоїться
+    CA-->>T: 503 / 409, нічого не ставиться в чергу<br/>(webhook і хук CI — деплой після поточного)
+  else
+    CA-->>T: 202 Accepted, деплой у черзі
+  end
+  Note over CA: DeploymentWorker, кроки IDeployStep
+  CA->>G: GitFetch: fetch гілки стеку<br/>токен підключення лише на читання
+  G-->>CA: коміт (записується в деплой до читання файлів)
+  CA->>CA: SopsDecrypt: файли з метаданими sops<br/>розшифровуються ключами лише цільового середовища
+  CA->>CA: ValidateCompose (без build:, попередження про latest)<br/>BuildBundle (до 3 MiB), ResolveRegistryAuth
+  CA->>A: DeployStack: файли, секретні файли,<br/>креди registry лише для образів стеку
+  A->>A: файли стеку на місці (ADR-0004), копія в .prev<br/>секрети → /run/container-forest (tmpfs),<br/>у каталозі стеку — посилання на них
+  A->>D: docker compose up -d --remove-orphans --wait<br/>--pull missing | always, тимчасовий DOCKER_CONFIG
+  D->>R: docker pull
+  A-->>CA: CommandProgress: вивід compose → лог деплою
+  opt «Перезапускати після зміни файлів» і файли змінилися
+    A->>D: docker compose restart
+  end
+  A-->>CA: CommandResult
+  Note over A: видалити DOCKER_CONFIG і .prev секретів
+  CA-->>T: статус і лог (SignalR, історія деплоїв),<br/>сповіщення в Discord
+
+  Note over T,R: Перезавантаження хоста: tmpfs порожній, контейнери з файловими секретами не стартують
+  A->>CA: Hello з новим boot_id
+  CA->>CA: rehydrate: деплой того самого коміту<br/>для кожного стеку, розгорнутого із секретами
+  CA->>A: DeployStack (той самий коміт, pull missing)
+  A->>D: docker compose up -d
+```
 
 ## Деплой після push (webhook)
 

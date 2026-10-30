@@ -67,7 +67,7 @@ flowchart TB
   Git[("Git-репозиторій")]
   Reg[("Container registry")]
 
-  Bot -->|"gRPC"| Caddy
+  Bot -->|"gRPC: команди, сповіщення"| Caddy
   UI -->|"HTTPS REST + SignalR"| Caddy
   Cli -->|"HTTPS REST, API-токен"| Caddy
   Hooks -->|"webhook після push"| Caddy

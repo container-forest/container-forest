@@ -41,6 +41,7 @@
 ## Схема і протоколи
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 360}}}%%
 flowchart TB
   subgraph Clients["Інтерфейси"]
     Discord["Discord"] <-->|"Gateway"| Bot["Discord-бот<br/>Discord.Net"]
@@ -64,16 +65,19 @@ flowchart TB
     subgraph CA["Центральний агрегатор"]
       Rest["REST + SignalR :5080<br/>Identity, passkeys, Discord OAuth2,<br/>API-токени, вебхуки"]
       Grpc["gRPC :5081<br/>AgentGateway, BotGateway"]
-      App["Application<br/>AccessPolicy, AuthorizedCommand,<br/>сповіщення, журнал аудиту"]
-      Pipe["Пайплайн деплою<br/>GitFetch → SopsDecrypt → ValidateCompose →<br/>BuildBundle → ResolveRegistryAuth → SendToAgent"]
+      App["Application<br/>середовища й агенти · контейнери й логи<br/>стеки й деплої, webhook, хук CI<br/>репозиторії й підключення до git<br/>секрети: age-ключі, SOPS, rehydrate<br/>користувачі, ролі, API-токени, Discord<br/>сповіщення · журнал аудиту<br/>права для всіх інтерфейсів:<br/>AccessPolicy, AuthorizedCommand"]
+      Pipe["Пайплайн деплою (DeploymentWorker)<br/>GitFetch → SopsDecrypt → ValidateCompose →<br/>BuildBundle → ResolveRegistryAuth → SendToAgent"]
       Rest --> App
       Grpc <--> App
       App --> Pipe
+      Infra["Infrastructure<br/>EF Core (SQLite), LibGit2Sharp,<br/>sops і age-keygen, Data Protection"]
+      App --> Infra
+      Pipe --> Infra
     end
     Data[("Том /data<br/>SQLite, key ring Data Protection,<br/>age-ключі, git-cache")]
     Caddy -->|"/api, /hubs"| Rest
     Caddy -->|"gRPC (h2c)"| Grpc
-    App --- Data
+    Infra --- Data
   end
 
   Git[("Git-репозиторії<br/>секрети зашифровані SOPS")]
@@ -85,7 +89,7 @@ flowchart TB
   Hooks -->|"HTTPS POST<br/>HMAC / Bearer"| Caddy
   EA1 -->|"gRPC bidi-стрім, ініціює агент<br/>↓ команди<br/>↑ результати, події контейнерів, логи"| Caddy
   EA2 -->|"gRPC bidi-стрім, ініціює агент<br/>↓ команди<br/>↑ результати, події контейнерів, логи"| Caddy
-  Pipe -->|"git fetch (HTTPS),<br/>токен лише на читання"| Git
+  Infra -->|"git fetch (HTTPS),<br/>токен лише на читання"| Git
   D1 -->|"docker pull,<br/>тимчасовий DOCKER_CONFIG"| Reg
   D2 -->|"docker pull"| Reg
   Rest -->|"OAuth2: вхід і прив'язка акаунта"| Discord

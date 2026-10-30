@@ -41,21 +41,51 @@
 ## Схема і протоколи
 
 ```mermaid
-flowchart LR
-  UI["Панель (SPA)"] -->|"HTTPS REST + SignalR"| CA["Центральний агрегатор"]
-  Bot["Discord-бот"] -->|"gRPC"| CA
-  Cli["CLI forest"] -->|"HTTPS REST, API-токен"| CA
-  CA --- DB[("SQLite")]
-  CA -->|"git fetch (HTTPS)"| Git[("Git-репозиторій")]
-  subgraph EnvA["Середовище A"]
-    EA1["Агент"] -->|"Unix socket"| D1["Docker Engine"]
+flowchart TB
+  subgraph Clients["Інтерфейси"]
+    Discord["Discord"] <-->|"Gateway"| Bot["Discord-бот<br/>Discord.Net"]
+    UI["Панель (SPA)<br/>React, TanStack"]
+    Cli["CLI forest<br/>NativeAOT, git-фільтр"]
+    Hooks["Git-сервер / CI<br/>push-webhook, хук деплою"]
   end
-  subgraph EnvB["Середовище B"]
+
+  subgraph EnvB["Середовище B, C, …"]
     EA2["Агент"] -->|"Unix socket"| D2["Docker Engine"]
   end
-  EA1 -->|"gRPC стрім, ініціює агент"| CA
-  EA2 -->|"gRPC стрім, ініціює агент"| CA
-  D1 -->|"docker pull"| Reg[("Container registry")]
+
+  subgraph EnvA["Середовище A"]
+    EA1["Агент<br/>docker compose CLI"] -->|"Unix socket"| D1["Docker Engine"]
+    S1[("/opt/container-forest/stacks<br/>/run/container-forest (tmpfs)")]
+    D1 --- S1
+  end
+  subgraph Host["Хост ЦА"]
+    Caddy["Caddy<br/>container-forest-web<br/>:443, TLS Let's Encrypt, файли панелі"]
+    subgraph CA["Центральний агрегатор"]
+      Rest["REST + SignalR :5080<br/>Identity, passkeys, Discord OAuth2,<br/>API-токени, вебхуки"]
+      Grpc["gRPC :5081<br/>AgentGateway, BotGateway"]
+      App["Application<br/>AccessPolicy, AuthorizedCommand,<br/>сповіщення, журнал аудиту"]
+      Pipe["Пайплайн деплою<br/>GitFetch → SopsDecrypt → ValidateCompose →<br/>BuildBundle → ResolveRegistryAuth → SendToAgent"]
+      Rest --> App
+      Grpc <--> App
+      App --> Pipe
+    end
+    Data[("Том /data<br/>SQLite, key ring Data Protection,<br/>age-ключі, git-cache")]
+    Caddy -->|"/api, /hubs"| Rest
+    Caddy -->|"gRPC (h2c)"| Grpc
+    App --- Data
+  end
+
+  Git[("Git-репозиторії<br/>секрети зашифровані SOPS")]
+  Reg[("Container registry")]
+
+  Bot -->|"gRPC<br/>x-bot-token + Discord ID"| Caddy
+  UI -->|"HTTPS REST + SignalR<br/>cookie cf_session"| Caddy
+  Cli -->|"HTTPS REST<br/>Bearer cf_pat_…"| Caddy
+  Hooks -->|"HTTPS POST<br/>HMAC / Bearer"| Caddy
+  EA1 -->|"gRPC bidi-стрім,<br/>ініціює агент"| Caddy
+  EA2 -->|"gRPC bidi-стрім,<br/>ініціює агент"| Caddy
+  Pipe -->|"git fetch (HTTPS),<br/>токен лише на читання"| Git
+  D1 -->|"docker pull,<br/>тимчасовий DOCKER_CONFIG"| Reg
   D2 -->|"docker pull"| Reg
 ```
 

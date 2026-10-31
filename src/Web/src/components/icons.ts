@@ -10,6 +10,7 @@ export { default as ArrowLeftIcon } from "~icons/material-symbols/arrow-back-rou
 export { default as ArrowRightIcon } from "~icons/material-symbols/arrow-forward-rounded";
 export { default as BellIcon } from "~icons/material-symbols/notifications-rounded";
 export { default as BoxIcon } from "~icons/material-symbols/view-in-ar-rounded";
+export { default as CheckCircleIcon } from "~icons/material-symbols/check-circle-rounded";
 export { default as CheckIcon } from "~icons/material-symbols/check-rounded";
 export { default as ChevronDownIcon } from "~icons/material-symbols/keyboard-arrow-down-rounded";
 export { default as ChevronLeftIcon } from "~icons/material-symbols/chevron-left-rounded";
@@ -21,8 +22,8 @@ export { default as CopyIcon } from "~icons/material-symbols/content-copy-rounde
 export { default as DownloadIcon } from "~icons/material-symbols/download-rounded";
 export { default as FileSearchIcon } from "~icons/material-symbols/manage-search-rounded";
 export { default as FilterXIcon } from "~icons/material-symbols/filter-alt-off-rounded";
-export { default as ForestIcon } from "~icons/material-symbols/forest-rounded";
 export { default as FolderGitIcon } from "~icons/material-symbols/folder-code-rounded";
+export { default as InstallDesktopIcon } from "~icons/material-symbols/install-desktop-rounded";
 export { default as KeyIcon } from "~icons/material-symbols/key-rounded";
 export { default as LanguagesIcon } from "~icons/material-symbols/translate-rounded";
 export { default as LayersIcon } from "~icons/material-symbols/stacks-rounded";
@@ -45,6 +46,7 @@ export { default as ScrollTextIcon } from "~icons/material-symbols/article-outli
 export { default as SearchIcon } from "~icons/material-symbols/search-rounded";
 export { default as ServerIcon } from "~icons/material-symbols/dns";
 export { default as SettingsIcon } from "~icons/material-symbols/settings-rounded";
+export { default as ShareIcon } from "~icons/material-symbols/ios-share-rounded";
 export { default as ShieldMinusIcon } from "~icons/material-symbols/remove-moderator-rounded";
 export { default as ShieldPlusIcon } from "~icons/material-symbols/add-moderator-rounded";
 export { default as SquareIcon } from "~icons/material-symbols/stop-rounded";

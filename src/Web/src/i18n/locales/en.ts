@@ -2,6 +2,15 @@ import type { Translation } from "./uk";
 
 const en: Translation = {
   app: {
+    offline: {
+      title: "No connection",
+      description: "container-forest needs the network: the state of servers and containers comes from the aggregator. The page reloads by itself once the connection is back.",
+    },
+    loadFailed: {
+      title: "The panel could not load",
+      description: "The aggregator is not answering properly right now. Try again in a minute.",
+    },
+    retry: "Try again",
     notFound: "Page not found.",
   },
   language: {
@@ -182,6 +191,22 @@ const en: Translation = {
       winter: "winter",
     },
     reducedMotion: "With “Reduce motion” on in the system, there is no animation whatever the choice.",
+  },
+  pwa: {
+    title: "App",
+    description: "Install the panel as an app of its own: its own icon on the desktop or home screen, a window without the browser's bars.",
+    install: "Install",
+    share: "Share",
+    installedHint: "Open container-forest from its icon, like any other app.",
+    iosBefore: "In Safari, tap",
+    iosAfter: "Share, then Add to Home Screen.",
+    browserMenu: "The browser does not offer installing here: try Install or Add to Home Screen in its menu.",
+    state: {
+      installed: "Installed",
+      available: "Ready to install",
+      ios: "Can be added to the Home Screen",
+      unsupported: "Install from the browser's menu",
+    },
   },
   account: {
     title: "My account",

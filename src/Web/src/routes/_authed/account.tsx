@@ -8,6 +8,7 @@ import { hasStatus } from "@/api/client";
 import { ErrorText, FieldError, PasswordReasons } from "@/components/form-messages";
 import { Loader2Icon } from "@/components/icons";
 import { PasskeysCard } from "@/components/passkeys/passkeys-card";
+import { InstallCard } from "@/components/pwa/install-card";
 import { SeasonCard } from "@/components/seasons/season-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,7 +36,7 @@ type ChangePasswordForm = z.infer<typeof changePasswordSchema>;
 
 const emptyForm: ChangePasswordForm = { currentPassword: "", newPassword: "", confirmPassword: "" };
 
-/** The signed-in user's own account: changing the password, passkeys, the look of the panel. */
+/** The signed-in user's own account: changing the password, passkeys, the look of the panel, installing it as an app. */
 function AccountScreen() {
   const { t } = useTranslation();
   const { me } = Route.useRouteContext();
@@ -119,6 +120,8 @@ function AccountScreen() {
       <PasskeysCard />
 
       <SeasonCard />
+
+      <InstallCard />
     </div>
   );
 }

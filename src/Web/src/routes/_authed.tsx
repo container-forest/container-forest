@@ -10,6 +10,7 @@ import { LiveIndicator } from "@/components/live/live-indicator";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Brand } from "@/components/layout/brand";
+import { ConnectionError } from "@/components/layout/connection-error";
 
 /**
  * Every page that needs a signed-in user lives under this pathless layout. A 401 from /api/me sends the
@@ -28,6 +29,8 @@ export const Route = createFileRoute("/_authed")({
     }
   },
   component: AuthedLayout,
+  // Without /api/me nothing below can show; a lost connection gets its own screen, not a blank one.
+  errorComponent: ConnectionError,
 });
 
 function AuthedLayout() {

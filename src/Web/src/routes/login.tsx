@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { Brand } from "@/components/layout/brand";
 import { autofillSupported, browserErrorKey, isCancelled, passkeysSupported } from "@/features/passkeys/model";
 import type { MessageKey } from "@/i18n";
 
@@ -109,10 +110,11 @@ function LoginScreen() {
   const passkeyError = passkeyLogin.error && !isCancelled(passkeyLogin.error) ? passkeyLogin.error : null;
 
   return (
-    <main className="relative grid min-h-svh place-items-center p-6">
+    <main className="relative flex min-h-svh flex-col items-center justify-center gap-6 p-6">
       <div className="absolute top-4 right-4">
         <LanguageSwitcher />
       </div>
+      <Brand className="text-2xl" />
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-xl">{t("login.title")}</CardTitle>

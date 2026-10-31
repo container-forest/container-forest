@@ -2,6 +2,15 @@ import type { Translation } from "./uk";
 
 const en: Translation = {
   app: {
+    offline: {
+      title: "No connection",
+      description: "container-forest needs the network: the state of servers and containers comes from the aggregator. The page reloads by itself once the connection is back.",
+    },
+    loadFailed: {
+      title: "The panel could not load",
+      description: "The aggregator is not answering properly right now. Try again in a minute.",
+    },
+    retry: "Try again",
     notFound: "Page not found.",
   },
   language: {
@@ -161,6 +170,42 @@ const en: Translation = {
         description: "{{name}} loses the {{role}} role on {{scope}}.",
         confirm: "Revoke",
       },
+    },
+  },
+  appearance: {
+    title: "Appearance",
+    description: "A quiet seasonal backdrop behind the panel: it takes no clicks and covers no content. The choice is remembered in this browser.",
+    season: "Seasonal animation",
+    auto: "By the calendar (now: {{season}})",
+    off: "Off",
+    seasons: {
+      spring: "Spring: green leaves",
+      summer: "Summer: butterflies",
+      autumn: "Autumn: red and orange leaves",
+      winter: "Winter: snowflakes",
+    },
+    current: {
+      spring: "spring",
+      summer: "summer",
+      autumn: "autumn",
+      winter: "winter",
+    },
+    reducedMotion: "With “Reduce motion” on in the system, there is no animation whatever the choice.",
+  },
+  pwa: {
+    title: "App",
+    description: "Install the panel as an app of its own: its own icon on the desktop or home screen, a window without the browser's bars.",
+    install: "Install",
+    share: "Share",
+    installedHint: "Open container-forest from its icon, like any other app.",
+    iosBefore: "In Safari, tap",
+    iosAfter: "Share, then Add to Home Screen.",
+    browserMenu: "The browser does not offer installing here: try Install or Add to Home Screen in its menu.",
+    state: {
+      installed: "Installed",
+      available: "Ready to install",
+      ios: "Can be added to the Home Screen",
+      unsupported: "Install from the browser's menu",
     },
   },
   account: {

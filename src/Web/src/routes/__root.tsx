@@ -3,6 +3,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useTranslation } from "react-i18next";
+import { SeasonalBackdrop } from "@/components/seasons/seasonal-backdrop";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -22,6 +23,7 @@ function NotFound() {
 function Root() {
   return (
     <>
+      <SeasonalBackdrop />
       <Outlet />
       {import.meta.env.DEV && (
         <>

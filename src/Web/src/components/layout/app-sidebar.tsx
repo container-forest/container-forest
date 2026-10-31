@@ -23,6 +23,7 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { LiveIndicator } from "@/components/live/live-indicator";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Brand } from "@/components/layout/brand";
 import type { Environment } from "@/features/containers/model";
 import {
   type EnvironmentSection,
@@ -184,8 +185,8 @@ export function SidebarContent({ onNavigate = () => {} }: { onNavigate?: () => v
     // In development the Query devtools button sits in the bottom-left corner; the language switch stays above it.
     <div className={cn("flex h-full flex-col gap-6 overflow-y-auto p-3", import.meta.env.DEV && "pb-16")}>
       <div className="flex items-center justify-between gap-2 px-2 pt-1">
-        <Link to="/" onClick={onNavigate} className="font-heading text-lg font-extrabold tracking-tight">
-          container<span className="text-emerald-500">-</span>forest
+        <Link to="/" onClick={onNavigate} className="text-base">
+          <Brand />
         </Link>
         <LiveIndicator />
       </div>

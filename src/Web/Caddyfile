@@ -48,7 +48,15 @@
 			file_server
 		}
 
-		# Client-side routes get the app, which is checked on every load.
+		# The PWA manifest: Caddy has no type for the extension. Like sw.js below, it is checked on every load.
+		handle /manifest.webmanifest {
+			header Content-Type application/manifest+json
+			header Cache-Control no-cache
+			file_server
+		}
+
+		# Client-side routes get the app, which is checked on every load; so do sw.js and the icons, whose names
+		# do not change between versions.
 		handle {
 			header Cache-Control no-cache
 			try_files {path} /index.html

@@ -93,7 +93,29 @@ export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
 SSH_AUTH_SOCK=${XDG_RUNTIME_DIR}/ssh-agent.socket
 ```
 
-Його читає менеджер користувача systemd, тож змінну отримують служби користувача й сесії, запущені через systemd (наприклад, Hyprland через `uwsm`). Змінна з'явиться після повторного входу. Якщо композитор запускається не через systemd, задайте `SSH_AUTH_SOCK` у його власній конфігурації: як саме, залежить від композитора та його версії (у новому Hyprland формат конфігурації змінився), тож дивіться його документацію.
+Його читає менеджер користувача systemd, тож змінну отримують служби користувача й сесії, запущені через systemd. Змінна з'явиться після повторного входу. Якщо композитор запускається інакше, задайте `SSH_AUTH_SOCK` у його власній конфігурації.
+
+**Hyprland.** Обирайте один із варіантів залежно від того, як його запущено:
+
+- **через `uwsm`** (так радить wiki Hyprland) — рядок у `~/.config/uwsm/env`; змінні сесії wiki радить тримати саме там, а не в конфігурації Hyprland:
+
+  ```
+  export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
+  ```
+
+- **без `uwsm`, конфігурація на Lua** (`~/.config/hypr/hyprland.lua`, у нових версіях) — `hl.env`; на чужі змінні посилаються через `os.getenv`, а не `$`:
+
+  ```lua
+  hl.env("SSH_AUTH_SOCK", os.getenv("XDG_RUNTIME_DIR") .. "/ssh-agent.socket")
+  ```
+
+- **без `uwsm`, старіша конфігурація** (`~/.config/hypr/hyprland.conf`):
+
+  ```
+  env = SSH_AUTH_SOCK,$XDG_RUNTIME_DIR/ssh-agent.socket
+  ```
+
+Синтаксис — за [wiki Hyprland](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Environment-variables/). Змінна діє після перезапуску сесії.
 
 Деякі дистрибутиви вже мають таку службу в пакеті `openssh` (`systemctl --user cat ssh-agent` її покаже). Тоді власний файл не потрібен, але перевірте, який шлях сокета вона задає, і вкажіть у `SSH_AUTH_SOCK` саме його.
 

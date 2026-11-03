@@ -58,7 +58,7 @@ ssh-keygen -t ed25519-sk -O resident -O verify-required -C "<ваше ім'я>@<
 ssh-add ~/.ssh/id_ed25519_signing
 ```
 
-GNOME і KDE запускають агент самі. Віконні менеджери (Hyprland, Sway, i3) і сесії без робочого столу — ні, і тоді `ssh-add` відповідає `Could not open a connection to your authentication agent`: змінна `SSH_AUTH_SOCK` не задана, бо агента немає. Є три варіанти.
+GNOME і KDE запускають агент самі. Окремі композитори Wayland (Hyprland, Sway, niri), віконні менеджери X11 (i3, bspwm) і сесії без графіки — ні, і тоді `ssh-add` відповідає `Could not open a connection to your authentication agent`: змінна `SSH_AUTH_SOCK` не задана, бо агента немає. Є три варіанти.
 
 **Агент як служба systemd користувача** (рекомендовано): працює в усіх терміналах і програмах сесії, доки ви залогінені. Створіть `~/.config/systemd/user/ssh-agent.service`:
 
@@ -87,11 +87,13 @@ systemctl --user enable --now ssh-agent
 export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
 ```
 
-Щоб агент бачили й програми, запущені не з терміналу (IDE, git-клієнти), задайте ту саму змінну для сесії. У Hyprland це рядок у `~/.config/hypr/hyprland.conf`:
+Щоб агент бачили й програми, запущені не з терміналу (IDE, git-клієнти), задайте ту саму змінну для всієї сесії. Спосіб, що не залежить від композитора, — файл `~/.config/environment.d/ssh-agent.conf`:
 
 ```
-env = SSH_AUTH_SOCK,$XDG_RUNTIME_DIR/ssh-agent.socket
+SSH_AUTH_SOCK=${XDG_RUNTIME_DIR}/ssh-agent.socket
 ```
+
+Його читає менеджер користувача systemd, тож змінну отримують служби користувача й сесії, запущені через systemd (наприклад, Hyprland через `uwsm`). Змінна з'явиться після повторного входу. Якщо композитор запускається не через systemd, задайте `SSH_AUTH_SOCK` у його власній конфігурації: як саме, залежить від композитора та його версії (у новому Hyprland формат конфігурації змінився), тож дивіться його документацію.
 
 Деякі дистрибутиви вже мають таку службу в пакеті `openssh` (`systemctl --user cat ssh-agent` її покаже). Тоді власний файл не потрібен, але перевірте, який шлях сокета вона задає, і вкажіть у `SSH_AUTH_SOCK` саме його.
 

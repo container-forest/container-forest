@@ -58,7 +58,53 @@ ssh-keygen -t ed25519-sk -O resident -O verify-required -C "<ваше ім'я>@<
 ssh-add ~/.ssh/id_ed25519_signing
 ```
 
-Більшість робочих столів (GNOME, KDE) запускають агент самі. Без робочого столу запустіть його в shell: `eval "$(ssh-agent -s)"`.
+GNOME і KDE запускають агент самі. Віконні менеджери (Hyprland, Sway, i3) і сесії без робочого столу — ні, і тоді `ssh-add` відповідає `Could not open a connection to your authentication agent`: змінна `SSH_AUTH_SOCK` не задана, бо агента немає. Є три варіанти.
+
+**Агент як служба systemd користувача** (рекомендовано): працює в усіх терміналах і програмах сесії, доки ви залогінені. Створіть `~/.config/systemd/user/ssh-agent.service`:
+
+```ini
+[Unit]
+Description=SSH key agent
+
+[Service]
+Type=simple
+Environment=SSH_AUTH_SOCK=%t/ssh-agent.socket
+ExecStart=/usr/bin/ssh-agent -D -a $SSH_AUTH_SOCK
+
+[Install]
+WantedBy=default.target
+```
+
+Увімкніть службу:
+
+```bash
+systemctl --user enable --now ssh-agent
+```
+
+Скажіть shell, де агент: додайте в `~/.bashrc` або `~/.zshrc` рядок нижче й відкрийте новий термінал.
+
+```bash
+export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
+```
+
+Щоб агент бачили й програми, запущені не з терміналу (IDE, git-клієнти), задайте ту саму змінну для сесії. У Hyprland це рядок у `~/.config/hypr/hyprland.conf`:
+
+```
+env = SSH_AUTH_SOCK,$XDG_RUNTIME_DIR/ssh-agent.socket
+```
+
+Деякі дистрибутиви вже мають таку службу в пакеті `openssh` (`systemctl --user cat ssh-agent` її покаже). Тоді власний файл не потрібен, але перевірте, який шлях сокета вона задає, і вкажіть у `SSH_AUTH_SOCK` саме його.
+
+Якщо додати в `~/.ssh/config` рядки нижче, ключ потрапить в агент сам під час першого використання, і `ssh-add` викликати не доведеться:
+
+```
+Host *
+  AddKeysToAgent yes
+```
+
+**Агент лише для одного терміналу:** `eval "$(ssh-agent -s)"`, потім `ssh-add`. Інші термінали й IDE цього агента не бачать, і після закриття терміналу він зникає.
+
+**Без агента:** нічого не налаштовувати. Тоді git запитає пароль ключа на кожен коміт. З апаратним ключем (`ed25519-sk`) агент не обов'язковий: підпис і так потребує дотику, а пароль на сам файл ключа зазвичай не задають.
 
 ### macOS
 
@@ -294,6 +340,7 @@ Host github.com
 | `error: unsupported value for gpg.format: ssh` | git старіший за 2.34 |
 | `No principal matched` у `git log --show-signature` | немає `allowed_signers` (крок 3); на деплой це не впливає |
 | «Unverified» на GitHub чи в Gitea | `user.email` коміту не збігається з підтвердженою адресою облікового запису або ключ не доданий як Signing (GitHub) чи не підтверджений через Verify (Gitea) |
+| `Could not open a connection to your authentication agent` (Linux) | агента немає або shell не знає `SSH_AUTH_SOCK`; див. крок 2, розділ Linux |
 | Windows: git питає пароль ключа щоразу, хоча агент запущено | git користується власним OpenSSH; виконайте два `git config` з розділу «Windows: щоб git і агент працювали в парі» |
 | Деплой: «commit … is signed with key …, which no user has added» | ключ не доданий у панель container-forest (крок 4) |
 | Деплой: «… is limited to other environments» | ключ обмежено іншими середовищами; змініть його в «Ключах підпису комітів» |

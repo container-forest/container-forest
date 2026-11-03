@@ -82,6 +82,18 @@ public sealed class Stack : Entity<StackId>
 
     public bool HasDeployHook => DeployHookTokenHash is not null;
 
+    /// <summary>
+    /// Deploy only content someone who may deploy the stack endorsed: a commit signed with their signing key, or one
+    /// they approved by its SHA (ADR-0011). Off by default; then the branch head is deployed as it is.
+    /// </summary>
+    public bool RequireSignedCommits { get; private set; }
+
+    /// <summary>
+    /// Every image must be pinned by a digest: a signature covers "image: app:1.4", not what the registry serves
+    /// under that tag. Off by default.
+    /// </summary>
+    public bool RequireImageDigests { get; private set; }
+
     public static Stack Create(
         EnvironmentId environmentId,
         StackName name,
@@ -121,6 +133,29 @@ public sealed class Stack : Entity<StackId>
         }
 
         RestartOnFileChange = enabled;
+    }
+
+    /// <exception cref="DomainConflictException">Turning it on for a system stack, which the pipeline does not deploy.</exception>
+    public void SetRequireSignedCommits(bool enabled)
+    {
+        EnsureDeployable(enabled, "require signed commits");
+        RequireSignedCommits = enabled;
+    }
+
+    /// <exception cref="DomainConflictException">Turning it on for a system stack, which the pipeline does not deploy.</exception>
+    public void SetRequireImageDigests(bool enabled)
+    {
+        EnsureDeployable(enabled, "require image digests");
+        RequireImageDigests = enabled;
+    }
+
+    private void EnsureDeployable(bool enabled, string what)
+    {
+        if (enabled && RequiresUpdateHelper(StackOperation.Redeploy))
+        {
+            throw new DomainConflictException(
+                $"System stack '{Name}' can only be updated through the helper container, so it cannot {what}.");
+        }
     }
 
     /// <summary>Sets the deploy hook to a new token, given as its hash; the previous token stops working.</summary>

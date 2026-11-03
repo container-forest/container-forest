@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Secrets;
 using ContainerForest.Aggregator.Domain.Common;
@@ -39,7 +40,7 @@ public sealed class GitOptions
 /// the commit's tree directly: there is no working copy, so nothing from the repository is ever checked out on disk.
 /// </summary>
 internal sealed partial class LibGit2SharpGitSource(
-    IOptions<GitOptions> options, GitHostGuard hostGuard, ILogger<LibGit2SharpGitSource> logger) : IGitSource
+    IOptions<GitOptions> options, GitHostGuard hostGuard, ILogger<LibGit2SharpGitSource> logger) : IGitSource, ICommitInspector
 {
     private const string RemoteName = "origin";
 
@@ -61,6 +62,67 @@ internal sealed partial class LibGit2SharpGitSource(
     public Task<GitSnapshot> ReadAsync(
         GitRepository repository, CommitSha commit, string directory, long maxBytes, CancellationToken cancellationToken) =>
         ReadAsync(repository.Id.ToString(), commit, directory, maxBytes, cancellationToken);
+
+    public Task<CommitSignatureData?> ReadSignatureAsync(
+        GitRepository repository, CommitSha commit, CancellationToken cancellationToken) =>
+        ReadSignatureAsync(repository.Id.ToString(), commit, cancellationToken);
+
+    public Task<bool> DescendsFromAsync(
+        GitRepository repository, CommitSha commit, CommitSha ancestor, CancellationToken cancellationToken) =>
+        DescendsFromAsync(repository.Id.ToString(), commit, ancestor, cancellationToken);
+
+    /// <param name="cacheKey">Name of the bare clone's directory, as for <see cref="FetchAsync(string, string, GitCredentials?, BranchName, CancellationToken, bool)"/>.</param>
+    internal Task<CommitSignatureData?> ReadSignatureAsync(string cacheKey, CommitSha sha, CancellationToken cancellationToken) =>
+        WithLockAsync(cacheKey, () =>
+        {
+            using var repository = OpenFetched(cacheKey, sha, out var commit);
+            try
+            {
+                var info = Commit.ExtractSignature(repository, commit.Id);
+
+                // LibGit2Sharp hands the signed object over as a string; git writes commit objects in UTF-8, and a
+                // commit in another encoding then simply fails to verify.
+                return new CommitSignatureData(info.Signature, Encoding.UTF8.GetBytes(info.SignedData));
+            }
+            catch (NotFoundException)
+            {
+                return (CommitSignatureData?)null;
+            }
+        }, cancellationToken);
+
+    internal Task<bool> DescendsFromAsync(string cacheKey, CommitSha sha, CommitSha ancestorSha, CancellationToken cancellationToken) =>
+        WithLockAsync(cacheKey, () =>
+        {
+            using var repository = OpenFetched(cacheKey, sha, out var commit);
+            if (commit.Sha == ancestorSha.Value)
+            {
+                return true;
+            }
+
+            // An ancestor the clone does not have, e.g. from the stack's previous repository, is not an ancestor.
+            return repository.Lookup<Commit>(ancestorSha.Value) is { } ancestor
+                && repository.ObjectDatabase.FindMergeBase(commit, ancestor)?.Sha == ancestor.Sha;
+        }, cancellationToken);
+
+    private Repository OpenFetched(string cacheKey, CommitSha sha, out Commit commit)
+    {
+        var path = CachePath(cacheKey);
+        if (!Repository.IsValid(path))
+        {
+            throw new DeploymentFailedException($"Commit {sha.Short} has not been fetched.");
+        }
+
+        var repository = new Repository(path);
+        var found = repository.Lookup<Commit>(sha.Value);
+        if (found is null)
+        {
+            repository.Dispose();
+            throw new DeploymentFailedException($"Commit {sha.Short} has not been fetched.");
+        }
+
+        commit = found;
+        return repository;
+    }
 
     public async Task ForgetAsync(RepositoryId repositoryId, CancellationToken cancellationToken)
     {

@@ -4,6 +4,7 @@ using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
+using ContainerForest.Aggregator.Domain.Stacks;
 
 namespace ContainerForest.Aggregator.Api.Endpoints;
 
@@ -126,6 +127,20 @@ internal static class StackEndpoints
             .WithName("SetStackRestartOnFileChange")
             .ProducesProblem(StatusCodes.Status409Conflict);
 
+        api.MapPut(
+                "/stacks/{id:guid}/require-signed-commits",
+                async (Guid id, RequireSignedCommitsRequest request, StackService service, CancellationToken ct) =>
+                    ToResponse(await service.SetRequireSignedCommitsAsync(StackId.From(id), request.Enabled, ct)))
+            .WithName("SetStackRequireSignedCommits")
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        api.MapPut(
+                "/stacks/{id:guid}/require-image-digests",
+                async (Guid id, RequireImageDigestsRequest request, StackService service, CancellationToken ct) =>
+                    ToResponse(await service.SetRequireImageDigestsAsync(StackId.From(id), request.Enabled, ct)))
+            .WithName("SetStackRequireImageDigests")
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
         api.MapPost(
                 "/stacks/{id:guid}/deploy-hook",
                 async (Guid id, StackService service, CancellationToken ct) =>
@@ -148,7 +163,8 @@ internal static class StackEndpoints
         api.MapGet("/stacks/{id:guid}/deployments", async (Guid id, DeploymentService service, CancellationToken ct) =>
                 (await service.ListAsync(StackId.From(id), ct))
                     .Select(d => new DeploymentResponse(
-                        d.Id.Value, d.Status, d.Trigger, d.PullPolicy, d.Commit?.Value, d.QueuedAt, d.StartedAt, d.FinishedAt, d.Error))
+                        d.Id.Value, d.Status, d.Trigger, d.PullPolicy, d.Commit?.Value, d.QueuedAt, d.StartedAt, d.FinishedAt, d.Error,
+                        d.Endorsement, d.SignerName))
                     .ToList())
             .WithName("ListDeployments");
 
@@ -157,7 +173,10 @@ internal static class StackEndpoints
                 async (Guid id, DeployRequest request, DeploymentService service, CancellationToken ct) =>
                 {
                     var deployment = await service.QueueAsync(
-                        StackId.From(id), request.Pull ? ImagePullPolicy.Always : ImagePullPolicy.Missing, ct);
+                        StackId.From(id),
+                        request.Pull ? ImagePullPolicy.Always : ImagePullPolicy.Missing,
+                        ct,
+                        request.ApproveCommit is { } approved ? CommitSha.Parse(approved) : null);
                     return TypedResults.Accepted($"/api/deployments/{deployment.Id}", ToDetails(deployment));
                 })
             .WithName("DeployStack")
@@ -216,6 +235,8 @@ internal static class StackEndpoints
         s.DeployOnPush,
         s.RestartOnFileChange,
         s.HasDeployHook,
+        s.RequireSignedCommits,
+        s.RequireImageDigests,
         s.CanDeploy,
         s.CanRestart,
         s.CanRemove);
@@ -231,5 +252,6 @@ internal static class StackEndpoints
         d.StartedAt,
         d.FinishedAt,
         d.Error,
-        d.Log.Select(l => new DeploymentLogLineResponse(l.At, l.Level, l.Text)).ToList());
+        d.Log.Select(l => new DeploymentLogLineResponse(l.At, l.Level, l.Text)).ToList(),
+        new EndorsementResponse(d.Endorsement, d.EndorsementProblem, d.SignerName, d.SigningKeyFingerprint, d.ApprovedCommit?.Value));
 }

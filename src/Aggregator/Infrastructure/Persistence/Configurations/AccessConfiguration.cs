@@ -153,3 +153,44 @@ internal sealed class CliAuthorizationConfiguration : IEntityTypeConfiguration<C
         builder.Ignore(a => a.TokenEnvironments);
     }
 }
+
+internal sealed class SigningKeyConfiguration : IEntityTypeConfiguration<SigningKey>
+{
+    /// <summary>"SHA256:" and 43 characters of unpadded base64.</summary>
+    public const int FingerprintLength = 50;
+
+    public void Configure(EntityTypeBuilder<SigningKey> builder)
+    {
+        builder.ToTable("SigningKeys");
+        builder.HasKey(k => k.Id);
+        builder.Property(k => k.Id).ValueGeneratedNever();
+        builder.HasOne<User>().WithMany().HasForeignKey(k => k.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(k => k.UserId);
+
+        builder.Property(k => k.Name).HasMaxLength(SigningKey.MaxNameLength);
+        builder.Property(k => k.PublicKey).HasMaxLength(SigningKey.MaxPublicKeyLength);
+        builder.Property(k => k.Algorithm).HasMaxLength(64);
+        builder.Property(k => k.Fingerprint).HasMaxLength(FingerprintLength);
+        builder.HasIndex(k => k.Fingerprint).IsUnique();
+
+        // Kept when the administrator who added it is removed: the key is the user's, AddedBy only says how it came.
+        builder.HasIndex(k => k.AddedBy);
+
+        builder.OwnsMany<SigningKeyEnvironment>("environments", environments =>
+        {
+            environments.ToTable("SigningKeyEnvironments");
+            environments.WithOwner().HasForeignKey("SigningKeyId");
+            environments.HasKey("SigningKeyId", nameof(SigningKeyEnvironment.EnvironmentId));
+
+            // A removed environment leaves the key restricted to the rest, or to nothing (SigningKey.Environments).
+            environments.HasOne<DockerEnvironment>().WithMany().HasForeignKey(e => e.EnvironmentId).OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Navigation("environments").UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.Ignore(k => k.Environments);
+        builder.Ignore(k => k.Scope);
+        builder.Ignore(k => k.ParsedKey);
+        builder.Ignore(k => k.AddedByAdministrator);
+        builder.Ignore(k => k.IsHardwareBacked);
+    }
+}

@@ -7,6 +7,7 @@ public enum AuditTargetKind
     User,
     RoleAssignment,
     ApiToken,
+    SigningKey,
     Environment,
     Stack,
     Container,
@@ -64,6 +65,16 @@ public sealed record ApiTokenAuditTarget(ApiTokenId? TokenId, string TokenName) 
     public override string? Id => TokenId?.ToString();
 
     public override string Name => TokenName;
+}
+
+/// <param name="KeyName">The key's name and, after it, its fingerprint.</param>
+public sealed record SigningKeyAuditTarget(SigningKeyId? KeyId, string KeyName) : AuditTarget
+{
+    public override AuditTargetKind Kind => AuditTargetKind.SigningKey;
+
+    public override string? Id => KeyId?.ToString();
+
+    public override string Name => KeyName;
 }
 
 public sealed record EnvironmentAuditTarget(EnvironmentId? Environment, string EnvironmentName) : AuditTarget

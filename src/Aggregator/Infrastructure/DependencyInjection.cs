@@ -51,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<IRoleAssignmentRepository, RoleAssignmentRepository>();
         services.AddScoped<IDiscordLinkRepository, DiscordLinkRepository>();
         services.AddScoped<IApiTokenRepository, ApiTokenRepository>();
+        services.AddScoped<ISigningKeyRepository, SigningKeyRepository>();
         services.AddScoped<ICliAuthorizationRepository, CliAuthorizationRepository>();
         services.AddScoped<INotificationChannelRepository, NotificationChannelRepository>();
         services.AddScoped<INotificationRuleRepository, NotificationRuleRepository>();
@@ -134,7 +135,14 @@ public static class DependencyInjection
             .Validate(o => o.IsValid(), "Git:MaxCacheBytes must be positive and Git:CacheDirectory set.")
             .ValidateOnStart();
         services.AddSingleton<GitHostGuard>();
-        services.AddSingleton<IGitSource, LibGit2SharpGitSource>();
+        services.AddSingleton<LibGit2SharpGitSource>();
+        services.AddSingleton<IGitSource>(sp => sp.GetRequiredService<LibGit2SharpGitSource>());
+        services.AddSingleton<ICommitInspector>(sp => sp.GetRequiredService<LibGit2SharpGitSource>());
+        services.AddOptions<SignatureOptions>()
+            .Bind(configuration.GetSection(SignatureOptions.SectionName))
+            .Validate(o => o.IsValid(), "Signatures:SshKeygenPath must be set and Signatures:Timeout must be positive.")
+            .ValidateOnStart();
+        services.AddSingleton<ICommitSignatureVerifier, SshKeygenSignatureVerifier>();
         services.AddSingleton<IComposeParser, YamlComposeParser>();
         services.AddOptions<SopsOptions>()
             .Bind(configuration.GetSection(SopsOptions.SectionName))

@@ -144,6 +144,14 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    ```
    Для `dotnet run` без опублікованого бінарника підійде обгортка `forest` у `PATH`: `exec dotnet <репозиторій>/src/Cli/bin/Debug/net10.0/forest.dll "$@"`.
 
+   Підписані коміти (ADR-0011): ЦА потрібен `ssh-keygen` (пакет `openssh-client`) у `PATH`. Ключ підпису додає сама людина (сесія, не API-токен), стек вмикає вимогу, а непідписаний коміт можна підтвердити за SHA:
+   ```sh
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/me/signing-keys -H 'content-type: application/json' -d "{\"name\":\"laptop\",\"publicKey\":\"$(cat ~/.ssh/id_ed25519.pub)\",\"environmentIds\":null}"
+   curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/stacks/<stackId>/require-signed-commits -H 'content-type: application/json' -d '{"enabled":true}'
+   git config gpg.format ssh && git config user.signingkey ~/.ssh/id_ed25519.pub && git commit -S -m '…'
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/stacks/<stackId>/deployments -H 'content-type: application/json' -d '{"pull":false,"approveCommit":"<повний SHA>"}'   # лише для непідписаного коміту
+   ```
+
    Образи з приватного registry: креди задаються на середовищі (лише адміністратор; пароль ніколи не повертається). Повторний `PUT` для того самого `server` замінює логін:
    ```sh
    curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/registry-credentials -H 'content-type: application/json' -d '{"server":"ghcr.io","username":"<user>","password":"<token>"}'
@@ -196,7 +204,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    - Один бінарник без рантайму (NativeAOT, потрібен clang): `dotnet publish src/Cli -r linux-x64 -c Release -o out` → `out/forest`.
    - Реліз: `git tag cli-v0.2.0 && git push origin cli-v0.2.0` — workflow `CLI` збирає бінарники для linux x64/arm64, macOS arm64 і Windows x64 і публікує їх у GitHub Releases разом із `SHA256SUMS`.
 
-Тести: `dotnet test --solution ContainerForest.slnx`. Тести зі справжніми `sops` і `age-keygen` без них у `PATH` пропускаються (у CI — обов'язкові, `CF_TEST_REQUIRE_SOPS=1`). Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
+Тести: `dotnet test --solution ContainerForest.slnx`. Тести зі справжніми `sops` і `age-keygen` без них у `PATH` пропускаються (у CI — обов'язкові, `CF_TEST_REQUIRE_SOPS=1`), так само тести підписів зі справжнім `ssh-keygen` (`CF_TEST_REQUIRE_SSH_KEYGEN=1`). Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
 
 Docker-образ агента збирається з кореня репозиторію (контексту потрібні `src/Contracts` і `Directory.*.props`), а запускається так само, як у [прикладі розгортання](docs/architecture.md#розгортання-агента). Щоб підключити його до ЦА, запущеного локально через `dotnet run`, використовуйте `http://host.docker.internal:5081`:
 

@@ -10,6 +10,7 @@ import { Loader2Icon } from "@/components/icons";
 import { PasskeysCard } from "@/components/passkeys/passkeys-card";
 import { InstallCard } from "@/components/pwa/install-card";
 import { SeasonCard } from "@/components/seasons/season-card";
+import { SigningKeysCard } from "@/components/signing-keys/signing-keys-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -118,6 +119,8 @@ function AccountScreen() {
       </Card>
 
       <PasskeysCard />
+
+      <SigningKeysCard />
 
       <SeasonCard />
 

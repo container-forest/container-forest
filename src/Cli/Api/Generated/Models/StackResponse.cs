@@ -74,6 +74,10 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #else
         public string RepositoryName { get; set; }
 #endif
+        /// <summary>The requireImageDigests property</summary>
+        public bool? RequireImageDigests { get; set; }
+        /// <summary>The requireSignedCommits property</summary>
+        public bool? RequireSignedCommits { get; set; }
         /// <summary>The restartOnFileChange property</summary>
         public bool? RestartOnFileChange { get; set; }
         /// <summary>
@@ -116,6 +120,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
                 { "name", n => { Name = n.GetStringValue(); } },
                 { "repositoryId", n => { RepositoryId = n.GetGuidValue(); } },
                 { "repositoryName", n => { RepositoryName = n.GetStringValue(); } },
+                { "requireImageDigests", n => { RequireImageDigests = n.GetBoolValue(); } },
+                { "requireSignedCommits", n => { RequireSignedCommits = n.GetBoolValue(); } },
                 { "restartOnFileChange", n => { RestartOnFileChange = n.GetBoolValue(); } },
             };
         }
@@ -141,6 +147,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
             writer.WriteStringValue("name", Name);
             writer.WriteGuidValue("repositoryId", RepositoryId);
             writer.WriteStringValue("repositoryName", RepositoryName);
+            writer.WriteBoolValue("requireImageDigests", RequireImageDigests);
+            writer.WriteBoolValue("requireSignedCommits", RequireSignedCommits);
             writer.WriteBoolValue("restartOnFileChange", RestartOnFileChange);
             writer.WriteAdditionalData(AdditionalData);
         }

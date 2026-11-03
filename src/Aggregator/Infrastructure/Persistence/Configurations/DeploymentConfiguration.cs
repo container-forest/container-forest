@@ -21,6 +21,13 @@ internal sealed class DeploymentConfiguration : IEntityTypeConfiguration<Deploym
             .HasConversion(sha => sha!.Value, value => CommitSha.Parse(value))
             .HasMaxLength(64);
         builder.Property(d => d.Error).HasMaxLength(Deployment.MaxErrorLength);
+        builder.Property(d => d.ApprovedCommit)
+            .HasConversion(sha => sha!.Value, value => CommitSha.Parse(value))
+            .HasMaxLength(64);
+        builder.Property(d => d.Endorsement).HasConversion<string>().HasMaxLength(16);
+        builder.Property(d => d.EndorsementProblem).HasConversion<string>().HasMaxLength(32);
+        builder.Property(d => d.SignerName).HasMaxLength(User.MaxUserNameLength);
+        builder.Property(d => d.SigningKeyFingerprint).HasMaxLength(SigningKeyConfiguration.FingerprintLength);
 
         builder.HasIndex(d => new { d.StackId, d.QueuedAt });
 
@@ -39,6 +46,8 @@ internal sealed class DeploymentConfiguration : IEntityTypeConfiguration<Deploym
         });
         builder.Navigation(d => d.Log).UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        // No foreign key: the signer's name is kept, and history outlives the user.
+        builder.Ignore(d => d.IsAutomatic);
         builder.Ignore(d => d.IsFinished);
         builder.Ignore(d => d.Duration);
     }

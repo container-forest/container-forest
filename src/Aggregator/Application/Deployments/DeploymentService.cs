@@ -32,15 +32,21 @@ public sealed class DeploymentService(
     /// <exception cref="AgentOfflineException">
     /// The agent is offline. The deployment is not queued: it would run whenever the agent returns (invariant 7).
     /// </exception>
-    public async Task<Deployment> QueueAsync(StackId stackId, ImagePullPolicy pullPolicy, CancellationToken cancellationToken)
+    /// <param name="approvedCommit">
+    /// For a stack that requires signed commits: an unsigned commit the user approves by its SHA. It is deployed only
+    /// while the branch head is still this commit (ADR-0011).
+    /// </param>
+    public async Task<Deployment> QueueAsync(
+        StackId stackId, ImagePullPolicy pullPolicy, CancellationToken cancellationToken, CommitSha? approvedCommit = null)
     {
         var (actor, stack, environment, assignments) = await LoadVisibleStackAsync(stackId, cancellationToken);
+        var kind = pullPolicy == ImagePullPolicy.Always ? "Redeploy with pull" : "Redeploy";
         var draft = new AuditDraft(AuditAction.DeploymentQueued, new StackAuditTarget(stack.Id, stack.Name.Value, environment.Id))
         {
-            Details = pullPolicy == ImagePullPolicy.Always ? "Redeploy with pull" : "Redeploy",
+            Details = approvedCommit is null ? kind : $"{kind}; approved unsigned commit {approvedCommit.Short}",
         };
         return await audit.RunAsync(
-            draft, () => QueueVisibleAsync(actor, stack, environment, assignments, pullPolicy, cancellationToken), cancellationToken);
+            draft, () => QueueVisibleAsync(actor, stack, environment, assignments, pullPolicy, approvedCommit, cancellationToken), cancellationToken);
     }
 
     private async Task<Deployment> QueueVisibleAsync(
@@ -49,9 +55,9 @@ public sealed class DeploymentService(
         DockerEnvironment environment,
         IReadOnlyList<RoleAssignment> assignments,
         ImagePullPolicy pullPolicy,
+        CommitSha? approvedCommit,
         CancellationToken cancellationToken)
     {
-
         var operation = pullPolicy == ImagePullPolicy.Always ? StackOperation.RedeployWithPull : StackOperation.Redeploy;
         if (!AccessPolicy.CanPerform(actor, environment, stack, assignments, operation))
         {
@@ -75,7 +81,7 @@ public sealed class DeploymentService(
             throw new DomainConflictException($"Stack '{stack.Name}' already has a deployment in progress.");
         }
 
-        var deployment = Deployment.QueueManual(stack.Id, actor.Id, pullPolicy, time.GetUtcNow());
+        var deployment = Deployment.QueueManual(stack.Id, actor.Id, pullPolicy, time.GetUtcNow(), approvedCommit);
         deployments.Add(deployment);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

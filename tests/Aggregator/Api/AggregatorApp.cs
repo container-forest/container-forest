@@ -57,6 +57,9 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
 
     public StubSops Sops { get; } = new();
 
+    /// <summary>Signatures of fetched commits; by default every commit is unsigned.</summary>
+    public StubCommits Commits { get; } = new();
+
     public BotGateway.BotGatewayClient BotGateway => new(Channel);
 
     public AgentGateway.AgentGatewayClient Gateway => new(Channel);
@@ -139,6 +142,8 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         builder.ConfigureTestServices(services =>
         {
             services.Replace(ServiceDescriptor.Singleton<IGitSource>(Git));
+            services.Replace(ServiceDescriptor.Singleton<ICommitInspector>(Commits));
+            services.Replace(ServiceDescriptor.Singleton<ICommitSignatureVerifier>(Commits));
             services.Replace(ServiceDescriptor.Singleton<IAgeKeyGenerator>(Sops));
             services.Replace(ServiceDescriptor.Singleton<ISopsDecryptor>(Sops));
             services.Replace(ServiceDescriptor.Singleton<ISopsEncryptor>(Sops));
@@ -202,6 +207,28 @@ internal sealed class StubGitSource : IGitSource
         ReadCommits.Add(commit.Value);
         return Task.FromResult(Snapshot!);
     }
+}
+
+/// <summary>
+/// Commit signatures without git or ssh-keygen: <see cref="Signature"/> is what every commit carries, and it verifies
+/// when it names the key (the real check is tested in the infrastructure tests).
+/// </summary>
+internal sealed class StubCommits : ICommitInspector, ICommitSignatureVerifier
+{
+    public CommitSignatureData? Signature { get; set; }
+
+    public bool Descends { get; set; } = true;
+
+    public Task<CommitSignatureData?> ReadSignatureAsync(
+        Domain.Repositories.GitRepository repository, Domain.Stacks.CommitSha commit, CancellationToken cancellationToken) =>
+        Task.FromResult(Signature);
+
+    public Task<bool> DescendsFromAsync(
+        Domain.Repositories.GitRepository repository, Domain.Stacks.CommitSha commit, Domain.Stacks.CommitSha ancestor, CancellationToken cancellationToken) =>
+        Task.FromResult(Descends);
+
+    public Task<bool> VerifyAsync(SshPublicKey key, SshSignature signature, byte[] signedData, CancellationToken cancellationToken) =>
+        Task.FromResult(key.Fingerprint == signature.PublicKey.Fingerprint);
 }
 
 /// <summary>

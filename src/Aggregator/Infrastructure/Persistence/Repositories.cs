@@ -101,6 +101,18 @@ internal sealed class ApiTokenRepository(AggregatorDbContext db) : EfRepository<
         Set.CountAsync(t => t.UserId == userId, cancellationToken);
 }
 
+internal sealed class SigningKeyRepository(AggregatorDbContext db) : EfRepository<SigningKey, SigningKeyId>(db), ISigningKeyRepository
+{
+    public Task<SigningKey?> FindByFingerprintAsync(string fingerprint, CancellationToken cancellationToken) =>
+        Set.SingleOrDefaultAsync(k => k.Fingerprint == fingerprint, cancellationToken);
+
+    public async Task<IReadOnlyList<SigningKey>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>
+        await Set.Where(k => k.UserId == userId).OrderByDescending(k => k.CreatedAt).ToListAsync(cancellationToken);
+
+    public Task<int> CountForUserAsync(UserId userId, CancellationToken cancellationToken) =>
+        Set.CountAsync(k => k.UserId == userId, cancellationToken);
+}
+
 internal sealed class CliAuthorizationRepository(AggregatorDbContext db)
     : EfRepository<CliAuthorization, CliAuthorizationId>(db), ICliAuthorizationRepository
 {
@@ -165,7 +177,7 @@ internal sealed class DeploymentRepository(AggregatorDbContext db)
             .OrderByDescending(d => d.QueuedAt)
             .Take(limit)
             .Select(d => new DeploymentSummary(
-                d.Id, d.Status, d.Trigger, d.PullPolicy, d.Commit, d.QueuedAt, d.StartedAt, d.FinishedAt, d.Error))
+                d.Id, d.Status, d.Trigger, d.PullPolicy, d.Commit, d.QueuedAt, d.StartedAt, d.FinishedAt, d.Error, d.Endorsement, d.SignerName))
             .ToListAsync(cancellationToken);
 }
 

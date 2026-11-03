@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<AuditService>();
         services.AddScoped<DiscordLinkService>();
         services.AddScoped<ApiTokenService>();
+        services.AddScoped<SigningKeyService>();
         services.AddScoped<ApiTokenAuthenticator>();
         services.AddScoped<CliAuthorizationService>();
         services.AddScoped<UserManagementService>();
@@ -49,6 +50,7 @@ public static class DependencyInjection
 
         // Steps run in this order.
         services.AddScoped<IDeployStep, GitFetchStep>();
+        services.AddScoped<IDeployStep, VerifyCommitStep>();
         services.AddScoped<IDeployStep, SopsDecryptStep>();
         services.AddScoped<IDeployStep, ValidateComposeStep>();
         services.AddScoped<IDeployStep, BuildBundleStep>();

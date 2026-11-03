@@ -18,6 +18,8 @@ namespace ContainerForest.Aggregator.Application.Stacks;
 /// <param name="DeployOnPush">A push to the branch deploys the stack, when the repository has a webhook.</param>
 /// <param name="RestartOnFileChange">A deployment restarts the stack when its files other than the compose file changed.</param>
 /// <param name="HasDeployHook">CI can deploy the stack with fresh images through its deploy hook.</param>
+/// <param name="RequireSignedCommits">Only content endorsed by a signature or an approval is deployed (ADR-0011).</param>
+/// <param name="RequireImageDigests">Every image must be pinned by a digest.</param>
 /// <param name="CanRestart">Whether the current user may restart the stack.</param>
 /// <param name="CanRemove">Whether the current user may remove the stack: an Editor of its environment, as for adding one.</param>
 public sealed record StackSummary(
@@ -34,6 +36,8 @@ public sealed record StackSummary(
     bool DeployOnPush,
     bool RestartOnFileChange,
     bool HasDeployHook,
+    bool RequireSignedCommits,
+    bool RequireImageDigests,
     bool CanDeploy,
     bool CanRestart,
     bool CanRemove);
@@ -192,6 +196,33 @@ public sealed class StackService(
     }
 
     /// <summary>
+    /// Turns requiring endorsed commits on or off (ADR-0011); the same role as deploying. Recorded in the audit log:
+    /// turning it off lets anyone who can push deploy again. A queued deployment checks it when it runs.
+    /// </summary>
+    public Task<StackSummary> SetRequireSignedCommitsAsync(StackId stackId, bool enabled, CancellationToken cancellationToken) =>
+        SetEndorsementAsync(stackId, enabled ? "Require signed commits: on" : "Require signed commits: off",
+            stack => stack.SetRequireSignedCommits(enabled), cancellationToken);
+
+    /// <summary>Turns requiring images pinned by digest on or off; the same role as deploying, recorded in the audit log.</summary>
+    public Task<StackSummary> SetRequireImageDigestsAsync(StackId stackId, bool enabled, CancellationToken cancellationToken) =>
+        SetEndorsementAsync(stackId, enabled ? "Require image digests: on" : "Require image digests: off",
+            stack => stack.SetRequireImageDigests(enabled), cancellationToken);
+
+    private Task<StackSummary> SetEndorsementAsync(
+        StackId stackId, string details, Action<Stack> change, CancellationToken cancellationToken)
+    {
+        var draft = new AuditDraft(AuditAction.StackEndorsementChanged) { Details = details };
+        return audit.RunAsync(draft, async () =>
+        {
+            var (actor, stack, environment, assignments) = await LoadDeployableAsync(stackId, cancellationToken);
+            draft.Target = new StackAuditTarget(stack.Id, stack.Name.Value, stack.EnvironmentId);
+            change(stack);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+        }, cancellationToken);
+    }
+
+    /// <summary>
     /// Creates the stack's deploy hook, or replaces its token. The token is returned once and only its hash is kept.
     /// The same role as deploying, since every call then deploys.
     /// </summary>
@@ -289,6 +320,8 @@ public sealed class StackService(
         stack.DeployOnPush,
         stack.RestartOnFileChange,
         stack.HasDeployHook,
+        stack.RequireSignedCommits,
+        stack.RequireImageDigests,
         AccessPolicy.CanPerform(actor, environment, stack, assignments, Permission.Deploy),
         AccessPolicy.CanPerform(actor, environment, stack, assignments, StackOperation.Restart),
         CanRemove(actor, environment, assignments) && !stack.IsSystem);

@@ -36,6 +36,11 @@ WORKDIR /app
 COPY --from=build /app .
 COPY --from=tools /tools/ /usr/local/bin/
 
+# ssh-keygen checks the SSH signatures of commits for stacks that require them (ADR-0011).
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
 # Everything the aggregator keeps lives in /data: the database, the Data Protection key ring (without it stored
 # secrets cannot be decrypted, so it is backed up with the database) and the git clones. A named volume mounted
 # there inherits the directory's owner, so the unprivileged user can write to it.

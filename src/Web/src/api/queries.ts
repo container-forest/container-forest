@@ -30,6 +30,20 @@ export const passkeysQuery = queryOptions({
   queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/passkeys", { signal })),
 });
 
+/** The signed-in user's commit signing keys, newest first (ADR-0011). */
+export const signingKeysQuery = queryOptions({
+  queryKey: ["me", "signing-keys"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/signing-keys", { signal })),
+});
+
+/** Another user's signing keys. Administrators only. */
+export const userSigningKeysQuery = (userId: string) =>
+  queryOptions({
+    queryKey: ["users", userId, "signing-keys"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/users/{userId}/signing-keys", { params: { path: { userId } }, signal })),
+  });
+
 /** Another user's passkeys. Administrators only. */
 export const userPasskeysQuery = (userId: string) =>
   queryOptions({

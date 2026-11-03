@@ -14,6 +14,14 @@ namespace ContainerForest.Cli.Api.Generated.Models
     {
         /// <summary>Stores additional data not described in the OpenAPI description found when deserializing. Can be used for serialization as well.</summary>
         public IDictionary<string, object> AdditionalData { get; set; }
+        /// <summary>The approveCommit property</summary>
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
+#nullable enable
+        public string? ApproveCommit { get; set; }
+#nullable restore
+#else
+        public string ApproveCommit { get; set; }
+#endif
         /// <summary>The pull property</summary>
         public bool? Pull { get; set; }
         /// <summary>
@@ -41,6 +49,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
         {
             return new Dictionary<string, Action<IParseNode>>
             {
+                { "approveCommit", n => { ApproveCommit = n.GetStringValue(); } },
                 { "pull", n => { Pull = n.GetBoolValue(); } },
             };
         }
@@ -51,6 +60,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
         public virtual void Serialize(ISerializationWriter writer)
         {
             if(ReferenceEquals(writer, null)) throw new ArgumentNullException(nameof(writer));
+            writer.WriteStringValue("approveCommit", ApproveCommit);
             writer.WriteBoolValue("pull", Pull);
             writer.WriteAdditionalData(AdditionalData);
         }

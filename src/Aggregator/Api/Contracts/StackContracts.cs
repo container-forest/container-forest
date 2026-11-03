@@ -18,13 +18,16 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 //   PUT  /api/stacks/{id}/source                 -> StackResponse; Editor on the stack; 409 while a deployment is unfinished
 //   PUT  /api/stacks/{id}/deploy-on-push         -> StackResponse; Editor on the stack; 409 for a system stack
 //   PUT  /api/stacks/{id}/restart-on-file-change -> StackResponse; Editor on the stack; 409 for a system stack
+//   PUT  /api/stacks/{id}/require-signed-commits -> StackResponse; Editor on the stack; 409 for a system stack (ADR-0011)
+//   PUT  /api/stacks/{id}/require-image-digests -> StackResponse; Editor on the stack; 409 for a system stack
 //   POST /api/stacks/{id}/deploy-hook            -> DeployHookTokenResponse; Editor on the stack; 409 for a system stack;
 //                                                  a new token, the old one stops working
 //   DELETE /api/stacks/{id}/deploy-hook          -> StackResponse; Editor on the stack; calls are no longer accepted
 //   POST /api/stacks/{id}/restart                -> StackCommandResponse; Operator; ?timeoutSeconds=0..300, default 10
 //   POST /api/stacks/{id}/down                   -> StackCommandResponse; Editor; ?timeoutSeconds=0..300, default 10
 //   GET  /api/stacks/{id}/deployments            -> DeploymentResponse[] (newest first, at most 50)
-//   POST /api/stacks/{id}/deployments            -> 202 DeploymentDetailsResponse; Editor; queued, see the deployment for the outcome
+//   POST /api/stacks/{id}/deployments            -> 202 DeploymentDetailsResponse; Editor; queued, see the deployment for the outcome;
+//                                                  approveCommit deploys that unsigned commit to a stack requiring signed ones
 //   GET  /api/deployments/{id}                   -> DeploymentDetailsResponse with the log
 //
 // A stack or deployment the user may not see is 404, the same as a missing one. Restart and down answer 200
@@ -65,6 +68,10 @@ public sealed record DeployOnPushRequest(bool Enabled);
 
 public sealed record RestartOnFileChangeRequest(bool Enabled);
 
+public sealed record RequireSignedCommitsRequest(bool Enabled);
+
+public sealed record RequireImageDigestsRequest(bool Enabled);
+
 /// <param name="Token">The deploy hook's token, shown only here: the aggregator keeps its hash.</param>
 public sealed record DeployHookTokenResponse(StackResponse Stack, string Token)
 {
@@ -90,6 +97,8 @@ public sealed record ChangeStackSourceRequest(Guid RepositoryId, string Branch, 
 /// <param name="DeployOnPush">A push to the branch deploys the stack, when the repository has a webhook.</param>
 /// <param name="RestartOnFileChange">A deployment restarts the stack when its files other than the compose file changed.</param>
 /// <param name="HasDeployHook">CI can deploy the stack with fresh images through its deploy hook.</param>
+/// <param name="RequireSignedCommits">Only commits signed by someone who may deploy the stack, or approved by SHA, are deployed (ADR-0011).</param>
+/// <param name="RequireImageDigests">Every image must be pinned as name@sha256:….</param>
 /// <param name="CanDeploy">Whether the user may deploy, change the source and take the stack down; for hiding buttons only.</param>
 /// <param name="CanRestart">Whether the user may restart the stack; for hiding buttons only.</param>
 /// <param name="CanRemove">Whether the user may remove the stack (an Editor of its environment); for hiding buttons only.</param>
@@ -107,6 +116,8 @@ public sealed record StackResponse(
     bool DeployOnPush,
     bool RestartOnFileChange,
     bool HasDeployHook,
+    bool RequireSignedCommits,
+    bool RequireImageDigests,
     bool CanDeploy,
     bool CanRestart,
     bool CanRemove);
@@ -116,7 +127,24 @@ public sealed record StackResponse(
 public sealed record StackCommandResponse(bool Succeeded, string? Error, IReadOnlyList<string> Output);
 
 /// <param name="Pull">True for "redeploy with pull": pull every image, not only missing ones.</param>
-public sealed record DeployRequest(bool Pull);
+/// <param name="ApproveCommit">
+/// For a stack that requires signed commits: the full SHA of an unsigned commit to deploy anyway. It is deployed only
+/// while it is still the branch head; omitted to deploy only an endorsed commit.
+/// </param>
+public sealed record DeployRequest(bool Pull, string? ApproveCommit = null);
+
+/// <summary>Who endorsed the deployed content (ADR-0011).</summary>
+/// <param name="Status">NotChecked when the stack does not require signed commits.</param>
+/// <param name="Problem">Why the commit was not endorsed; with Rejected, and with ApprovedUnsigned for what the approval overrode.</param>
+/// <param name="SignedBy">The name of the user whose key signed the commit, as it was then.</param>
+/// <param name="KeyFingerprint">"SHA256:…" of that key.</param>
+/// <param name="ApprovedCommit">The unsigned commit the user who started the deployment approved.</param>
+public sealed record EndorsementResponse(
+    CommitEndorsement Status,
+    EndorsementProblem? Problem,
+    string? SignedBy,
+    string? KeyFingerprint,
+    string? ApprovedCommit);
 
 public sealed record DeploymentResponse(
     Guid Id,
@@ -127,7 +155,9 @@ public sealed record DeploymentResponse(
     DateTimeOffset QueuedAt,
     DateTimeOffset? StartedAt,
     DateTimeOffset? FinishedAt,
-    string? Error);
+    string? Error,
+    CommitEndorsement Endorsement,
+    string? SignedBy);
 
 public sealed record DeploymentDetailsResponse(
     Guid Id,
@@ -140,6 +170,7 @@ public sealed record DeploymentDetailsResponse(
     DateTimeOffset? StartedAt,
     DateTimeOffset? FinishedAt,
     string? Error,
-    IReadOnlyList<DeploymentLogLineResponse> Log);
+    IReadOnlyList<DeploymentLogLineResponse> Log,
+    EndorsementResponse Endorsement);
 
 public sealed record DeploymentLogLineResponse(DateTimeOffset At, DeploymentLogLevel Level, string Text);

@@ -62,6 +62,7 @@ app.MapPasskeyEndpoints();
 app.MapDiscordAuthEndpoints();
 app.MapMeEndpoints();
 app.MapApiTokenEndpoints();
+app.MapSigningKeyEndpoints();
 app.MapCliAuthorizationEndpoints();
 app.MapUserEndpoints();
 app.MapAuditEndpoints();

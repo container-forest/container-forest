@@ -29,6 +29,19 @@ internal static class DeploymentResult
     }
 }
 
+/// <summary>Who endorsed a deployment's commit, in a word (ADR-0011).</summary>
+internal static class Endorsement
+{
+    public static string? Describe(CommitEndorsement? status, string? signedBy) => status switch
+    {
+        CommitEndorsement.Signed => $"signed by {signedBy}",
+        CommitEndorsement.ApprovedUnsigned => "approved unsigned",
+        CommitEndorsement.AlreadyDeployed => "already deployed",
+        CommitEndorsement.Rejected => "rejected",
+        _ => null,
+    };
+}
+
 internal sealed class DeploymentListCommand() : StackCommand("list", "List the stack's deployments, newest first.")
 {
     protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment, StackResponse stack)
@@ -38,10 +51,10 @@ internal sealed class DeploymentListCommand() : StackCommand("list", "List the s
             deployments,
             items =>
             {
-                var table = new Table("ID", "STATUS", "TRIGGER", "PULL", "COMMIT", "QUEUED", "ERROR");
+                var table = new Table("ID", "STATUS", "TRIGGER", "PULL", "COMMIT", "ENDORSED", "QUEUED", "ERROR");
                 foreach (var d in items)
                 {
-                    table.AddRow(d.Id?.ToString(), d.Status?.ToString().ToLowerInvariant(), d.Trigger?.ToString(), d.PullPolicy?.ToString().ToLowerInvariant(), CliOutput.ShortCommit(d.Commit), CliOutput.Time(d.QueuedAt), d.Error);
+                    table.AddRow(d.Id?.ToString(), d.Status?.ToString().ToLowerInvariant(), d.Trigger?.ToString(), d.PullPolicy?.ToString().ToLowerInvariant(), CliOutput.ShortCommit(d.Commit), Endorsement.Describe(d.Endorsement, d.SignedBy), CliOutput.Time(d.QueuedAt), d.Error);
                 }
 
                 return table;
@@ -71,6 +84,9 @@ internal sealed class DeploymentShowCommand() : ForestCommand("show", "Show a de
             ("Queued", CliOutput.Time(d.QueuedAt)),
             ("Started", CliOutput.Time(d.StartedAt)),
             ("Finished", CliOutput.Time(d.FinishedAt)),
+            ("Endorsed", Endorsement.Describe(d.Endorsement?.Status, d.Endorsement?.SignedBy)),
+            ("Signing key", d.Endorsement?.KeyFingerprint),
+            ("Not endorsed because", d.Endorsement?.Problem?.ToString()),
             ("Error", d.Error),
         ]);
         return ExitCodes.Ok;

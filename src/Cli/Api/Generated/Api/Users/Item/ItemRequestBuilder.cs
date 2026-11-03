@@ -6,6 +6,7 @@ using ContainerForest.Cli.Api.Generated.Api.Users.Item.Deactivate;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.Passkeys;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.Password;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.RoleAssignments;
+using ContainerForest.Cli.Api.Generated.Api.Users.Item.SigningKeys;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.Tokens;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.Unlock;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.UserName;
@@ -55,6 +56,11 @@ namespace ContainerForest.Cli.Api.Generated.Api.Users.Item
         public global::ContainerForest.Cli.Api.Generated.Api.Users.Item.RoleAssignments.RoleAssignmentsRequestBuilder RoleAssignments
         {
             get => new global::ContainerForest.Cli.Api.Generated.Api.Users.Item.RoleAssignments.RoleAssignmentsRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The signingKeys property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.Users.Item.SigningKeys.SigningKeysRequestBuilder SigningKeys
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.Users.Item.SigningKeys.SigningKeysRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>The tokens property</summary>
         public global::ContainerForest.Cli.Api.Generated.Api.Users.Item.Tokens.TokensRequestBuilder Tokens

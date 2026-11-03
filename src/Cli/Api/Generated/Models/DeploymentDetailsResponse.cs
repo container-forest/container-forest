@@ -22,6 +22,14 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #else
         public string Commit { get; set; }
 #endif
+        /// <summary>The endorsement property</summary>
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
+#nullable enable
+        public global::ContainerForest.Cli.Api.Generated.Models.EndorsementResponse? Endorsement { get; set; }
+#nullable restore
+#else
+        public global::ContainerForest.Cli.Api.Generated.Models.EndorsementResponse Endorsement { get; set; }
+#endif
         /// <summary>The error property</summary>
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
 #nullable enable
@@ -80,6 +88,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             return new Dictionary<string, Action<IParseNode>>
             {
                 { "commit", n => { Commit = n.GetStringValue(); } },
+                { "endorsement", n => { Endorsement = n.GetObjectValue<global::ContainerForest.Cli.Api.Generated.Models.EndorsementResponse>(global::ContainerForest.Cli.Api.Generated.Models.EndorsementResponse.CreateFromDiscriminatorValue); } },
                 { "error", n => { Error = n.GetStringValue(); } },
                 { "finishedAt", n => { FinishedAt = n.GetDateTimeOffsetValue(); } },
                 { "id", n => { Id = n.GetGuidValue(); } },
@@ -100,6 +109,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
         {
             if(ReferenceEquals(writer, null)) throw new ArgumentNullException(nameof(writer));
             writer.WriteStringValue("commit", Commit);
+            writer.WriteObjectValue<global::ContainerForest.Cli.Api.Generated.Models.EndorsementResponse>("endorsement", Endorsement);
             writer.WriteStringValue("error", Error);
             writer.WriteDateTimeOffsetValue("finishedAt", FinishedAt);
             writer.WriteGuidValue("id", Id);

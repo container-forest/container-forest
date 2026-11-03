@@ -4,6 +4,8 @@ using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.DeployHook;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.DeployOnPush;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Deployments;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Down;
+using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.RequireImageDigests;
+using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.RequireSignedCommits;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Restart;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.RestartOnFileChange;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Source;
@@ -43,6 +45,16 @@ namespace ContainerForest.Cli.Api.Generated.Api.Stacks.Item
         public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Down.DownRequestBuilder Down
         {
             get => new global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Down.DownRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The requireImageDigests property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.RequireImageDigests.RequireImageDigestsRequestBuilder RequireImageDigests
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.RequireImageDigests.RequireImageDigestsRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The requireSignedCommits property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.RequireSignedCommits.RequireSignedCommitsRequestBuilder RequireSignedCommits
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.RequireSignedCommits.RequireSignedCommitsRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>The restart property</summary>
         public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Restart.RestartRequestBuilder Restart

@@ -136,7 +136,14 @@ function DeploymentHistoryScreen() {
                       {formatDateTime(deployment.queuedAt, i18n.resolvedLanguage)}
                     </Link>
                   </TableCell>
-                  <TableCell className="hidden font-mono text-sm sm:table-cell">{shortCommit(deployment.commit) ?? "—"}</TableCell>
+                  <TableCell className="hidden text-sm sm:table-cell">
+                    <span className="font-mono">{shortCommit(deployment.commit) ?? "—"}</span>
+                    {deployment.endorsement !== "NotChecked" && (
+                      <div className="text-muted-foreground text-xs" title={t("deployments.columns.endorsement")}>
+                        {t(`deployment.endorsement.status.${deployment.endorsement}`, { name: deployment.signedBy ?? "—" })}
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="hidden text-sm md:table-cell">
                     {t(`deployments.trigger.${deployment.trigger}`)}
                     {deployment.pullPolicy === "Always" && (

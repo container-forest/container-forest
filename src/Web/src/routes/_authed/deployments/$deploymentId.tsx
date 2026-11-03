@@ -1,11 +1,13 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { type ErrorComponentProps, Link, createFileRoute } from "@tanstack/react-router";
+import { type ErrorComponentProps, Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { hasStatus } from "@/api/client";
 import { deploymentQuery, stackQuery } from "@/api/queries";
+import { useApproveCommitMutation } from "@/api/stacks";
+import { ConfirmAction } from "@/components/confirm-action";
 import { ErrorText } from "@/components/form-messages";
-import { ArrowLeftIcon } from "@/components/icons";
+import { ArrowLeftIcon, Loader2Icon, PlayIcon } from "@/components/icons";
 import { DeploymentStatusBadge } from "@/components/stacks/deployment-status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,6 +16,9 @@ import {
   DEPLOYMENT_POLL_MS,
   type DeploymentDetails,
   type DeploymentLogLine,
+  type Stack,
+  canApproveCommit,
+  describeError,
   durationSeconds,
   isFinished,
   shortCommit,
@@ -82,16 +87,87 @@ function DeploymentScreen() {
             <dd>{deployment.finishedAt ? formatDateTime(deployment.finishedAt, language) : "—"}</dd>
             <dt className="text-muted-foreground">{t("deployments.columns.duration")}</dt>
             <dd>{seconds === null ? "—" : t("deployments.duration", splitDuration(seconds))}</dd>
+            {deployment.endorsement.status !== "NotChecked" && <EndorsementRows deployment={deployment} />}
           </dl>
           {deployment.error && (
             <p role="alert" className="text-destructive mt-4 text-sm" lang="en">
               {deployment.error}
             </p>
           )}
+          {stack.data && canApproveCommit(deployment, stack.data) && (
+            <ApproveCommit deployment={deployment} stack={stack.data} />
+          )}
         </CardContent>
       </Card>
 
       <LogCard deployment={deployment} />
+    </div>
+  );
+}
+
+/** Who endorsed the commit, with which key, or why nobody did (ADR-0011). */
+function EndorsementRows({ deployment }: { deployment: DeploymentDetails }) {
+  const { t } = useTranslation();
+  const { status, problem, signedBy, keyFingerprint } = deployment.endorsement;
+
+  return (
+    <>
+      <dt className="text-muted-foreground">{t("deployment.endorsement.label")}</dt>
+      <dd>{t(`deployment.endorsement.status.${status}`, { name: signedBy ?? "—" })}</dd>
+      {keyFingerprint && (
+        <>
+          <dt className="text-muted-foreground">{t("deployment.endorsement.key")}</dt>
+          <dd className="font-mono text-xs break-all">{keyFingerprint}</dd>
+        </>
+      )}
+      {problem && (
+        <>
+          <dt className="text-muted-foreground">{t("deployment.endorsement.problem")}</dt>
+          <dd>{t(`deployment.endorsement.problems.${problem}`)}</dd>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * Deploys the rejected commit unsigned, approved by its full SHA: the person vouches for the content instead of a
+ * signature. If the branch has moved on, the new deployment fails rather than deploying something else.
+ */
+function ApproveCommit({ deployment, stack }: { deployment: DeploymentDetails; stack: Stack }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const approve = useApproveCommitMutation(stack.id);
+  const commit = deployment.commit ?? "";
+  const error = approve.error ? describeError(approve.error) : undefined;
+
+  return (
+    <div className="mt-4 grid gap-2">
+      <div>
+        <ConfirmAction
+          variant="outline"
+          title={t("deployment.endorsement.approve.title", { commit: shortCommit(commit) })}
+          description={t("deployment.endorsement.approve.description", { sha: commit })}
+          confirmLabel={t("deployment.endorsement.approve.action")}
+          disabled={approve.isPending}
+          onConfirm={() =>
+            approve.mutate(
+              { commit, pull: deployment.pullPolicy === "Always" },
+              { onSuccess: (next) => void navigate({ to: "/deployments/$deploymentId", params: { deploymentId: next.id } }) },
+            )
+          }
+        >
+          {approve.isPending ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : <PlayIcon data-icon="inline-start" />}
+          {t("deployment.endorsement.approve.action")}
+        </ConfirmAction>
+      </div>
+      <div aria-live="polite">
+        {error && (
+          <ErrorText>
+            {t("deployment.endorsement.approve.failed")} {t(error.key)} {error.detail}
+          </ErrorText>
+        )}
+      </div>
     </div>
   );
 }

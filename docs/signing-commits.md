@@ -21,7 +21,7 @@
 ### Linux і macOS
 
 ```bash
-ssh-keygen -t ed25519 -C "<ваше ім'я>@<пристрій> (commit signing)" -f ~/.ssh/id_ed25519_signing
+ssh-keygen -t ed25519 -C "<ваше ім'я>@<пристрій> (commit signing)" -f ~/.ssh/id_commit_signing
 ```
 
 Задайте пароль, коли `ssh-keygen` попросить: він захищає приватний ключ, якщо файл вкрадуть.
@@ -31,7 +31,7 @@ ssh-keygen -t ed25519 -C "<ваше ім'я>@<пристрій> (commit signing)
 У Windows 10 і 11 OpenSSH уже є (`C:\Windows\System32\OpenSSH`). Якщо `ssh -V` показує версію, старішу за 8.2, оновіть OpenSSH (наприклад, `winget install Microsoft.OpenSSH.Preview`).
 
 ```powershell
-ssh-keygen -t ed25519 -C "<ваше ім'я>@<пристрій> (commit signing)" -f $HOME\.ssh\id_ed25519_signing
+ssh-keygen -t ed25519 -C "<ваше ім'я>@<пристрій> (commit signing)" -f $HOME\.ssh\id_commit_signing
 ```
 
 ### Апаратний ключ (YubiKey, інший FIDO2) — рекомендовано
@@ -39,14 +39,14 @@ ssh-keygen -t ed25519 -C "<ваше ім'я>@<пристрій> (commit signing)
 Приватна частина лишається на пристрої: її неможливо скопіювати, а кожен підпис вимагає дотику.
 
 ```bash
-ssh-keygen -t ed25519-sk -O resident -O verify-required -C "<ваше ім'я>@<пристрій> (commit signing)" -f ~/.ssh/id_ed25519_sk_signing
+ssh-keygen -t ed25519-sk -O resident -O verify-required -C "<ваше ім'я>@<пристрій> (commit signing)" -f ~/.ssh/id_commit_signing_sk
 ```
 
 - **Linux:** потрібна бібліотека `libfido2` (Debian і Ubuntu: `sudo apt install libfido2-1`).
 - **macOS:** системний OpenSSH від Apple зібраний без підтримки FIDO. Поставте OpenSSH із Homebrew (`brew install openssh`) і користуйтеся ним (`/opt/homebrew/bin/ssh-keygen`).
 - **Windows:** OpenSSH 8.9 і новіший працює з FIDO через Windows Hello; у PowerShell замініть `~/.ssh/…` на `$HOME\.ssh\…`.
 
-Далі в інструкції для апаратного ключа скрізь замість `id_ed25519_signing` пишіть `id_ed25519_sk_signing`.
+Далі в інструкції для апаратного ключа скрізь замість `id_commit_signing` пишіть `id_commit_signing_sk`.
 
 ## 2. Додати ключ в агент
 
@@ -55,7 +55,7 @@ ssh-keygen -t ed25519-sk -O resident -O verify-required -C "<ваше ім'я>@<
 ### Linux
 
 ```bash
-ssh-add ~/.ssh/id_ed25519_signing
+ssh-add ~/.ssh/id_commit_signing
 ```
 
 GNOME і KDE запускають агент самі. Окремі композитори Wayland (Hyprland, Sway, niri), віконні менеджери X11 (i3, bspwm) і сесії без графіки — ні, і тоді `ssh-add` відповідає `Could not open a connection to your authentication agent`: змінна `SSH_AUTH_SOCK` не задана, бо агента немає. Є три варіанти.
@@ -133,7 +133,7 @@ Host *
 ### macOS
 
 ```bash
-ssh-add --apple-use-keychain ~/.ssh/id_ed25519_signing
+ssh-add --apple-use-keychain ~/.ssh/id_commit_signing
 ```
 
 Щоб пароль брався з Keychain після перезавантаження, додайте в `~/.ssh/config`:
@@ -159,7 +159,7 @@ Start-Service ssh-agent
 Потім у звичайному PowerShell:
 
 ```powershell
-ssh-add $HOME\.ssh\id_ed25519_signing
+ssh-add $HOME\.ssh\id_commit_signing
 ```
 
 **Не пересилайте агент на хости, яким не довіряєте** (`ForwardAgent yes`, `ssh -A`): поки сесія відкрита, root на такому хості може підписувати коміти вашим ключем. Якщо пересилати агент усе ж треба, додавайте ключ підпису з підтвердженням кожного використання: `ssh-add -c` (Linux, macOS).
@@ -173,8 +173,10 @@ git config --global gpg.format ssh
 ```
 
 ```bash
-git config --global user.signingkey ~/.ssh/id_ed25519_signing.pub
+git config --global user.signingkey ~/.ssh/id_commit_signing.pub
 ```
+
+Шлях до приватного ключа (`~/.ssh/id_commit_signing`) теж працює. Публічний універсальніший: git передає його `ssh-keygen`, а той бере приватний ключ з агента, якщо він там є, інакше — з файлу поруч без `.pub`. Ключ без файлу на диску, як-от у 1Password чи KeePassXC, можна вказати лише публічним.
 
 ```bash
 git config --global commit.gpgsign true
@@ -202,25 +204,25 @@ git config --global gpg.ssh.program "C:/Windows/System32/OpenSSH/ssh-keygen.exe"
 git config --global core.sshCommand "C:/Windows/System32/OpenSSH/ssh.exe"
 ```
 
-У PowerShell шлях до ключа задавайте явно: `git config --global user.signingkey "$HOME/.ssh/id_ed25519_signing.pub"`.
+У PowerShell шлях до ключа задавайте явно: `git config --global user.signingkey "$HOME/.ssh/id_commit_signing.pub"`.
 
 ### Перевірка підписів локально (необов'язково)
 
 Щоб `git log --show-signature` писав «Good signature», git має знати, яким ключам довіряти:
 
 ```bash
-echo "$(git config user.email) namespaces=\"git\" $(cat ~/.ssh/id_ed25519_signing.pub)" >> ~/.ssh/allowed_signers
+echo "$(git config user.email) namespaces=\"git\" $(cat ~/.ssh/id_commit_signing.pub)" >> ~/.ssh/allowed_signers
 ```
 
 ```bash
 git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
 ```
 
-У PowerShell перший крок — `Add-Content $HOME\.ssh\allowed_signers "$(git config user.email) namespaces=`"git`" $(Get-Content $HOME\.ssh\id_ed25519_signing.pub)"`. Для container-forest цей файл не потрібен: ЦА перевіряє підпис ключами з панелі.
+У PowerShell перший крок — `Add-Content $HOME\.ssh\allowed_signers "$(git config user.email) namespaces=`"git`" $(Get-Content $HOME\.ssh\id_commit_signing.pub)"`. Для container-forest цей файл не потрібен: ЦА перевіряє підпис ключами з панелі.
 
 ## 4. Додати ключ у container-forest
 
-Скопіюйте публічний ключ: `cat ~/.ssh/id_ed25519_signing.pub` (Windows: `Get-Content $HOME\.ssh\id_ed25519_signing.pub`).
+Скопіюйте публічний ключ: `cat ~/.ssh/id_commit_signing.pub` (Windows: `Get-Content $HOME\.ssh\id_commit_signing.pub`).
 
 Панель → «Обліковий запис» → «Ключі підпису комітів» → «Додати ключ»: назва (пристрій), публічний ключ, середовища.
 
@@ -245,7 +247,7 @@ Settings → **SSH / GPG Keys** → блок **Manage SSH Keys** → **Add Key**
 Linux і macOS:
 
 ```bash
-echo -n '<токен>' | ssh-keygen -Y sign -n gitea -f ~/.ssh/id_ed25519_signing
+echo -n '<токен>' | ssh-keygen -Y sign -n gitea -f ~/.ssh/id_commit_signing
 ```
 
 Windows (PowerShell; токен записується у файл без переводу рядка, а підпис з'являється поруч у `token.txt.sig`):
@@ -255,7 +257,7 @@ Set-Content -NoNewline -Path token.txt -Value '<токен>'
 ```
 
 ```powershell
-ssh-keygen -Y sign -n gitea -f $HOME\.ssh\id_ed25519_signing token.txt
+ssh-keygen -Y sign -n gitea -f $HOME\.ssh\id_commit_signing token.txt
 ```
 
 Вставте підпис від `-----BEGIN SSH SIGNATURE-----` до `-----END SSH SIGNATURE-----` у форму. Якщо кнопки **Verify** немає, адміністратор інстансу вимкнув перевірку, і ключ вважається підтвердженим за email.

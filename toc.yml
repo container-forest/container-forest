@@ -2,6 +2,8 @@
   href: docs/project-overview.md
 - name: Архітектура
   href: docs/architecture.md
+- name: Підпис комітів і git по SSH
+  href: docs/signing-commits.md
 - name: ADR
   items:
   - name: Перелік

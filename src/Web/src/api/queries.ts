@@ -128,6 +128,14 @@ export const ageKeysQuery = (environmentId: string) =>
   });
 
 /** Registry logins of one environment, by server; never the passwords. Administrators only. */
+/** Roles on an environment and its stacks; for those who administer the environment. */
+export const environmentRolesQuery = (environmentId: string) =>
+  queryOptions({
+    queryKey: ["environments", environmentId, "role-assignments"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/environments/{id}/role-assignments", { params: { path: { id: environmentId } }, signal })),
+  });
+
 export const registryCredentialsQuery = (environmentId: string) =>
   queryOptions({
     queryKey: ["environments", environmentId, "registry-credentials"],

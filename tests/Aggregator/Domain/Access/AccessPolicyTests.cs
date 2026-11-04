@@ -112,4 +112,42 @@ public class AccessPolicyTests
 
         Assert.Throws<ArgumentException>(() => AccessPolicy.EffectiveRole(user, environment, foreignStack, []));
     }
+
+    [Fact]
+    public void Environment_administrator_administers_only_their_environment_and_deploys_its_stacks()
+    {
+        var user = User();
+        var environment = Environment(isPrivate: true);
+        var other = Environment(isPrivate: false);
+        var stack = Stack(environment.Id);
+        RoleAssignment[] assignments = [RoleAssignment.ForEnvironment(user.Id, environment.Id, Role.EnvironmentAdmin, Now)];
+
+        Assert.True(AccessPolicy.CanPerform(user, environment, assignments, Permission.AdministerEnvironment));
+        Assert.True(AccessPolicy.CanPerform(user, environment, stack, assignments, Permission.Deploy));
+        Assert.False(AccessPolicy.CanPerform(user, other, assignments, Permission.AdministerEnvironment));
+        Assert.Contains(environment.Id, AccessPolicy.EditorEnvironments(user, assignments));
+    }
+
+    [Fact]
+    public void Editor_and_restricted_administrator_token_do_not_administer_an_environment()
+    {
+        var editor = User();
+        var environment = Environment(isPrivate: false);
+        RoleAssignment[] assignments = [RoleAssignment.ForEnvironment(editor.Id, environment.Id, Role.Editor, Now)];
+        var restrictedAdmin = new Actor(Domain.Access.User.CreateAdministrator("root", Now), new AccessScope([environment.Id], readOnly: false));
+
+        Assert.False(AccessPolicy.CanPerform(editor, environment, assignments, Permission.AdministerEnvironment));
+        Assert.False(AccessPolicy.CanPerform(restrictedAdmin, environment, [], Permission.AdministerEnvironment));
+    }
+
+    [Fact]
+    public void Environment_administrator_role_cannot_be_given_on_a_stack()
+    {
+        var user = User();
+        var stack = Stack(EnvironmentId.New());
+
+        Assert.Throws<DomainValidationException>(() => RoleAssignment.ForStack(user.Id, stack, Role.EnvironmentAdmin, Now));
+        var onStack = RoleAssignment.ForStack(user.Id, stack, Role.Editor, Now);
+        Assert.Throws<DomainValidationException>(() => onStack.ChangeRole(Role.EnvironmentAdmin));
+    }
 }

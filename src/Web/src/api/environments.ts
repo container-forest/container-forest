@@ -1,11 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, unwrap } from "./client";
-import { environmentsQuery, registryCredentialsQuery } from "./queries";
+import { environmentRolesQuery, environmentsQuery, registryCredentialsQuery, usersQuery } from "./queries";
 import type { components } from "./schema.gen";
 
 export type CreateEnvironmentRequest = components["schemas"]["CreateEnvironmentRequest"];
 export type UpdateEnvironmentRequest = components["schemas"]["UpdateEnvironmentRequest"];
 export type SetRegistryCredentialRequest = components["schemas"]["SetRegistryCredentialRequest"];
+export type EnvironmentRole = components["schemas"]["EnvironmentRoleResponse"];
+export type GrantEnvironmentRoleRequest = components["schemas"]["GrantEnvironmentRoleRequest"];
 
 // Enrollment tokens and registry passwords are secrets. A mutation keeps its variables and answer in the mutation
 // cache until it is garbage-collected, so these mutations are dropped as soon as nothing observes them
@@ -93,5 +95,56 @@ export function useDeleteRegistryCredentialMutation(environmentId: string) {
       );
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: registryCredentialsQuery(environmentId).queryKey }),
+  });
+}
+
+/** A role change shows on the environment and in the user's card (for administrators). */
+function useInvalidateEnvironmentRoles(environmentId: string) {
+  const queryClient = useQueryClient();
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: environmentRolesQuery(environmentId).queryKey }),
+      queryClient.invalidateQueries({ queryKey: usersQuery.queryKey }),
+    ]);
+}
+
+/** Gives an existing user a role on the environment or one of its stacks. */
+export function useGrantEnvironmentRoleMutation(environmentId: string) {
+  const invalidate = useInvalidateEnvironmentRoles(environmentId);
+
+  return useMutation({
+    mutationFn: async (request: GrantEnvironmentRoleRequest) =>
+      unwrap(await api.POST("/api/environments/{id}/role-assignments", { params: { path: { id: environmentId } }, body: request })),
+    onSuccess: invalidate,
+  });
+}
+
+export function useChangeEnvironmentRoleMutation(environmentId: string) {
+  const invalidate = useInvalidateEnvironmentRoles(environmentId);
+
+  return useMutation({
+    mutationFn: async ({ assignmentId, role }: { assignmentId: string; role: EnvironmentRole["role"] }) =>
+      unwrap(
+        await api.PUT("/api/environments/{id}/role-assignments/{assignmentId}", {
+          params: { path: { id: environmentId, assignmentId } },
+          body: { role },
+        }),
+      ),
+    onSettled: invalidate,
+  });
+}
+
+export function useRevokeEnvironmentRoleMutation(environmentId: string) {
+  const invalidate = useInvalidateEnvironmentRoles(environmentId);
+
+  return useMutation({
+    mutationFn: async (assignmentId: string) => {
+      unwrap(
+        await api.DELETE("/api/environments/{id}/role-assignments/{assignmentId}", {
+          params: { path: { id: environmentId, assignmentId } },
+        }),
+      );
+    },
+    onSettled: invalidate,
   });
 }

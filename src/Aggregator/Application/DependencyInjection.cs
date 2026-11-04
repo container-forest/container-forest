@@ -24,6 +24,8 @@ public static class DependencyInjection
         services.AddScoped<EnvironmentService>();
         services.AddScoped<AgentEnrollmentService>();
         services.AddScoped<CurrentActor>();
+        services.AddScoped<EnvironmentAdministration>();
+        services.AddScoped<EnvironmentRoleService>();
         services.AddScoped<IAuditTrail, AuditTrail>();
         services.AddScoped<AuditService>();
         services.AddScoped<DiscordLinkService>();

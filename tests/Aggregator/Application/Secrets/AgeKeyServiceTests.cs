@@ -34,8 +34,10 @@ public class AgeKeyServiceTests
         environments.Add(publicEnvironment);
         environments.Add(privateEnvironment);
         currentUser.Id = admin.Id;
+        var actor = new CurrentActor(currentUser, users);
         service = new AgeKeyService(
-            new CurrentActor(currentUser, users),
+            actor,
+            new EnvironmentAdministration(actor, environments, roleAssignments),
             environments,
             roleAssignments,
             keys,
@@ -91,6 +93,20 @@ public class AgeKeyServiceTests
         await Assert.ThrowsAsync<AccessDeniedException>(() => service.CreateAsync(publicEnvironment.Id, Ct));
         await Assert.ThrowsAsync<AccessDeniedException>(() => service.DeleteAsync(publicEnvironment.Id, key.Id, Ct));
         Assert.Single(keys.All);
+    }
+
+    [Fact]
+    public async Task Environment_administrator_creates_and_deletes_keys_of_their_environment()
+    {
+        roleAssignments.Add(RoleAssignment.ForEnvironment(alice.Id, publicEnvironment.Id, Role.EnvironmentAdmin, Now));
+        currentUser.Id = alice.Id;
+        generator.Keys.Enqueue(new GeneratedAgeKey(Recipient, "AGE-SECRET-KEY-1SECRET"));
+
+        var created = await service.CreateAsync(publicEnvironment.Id, Ct);
+        await Assert.ThrowsAsync<NotFoundException>(() => service.CreateAsync(privateEnvironment.Id, Ct));
+        await service.DeleteAsync(publicEnvironment.Id, created.Id, Ct);
+
+        Assert.Empty(keys.All);
     }
 
     [Fact]

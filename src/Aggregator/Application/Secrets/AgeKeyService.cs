@@ -15,10 +15,11 @@ public sealed record AgeKeySummary(AgeKeyId Id, string Recipient, DateTimeOffset
 
 /// <summary>
 /// The age keys SOPS files of an environment are encrypted for. Anyone who sees the environment reads the public keys,
-/// to encrypt secrets for it; only administrators create and delete keys, as with registry credentials.
+/// to encrypt secrets for it; only administrators of the system or of the environment create and delete keys, as with registry credentials.
 /// </summary>
 public sealed class AgeKeyService(
     CurrentActor currentActor,
+    EnvironmentAdministration administration,
     IEnvironmentRepository environments,
     IRoleAssignmentRepository roleAssignments,
     IAgeKeyRepository keys,
@@ -47,8 +48,7 @@ public sealed class AgeKeyService(
     /// </summary>
     public async Task<AgeKeySummary> CreateAsync(EnvironmentId environmentId, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-        await environments.GetAsync(environmentId, cancellationToken);
+        await administration.GetAsync(environmentId, cancellationToken);
 
         var generated = await generator.GenerateAsync(cancellationToken);
         var key = AgeKey.Create(
@@ -61,7 +61,7 @@ public sealed class AgeKeyService(
     /// <summary>Forgets a key for good: files encrypted only for it cannot be decrypted any more.</summary>
     public async Task DeleteAsync(EnvironmentId environmentId, AgeKeyId keyId, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
+        await administration.GetAsync(environmentId, cancellationToken);
 
         var key = await keys.FindAsync(keyId, cancellationToken);
         if (key is null || key.EnvironmentId != environmentId)

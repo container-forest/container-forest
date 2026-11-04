@@ -32,7 +32,7 @@ public class VisibilityTests
     {
         var actor = new CurrentActor(currentUser, users);
         environmentService = new EnvironmentService(
-            actor, environments, roleAssignments, stacks, unitOfWork, agent, new FakeAuditTrail(), TimeProvider.System);
+            actor, new EnvironmentAdministration(actor, environments, roleAssignments), environments, roleAssignments, stacks, unitOfWork, agent, new FakeAuditTrail(), TimeProvider.System);
         containerService = new ContainerQueryService(actor, environments, stacks, roleAssignments, agent);
 
         users.Add(alice);
@@ -111,8 +111,10 @@ public class VisibilityTests
         // A new request: CurrentActor keeps the user for the lifetime of one request.
         var admin = User.CreateAdministrator("root", Now);
         users.Add(admin);
+        var adminActor = new CurrentActor(new FakeCurrentUser { Id = admin.Id }, users);
         var adminService = new EnvironmentService(
-            new CurrentActor(new FakeCurrentUser { Id = admin.Id }, users),
+            adminActor,
+            new EnvironmentAdministration(adminActor, environments, roleAssignments),
             environments, roleAssignments, stacks, unitOfWork, agent, new FakeAuditTrail(), TimeProvider.System);
 
         var created = await adminService.CreateAsync("new", isPrivate: true, Ct);

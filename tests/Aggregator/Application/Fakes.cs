@@ -179,6 +179,14 @@ internal sealed class InMemoryRoleAssignments : InMemoryRepository<RoleAssignmen
 {
     public Task<IReadOnlyList<RoleAssignment>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<RoleAssignment>>(Items.Where(a => a.UserId == userId).ToList());
+
+    public Task<IReadOnlyList<RoleAssignment>> ListForEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<RoleAssignment>>(Items.Where(a => a switch
+        {
+            EnvironmentRoleAssignment e => e.EnvironmentId == environmentId,
+            StackRoleAssignment s => s.EnvironmentId == environmentId,
+            _ => false,
+        }).ToList());
 }
 
 internal sealed class InMemoryGitRepositories : InMemoryRepository<GitRepository, RepositoryId>, IGitRepositoryRepository

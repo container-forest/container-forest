@@ -11,7 +11,7 @@ import {
   type Role,
   type RoleAssignment,
   type User,
-  roles,
+  rolesFor,
   useChangeRoleMutation,
   useRenameUserMutation,
   useRevokeRoleMutation,
@@ -329,7 +329,7 @@ function RolesCard({ user, assignments }: { user: User; assignments: RoleAssignm
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {roles.map((role) => (
+                        {rolesFor(assignment.stackId).map((role) => (
                           <SelectItem key={role} value={role}>
                             {t(`roles.${role}`)}
                           </SelectItem>

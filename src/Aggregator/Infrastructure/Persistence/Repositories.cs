@@ -134,6 +134,13 @@ internal sealed class RoleAssignmentRepository(AggregatorDbContext db)
 {
     public async Task<IReadOnlyList<RoleAssignment>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>
         await Set.Where(a => a.UserId == userId).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<RoleAssignment>> ListForEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken)
+    {
+        var onEnvironment = await Db.Set<EnvironmentRoleAssignment>().Where(a => a.EnvironmentId == environmentId).ToListAsync(cancellationToken);
+        var onStacks = await Db.Set<StackRoleAssignment>().Where(a => a.EnvironmentId == environmentId).ToListAsync(cancellationToken);
+        return [.. onEnvironment, .. onStacks];
+    }
 }
 
 internal sealed class GitRepositoryRepository(AggregatorDbContext db)

@@ -1,4 +1,5 @@
 using ContainerForest.Aggregator.Api.Contracts;
+using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Registries;
@@ -26,6 +27,7 @@ internal static class EnvironmentEndpoints
 
         group.MapEnvironmentAdministration();
         group.MapRegistryCredentials();
+        group.MapEnvironmentRoles();
 
         group.MapGet("/{id:guid}/containers", async (Guid id, ContainerQueryService containers, CancellationToken ct) =>
                 (await containers.ListAsync(EnvironmentId.From(id), ct))
@@ -179,8 +181,51 @@ internal static class EnvironmentEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound);
     }
 
+    /// <summary>Roles on the environment and its stacks, for administrators and the environment's administrators.</summary>
+    private static void MapEnvironmentRoles(this RouteGroupBuilder group)
+    {
+        group.MapGet("/{id:guid}/role-assignments", async (Guid id, EnvironmentRoleService service, CancellationToken ct) =>
+                (await service.ListAsync(EnvironmentId.From(id), ct)).Select(ToResponse).ToList())
+            .WithName("ListEnvironmentRoles")
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapPost(
+                "/{id:guid}/role-assignments",
+                async (Guid id, GrantEnvironmentRoleRequest request, EnvironmentRoleService service, CancellationToken ct) =>
+                {
+                    var view = await service.GrantAsync(
+                        EnvironmentId.From(id), request.UserName, request.StackId is { } s ? StackId.From(s) : null, request.Role, ct);
+                    return TypedResults.Created($"/api/environments/{id}/role-assignments/{view.Id}", ToResponse(view));
+                })
+            .WithName("GrantEnvironmentRole")
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        group.MapPut(
+                "/{id:guid}/role-assignments/{assignmentId:guid}",
+                async (Guid id, Guid assignmentId, ChangeEnvironmentRoleRequest request, EnvironmentRoleService service, CancellationToken ct) =>
+                    ToResponse(await service.ChangeAsync(EnvironmentId.From(id), RoleAssignmentId.From(assignmentId), request.Role, ct)))
+            .WithName("ChangeEnvironmentRole")
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapDelete(
+                "/{id:guid}/role-assignments/{assignmentId:guid}",
+                async (Guid id, Guid assignmentId, EnvironmentRoleService service, CancellationToken ct) =>
+                {
+                    await service.RevokeAsync(EnvironmentId.From(id), RoleAssignmentId.From(assignmentId), ct);
+                    return TypedResults.NoContent();
+                })
+            .WithName("RevokeEnvironmentRole")
+            .ProducesProblem(StatusCodes.Status404NotFound);
+    }
+
+    private static EnvironmentRoleResponse ToResponse(EnvironmentRoleView v) =>
+        new(v.Id.Value, v.UserId.Value, v.UserName, v.StackId?.Value, v.StackName, v.Role, v.GrantedAt);
+
     private static EnvironmentResponse ToResponse(EnvironmentSummary e) => new(
-        e.Id.Value, e.Name, e.IsPrivate, e.IsEnrolled, e.IsOnline, e.AgentHostname, e.AgentVersion, e.LastSeenAt, e.Role, e.EnrollmentTokenExpiresAt);
+        e.Id.Value, e.Name, e.IsPrivate, e.IsEnrolled, e.IsOnline, e.AgentHostname, e.AgentVersion, e.LastSeenAt, e.Role, e.EnrollmentTokenExpiresAt, e.CanAdminister);
 
     private static RegistryCredentialResponse ToResponse(RegistryCredentialSummary c) =>
         new(c.Id.Value, c.Server, c.Username, c.CreatedAt, c.UpdatedAt);

@@ -59,7 +59,6 @@ function KeysScreen() {
 
 function EnvironmentKeys({ environment }: { environment: Environment }) {
   const { t, i18n } = useTranslation();
-  const { me } = Route.useRouteContext();
   const keys = useQuery(ageKeysQuery(environment.id));
   const create = useCreateAgeKeyMutation(environment.id);
   const remove = useDeleteAgeKeyMutation(environment.id);
@@ -101,8 +100,8 @@ function EnvironmentKeys({ environment }: { environment: Environment }) {
           <h2 id="keys-list" className="font-heading text-lg font-semibold">
             {t("keys.listTitle", { name: environment.name })}
           </h2>
-          {/* Only a convenience: the aggregator refuses non-administrators anyway. */}
-          {me.isAdmin &&
+          {/* Only a convenience: the aggregator refuses anyone who does not administer the environment anyway. */}
+          {environment.canAdminister &&
             (current === undefined ? (
               <Button onClick={onCreate} disabled={create.isPending}>
                 {create.isPending ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : <PlusIcon data-icon="inline-start" />}
@@ -151,7 +150,7 @@ function EnvironmentKeys({ environment }: { environment: Environment }) {
                   <TableCell>
                     <div className="flex justify-end gap-2">
                       <CopyButton text={key.recipient} label={t("keys.copy")} />
-                      {me.isAdmin && (
+                      {environment.canAdminister && (
                         <ConfirmAction
                           variant="outline"
                           size="sm"

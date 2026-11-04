@@ -15,6 +15,7 @@ import { environmentsQuery, registryCredentialsQuery, stacksQuery } from "@/api/
 import { ConfirmAction } from "@/components/confirm-action";
 import { EditEnvironmentDialog } from "@/components/environments/environment-dialogs";
 import { EnrollmentInstructions } from "@/components/environments/enrollment-instructions";
+import { EnvironmentRolesSection } from "@/components/environments/environment-roles";
 import { ErrorText, FieldError } from "@/components/form-messages";
 import { ArrowLeftIcon, KeyIcon, Loader2Icon, LockIcon, Trash2Icon, UnlinkIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +42,10 @@ export const Route = createFileRoute("/_authed/environments/$environmentId")({
   component: EnvironmentScreen,
 });
 
-/** One environment: its agent's status and, for administrators, enrolling an agent, registry logins and removing it. */
+/**
+ * One environment: its agent's status and, for those who administer it, enrolling an agent, registry logins and roles;
+ * removing it is for administrators only.
+ */
 function EnvironmentScreen() {
   const { t } = useTranslation();
   const { me } = Route.useRouteContext();
@@ -74,18 +78,20 @@ function EnvironmentScreen() {
               </h1>
               <p className="text-muted-foreground mt-1">{t("environment.description")}</p>
             </div>
-            {me.isAdmin && <EditEnvironmentDialog environment={environment} />}
+            {environment.canAdminister && <EditEnvironmentDialog environment={environment} />}
           </div>
 
           <AgentStatusCard environment={environment} />
-          {me.isAdmin && (
+          {/* Administrators and the environment's own administrators (ADR-0012); the aggregator checks again. */}
+          {environment.canAdminister && (
             <>
               {/* A new key per environment drops a token shown for another one. */}
               <EnrollmentSection key={environment.id} environment={environment} />
               <RegistryCredentialsSection environmentId={environment.id} />
-              <RemoveEnvironmentSection environment={environment} />
+              <EnvironmentRolesSection environmentId={environment.id} isAdmin={me.isAdmin} />
             </>
           )}
+          {me.isAdmin && <RemoveEnvironmentSection environment={environment} />}
         </>
       )}
     </div>

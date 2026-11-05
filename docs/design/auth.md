@@ -36,4 +36,10 @@
 
 ## Вхід у CLI
 
-- **Вхід у CLI** (ADR-0008, `CliAuthorizationService`, `Domain/Access/CliAuthorization.cs`, `/api/cli/*`): device flow (RFC 8628). `deviceCode` (32 байти) і `userCode` (8 символів `OneTimeCode`, показується як `XXXX-XXXX`) — лише хеші; запит живе 10 хв, опитування не частіше 5 с (`SlowDown`), не більше 500 відкритих запитів, прострочені видаляються під час `StartAsync`. Затвердження й відмова — лише сесія (`GetSignedInUserAsync`), обмеження токена перевіряються як для `/api/me/tokens` (`ApiTokenService.EnsureRoomForTokenAsync`, `EnsureEnvironmentsVisibleAsync`). Токен створюється лише в `ExchangeAsync` (`CliAuthorization.IssueToken`) і віддається один раз; запит після цього видаляється; деактивований після затвердження користувач — `Denied`. Невідомий `deviceCode` — `Expired`. Ліміти `RateLimiter` на адресу клієнта (`CliAuthorizationEndpoints`): старт 10/хв, опитування 30/хв, звернення за `userCode` 20/хв; за Caddy адреса — з `X-Forwarded-For`. Панель: `/cli/authorize?code=&port=` (після рішення — `window.location.assign("http://127.0.0.1:<port>/done?result=…")`, лише loopback і порт, без секретів) і `/cli/device` (ввести код).
+Потік, строки й ліміти — в ADR-0008.
+
+- **Код:** `CliAuthorizationService`, `Domain/Access/CliAuthorization.cs`, `CliAuthorizationEndpoints`. `userCode` генерує `OneTimeCode`, показується як `XXXX-XXXX`.
+- **Обмеження токена** перевіряються як для `/api/me/tokens` (`ApiTokenService.EnsureRoomForTokenAsync`, `EnsureEnvironmentsVisibleAsync`).
+- **Видача:** токен створює `ExchangeAsync` (`CliAuthorization.IssueToken`), запит після цього видаляється; деактивований після затвердження користувач — `Denied`.
+- **Ліміти запитів:** за Caddy адреса клієнта — з `X-Forwarded-For`.
+- **Панель:** `/cli/authorize?code=&port=` (після рішення — `window.location.assign("http://127.0.0.1:<port>/done?result=…")`) і `/cli/device`.

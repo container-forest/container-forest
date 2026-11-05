@@ -4,7 +4,7 @@
 
 ## Правила роботи в команді
 
-- Кожен PR перевіряється на [інваріанти безпеки](docs/architecture.md#інваріанти-безпеки): порушувати їх не можна в жодному PR.
+- Кожен PR перевіряється на [інваріанти безпеки](docs/security-invariants.md): порушувати їх не можна в жодному PR.
 - Жодних прямих комітів у `main`. Лише PR із зеленим [CI](#ci), відкритий у `main` (не в гілку іншого PR).
 - Рев'ю (рішення команди): кожен PR Бояра В. О., Синенка Д. В. і Денисенко Л. В. мерджиться лише після аппруву Петренка Б. О.; GitHub додає його рев'юером автоматично (`.github/CODEOWNERS`). Свої PR Петренко Б. О. перевіряє сам.
 - Коміти за [Conventional Commits](https://www.conventionalcommits.org/): `feat(agent): ...`, `fix(web): ...`.
@@ -45,13 +45,18 @@ src/
 tests/                           дзеркалить src/
 deploy/                          compose-файли для ЦА з панеллю, агента й бота
 docs/
-  architecture.md                компоненти, протоколи, безпека, права
+  architecture.md                компоненти, протоколи, права
+  security-invariants.md         інваріанти безпеки
+  design/                        опис підсистем і рішення з обґрунтуванням
+  course-requirements.md         вимоги лабораторних
+  project-status.md              перелік реалізованого
   project-overview.md            опис проєкту, команда, аналіз аналогів
   adr/                           записи архітектурних рішень
   retro/                         ретроспективи по бібліотеках (лаба 3)
   ai-usage.md                    використання генеративного ШІ (вимога курсу)
 CONTRIBUTING.md                  цей файл: правила команди
 CONTRIBUTIONS.md                 облік елементів лабораторних для кожного учасника
+CLAUDE.md, src/*/CLAUDE.md       інструкції для Claude Code: спільні й конвенції компонента
 ```
 
 ## Іменування
@@ -191,7 +196,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    $env:CF_BOTGATEWAY__TOKENHASHES__0 = -join ([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($token)) | ForEach-Object { $_.ToString('x2') })   # у ЦА, перед dotnet run
    dotnet user-secrets set Bot:ServiceToken $token --project src/DiscordBot
    ```
-   Токен рівносильний адмінському доступу; деталі й ротація — у `CLAUDE.md` (пункт про токен бота).
+   Токен рівносильний адмінському доступу; деталі й ротація — у [docs/design/discord-bot.md](docs/design/discord-bot.md).
 
    Для Discord потрібен власний тестовий застосунок (https://discord.com/developers/applications → Bot → Reset Token) і тестовий сервер, куди бота запрошено зі scope `bot` і `applications.commands` (OAuth2 → URL Generator). Id сервера: у Discord увімкнути Developer Mode, потім ПКМ на сервері → Copy Server ID. У `Development` slash-команди реєструються лише на цьому сервері, де з'являються одразу:
    ```sh

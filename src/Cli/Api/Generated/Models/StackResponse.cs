@@ -74,6 +74,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #else
         public List<string> PolicyAllowances { get; set; }
 #endif
+        /// <summary>The policyUnrestricted property</summary>
+        public bool? PolicyUnrestricted { get; set; }
         /// <summary>The repositoryId property</summary>
         public Guid? RepositoryId { get; set; }
         /// <summary>The repositoryName property</summary>
@@ -130,6 +132,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
                 { "isSystem", n => { IsSystem = n.GetBoolValue(); } },
                 { "name", n => { Name = n.GetStringValue(); } },
                 { "policyAllowances", n => { PolicyAllowances = n.GetCollectionOfPrimitiveValues<string>()?.AsList(); } },
+                { "policyUnrestricted", n => { PolicyUnrestricted = n.GetBoolValue(); } },
                 { "repositoryId", n => { RepositoryId = n.GetGuidValue(); } },
                 { "repositoryName", n => { RepositoryName = n.GetStringValue(); } },
                 { "requireImageDigests", n => { RequireImageDigests = n.GetBoolValue(); } },
@@ -159,6 +162,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             writer.WriteBoolValue("isSystem", IsSystem);
             writer.WriteStringValue("name", Name);
             writer.WriteCollectionOfPrimitiveValues<string>("policyAllowances", PolicyAllowances);
+            writer.WriteBoolValue("policyUnrestricted", PolicyUnrestricted);
             writer.WriteGuidValue("repositoryId", RepositoryId);
             writer.WriteStringValue("repositoryName", RepositoryName);
             writer.WriteBoolValue("requireImageDigests", RequireImageDigests);

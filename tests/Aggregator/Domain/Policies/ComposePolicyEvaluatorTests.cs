@@ -154,6 +154,58 @@ public class ComposePolicyEvaluatorTests
     }
 
     [Fact]
+    public void Links_only_root_on_the_host_could_make_are_not_traps()
+    {
+        var facts = Facts(Service(mounts: [Bind("/var/run/docker.sock", readOnly: false)])) with
+        {
+            InspectedMounts = [new InspectedMount("/var/run/docker.sock", "/var/run")],
+        };
+
+        var violation = Assert.Single(ComposePolicyEvaluator.Evaluate(facts, policy, "web", []).Violations);
+        Assert.Equal("docker-socket", violation.Allowance?.Value);
+        Assert.True(ComposePolicyEvaluator.Evaluate(facts, policy, "web", ["docker-socket"]).Passes);
+    }
+
+    [Fact]
+    public void Links_where_a_writable_allowance_reaches_are_traps()
+    {
+        var facts = Facts(Service(mounts: [Bind("/srv/app/data/x", readOnly: true)])) with
+        {
+            InspectedMounts = [new InspectedMount("/srv/app/data/x", "/srv/app/data/x")],
+        };
+
+        Assert.True(ComposePolicyEvaluator.Evaluate(facts, policy, "web", ["path:/srv/app"]).Passes);
+        var violation = Assert.Single(ComposePolicyEvaluator.Evaluate(facts, policy, "web", ["path-rw:/srv/app"]).Violations);
+        Assert.Null(violation.Allowance);
+    }
+
+    [Theory]
+    [InlineData("web", true)]
+    [InlineData("web-db", true)]
+    [InlineData("webdb", false)]
+    [InlineData("db", false)]
+    public void Container_may_be_named_after_its_stack(string containerName, bool passes) =>
+        Assert.Equal(passes, Evaluate(Service(containerName: containerName)).Passes);
+
+    [Theory]
+    [InlineData("web-db", "web-db")]
+    [InlineData("web-db-1", "web-db")]
+    [InlineData("web-api", "web")]
+    [InlineData("web", "web")]
+    [InlineData("redis", null)]
+    public void Container_names_belong_to_the_stack_with_the_longest_matching_name(string containerName, string? owner) =>
+        Assert.Equal(owner, ComposePolicyEvaluator.ContainerNameOwner(containerName, ["web", "web-db", "db"]));
+
+    [Fact]
+    public void Stack_cannot_name_a_container_after_another_stack()
+    {
+        var facts = Facts(Service(containerName: "web-db-cache"));
+
+        Assert.False(ComposePolicyEvaluator.Evaluate(facts, policy, "web", [], ["web", "web-db"]).Passes);
+        Assert.True(ComposePolicyEvaluator.Evaluate(facts, policy, "web", [], ["web"]).Passes);
+    }
+
+    [Fact]
     public void Volumes_and_networks_outside_the_stack_need_allowances()
     {
         var facts = Facts(Service()) with

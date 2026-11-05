@@ -3,6 +3,7 @@ using System.Text.Json;
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Policies;
+using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Policies;
@@ -19,6 +20,7 @@ public sealed class ComposePolicyStep(
     IAgentChannel agents,
     IUserRepository users,
     IRoleAssignmentRepository roleAssignments,
+    IStackRepository stacks,
     DeploymentOptions options) : IDeployStep
 {
     public string Name => "Check compose policy";
@@ -42,13 +44,28 @@ public sealed class ComposePolicyStep(
             return;
         }
 
-        var facts = await RenderAsync(context, policy, cancellationToken);
+        var unrestricted = context.Stack.PolicyUnrestricted;
+        var facts = await RenderAsync(context, enforce: policy.Mode == ComposePolicyMode.Enforce && !unrestricted, cancellationToken);
         if (facts is null)
         {
             return;
         }
 
-        var evaluation = ComposePolicyEvaluator.Evaluate(facts, policy, context.Stack.Name.Value, context.Stack.PolicyAllowances);
+        var stackNames = (await stacks.ListByEnvironmentAsync(context.Environment.Id, cancellationToken)).Select(s => s.Name.Value).ToList();
+        var evaluation = ComposePolicyEvaluator.Evaluate(facts, policy, context.Stack.Name.Value, context.Stack.PolicyAllowances, stackNames);
+        if (unrestricted)
+        {
+            // Rendered anyway, so the report and the log say what the stack does on the host.
+            context.ComposeFacts = facts;
+            foreach (var violation in evaluation.Violations)
+            {
+                context.Info($"Compose policy (not applied): {violation}.");
+            }
+
+            context.Info($"The stack is unrestricted: the compose policy does not limit it ({evaluation.Violations.Count} violation(s) not applied).");
+            return;
+        }
+
         foreach (var warning in evaluation.Warnings)
         {
             context.Warn($"Compose policy: {warning}.");
@@ -70,7 +87,7 @@ public sealed class ComposePolicyStep(
                     : $"Audit mode: {evaluation.Violations.Count} violation(s) would fail the deployment under Enforce.");
             if (policy.Mode == ComposePolicyMode.Enforce && exemptBy is null)
             {
-                context.Bundle = context.Bundle with { VerifyPaths = PathsToVerify(facts, policy) };
+                context.Bundle = context.Bundle with { VerifyPaths = PathsToVerify(facts, policy, context.Stack) };
             }
 
             return;
@@ -82,7 +99,8 @@ public sealed class ComposePolicyStep(
             ". Administrators of the environment can give the stack allowances, or endorse the content themselves.");
     }
 
-    private async Task<ComposeFacts?> RenderAsync(DeployContext context, ComposePolicy policy, CancellationToken cancellationToken)
+    /// <param name="enforce">An agent too old to render fails the deployment; otherwise it is only a warning.</param>
+    private async Task<ComposeFacts?> RenderAsync(DeployContext context, bool enforce, CancellationToken cancellationToken)
     {
         // As in SendToAgentStep: lines arrive on the connection's receive loop and are copied into the log afterwards.
         var output = new ConcurrentQueue<string>();
@@ -94,7 +112,7 @@ public sealed class ComposePolicyStep(
         catch (AgentCommandFailedException ex) when (ex.Kind == AgentErrorKind.Unsupported)
         {
             const string why = "the environment's agent is too old to render stacks; update the agent";
-            if (policy.Mode == ComposePolicyMode.Enforce)
+            if (enforce)
             {
                 throw new DeploymentFailedException($"The compose policy cannot be checked: {why}.");
             }
@@ -146,8 +164,11 @@ public sealed class ComposePolicyStep(
         return EnvironmentAdministration.CanAdminister(user, context.Environment, assignments) ? user.UserName : null;
     }
 
-    /// <summary>Every host path mounted, except the read-only system paths, which are links themselves at times.</summary>
-    private static IReadOnlyList<string> PathsToVerify(ComposeFacts facts, ComposePolicy policy) =>
+    /// <summary>
+    /// The host paths mounted where a container could have left a symbolic link (<see cref="ComposePolicyEvaluator.IsContainerWritable"/>):
+    /// links elsewhere, such as /var/run → /run, belong to the host.
+    /// </summary>
+    private static IReadOnlyList<string> PathsToVerify(ComposeFacts facts, ComposePolicy policy, Domain.Stacks.Stack stack) =>
         facts.Services
             .SelectMany(s => s.Mounts)
             .Where(m => m.Type == "bind" && m.Source is not null)
@@ -156,6 +177,7 @@ public sealed class ComposePolicyStep(
             .Select(HostPath.TryNormalize)
             .OfType<string>()
             .Where(p => !policy.SystemReadOnlyPaths.Any(system => HostPath.IsAtOrUnder(p, system)))
+            .Where(p => ComposePolicyEvaluator.IsContainerWritable(p, facts, policy, stack.Name.Value, stack.PolicyAllowances))
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToList();

@@ -70,7 +70,11 @@ internal static class ForestCli
                 new StackSwitchCommand("require-image-digests", "Deploy only images pinned by digest (Editor).", (api, id, on, ct) => api.SetRequireImageDigestsAsync(id, on, ct)),
                 new CommandGroup("policy", "The stack's own allowances beyond the environment's compose policy (ADR-0012).",
                     new StackPolicyCommand(allow: true),
-                    new StackPolicyCommand(allow: false)),
+                    new StackPolicyCommand(allow: false),
+                    new StackSwitchCommand(
+                        "unrestricted",
+                        "Take the stack out of the compose policy altogether: its Editors are root on the host (administrators of the environment).",
+                        (api, id, on, ct) => api.SetPolicyUnrestrictedAsync(id, on, ct))),
                 new CommandGroup("hook", "The stack's deploy hook for CI.",
                     new StackHookCreateCommand(),
                     new StackHookRemoveCommand())),

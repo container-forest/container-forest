@@ -27,6 +27,7 @@ public class ComposePolicyStepTests
     private readonly FakeAgentChannel agent = new();
     private readonly InMemoryUsers users = new();
     private readonly InMemoryRoleAssignments roleAssignments = new();
+    private readonly InMemoryStacks stacks = new();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -174,7 +175,31 @@ public class ComposePolicyStepTests
         Assert.Empty(Lines(context, DeploymentLogLevel.Warning));
     }
 
-    private ComposePolicyStep Step() => new(agent, users, roleAssignments, new DeploymentOptions());
+    [Fact]
+    public async Task Unrestricted_stack_is_rendered_and_reported_but_not_limited()
+    {
+        agent.Rendered = Rendered(PrivilegedModel);
+        var context = Bundled(ComposePolicyMode.Enforce);
+        context.Stack.SetPolicyUnrestricted(true);
+
+        await Step().ExecuteAsync(context, Ct);
+
+        Assert.Empty(context.Bundle.VerifyPaths);
+        Assert.NotNull(context.ComposeFacts);
+        Assert.Contains(Lines(context, DeploymentLogLevel.Info), l => l.Contains("not applied", StringComparison.Ordinal));
+        Assert.Empty(Lines(context, DeploymentLogLevel.Warning));
+    }
+
+    [Fact]
+    public async Task Unrestricted_stack_deploys_through_an_agent_too_old_to_render()
+    {
+        var context = Bundled(ComposePolicyMode.Enforce);
+        context.Stack.SetPolicyUnrestricted(true);
+
+        await Step().ExecuteAsync(context, Ct);
+    }
+
+    private ComposePolicyStep Step() => new(agent, users, roleAssignments, stacks, new DeploymentOptions());
 
     private static RenderedCompose Rendered(string model) =>
         new(model, StackDirectory, ["/opt/container-forest", "/run/container-forest"], []);

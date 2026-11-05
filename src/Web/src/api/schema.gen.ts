@@ -1156,6 +1156,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/stacks/{id}/policy-unrestricted": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["SetStackPolicyUnrestricted"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/stacks/{id}/deploy-hook": {
         parameters: {
             query?: never;
@@ -1428,7 +1444,7 @@ export interface components {
             secrets: boolean;
         };
         /** @enum {unknown} */
-        AuditAction: "SignedIn" | "SignInFailed" | "SignedOut" | "PasswordChanged" | "DiscordLinked" | "DiscordUnlinked" | "UserCreated" | "UserRenamed" | "UserDeactivated" | "UserActivated" | "AdminGranted" | "AdminRevoked" | "PasswordReset" | "UserUnlocked" | "RoleGranted" | "RoleChanged" | "RoleRevoked" | "ApiTokenCreated" | "ApiTokenRevoked" | "SigningKeyAdded" | "SigningKeyChanged" | "SigningKeyRemoved" | "EnvironmentCreated" | "EnvironmentUpdated" | "ComposePolicyChanged" | "EnvironmentRemoved" | "EnrollmentTokenIssued" | "AgentRevoked" | "StackCreated" | "StackRemoved" | "StackSourceChanged" | "DeployHookCreated" | "DeployHookRemoved" | "StackRestarted" | "StackTakenDown" | "StackEndorsementChanged" | "StackPolicyAllowancesChanged" | "DeploymentQueued" | "ContainerStarted" | "ContainerStopped" | "ContainerRestarted" | "SecretsDecrypted";
+        AuditAction: "SignedIn" | "SignInFailed" | "SignedOut" | "PasswordChanged" | "DiscordLinked" | "DiscordUnlinked" | "UserCreated" | "UserRenamed" | "UserDeactivated" | "UserActivated" | "AdminGranted" | "AdminRevoked" | "PasswordReset" | "UserUnlocked" | "RoleGranted" | "RoleChanged" | "RoleRevoked" | "ApiTokenCreated" | "ApiTokenRevoked" | "SigningKeyAdded" | "SigningKeyChanged" | "SigningKeyRemoved" | "EnvironmentCreated" | "EnvironmentUpdated" | "ComposePolicyChanged" | "EnvironmentRemoved" | "EnrollmentTokenIssued" | "AgentRevoked" | "StackCreated" | "StackRemoved" | "StackSourceChanged" | "DeployHookCreated" | "DeployHookRemoved" | "StackRestarted" | "StackTakenDown" | "StackEndorsementChanged" | "StackPolicyAllowancesChanged" | "StackPolicyUnrestrictedChanged" | "DeploymentQueued" | "ContainerStarted" | "ContainerStopped" | "ContainerRestarted" | "SecretsDecrypted";
         /** @enum {unknown} */
         AuditCategory: "Account" | "Users" | "Tokens" | "Environments" | "Stacks" | "Deployments" | "Containers" | "Secrets";
         /** @enum {unknown} */
@@ -1851,10 +1867,14 @@ export interface components {
             isBackedUp: boolean;
             transports: string[];
         };
+        PolicyUnrestrictedRequest: {
+            enabled: boolean;
+        };
         PolicyViolationResponse: {
             service: null | string;
             message: string;
             allowance: null | string;
+            stackOnly: boolean;
         };
         ProblemDetails: {
             type?: null | string;
@@ -1985,6 +2005,8 @@ export interface components {
             checked: boolean;
             violations: components["schemas"]["PolicyViolationResponse"][];
             warnings: string[];
+            allowances: string[];
+            unrestricted: boolean;
         };
         StackResponse: {
             /** Format: uuid */
@@ -2011,6 +2033,7 @@ export interface components {
             canRemove: boolean;
             policyAllowances: string[];
             canAdministerEnvironment: boolean;
+            policyUnrestricted: boolean;
         };
         StartCliAuthorizationRequest: {
             clientName: string;
@@ -7273,6 +7296,59 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    SetStackPolicyUnrestricted: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyUnrestrictedRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackResponse"];
                 };
             };
             /** @description Unauthorized */

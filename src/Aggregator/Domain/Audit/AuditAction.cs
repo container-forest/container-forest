@@ -49,6 +49,7 @@ public enum AuditAction
     StackTakenDown,
     StackEndorsementChanged,
     StackPolicyAllowancesChanged,
+    StackPolicyUnrestrictedChanged,
 
     // Deployments.
     DeploymentQueued,
@@ -102,7 +103,8 @@ public static class AuditActions
             or AuditAction.EnrollmentTokenIssued or AuditAction.AgentRevoked => AuditCategory.Environments,
         AuditAction.StackCreated or AuditAction.StackRemoved or AuditAction.StackSourceChanged or AuditAction.DeployHookCreated
             or AuditAction.DeployHookRemoved or AuditAction.StackRestarted or AuditAction.StackTakenDown
-            or AuditAction.StackEndorsementChanged or AuditAction.StackPolicyAllowancesChanged => AuditCategory.Stacks,
+            or AuditAction.StackEndorsementChanged or AuditAction.StackPolicyAllowancesChanged
+            or AuditAction.StackPolicyUnrestrictedChanged => AuditCategory.Stacks,
         AuditAction.DeploymentQueued => AuditCategory.Deployments,
         AuditAction.ContainerStarted or AuditAction.ContainerStopped or AuditAction.ContainerRestarted => AuditCategory.Containers,
         AuditAction.SecretsDecrypted => AuditCategory.Secrets,

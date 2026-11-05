@@ -99,6 +99,12 @@ public sealed partial class ForestApi
                 new SetPolicyAllowancesRequest { Allowances = [.. allowances] }, cancellationToken: cancellationToken),
             "stack");
 
+    public async Task<StackResponse> SetPolicyUnrestrictedAsync(Guid stackId, bool enabled, CancellationToken cancellationToken) =>
+        Required(
+            await Api.Stacks[stackId].PolicyUnrestricted.PutAsync(
+                new PolicyUnrestrictedRequest { Enabled = enabled }, cancellationToken: cancellationToken),
+            "stack");
+
     public async Task<DeployHookTokenResponse> CreateDeployHookAsync(Guid stackId, CancellationToken cancellationToken) =>
         Required(await Api.Stacks[stackId].DeployHook.PostAsync(cancellationToken: cancellationToken), "deploy hook");
 

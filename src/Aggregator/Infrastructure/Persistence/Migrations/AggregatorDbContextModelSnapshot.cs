@@ -859,6 +859,9 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT")
                         .HasDefaultValue("[]");
 
+                    b.Property<bool>("PolicyUnrestricted")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid>("RepositoryId")
                         .HasColumnType("TEXT");
 

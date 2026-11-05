@@ -1,84 +1,99 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { useSetStackPolicyAllowancesMutation } from "@/api/policy";
-import { linesClass } from "@/components/environments/compose-policy-section";
-import { ErrorText, FieldError } from "@/components/form-messages";
-import { Loader2Icon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
+import { useSetStackPolicyAllowancesMutation, useSetStackPolicyUnrestrictedMutation } from "@/api/policy";
+import { composePolicyQuery } from "@/api/queries";
+import { AllowanceList } from "@/components/compose-policy/allowance-list";
+import { ConfirmAction } from "@/components/confirm-action";
+import { ErrorText } from "@/components/form-messages";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { type AllowancesForm, allowancesSchema, joinLines, parseLines } from "@/features/compose-policy/model";
+import { Switch } from "@/components/ui/switch";
 import { type Stack, describeError } from "@/features/stacks/model";
 
 /**
- * The stack's own exceptions to the compose policy (ADR-0012). Everyone who sees the stack sees them; administrators
- * of the system or of the environment change them, since an allowance can hand the stack root on the host.
+ * The stack under the compose policy (ADR-0012): its own allowances, and the switch that takes it out of the policy
+ * altogether. Everyone who sees the stack sees them; administrators of the system or of the environment change them,
+ * since an allowance can hand the stack root on the host.
  */
 export function PolicyAllowancesCard({ stack }: { stack: Stack }) {
   const { t } = useTranslation();
-  const set = useSetStackPolicyAllowancesMutation(stack.id);
-  const [saved, setSaved] = useState(false);
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<AllowancesForm>({
-    resolver: zodResolver(allowancesSchema),
-    defaultValues: { allowances: joinLines(stack.policyAllowances) },
-  });
-  const saveError = set.error ? describeError(set.error) : undefined;
-
-  const onSubmit = handleSubmit(({ allowances }) => {
-    setSaved(false);
-    set.mutate(parseLines(allowances), { onSuccess: () => setSaved(true) });
-  });
+  const policy = useQuery(composePolicyQuery(stack.environmentId));
+  const allowances = useSetStackPolicyAllowancesMutation(stack.id);
+  const unrestricted = useSetStackPolicyUnrestrictedMutation(stack.id);
+  const error = allowances.error ?? unrestricted.error;
+  const failure = error ? describeError(error) : undefined;
+  const canChange = stack.canAdministerEnvironment;
+  const isUnrestricted = unrestricted.isPending ? unrestricted.variables : stack.policyUnrestricted;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("stack.policy.title")}</CardTitle>
+        <CardTitle className="flex flex-wrap items-center gap-2">
+          {t("stack.policy.title")}
+          {stack.policyUnrestricted && <Badge variant="destructive">{t("stack.policy.unrestrictedBadge")}</Badge>}
+        </CardTitle>
         <CardDescription>{t("stack.policy.description")}</CardDescription>
       </CardHeader>
-      <CardContent>
-        {stack.canAdministerEnvironment ? (
-          <form className="grid gap-3" noValidate onSubmit={onSubmit}>
-            <Label htmlFor="stack-allowances">{t("stack.policy.label")}</Label>
-            <textarea
-              id="stack-allowances"
-              className={linesClass}
-              spellCheck={false}
-              aria-invalid={errors.allowances ? true : undefined}
-              aria-describedby={errors.allowances ? "stack-allowances-error" : undefined}
-              {...register("allowances")}
+      <CardContent className="grid gap-4">
+        <div className="grid gap-1">
+          <div className="flex items-center gap-3">
+            {canChange && !isUnrestricted ? (
+              // Taking the stack out of the policy gives its Editors root on the host: ask first.
+              <ConfirmAction
+                variant="outline"
+                size="sm"
+                title={t("stack.policy.unrestrictTitle", { name: stack.name })}
+                description={t("stack.policy.unrestrictDescription")}
+                confirmLabel={t("stack.policy.unrestrictConfirm")}
+                disabled={unrestricted.isPending}
+                onConfirm={() => {
+                  allowances.reset();
+                  unrestricted.mutate(true);
+                }}
+              >
+                {t("stack.policy.unrestrict")}
+              </ConfirmAction>
+            ) : (
+              <>
+                <Switch
+                  id="policy-unrestricted"
+                  checked={isUnrestricted}
+                  disabled={!canChange || unrestricted.isPending}
+                  onCheckedChange={(enabled) => {
+                    allowances.reset();
+                    unrestricted.mutate(enabled);
+                  }}
+                />
+                <Label htmlFor="policy-unrestricted">{t("stack.policy.unrestrictedLabel")}</Label>
+              </>
+            )}
+          </div>
+          <p className="text-muted-foreground text-sm">{t("stack.policy.unrestrictedHint")}</p>
+        </div>
+
+        {!stack.policyUnrestricted && (
+          <div className="grid gap-2">
+            <h3 className="font-medium">{t("stack.policy.label")}</h3>
+            <AllowanceList
+              allowances={stack.policyAllowances}
+              protectedPaths={policy.data?.protectedPaths ?? []}
+              canChange={canChange}
+              pending={allowances.isPending}
+              onChange={(next) => {
+                unrestricted.reset();
+                allowances.mutate(next);
+              }}
             />
-            <p className="text-muted-foreground text-sm">{t("stack.policy.hint")}</p>
-            <FieldError id="stack-allowances-error" message={errors.allowances?.message} />
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" disabled={set.isPending}>
-                {set.isPending && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
-                {t("stack.policy.save")}
-              </Button>
-              <div aria-live="polite">
-                {saved && <span className="text-muted-foreground text-sm">{t("stack.policy.saved")}</span>}
-                {saveError && (
-                  <ErrorText>
-                    {t("stack.policy.failed")} {t(saveError.key)} {saveError.detail}
-                  </ErrorText>
-                )}
-              </div>
-            </div>
-          </form>
-        ) : stack.policyAllowances.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t("stack.policy.none")}</p>
-        ) : (
-          <ul className="grid gap-1 font-mono text-sm">
-            {stack.policyAllowances.map((allowance) => (
-              <li key={allowance}>{allowance}</li>
-            ))}
-          </ul>
+          </div>
         )}
+        <div aria-live="polite">
+          {failure && (
+            <ErrorText>
+              {t("stack.policy.failed")} {t(failure.key)} {failure.detail}
+            </ErrorText>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

@@ -4,7 +4,8 @@ namespace ContainerForest.Aggregator.Domain.Policies;
 
 /// <param name="Service">The service, or null for something of the stack as a whole (a volume, a network).</param>
 /// <param name="Allowance">The allowance that lifts it; null when nothing does, only an exemption (ADR-0012).</param>
-public sealed record PolicyViolation(string? Service, string Message, PolicyAllowance? Allowance)
+/// <param name="StackOnly">Only the stack's own allowance lifts it, not the environment's (a protected path).</param>
+public sealed record PolicyViolation(string? Service, string Message, PolicyAllowance? Allowance, bool StackOnly = false)
 {
     public override string ToString()
     {
@@ -61,9 +62,18 @@ public static class ComposePolicyEvaluator
 
     private static readonly string[] SocketNames = ["docker.sock", "containerd.sock", "podman.sock"];
 
-    public static PolicyEvaluation Evaluate(ComposeFacts facts, ComposePolicy policy, string stackName, IEnumerable<string> stackAllowances)
+    /// <param name="environmentStacks">Names of the environment's stacks, this one included: container names belong to them.</param>
+    public static PolicyEvaluation Evaluate(
+        ComposeFacts facts,
+        ComposePolicy policy,
+        string stackName,
+        IEnumerable<string> stackAllowances,
+        IReadOnlyCollection<string>? environmentStacks = null)
     {
-        var context = new Context(facts, policy, stackName, stackAllowances.Select(PolicyAllowance.Parse).ToList());
+        var context = new Context(facts, policy, stackName, stackAllowances.Select(PolicyAllowance.Parse).ToList())
+        {
+            EnvironmentStacks = environmentStacks ?? [stackName],
+        };
         foreach (var service in facts.Services)
         {
             CheckService(context, service);
@@ -154,9 +164,13 @@ public static class ComposePolicyEvaluator
             context.Require(name, $"sets the reserved label '{label}'", PolicyAllowance.Of(PolicyAllowance.Label, label));
         }
 
-        if (service.ContainerName is { } containerName && !containerName.StartsWith(context.StackName + "-", StringComparison.Ordinal))
+        if (service.ContainerName is { } containerName && ContainerNameOwner(containerName, context.EnvironmentStacks) != context.StackName)
         {
-            context.Require(name, $"is named '{containerName}', not '{context.StackName}-…'", PolicyAllowance.Flag(PolicyAllowance.ContainerName));
+            context.Require(
+                name,
+                $"is named '{containerName}', which does not belong to the stack: names belong to the stack with the longest name " +
+                $"they equal or start with followed by '-'",
+                PolicyAllowance.Flag(PolicyAllowance.ContainerName));
         }
 
         foreach (var key in service.UnknownKeys)
@@ -187,6 +201,7 @@ public static class ComposePolicyEvaluator
             CheckHostPath(context, null, file, readOnly: true, writable);
         }
 
+        var stackAllowances = context.StackAllowances;
         foreach (var inspected in context.Facts.InspectedMounts)
         {
             if (context.IsSystemPath(inspected.Path))
@@ -196,6 +211,12 @@ public static class ComposePolicyEvaluator
 
             if (inspected.Link is { } link)
             {
+                // A link only root on the host could have made, such as /var/run → /run, is part of the host, not a trap.
+                if (!IsContainerWritable(link, context.Facts, context.Policy, context.StackName, stackAllowances))
+                {
+                    continue;
+                }
+
                 context.Forbid(null, $"mount source '{inspected.Path}' goes through the symbolic link '{link}'");
             }
             else
@@ -203,6 +224,39 @@ public static class ComposePolicyEvaluator
                 context.Forbid(null, $"the agent cannot check mount source '{inspected.Path}'; mount the host's root into the agent (CF_AGENT__HOSTROOT)");
             }
         }
+    }
+
+    /// <summary>
+    /// The stack a container name belongs to: the one of <paramref name="stackNames"/> with the longest name the
+    /// container name equals or starts with followed by '-'. Stack names contain '-' themselves, so with stacks "web"
+    /// and "web-db" the name "web-db-1" belongs to "web-db". A stack added later cannot take a name an existing stack's
+    /// container has (<c>StackService.CreateAsync</c>). Null when no stack's name fits.
+    /// </summary>
+    public static string? ContainerNameOwner(string containerName, IEnumerable<string> stackNames) =>
+        stackNames
+            .Where(s => containerName == s || containerName.StartsWith(s + "-", StringComparison.Ordinal))
+            .OrderByDescending(s => s.Length)
+            .FirstOrDefault();
+
+    /// <summary>
+    /// Whether a container may write at <paramref name="path"/>, so it could have put a symbolic link there: the stack's
+    /// directory, the data root, a writable bind mount of this stack, or a writable path an allowance opens. Anything
+    /// else only root on the host changes. Writable paths other stacks got through their own allowances are not known
+    /// here; keep such allowances for the environment, where every stack sees them.
+    /// </summary>
+    public static bool IsContainerWritable(
+        string path, ComposeFacts facts, ComposePolicy policy, string stackName, IEnumerable<string> stackAllowances)
+    {
+        var roots = new List<string> { facts.StackDirectory, policy.DataRoot };
+        roots.AddRange(facts.Services
+            .SelectMany(s => s.Mounts)
+            .Where(m => m.Type == "bind" && !m.ReadOnly && m.Source is not null)
+            .Select(m => HostPath.TryNormalize(m.Source!))
+            .OfType<string>());
+        roots.AddRange(policy.ParsedAllowances.Concat(stackAllowances.Select(PolicyAllowance.Parse))
+            .Where(a => a.Kind == PolicyAllowance.PathReadWrite)
+            .Select(a => a.Argument!));
+        return roots.Any(root => root != "/" && HostPath.IsAtOrUnder(path, root));
     }
 
     private static void CheckHostPath(Context context, string? service, string source, bool readOnly, IReadOnlySet<string> writable)
@@ -291,6 +345,10 @@ public static class ComposePolicyEvaluator
 
     private sealed class Context(ComposeFacts facts, ComposePolicy policy, string stackName, IReadOnlyList<PolicyAllowance> stackAllowances)
     {
+        public IEnumerable<string> StackAllowances => stackAllowances.Select(a => a.Value);
+
+        public required IReadOnlyCollection<string> EnvironmentStacks { get; init; }
+
         private readonly IReadOnlyList<PolicyAllowance> environmentAllowances = policy.ParsedAllowances.ToList();
 
         public ComposeFacts Facts { get; } = facts;
@@ -326,7 +384,7 @@ public static class ComposePolicyEvaluator
         {
             if (!stackAllowances.Any(a => a.CoversExactly(allowance)))
             {
-                Violations.Add(new PolicyViolation(service, message + "; only an allowance of this stack with the exact path opens it", allowance));
+                Violations.Add(new PolicyViolation(service, message + "; only an allowance of this stack with the exact path opens it", allowance, StackOnly: true));
             }
         }
 

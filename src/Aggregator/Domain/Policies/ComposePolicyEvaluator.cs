@@ -4,7 +4,8 @@ namespace ContainerForest.Aggregator.Domain.Policies;
 
 /// <param name="Service">The service, or null for something of the stack as a whole (a volume, a network).</param>
 /// <param name="Allowance">The allowance that lifts it; null when nothing does, only an exemption (ADR-0012).</param>
-public sealed record PolicyViolation(string? Service, string Message, PolicyAllowance? Allowance)
+/// <param name="StackOnly">Only the stack's own allowance lifts it, not the environment's (a protected path).</param>
+public sealed record PolicyViolation(string? Service, string Message, PolicyAllowance? Allowance, bool StackOnly = false)
 {
     public override string ToString()
     {
@@ -61,9 +62,18 @@ public static class ComposePolicyEvaluator
 
     private static readonly string[] SocketNames = ["docker.sock", "containerd.sock", "podman.sock"];
 
-    public static PolicyEvaluation Evaluate(ComposeFacts facts, ComposePolicy policy, string stackName, IEnumerable<string> stackAllowances)
+    /// <param name="environmentStacks">Names of the environment's stacks, this one included: container names belong to them.</param>
+    public static PolicyEvaluation Evaluate(
+        ComposeFacts facts,
+        ComposePolicy policy,
+        string stackName,
+        IEnumerable<string> stackAllowances,
+        IReadOnlyCollection<string>? environmentStacks = null)
     {
-        var context = new Context(facts, policy, stackName, stackAllowances.Select(PolicyAllowance.Parse).ToList());
+        var context = new Context(facts, policy, stackName, stackAllowances.Select(PolicyAllowance.Parse).ToList())
+        {
+            EnvironmentStacks = environmentStacks ?? [stackName],
+        };
         foreach (var service in facts.Services)
         {
             CheckService(context, service);
@@ -154,13 +164,13 @@ public static class ComposePolicyEvaluator
             context.Require(name, $"sets the reserved label '{label}'", PolicyAllowance.Of(PolicyAllowance.Label, label));
         }
 
-        // The stack's own name or a name under it cannot take another stack's: theirs start with their own name and '-'.
-        if (service.ContainerName is { } containerName
-            && containerName != context.StackName
-            && !containerName.StartsWith(context.StackName + "-", StringComparison.Ordinal))
+        if (service.ContainerName is { } containerName && ContainerNameOwner(containerName, context.EnvironmentStacks) != context.StackName)
         {
             context.Require(
-                name, $"is named '{containerName}', not '{context.StackName}' or '{context.StackName}-…'", PolicyAllowance.Flag(PolicyAllowance.ContainerName));
+                name,
+                $"is named '{containerName}', which does not belong to the stack: names belong to the stack with the longest name " +
+                $"they equal or start with followed by '-'",
+                PolicyAllowance.Flag(PolicyAllowance.ContainerName));
         }
 
         foreach (var key in service.UnknownKeys)
@@ -215,6 +225,18 @@ public static class ComposePolicyEvaluator
             }
         }
     }
+
+    /// <summary>
+    /// The stack a container name belongs to: the one of <paramref name="stackNames"/> with the longest name the
+    /// container name equals or starts with followed by '-'. Stack names contain '-' themselves, so with stacks "web"
+    /// and "web-db" the name "web-db-1" belongs to "web-db". A stack added later cannot take a name an existing stack's
+    /// container has (<c>StackService.CreateAsync</c>). Null when no stack's name fits.
+    /// </summary>
+    public static string? ContainerNameOwner(string containerName, IEnumerable<string> stackNames) =>
+        stackNames
+            .Where(s => containerName == s || containerName.StartsWith(s + "-", StringComparison.Ordinal))
+            .OrderByDescending(s => s.Length)
+            .FirstOrDefault();
 
     /// <summary>
     /// Whether a container may write at <paramref name="path"/>, so it could have put a symbolic link there: the stack's
@@ -325,6 +347,8 @@ public static class ComposePolicyEvaluator
     {
         public IEnumerable<string> StackAllowances => stackAllowances.Select(a => a.Value);
 
+        public required IReadOnlyCollection<string> EnvironmentStacks { get; init; }
+
         private readonly IReadOnlyList<PolicyAllowance> environmentAllowances = policy.ParsedAllowances.ToList();
 
         public ComposeFacts Facts { get; } = facts;
@@ -360,7 +384,7 @@ public static class ComposePolicyEvaluator
         {
             if (!stackAllowances.Any(a => a.CoversExactly(allowance)))
             {
-                Violations.Add(new PolicyViolation(service, message + "; only an allowance of this stack with the exact path opens it", allowance));
+                Violations.Add(new PolicyViolation(service, message + "; only an allowance of this stack with the exact path opens it", allowance, StackOnly: true));
             }
         }
 

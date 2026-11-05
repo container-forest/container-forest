@@ -38,6 +38,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #else
         public string Service { get; set; }
 #endif
+        /// <summary>The stackOnly property</summary>
+        public bool? StackOnly { get; set; }
         /// <summary>
         /// Instantiates a new <see cref="global::ContainerForest.Cli.Api.Generated.Models.PolicyViolationResponse"/> and sets the default values.
         /// </summary>
@@ -66,6 +68,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
                 { "allowance", n => { Allowance = n.GetStringValue(); } },
                 { "message", n => { Message = n.GetStringValue(); } },
                 { "service", n => { Service = n.GetStringValue(); } },
+                { "stackOnly", n => { StackOnly = n.GetBoolValue(); } },
             };
         }
         /// <summary>
@@ -78,6 +81,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             writer.WriteStringValue("allowance", Allowance);
             writer.WriteStringValue("message", Message);
             writer.WriteStringValue("service", Service);
+            writer.WriteBoolValue("stackOnly", StackOnly);
             writer.WriteAdditionalData(AdditionalData);
         }
     }

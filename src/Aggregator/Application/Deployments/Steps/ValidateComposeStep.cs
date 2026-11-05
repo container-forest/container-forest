@@ -29,7 +29,7 @@ public sealed class ValidateComposeStep(IComposeParser parser) : IDeployStep
             Check(service, errors, context);
         }
 
-        if (!context.Policy.IsOff)
+        if (!context.Policy.IsOff && !context.Stack.PolicyUnrestricted)
         {
             CheckForPolicy(compose, context, errors);
         }

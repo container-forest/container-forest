@@ -187,6 +187,24 @@ public class ComposePolicyEvaluatorTests
     public void Container_may_be_named_after_its_stack(string containerName, bool passes) =>
         Assert.Equal(passes, Evaluate(Service(containerName: containerName)).Passes);
 
+    [Theory]
+    [InlineData("web-db", "web-db")]
+    [InlineData("web-db-1", "web-db")]
+    [InlineData("web-api", "web")]
+    [InlineData("web", "web")]
+    [InlineData("redis", null)]
+    public void Container_names_belong_to_the_stack_with_the_longest_matching_name(string containerName, string? owner) =>
+        Assert.Equal(owner, ComposePolicyEvaluator.ContainerNameOwner(containerName, ["web", "web-db", "db"]));
+
+    [Fact]
+    public void Stack_cannot_name_a_container_after_another_stack()
+    {
+        var facts = Facts(Service(containerName: "web-db-cache"));
+
+        Assert.False(ComposePolicyEvaluator.Evaluate(facts, policy, "web", [], ["web", "web-db"]).Passes);
+        Assert.True(ComposePolicyEvaluator.Evaluate(facts, policy, "web", [], ["web"]).Passes);
+    }
+
     [Fact]
     public void Volumes_and_networks_outside_the_stack_need_allowances()
     {

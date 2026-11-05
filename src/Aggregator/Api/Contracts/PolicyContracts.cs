@@ -31,9 +31,18 @@ public sealed record UpdateComposePolicyRequest(
     ComposePolicyMode Mode, string DataRoot, IReadOnlyList<string> SystemReadOnlyPaths, IReadOnlyList<string> Allowances);
 
 /// <param name="Checked">False when no deployment under the policy has succeeded yet, so nothing is known about the stack.</param>
+/// <param name="Allowances">The stack's own allowances.</param>
+/// <param name="Unrestricted">The policy does not limit the stack; its violations are only shown.</param>
 public sealed record StackPolicyReportResponse(
-    Guid StackId, string StackName, bool Checked, IReadOnlyList<PolicyViolationResponse> Violations, IReadOnlyList<string> Warnings);
+    Guid StackId,
+    string StackName,
+    bool Checked,
+    IReadOnlyList<PolicyViolationResponse> Violations,
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<string> Allowances,
+    bool Unrestricted);
 
 /// <param name="Service">Null for something of the stack as a whole, such as a volume.</param>
 /// <param name="Allowance">The allowance that lifts it; null when none does.</param>
-public sealed record PolicyViolationResponse(string? Service, string Message, string? Allowance);
+/// <param name="StackOnly">Only the stack's own allowance lifts it (a protected path), not the environment's.</param>
+public sealed record PolicyViolationResponse(string? Service, string Message, string? Allowance, bool StackOnly);

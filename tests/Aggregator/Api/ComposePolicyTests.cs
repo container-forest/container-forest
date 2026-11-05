@@ -92,6 +92,46 @@ public class ComposePolicyTests
     }
 
     [Fact]
+    public async Task Unrestricted_stack_deploys_under_an_enforced_policy_and_only_administrators_make_it_so()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        app.Git.Snapshot = new GitSnapshot(
+            CommitSha.Parse(Sha),
+            [new SourceFile(StackFilePath.Parse("compose.yaml"), Encoding.UTF8.GetBytes("services:\n  web:\n    image: nginx:1.27\n"), IsExecutable: false)],
+            []);
+        var client = app.CreateClient();
+        var stackId = await CreateStackAsync(client, agent.EnvironmentId);
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.OK,
+            client.PutAsJsonAsync(
+                $"/api/environments/{agent.EnvironmentId}/compose-policy",
+                new { mode = "Enforce", dataRoot = "/var/lib/container-forest/data", systemReadOnlyPaths = Array.Empty<string>(), allowances = Array.Empty<string>() },
+                Ct));
+        var editor = await app.CreateUserAsync("editor", isAdmin: false);
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Created,
+            client.PostAsJsonAsync($"/api/users/{editor}/role-assignments", new { environmentId = agent.EnvironmentId, stackId = (Guid?)null, role = "Editor" }, Ct));
+
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Forbidden,
+            app.CreateClientAs("editor").PutAsJsonAsync($"/api/stacks/{stackId}/policy-unrestricted", new { enabled = true }, Ct));
+        var set = await client.PutAsJsonAsync($"/api/stacks/{stackId}/policy-unrestricted", new { enabled = true }, Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, set);
+
+        var deploying = DeployAsync(client, stackId);
+        await RenderAsync(agent, privileged: true);
+        var deploy = await agent.ReceiveAsync();
+        Assert.Empty(deploy.DeployStack.VerifyPaths);
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = deploy.RequestId } });
+        Assert.Equal("Succeeded", (await deploying).Status);
+
+        var report = await client.GetFromJsonAsync<ReportView[]>($"/api/environments/{agent.EnvironmentId}/compose-policy/report", AggregatorApp.Json, Ct);
+        Assert.True(Assert.Single(report!).Unrestricted);
+        Assert.Contains("StackPolicyUnrestrictedChanged", await client.GetStringAsync("/api/audit?category=Stacks", Ct), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Editors_read_the_policy_but_only_administrators_change_it()
     {
         await using var app = new AggregatorApp();
@@ -181,5 +221,5 @@ public class ComposePolicyTests
 
     private sealed record ViolationView(string? Service, string Message, string? Allowance);
 
-    private sealed record ReportView(Guid StackId, bool Checked, ViolationView[] Violations);
+    private sealed record ReportView(Guid StackId, bool Checked, ViolationView[] Violations, bool Unrestricted);
 }

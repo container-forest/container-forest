@@ -14,6 +14,14 @@ namespace ContainerForest.Cli.Api.Generated.Models
     {
         /// <summary>Stores additional data not described in the OpenAPI description found when deserializing. Can be used for serialization as well.</summary>
         public IDictionary<string, object> AdditionalData { get; set; }
+        /// <summary>The allowances property</summary>
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
+#nullable enable
+        public List<string>? Allowances { get; set; }
+#nullable restore
+#else
+        public List<string> Allowances { get; set; }
+#endif
         /// <summary>The checked property</summary>
         public bool? Checked { get; set; }
         /// <summary>The stackId property</summary>
@@ -26,6 +34,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #else
         public string StackName { get; set; }
 #endif
+        /// <summary>The unrestricted property</summary>
+        public bool? Unrestricted { get; set; }
         /// <summary>The violations property</summary>
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
 #nullable enable
@@ -67,9 +77,11 @@ namespace ContainerForest.Cli.Api.Generated.Models
         {
             return new Dictionary<string, Action<IParseNode>>
             {
+                { "allowances", n => { Allowances = n.GetCollectionOfPrimitiveValues<string>()?.AsList(); } },
                 { "checked", n => { Checked = n.GetBoolValue(); } },
                 { "stackId", n => { StackId = n.GetGuidValue(); } },
                 { "stackName", n => { StackName = n.GetStringValue(); } },
+                { "unrestricted", n => { Unrestricted = n.GetBoolValue(); } },
                 { "violations", n => { Violations = n.GetCollectionOfObjectValues<global::ContainerForest.Cli.Api.Generated.Models.PolicyViolationResponse>(global::ContainerForest.Cli.Api.Generated.Models.PolicyViolationResponse.CreateFromDiscriminatorValue)?.AsList(); } },
                 { "warnings", n => { Warnings = n.GetCollectionOfPrimitiveValues<string>()?.AsList(); } },
             };
@@ -81,9 +93,11 @@ namespace ContainerForest.Cli.Api.Generated.Models
         public virtual void Serialize(ISerializationWriter writer)
         {
             if(ReferenceEquals(writer, null)) throw new ArgumentNullException(nameof(writer));
+            writer.WriteCollectionOfPrimitiveValues<string>("allowances", Allowances);
             writer.WriteBoolValue("checked", Checked);
             writer.WriteGuidValue("stackId", StackId);
             writer.WriteStringValue("stackName", StackName);
+            writer.WriteBoolValue("unrestricted", Unrestricted);
             writer.WriteCollectionOfObjectValues<global::ContainerForest.Cli.Api.Generated.Models.PolicyViolationResponse>("violations", Violations);
             writer.WriteCollectionOfPrimitiveValues<string>("warnings", Warnings);
             writer.WriteAdditionalData(AdditionalData);

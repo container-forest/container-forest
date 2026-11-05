@@ -6456,6 +6456,77 @@
         }
       }
     },
+    "/api/stacks/{id}/policy-unrestricted": {
+      "put": {
+        "tags": [
+          "Stacks"
+        ],
+        "operationId": "SetStackPolicyUnrestricted",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyUnrestrictedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StackResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/stacks/{id}/deploy-hook": {
       "post": {
         "tags": [
@@ -8152,6 +8223,7 @@
           "StackTakenDown",
           "StackEndorsementChanged",
           "StackPolicyAllowancesChanged",
+          "StackPolicyUnrestrictedChanged",
           "DeploymentQueued",
           "ContainerStarted",
           "ContainerStopped",
@@ -9865,11 +9937,23 @@
           }
         }
       },
+      "PolicyUnrestrictedRequest": {
+        "required": [
+          "enabled"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
       "PolicyViolationResponse": {
         "required": [
           "service",
           "message",
-          "allowance"
+          "allowance",
+          "stackOnly"
         ],
         "type": "object",
         "properties": {
@@ -9887,6 +9971,9 @@
               "null",
               "string"
             ]
+          },
+          "stackOnly": {
+            "type": "boolean"
           }
         }
       },
@@ -10361,7 +10448,9 @@
           "stackName",
           "checked",
           "violations",
-          "warnings"
+          "warnings",
+          "allowances",
+          "unrestricted"
         ],
         "type": "object",
         "properties": {
@@ -10386,6 +10475,15 @@
             "items": {
               "type": "string"
             }
+          },
+          "allowances": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unrestricted": {
+            "type": "boolean"
           }
         }
       },
@@ -10410,7 +10508,8 @@
           "canRestart",
           "canRemove",
           "policyAllowances",
-          "canAdministerEnvironment"
+          "canAdministerEnvironment",
+          "policyUnrestricted"
         ],
         "type": "object",
         "properties": {
@@ -10488,6 +10587,9 @@
             }
           },
           "canAdministerEnvironment": {
+            "type": "boolean"
+          },
+          "policyUnrestricted": {
             "type": "boolean"
           }
         }

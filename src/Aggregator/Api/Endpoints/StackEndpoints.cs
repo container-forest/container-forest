@@ -148,6 +148,12 @@ internal static class StackEndpoints
             .WithName("SetStackPolicyAllowances")
             .ProducesProblem(StatusCodes.Status400BadRequest);
 
+        api.MapPut(
+                "/stacks/{id:guid}/policy-unrestricted",
+                async (Guid id, PolicyUnrestrictedRequest request, StackService service, CancellationToken ct) =>
+                    ToResponse(await service.SetPolicyUnrestrictedAsync(StackId.From(id), request.Enabled, ct)))
+            .WithName("SetStackPolicyUnrestricted");
+
         api.MapPost(
                 "/stacks/{id:guid}/deploy-hook",
                 async (Guid id, StackService service, CancellationToken ct) =>
@@ -248,7 +254,8 @@ internal static class StackEndpoints
         s.CanRestart,
         s.CanRemove,
         s.PolicyAllowances,
-        s.CanAdministerEnvironment);
+        s.CanAdministerEnvironment,
+        s.PolicyUnrestricted);
 
     private static DeploymentDetailsResponse ToDetails(Deployment d) => new(
         d.Id.Value,

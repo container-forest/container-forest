@@ -94,6 +94,13 @@ public sealed class Stack : Entity<StackId>
     /// </summary>
     public bool RequireImageDigests { get; private set; }
 
+    /// <summary>
+    /// The compose policy does not limit this stack at all (ADR-0012): for stacks that are root on the host by design,
+    /// such as one with privileged containers and the Docker socket. Its deployments are still rendered and reported.
+    /// Administrators of the system or of the environment set it. Off by default.
+    /// </summary>
+    public bool PolicyUnrestricted { get; private set; }
+
     private List<string> policyAllowances = [];
 
     /// <summary>
@@ -162,6 +169,8 @@ public sealed class Stack : Entity<StackId>
         EnsureDeployable(enabled, "require image digests");
         RequireImageDigests = enabled;
     }
+
+    public void SetPolicyUnrestricted(bool unrestricted) => PolicyUnrestricted = unrestricted;
 
     /// <exception cref="Common.DomainValidationException">An allowance is not valid.</exception>
     public void SetPolicyAllowances(IEnumerable<string> allowances) =>

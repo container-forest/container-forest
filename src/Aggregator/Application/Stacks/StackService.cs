@@ -24,6 +24,7 @@ namespace ContainerForest.Aggregator.Application.Stacks;
 /// <param name="CanRemove">Whether the current user may remove the stack: an Editor of its environment, as for adding one.</param>
 /// <param name="PolicyAllowances">Exceptions to the environment's compose policy for this stack (ADR-0012).</param>
 /// <param name="CanAdministerEnvironment">Whether the current user may change the stack's allowances.</param>
+/// <param name="PolicyUnrestricted">The compose policy does not limit the stack (ADR-0012).</param>
 public sealed record StackSummary(
     StackId Id,
     EnvironmentId EnvironmentId,
@@ -44,7 +45,8 @@ public sealed record StackSummary(
     bool CanRestart,
     bool CanRemove,
     IReadOnlyList<string> PolicyAllowances,
-    bool CanAdministerEnvironment);
+    bool CanAdministerEnvironment,
+    bool PolicyUnrestricted = false);
 
 /// <summary>
 /// Stacks as the current user sees them; adding and removing stacks (Editor on the environment) and changing their
@@ -103,6 +105,20 @@ public sealed class StackService(
             if (await stacks.FindByNameAsync(environment.Id, stackName, cancellationToken) is not null)
             {
                 throw new DomainConflictException($"Environment '{environment.Name}' already has a stack '{stackName}'.");
+            }
+
+            // Container names belong to the stack with the longest matching name (ADR-0012): a new stack must not take
+            // over a name another stack's deployed container already has.
+            foreach (var other in await stacks.ListByEnvironmentAsync(environment.Id, cancellationToken))
+            {
+                var names = other.DeployedComposeFacts is { } json
+                    ? Policies.ComposeFactsReader.Deserialize(json)?.Services.Select(s => s.ContainerName).OfType<string>() ?? []
+                    : [];
+                if (names.FirstOrDefault(n => n == stackName.Value || n.StartsWith(stackName.Value + "-", StringComparison.Ordinal)) is { } taken)
+                {
+                    throw new DomainConflictException(
+                        $"Stack '{other.Name}' has a container named '{taken}', which would belong to a stack '{stackName}'; choose another name.");
+                }
             }
 
             stacks.Add(stack);
@@ -251,6 +267,28 @@ public sealed class StackService(
         }, cancellationToken);
     }
 
+    /// <summary>
+    /// Takes the stack out of the compose policy, or puts it back (ADR-0012). For administrators of the system or of the
+    /// environment: an unrestricted stack's Editors are root on the host.
+    /// </summary>
+    public Task<StackSummary> SetPolicyUnrestrictedAsync(StackId stackId, bool unrestricted, CancellationToken cancellationToken)
+    {
+        var draft = new AuditDraft(AuditAction.StackPolicyUnrestrictedChanged) { Details = unrestricted ? "Unrestricted" : "Restricted" };
+        return audit.RunAsync(draft, async () =>
+        {
+            var (actor, stack, environment, assignments) = await LoadVisibleAsync(stackId, cancellationToken);
+            draft.Target = new StackAuditTarget(stack.Id, stack.Name.Value, stack.EnvironmentId);
+            if (!EnvironmentAdministration.CanAdminister(actor, environment, assignments))
+            {
+                throw new AccessDeniedException($"Only administrators of environment '{environment.Name}' take stacks out of the compose policy.");
+            }
+
+            stack.SetPolicyUnrestricted(unrestricted);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+        }, cancellationToken);
+    }
+
     private static string Describe(IReadOnlyList<string> allowances) => allowances.Count == 0 ? "none" : string.Join(", ", allowances);
 
     /// <summary>
@@ -357,7 +395,8 @@ public sealed class StackService(
         AccessPolicy.CanPerform(actor, environment, stack, assignments, StackOperation.Restart),
         CanRemove(actor, environment, assignments) && !stack.IsSystem,
         stack.PolicyAllowances,
-        EnvironmentAdministration.CanAdminister(actor, environment, assignments));
+        EnvironmentAdministration.CanAdminister(actor, environment, assignments),
+        stack.PolicyUnrestricted);
 
     /// <summary>
     /// The repository, if stacks of the environment may deploy from it (ADR-0006). One that may not is reported as

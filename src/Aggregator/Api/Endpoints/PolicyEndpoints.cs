@@ -31,8 +31,10 @@ internal static class PolicyEndpoints
                     r.StackId.Value,
                     r.StackName.Value,
                     r.Checked,
-                    r.Violations.Select(v => new PolicyViolationResponse(v.Service, v.Message, v.Allowance?.Value)).ToList(),
-                    r.Warnings)).ToList())
+                    r.Violations.Select(v => new PolicyViolationResponse(v.Service, v.Message, v.Allowance?.Value, v.StackOnly)).ToList(),
+                    r.Warnings,
+                    r.Allowances,
+                    r.Unrestricted)).ToList())
             .WithName("GetComposePolicyReport");
 
         return app;

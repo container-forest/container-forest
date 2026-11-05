@@ -16,8 +16,16 @@ public sealed record ComposePolicyView(ComposePolicy Policy, bool CanChange);
 
 /// <summary>How a deployed stack fares under the environment's current policy.</summary>
 /// <param name="Checked">False when no deployment with the policy on has succeeded yet: nothing is known about it.</param>
+/// <param name="Allowances">The stack's own allowances, so an allowance can be added to them.</param>
+/// <param name="Unrestricted">The policy does not limit the stack; its violations are only shown.</param>
 public sealed record StackPolicyReport(
-    StackId StackId, StackName StackName, bool Checked, IReadOnlyList<PolicyViolation> Violations, IReadOnlyList<string> Warnings);
+    StackId StackId,
+    StackName StackName,
+    bool Checked,
+    IReadOnlyList<PolicyViolation> Violations,
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<string> Allowances,
+    bool Unrestricted);
 
 /// <summary>
 /// The compose policy of an environment (ADR-0012). Whoever sees the environment reads it, so Editors know what their
@@ -93,7 +101,9 @@ public sealed class ComposePolicyService(
 
         var policy = await policies.GetAsync(environmentId, cancellationToken);
         var reports = new List<StackPolicyReport>();
-        foreach (var stack in (await stacks.ListByEnvironmentAsync(environmentId, cancellationToken)).OrderBy(s => s.Name.Value, StringComparer.Ordinal))
+        var all = await stacks.ListByEnvironmentAsync(environmentId, cancellationToken);
+        var names = all.Select(s => s.Name.Value).ToList();
+        foreach (var stack in all.OrderBy(s => s.Name.Value, StringComparer.Ordinal))
         {
             if (!AccessPolicy.CanSee(actor, environment, stack, assignments) || stack.IsSystem)
             {
@@ -103,12 +113,13 @@ public sealed class ComposePolicyService(
             var facts = stack.DeployedComposeFacts is { } json ? ComposeFactsReader.Deserialize(json) : null;
             if (facts is null || stack.DeployedCommit is null)
             {
-                reports.Add(new StackPolicyReport(stack.Id, stack.Name, Checked: false, [], []));
+                reports.Add(new StackPolicyReport(stack.Id, stack.Name, Checked: false, [], [], stack.PolicyAllowances, stack.PolicyUnrestricted));
                 continue;
             }
 
-            var evaluation = ComposePolicyEvaluator.Evaluate(facts, policy, stack.Name.Value, stack.PolicyAllowances);
-            reports.Add(new StackPolicyReport(stack.Id, stack.Name, Checked: true, evaluation.Violations, evaluation.Warnings));
+            var evaluation = ComposePolicyEvaluator.Evaluate(facts, policy, stack.Name.Value, stack.PolicyAllowances, names);
+            reports.Add(new StackPolicyReport(
+                stack.Id, stack.Name, Checked: true, evaluation.Violations, evaluation.Warnings, stack.PolicyAllowances, stack.PolicyUnrestricted));
         }
 
         return reports;

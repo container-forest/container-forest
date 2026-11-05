@@ -95,7 +95,7 @@ export function EnvironmentRolesSection({ environmentId, isAdmin }: { environmen
                         change.mutate({ assignmentId: assignment.id, role: role as Role });
                       }}
                     >
-                      <SelectTrigger size="sm" className="w-40 sm:w-52" aria-label={t("environment.roles.role")}>
+                      <SelectTrigger size="sm" className="w-44 sm:w-60" aria-label={t("environment.roles.role")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -243,7 +243,7 @@ function GrantForm({
             name="role"
             render={({ field }) => (
               <Select value={field.value} onValueChange={(value) => value !== "" && field.onChange(value)}>
-                <SelectTrigger id="environment-role-role" className="w-52">
+                <SelectTrigger id="environment-role-role" className="w-60">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

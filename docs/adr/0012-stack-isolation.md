@@ -59,10 +59,10 @@
 
 #### Пайплайн
 
-`GitFetch → VerifyCommit → SopsDecrypt → ValidateCompose → BuildBundle → ResolveRegistryAuth → RenderOnAgent → ComposePolicy → SendToAgent`
+`GitFetch → VerifyCommit → SopsDecrypt → ValidateCompose → BuildBundle → ResolveRegistryAuth → ComposePolicy → SendToAgent`
 
 - **`ValidateComposeStep`** з увімкненою політикою ще й перевіряє в сирому YAML, що `env_file`, `label_file`, `extends.file` і `include` посилаються лише на файли пакета: відносні шляхи без змінних, які є серед файлів деплою. Нормалізована модель цих посилань уже не містить (вміст `env_file` і `extends` compose вбудовує), а сам `compose config` читав би їх з файлової системи агента: з чужих стеків, з tmpfs секретів, з git чи OCI-registry для віддаленого `include`. YAML-теги (`!reset`, `!override`) з політикою відхиляються.
-- **`RenderOnAgentStep`**: агент отримує `RenderStack`, тобто ті самі файли й змінні, що й для `DeployStack`. Далі він:
+- **`ComposePolicyStep`**, спершу рендеринг: агент отримує `RenderStack`, тобто ті самі файли й змінні, що й для `DeployStack`. Далі він:
   1. розкладає їх у каталог у tmpfs (`<SecretsDirectory>/.render/<guid>`, 0700, видаляється одразу після виконання);
   2. запускає `docker compose -p <стек> --project-directory <каталог> -f compose.yaml --env-file <.env пакета або /dev/null> config --format json`;
   3. переводить шляхи каталогу підготовки на справжній каталог стеку;
@@ -70,7 +70,7 @@
   5. для кожного джерела bind-mount'а через корінь хоста (`Agent:HostRoot`, у `deploy/agent/compose.yaml` — `/:/host:ro,rslave`) перевіряє, чи немає в шляху символьного посилання.
 
   У результаті (`RenderedStack`) — модель і список шляхів із посиланнями. Агент без цієї команди відповідає `UNSUPPORTED`: у `Audit` це попередження, у `Enforce` — помилка деплою.
-- **`ComposePolicyStep`** розбирає модель у факти (`ComposeFacts`: лише те, що потрібно правилам, без секретів) і перевіряє правила. Факти зберігаються на стеку після успішного деплою (`Stack.DeployedComposeFacts`), тож звіт «які розгорнуті стеки порушують поточну політику» перевіряє їх заново. Посилення політики контейнерів, що вже працюють, не зупиняє.
+- **Потім той самий крок** розбирає модель у факти (`ComposeFacts`: лише те, що потрібно правилам, без секретів) і перевіряє правила. Факти зберігаються на стеку після успішного деплою (`Stack.DeployedComposeFacts`), тож звіт «які розгорнуті стеки порушують поточну політику» перевіряє їх заново. Посилення політики контейнерів, що вже працюють, не зупиняє.
 - **`DeployStack`** з політикою (`Audit` або `Enforce`) отримує:
   - `explicit_env_file`: агент передає compose той самий `--env-file`, що й під час рендерингу. `.env`, створений на хості не з пакета (наприклад, контейнером), на підстановку змінних більше не впливає;
   - у `Enforce` — `verify_paths`: агент ще раз перевіряє шляхи безпосередньо перед `up`.

@@ -28,6 +28,7 @@ ContainerForest.slnx
 docfx.json, toc.yml, index.md    конфігурація сайту документації
 scripts/install-sops.sh          sops і age-keygen для образу ЦА й CI (версії й контрольні суми)
 scripts/generate-cli-client.sh   клієнт API для CLI (Kiota) з OpenAPI-документа ЦА
+scripts/check-docs/              перевірки документації в CI (Mermaid, назви з коду, розмір CLAUDE.md)
 Directory.Build.props            спільні властивості .NET-проєктів
 Directory.Packages.props         версії NuGet-пакетів (central package management)
 dotnet-tools.json                локальні інструменти .NET (dotnet-ef, docfx)
@@ -275,6 +276,14 @@ GitHub Actions (`.github/workflows/ci.yml`) запускається на кож
 2. Перевірка, що закомічений `src/Aggregator/Api/openapi/*.json` збігається з тим, що згенерувала збірка. Якщо крок упав — зберіть `src/Aggregator/Api` локально й закомітьте JSON. Так само для клієнта CLI: `scripts/generate-cli-client.sh` не має нічого змінити в `src/Cli/Api/Generated`.
 3. `dotnet test --solution ContainerForest.slnx`.
 4. Окремий job для панелі (`src/Web`): `npm ci` → перевірка, що `src/api/schema.gen.ts` збігається з OpenAPI-документом → `npm run build` (перевірка типів і збірка) → перевірка, що `src/routeTree.gen.ts` закомічений актуальним.
+
+Workflow документації (`.github/workflows/docs.yml`) збирає сайт і запускає `scripts/check-docs`:
+
+- кожна діаграма Mermaid у Markdown-файлах проходить парсер;
+- назви й шляхи файлів у зворотних лапках у `CLAUDE.md`, `CONTRIBUTING.md`, `src/*/CLAUDE.md`, `docs/design/`, `docs/architecture.md`, `docs/project-status.md` є в коді. Якщо крок упав, виправте документ. Лише справді зовнішню назву додавайте в `scripts/check-docs/identifier-allowlist.txt`;
+- кореневий `CLAUDE.md` не довший за 150 рядків.
+
+Перевірити документацію локально: `cd scripts/check-docs && npm ci && npm run check`.
 
 Відтворити CI локально перед пушем:
 

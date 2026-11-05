@@ -1,0 +1,15 @@
+# Names in documentation that are not in this repository's code, one per line.
+# Add a name only when it is really external; a name that was renamed or removed gets fixed in the document.
+
+# .NET and third-party APIs
+SaveChanges
+UserLocale
+xUnit1051
+custom_id
+read_repository
+dockerDesktopLinuxEngine
+
+# Paths that exist only at run time or in an image
+.git/forest/cache.json
+/repo/deploy/agent/compose.yaml
+src/Aggregator/Api/aggregator.db

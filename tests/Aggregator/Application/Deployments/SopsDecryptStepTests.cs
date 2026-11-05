@@ -129,6 +129,20 @@ public class SopsDecryptStepTests
         Assert.Single(context.Source.Files, f => f.IsSecret);
     }
 
+    [Fact]
+    public async Task Stack_decrypts_with_the_environments_keys_and_its_own_but_not_another_stacks()
+    {
+        const string OtherRecipient = "age1lggyhqrw2nlhcxprm67z43rta597azn8gknawjehu9d9dl0jq3yqqvfafg";
+        var context = Fetched("compose.yaml", Encrypted(".env", "own-identity", "TOKEN=x"));
+        AddKey(context.Environment, OldRecipient, "shared-identity", Now);
+        keys.Add(AgeKey.Create(context.Environment.Id, NewRecipient, protector.Protect(SecretPurpose.AgeIdentity, "own-identity"), Now, context.Stack.Id));
+        keys.Add(AgeKey.Create(context.Environment.Id, OtherRecipient, protector.Protect(SecretPurpose.AgeIdentity, "other-identity"), Now, Domain.Common.StackId.New()));
+
+        await Step().ExecuteAsync(context, Ct);
+
+        Assert.Equal(["own-identity", "shared-identity"], Assert.Single(sops.Calls).Identities.Order(StringComparer.Ordinal));
+    }
+
     private SopsDecryptStep Step() => new(keys, protector, sops);
 
     private void AddKey(DockerEnvironment environment, string recipient, string identity, DateTimeOffset createdAt) =>

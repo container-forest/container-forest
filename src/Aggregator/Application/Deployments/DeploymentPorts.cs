@@ -78,12 +78,21 @@ public interface IComposeParser
     ComposeFile Parse(string yaml);
 }
 
-public sealed record ComposeFile(IReadOnlyList<ComposeService> Services);
+/// <param name="Includes">Paths of the top-level "include" section as written: compose files and their env files.</param>
+/// <param name="HasTags">Some node has an explicit YAML tag, such as !reset or !override, which changes how compose merges.</param>
+public sealed record ComposeFile(IReadOnlyList<ComposeService> Services, IReadOnlyList<string>? Includes = null, bool HasTags = false)
+{
+    public IReadOnlyList<string> IncludedFiles => Includes ?? [];
+}
 
 /// <param name="Image">Value of "image" as written, before variable interpolation; null when absent.</param>
 /// <param name="HasBuild">The service has a "build" section.</param>
 /// <param name="Extends">The service extends another one, which may supply the image.</param>
-public sealed record ComposeService(string Name, string? Image, bool HasBuild, bool Extends);
+/// <param name="FileReferences">Files compose reads for the service as written: env_file, label_file, extends.file.</param>
+public sealed record ComposeService(string Name, string? Image, bool HasBuild, bool Extends, IReadOnlyList<string>? FileReferences = null)
+{
+    public IReadOnlyList<string> ReferencedFiles => FileReferences ?? [];
+}
 
 /// <summary>Hands queued deployments to the background worker.</summary>
 public interface IDeploymentQueue
@@ -136,7 +145,11 @@ public sealed class DeploymentOptions
     /// <summary>Deployments of different stacks that may run at the same time.</summary>
     public int MaxConcurrentDeployments { get; set; } = 4;
 
-    public bool IsValid() => MaxBundleBytes > 0 && AgentTimeout > TimeSpan.Zero && MaxConcurrentDeployments > 0;
+    /// <summary>How long the agent may take to render a stack for the compose policy (ADR-0012); nothing is pulled.</summary>
+    public TimeSpan RenderTimeout { get; set; } = TimeSpan.FromMinutes(2);
+
+    public bool IsValid() =>
+        MaxBundleBytes > 0 && AgentTimeout > TimeSpan.Zero && MaxConcurrentDeployments > 0 && RenderTimeout > TimeSpan.Zero;
 }
 
 /// <summary>The signature git stored in a commit and the bytes it covers.</summary>

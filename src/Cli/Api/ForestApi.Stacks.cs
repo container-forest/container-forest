@@ -93,6 +93,12 @@ public sealed partial class ForestApi
                 new RequireImageDigestsRequest { Enabled = enabled }, cancellationToken: cancellationToken),
             "stack");
 
+    public async Task<StackResponse> SetPolicyAllowancesAsync(Guid stackId, IReadOnlyList<string> allowances, CancellationToken cancellationToken) =>
+        Required(
+            await Api.Stacks[stackId].PolicyAllowances.PutAsync(
+                new SetPolicyAllowancesRequest { Allowances = [.. allowances] }, cancellationToken: cancellationToken),
+            "stack");
+
     public async Task<DeployHookTokenResponse> CreateDeployHookAsync(Guid stackId, CancellationToken cancellationToken) =>
         Required(await Api.Stacks[stackId].DeployHook.PostAsync(cancellationToken: cancellationToken), "deploy hook");
 

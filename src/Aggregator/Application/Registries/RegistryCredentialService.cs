@@ -24,12 +24,11 @@ public sealed record RegistryCredentialSummary(
 }
 
 /// <summary>
-/// Registry logins of an environment's agent. Administrators only, like enrollment: the agent that receives them
-/// runs as root on its host.
+/// Registry logins of an environment's agent. Administrators of the system or of the environment only, like
+/// enrollment: the agent that receives them runs as root on its host.
 /// </summary>
 public sealed class RegistryCredentialService(
-    CurrentActor currentActor,
-    IEnvironmentRepository environments,
+    EnvironmentAdministration administration,
     IRegistryCredentialRepository credentials,
     ISecretProtector protector,
     IUnitOfWork unitOfWork,
@@ -37,8 +36,7 @@ public sealed class RegistryCredentialService(
 {
     public async Task<IReadOnlyList<RegistryCredentialSummary>> ListAsync(EnvironmentId environmentId, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-        await environments.GetAsync(environmentId, cancellationToken);
+        await administration.GetAsync(environmentId, cancellationToken);
         return (await credentials.ListByEnvironmentAsync(environmentId, cancellationToken)).Select(RegistryCredentialSummary.Of).ToList();
     }
 
@@ -47,8 +45,7 @@ public sealed class RegistryCredentialService(
     public async Task<(RegistryCredentialSummary Credential, bool Created)> SetAsync(
         EnvironmentId environmentId, string server, string username, string password, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-        await environments.GetAsync(environmentId, cancellationToken);
+        await administration.GetAsync(environmentId, cancellationToken);
         if (string.IsNullOrEmpty(password))
         {
             throw new DomainValidationException("Registry password must not be empty.");
@@ -76,7 +73,7 @@ public sealed class RegistryCredentialService(
 
     public async Task DeleteAsync(EnvironmentId environmentId, RegistryCredentialId id, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
+        await administration.GetAsync(environmentId, cancellationToken);
         var credential = await credentials.FindAsync(id, cancellationToken);
         if (credential is null || credential.EnvironmentId != environmentId)
         {

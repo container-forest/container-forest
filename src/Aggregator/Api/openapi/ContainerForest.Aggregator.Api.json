@@ -3535,6 +3535,310 @@
         }
       }
     },
+    "/api/environments/{id}/role-assignments": {
+      "get": {
+        "tags": [
+          "Environments"
+        ],
+        "operationId": "ListEnvironmentRoles",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EnvironmentRoleResponse"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Environments"
+        ],
+        "operationId": "GrantEnvironmentRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantEnvironmentRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentRoleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/environments/{id}/role-assignments/{assignmentId}": {
+      "put": {
+        "tags": [
+          "Environments"
+        ],
+        "operationId": "ChangeEnvironmentRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeEnvironmentRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentRoleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Environments"
+        ],
+        "operationId": "RevokeEnvironmentRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "assignmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/environments/{id}/containers": {
       "get": {
         "tags": [
@@ -4201,6 +4505,14 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "stackId",
+            "in": "query",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -6063,6 +6375,87 @@
         }
       }
     },
+    "/api/stacks/{id}/policy-allowances": {
+      "put": {
+        "tags": [
+          "Stacks"
+        ],
+        "operationId": "SetStackPolicyAllowances",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPolicyAllowancesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StackResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/stacks/{id}/deploy-hook": {
       "post": {
         "tags": [
@@ -6646,6 +7039,210 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeploymentDetailsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/environments/{id}/compose-policy": {
+      "get": {
+        "tags": [
+          "Compose policy"
+        ],
+        "operationId": "GetComposePolicy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposePolicyResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Compose policy"
+        ],
+        "operationId": "UpdateComposePolicy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateComposePolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposePolicyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/environments/{id}/compose-policy/report": {
+      "get": {
+        "tags": [
+          "Compose policy"
+        ],
+        "operationId": "GetComposePolicyReport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StackPolicyReportResponse"
+                  }
                 }
               }
             }
@@ -7389,7 +7986,8 @@
         "required": [
           "id",
           "recipient",
-          "createdAt"
+          "createdAt",
+          "stackId"
         ],
         "type": "object",
         "properties": {
@@ -7403,6 +8001,13 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "stackId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -7534,6 +8139,7 @@
           "SigningKeyRemoved",
           "EnvironmentCreated",
           "EnvironmentUpdated",
+          "ComposePolicyChanged",
           "EnvironmentRemoved",
           "EnrollmentTokenIssued",
           "AgentRevoked",
@@ -7545,6 +8151,7 @@
           "StackRestarted",
           "StackTakenDown",
           "StackEndorsementChanged",
+          "StackPolicyAllowancesChanged",
           "DeploymentQueued",
           "ContainerStarted",
           "ContainerStopped",
@@ -7736,6 +8343,17 @@
           null
         ]
       },
+      "ChangeEnvironmentRoleRequest": {
+        "required": [
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        }
+      },
       "ChangePasswordRequest": {
         "required": [
           "currentPassword",
@@ -7923,6 +8541,53 @@
           "AlreadyDeployed",
           "Rejected"
         ]
+      },
+      "ComposePolicyMode": {
+        "enum": [
+          "Off",
+          "Audit",
+          "Enforce"
+        ]
+      },
+      "ComposePolicyResponse": {
+        "required": [
+          "mode",
+          "dataRoot",
+          "systemReadOnlyPaths",
+          "allowances",
+          "protectedPaths",
+          "canChange"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/ComposePolicyMode"
+          },
+          "dataRoot": {
+            "type": "string"
+          },
+          "systemReadOnlyPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowances": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "protectedPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "canChange": {
+            "type": "boolean"
+          }
+        }
       },
       "ContainerLogLineResponse": {
         "required": [
@@ -8663,7 +9328,8 @@
           "agentVersion",
           "lastSeenAt",
           "role",
-          "enrollmentTokenExpiresAt"
+          "enrollmentTokenExpiresAt",
+          "canAdminister"
         ],
         "type": "object",
         "properties": {
@@ -8717,6 +9383,54 @@
               "null",
               "string"
             ],
+            "format": "date-time"
+          },
+          "canAdminister": {
+            "type": "boolean"
+          }
+        }
+      },
+      "EnvironmentRoleResponse": {
+        "required": [
+          "id",
+          "userId",
+          "userName",
+          "stackId",
+          "stackName",
+          "role",
+          "grantedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userName": {
+            "type": "string"
+          },
+          "stackId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "stackName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "grantedAt": {
+            "type": "string",
             "format": "date-time"
           }
         }
@@ -8812,6 +9526,29 @@
           },
           "secret": {
             "type": "string"
+          }
+        }
+      },
+      "GrantEnvironmentRoleRequest": {
+        "required": [
+          "userName",
+          "stackId",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "userName": {
+            "type": "string"
+          },
+          "stackId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
           }
         }
       },
@@ -9128,6 +9865,31 @@
           }
         }
       },
+      "PolicyViolationResponse": {
+        "required": [
+          "service",
+          "message",
+          "allowance"
+        ],
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "allowance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "ProblemDetails": {
         "type": "object",
         "properties": {
@@ -9339,7 +10101,8 @@
         "enum": [
           "Viewer",
           "Operator",
-          "Editor"
+          "Editor",
+          "EnvironmentAdmin"
         ]
       },
       "RoleAssignmentResponse": {
@@ -9405,6 +10168,20 @@
         "properties": {
           "isAdmin": {
             "type": "boolean"
+          }
+        }
+      },
+      "SetPolicyAllowancesRequest": {
+        "required": [
+          "allowances"
+        ],
+        "type": "object",
+        "properties": {
+          "allowances": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -9578,6 +10355,40 @@
           }
         }
       },
+      "StackPolicyReportResponse": {
+        "required": [
+          "stackId",
+          "stackName",
+          "checked",
+          "violations",
+          "warnings"
+        ],
+        "type": "object",
+        "properties": {
+          "stackId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stackName": {
+            "type": "string"
+          },
+          "checked": {
+            "type": "boolean"
+          },
+          "violations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyViolationResponse"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "StackResponse": {
         "required": [
           "id",
@@ -9597,7 +10408,9 @@
           "requireImageDigests",
           "canDeploy",
           "canRestart",
-          "canRemove"
+          "canRemove",
+          "policyAllowances",
+          "canAdministerEnvironment"
         ],
         "type": "object",
         "properties": {
@@ -9667,6 +10480,15 @@
           },
           "canRemove": {
             "type": "boolean"
+          },
+          "policyAllowances": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "canAdministerEnvironment": {
+            "type": "boolean"
           }
         }
       },
@@ -9686,6 +10508,35 @@
           "secrets": {
             "type": "boolean",
             "default": false
+          }
+        }
+      },
+      "UpdateComposePolicyRequest": {
+        "required": [
+          "mode",
+          "dataRoot",
+          "systemReadOnlyPaths",
+          "allowances"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/ComposePolicyMode"
+          },
+          "dataRoot": {
+            "type": "string"
+          },
+          "systemReadOnlyPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowances": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -9990,6 +10841,9 @@
     },
     {
       "name": "Stacks"
+    },
+    {
+      "name": "Compose policy"
     },
     {
       "name": "Notifications"

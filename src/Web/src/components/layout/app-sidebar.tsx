@@ -4,6 +4,7 @@ import { type ComponentType, type ReactNode, type SVGProps, useEffect } from "re
 import { useTranslation } from "react-i18next";
 import { useLogoutMutation } from "@/api/auth";
 import { environmentsQuery, meQuery, stackQuery } from "@/api/queries";
+import { isEditorRole } from "@/api/users";
 import {
   BellIcon,
   BoxIcon,
@@ -178,7 +179,7 @@ export function SidebarContent({ onNavigate = () => {} }: { onNavigate?: () => v
 
   const isAdmin = me?.isAdmin ?? false;
   // Repositories are for administrators and editors; hiding the link is a convenience, the aggregator decides.
-  const canSeeRepositories = isAdmin || environments.some((e) => e.role === "Editor");
+  const canSeeRepositories = isAdmin || environments.some((e) => isEditorRole(e.role));
   const at = (...prefixes: string[]) => prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   return (

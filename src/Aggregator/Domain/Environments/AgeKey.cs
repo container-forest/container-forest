@@ -12,13 +12,17 @@ namespace ContainerForest.Aggregator.Domain.Environments;
 /// The private part (the identity) exists only in the aggregator and is stored already encrypted by the application
 /// layer; agents never receive it. The recipient is public: it goes into the repository's <c>.sops.yaml</c>.
 /// An environment may have several keys while files are re-encrypted after a rotation; every one of them is tried.
+/// A key may also belong to one stack of the environment (ADR-0012): the environment's keys are for secrets its stacks
+/// share, a stack's keys for secrets of that stack only, which no other stack's deployment decrypts.
 /// </remarks>
 public sealed partial class AgeKey : Entity<AgeKeyId>
 {
-    private AgeKey(AgeKeyId id, EnvironmentId environmentId, string recipient, string protectedIdentity, DateTimeOffset createdAt)
+    private AgeKey(
+        AgeKeyId id, EnvironmentId environmentId, StackId? stackId, string recipient, string protectedIdentity, DateTimeOffset createdAt)
         : base(id)
     {
         EnvironmentId = environmentId;
+        StackId = stackId;
         Recipient = recipient;
         ProtectedIdentity = protectedIdentity;
         CreatedAt = createdAt;
@@ -33,6 +37,12 @@ public sealed partial class AgeKey : Entity<AgeKeyId>
 
     public EnvironmentId EnvironmentId { get; private init; }
 
+    /// <summary>The stack the key belongs to; null for a key of the whole environment.</summary>
+    public StackId? StackId { get; private init; }
+
+    /// <summary>Whether a deployment of <paramref name="stack"/> may decrypt with this key.</summary>
+    public bool Serves(Stacks.Stack stack) => stack.EnvironmentId == EnvironmentId && (StackId is null || StackId == stack.Id);
+
     /// <summary>The public key, "age1…" in Bech32.</summary>
     public string Recipient { get; private init; }
 
@@ -42,7 +52,9 @@ public sealed partial class AgeKey : Entity<AgeKeyId>
     public DateTimeOffset CreatedAt { get; private init; }
 
     /// <exception cref="DomainValidationException">The recipient is not an X25519 age recipient.</exception>
-    public static AgeKey Create(EnvironmentId environmentId, string recipient, string protectedIdentity, DateTimeOffset now)
+    /// <param name="stackId">The stack the key belongs to, which must be in the environment; null for the whole environment.</param>
+    public static AgeKey Create(
+        EnvironmentId environmentId, string recipient, string protectedIdentity, DateTimeOffset now, StackId? stackId = null)
     {
         if (!RecipientPattern().IsMatch(recipient))
         {
@@ -54,7 +66,7 @@ public sealed partial class AgeKey : Entity<AgeKeyId>
             throw new DomainValidationException("The age identity must not be empty.");
         }
 
-        return new AgeKey(AgeKeyId.New(), environmentId, recipient, protectedIdentity, now);
+        return new AgeKey(AgeKeyId.New(), environmentId, stackId, recipient, protectedIdentity, now);
     }
 
     // "age1" and 58 Bech32 characters: a 32-byte X25519 key and a 6-character checksum.

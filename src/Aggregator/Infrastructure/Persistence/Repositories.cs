@@ -3,6 +3,7 @@ using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Notifications;
+using ContainerForest.Aggregator.Application.Policies;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Secrets;
@@ -12,6 +13,7 @@ using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
 using ContainerForest.Aggregator.Domain.Notifications;
+using ContainerForest.Aggregator.Domain.Policies;
 using ContainerForest.Aggregator.Domain.Repositories;
 using ContainerForest.Aggregator.Domain.Stacks;
 using Microsoft.EntityFrameworkCore;
@@ -134,6 +136,13 @@ internal sealed class RoleAssignmentRepository(AggregatorDbContext db)
 {
     public async Task<IReadOnlyList<RoleAssignment>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>
         await Set.Where(a => a.UserId == userId).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<RoleAssignment>> ListForEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken)
+    {
+        var onEnvironment = await Db.Set<EnvironmentRoleAssignment>().Where(a => a.EnvironmentId == environmentId).ToListAsync(cancellationToken);
+        var onStacks = await Db.Set<StackRoleAssignment>().Where(a => a.EnvironmentId == environmentId).ToListAsync(cancellationToken);
+        return [.. onEnvironment, .. onStacks];
+    }
 }
 
 internal sealed class GitRepositoryRepository(AggregatorDbContext db)
@@ -230,4 +239,15 @@ internal sealed class AgeKeyRepository(AggregatorDbContext db) : EfRepository<Ag
     public async Task<IReadOnlyList<AgeKey>> FindByRecipientsAsync(
         IReadOnlyCollection<string> recipients, CancellationToken cancellationToken) =>
         recipients.Count == 0 ? [] : await Set.Where(k => recipients.Contains(k.Recipient)).ToListAsync(cancellationToken);
+}
+
+internal sealed class ComposePolicyRepository(AggregatorDbContext db) : IComposePolicyRepository
+{
+    public async Task<ComposePolicy> GetAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        await FindAsync(environmentId, cancellationToken) ?? ComposePolicy.Default(environmentId);
+
+    public async Task<ComposePolicy?> FindAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        await db.ComposePolicies.FindAsync([environmentId], cancellationToken);
+
+    public void Add(ComposePolicy policy) => db.ComposePolicies.Add(policy);
 }

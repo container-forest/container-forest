@@ -152,6 +152,15 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/stacks/<stackId>/deployments -H 'content-type: application/json' -d '{"pull":false,"approveCommit":"<повний SHA>"}'   # лише для непідписаного коміту
    ```
 
+   Політика compose й адміністратор середовища (ADR-0012): адміністратор призначає роль `EnvironmentAdmin` на середовище, той змінює політику й винятки. Для перевірки рендерингу агенту потрібен `docker compose`; для шляхів поза `/opt/container-forest` — корінь хоста (`CF_AGENT__HOSTROOT`, у контейнері агента `/:/host:ro,rslave`):
+   ```sh
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/role-assignments -H 'content-type: application/json' -d '{"userName":"alice","stackId":null,"role":"EnvironmentAdmin"}'
+   curl -X PUT -H 'X-Dev-User: alice' http://localhost:5080/api/environments/<id>/compose-policy -H 'content-type: application/json' -d '{"mode":"Audit","dataRoot":"/var/lib/container-forest/data","systemReadOnlyPaths":["/etc/localtime"],"allowances":["network:proxy"]}'
+   curl -X PUT -H 'X-Dev-User: alice' http://localhost:5080/api/stacks/<stackId>/policy-allowances -H 'content-type: application/json' -d '{"allowances":["docker-socket"]}'
+   curl -H 'X-Dev-User: alice' http://localhost:5080/api/environments/<id>/compose-policy/report   # розгорнуті стеки за поточною політикою
+   curl -X POST -H 'X-Dev-User: alice' 'http://localhost:5080/api/environments/<id>/age-keys?stackId=<stackId>'   # ключ SOPS лише цього стеку
+   ```
+
    Образи з приватного registry: креди задаються на середовищі (лише адміністратор; пароль ніколи не повертається). Повторний `PUT` для того самого `server` замінює логін:
    ```sh
    curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/registry-credentials -H 'content-type: application/json' -d '{"server":"ghcr.io","username":"<user>","password":"<token>"}'
@@ -204,7 +213,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    - Один бінарник без рантайму (NativeAOT, потрібен clang): `dotnet publish src/Cli -r linux-x64 -c Release -o out` → `out/forest`.
    - Реліз: `git tag cli-v0.2.0 && git push origin cli-v0.2.0` — workflow `CLI` збирає бінарники для linux x64/arm64, macOS arm64 і Windows x64 і публікує їх у GitHub Releases разом із `SHA256SUMS`.
 
-Тести: `dotnet test --solution ContainerForest.slnx`. Тести зі справжніми `sops` і `age-keygen` без них у `PATH` пропускаються (у CI — обов'язкові, `CF_TEST_REQUIRE_SOPS=1`), так само тести підписів зі справжнім `ssh-keygen` (`CF_TEST_REQUIRE_SSH_KEYGEN=1`). Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
+Тести: `dotnet test --solution ContainerForest.slnx`. Тести зі справжніми `sops` і `age-keygen` без них у `PATH` пропускаються (у CI — обов'язкові, `CF_TEST_REQUIRE_SOPS=1`), так само тести підписів зі справжнім `ssh-keygen` (`CF_TEST_REQUIRE_SSH_KEYGEN=1`) і тести рендерингу агента зі справжнім `docker compose` (`CF_TEST_REQUIRE_DOCKER_COMPOSE=1`; демона Docker вони не потребують). Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
 
 Docker-образ агента збирається з кореня репозиторію (контексту потрібні `src/Contracts` і `Directory.*.props`), а запускається так само, як у [прикладі розгортання](docs/architecture.md#розгортання-агента). Щоб підключити його до ЦА, запущеного локально через `dotnet run`, використовуйте `http://host.docker.internal:5081`:
 

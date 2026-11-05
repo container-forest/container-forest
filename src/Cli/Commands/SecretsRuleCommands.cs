@@ -75,7 +75,7 @@ internal sealed class SecretsRuleListCommand() : ForestCommand("list", "List the
 /// </summary>
 internal sealed class SecretsRuleAddCommand() : ForestCommand("add", "Add a rule to .sops.yaml: files under a path are for one environment.")
 {
-    private readonly Argument<string> rule = new("rule") { Description = "<path prefix>=<environment>, e.g. stacks/staging/=staging." };
+    private readonly Argument<string> rule = new("rule") { Description = "<path prefix>=<environment>, or =<environment>/<stack> for a key of one stack (ADR-0012), e.g. stacks/staging/=staging." };
 
     private readonly Option<string[]> recovery = new("--recovery")
     {
@@ -90,9 +90,9 @@ internal sealed class SecretsRuleAddCommand() : ForestCommand("add", "Add a rule
 
     protected override async Task<int> ExecuteAsync(CommandContext context)
     {
-        var (prefix, environmentName) = context.Value(rule).Split('=', 2) is [var p, var e] && p.Trim('/').Length > 0 && e.Length > 0
+        var (prefix, target) = context.Value(rule).Split('=', 2) is [var p, var e] && p.Trim('/').Length > 0 && e.Length > 0
             ? (p.TrimStart('/'), e)
-            : throw new CliException($"{context.Value(rule)}: expected <path prefix>=<environment>.", ExitCodes.Usage);
+            : throw new CliException($"{context.Value(rule)}: expected <path prefix>=<environment> or <environment>/<stack>.", ExitCodes.Usage);
         var extra = (context.Value(recovery) ?? []).ToList();
         foreach (var key in extra.Where(k => !SopsFiles.AgeRecipients(System.Text.Encoding.UTF8.GetBytes(k)).Contains(k)))
         {
@@ -101,8 +101,7 @@ internal sealed class SecretsRuleAddCommand() : ForestCommand("add", "Add a rule
 
         var tree = GitWorkTree.Open(context.Host.WorkingDirectory);
         var config = SopsConfigEditing.Load(tree);
-        var environment = await context.Api.ResolveEnvironmentAsync(environmentName, null, context.CancellationToken);
-        var recipient = await SecretsInitCommand.RecipientAsync(context, environment);
+        var (name, recipient) = await SecretsFiles.ResolveKeyAsync(context, target);
         var environmentKeys = await SecretsFiles.EnvironmentsByRecipientAsync(context);
         var kept = config.Rules.Count == 0
             ? []
@@ -111,11 +110,11 @@ internal sealed class SecretsRuleAddCommand() : ForestCommand("add", "Add a rule
                 .Where(k => !environmentKeys.ContainsKey(k))
                 .ToList();
 
-        var position = config.AddPrefixRule(prefix, [environment.Name!], [recipient, .. kept, .. extra]);
+        var position = config.AddPrefixRule(prefix, [name], [recipient, .. kept, .. extra]);
         await File.WriteAllTextAsync(SopsConfigEditing.PathIn(tree), config.ToString(), context.CancellationToken);
 
         var before = position + 1 < config.Rules.Count ? $", before {SopsConfigEditing.Describe(config.Rules[position + 1])}" : "";
-        context.Output.Done($"Files under {prefix} are for environment '{environment.Name}' now (rule {position + 1} of {config.Rules.Count}{before}).");
+        context.Output.Done($"Files under {prefix} are for '{name}' now (rule {position + 1} of {config.Rules.Count}{before}).");
         if (kept.Count > 0)
         {
             context.Output.Note($"The rule keeps {kept.Count} key(s) every other rule has too (recovery keys).");

@@ -45,15 +45,52 @@ internal sealed class YamlComposeParser : IComposeParser
                 throw new DeploymentFailedException($"Service '{name}' must be a mapping.");
             }
 
+            var extends = Find(service, "extends");
+            var references = Paths(Find(service, "env_file"), "path")
+                .Concat(Paths(Find(service, "label_file"), "path"))
+                .Concat(extends is YamlMappingNode e ? Paths(Find(e, "file"), null) : [])
+                .ToList();
             result.Add(new ComposeService(
                 name,
                 (Find(service, "image") as YamlScalarNode)?.Value,
                 HasBuild: Find(service, "build") is not null,
-                Extends: Find(service, "extends") is not null));
+                Extends: extends is not null,
+                FileReferences: references));
         }
 
-        return new ComposeFile(result);
+        var includes = new List<string>();
+        if (Find(root, "include") is YamlSequenceNode included)
+        {
+            foreach (var entry in included.Children)
+            {
+                includes.AddRange(entry is YamlMappingNode item
+                    ? Paths(Find(item, "path"), null).Concat(Paths(Find(item, "env_file"), null)).Concat(Paths(Find(item, "project_directory"), null))
+                    : Paths(entry, null));
+            }
+        }
+        else if (Find(root, "include") is { } other)
+        {
+            includes.AddRange(Paths(other, null));
+        }
+
+        var hasTags = stream.Documents[0].AllNodes.Any(n => !n.Tag.IsEmpty);
+        return new ComposeFile(result, includes, hasTags);
     }
+
+    /// <summary>
+    /// File paths in a value compose accepts as one path, a list of them, or (with <paramref name="mapKey"/>) a list of
+    /// mappings with the path under that key. Anything else comes back as its text, which matches no file: the caller
+    /// fails closed on what it does not understand.
+    /// </summary>
+    private static IEnumerable<string> Paths(YamlNode? node, string? mapKey) => node switch
+    {
+        null => [],
+        YamlScalarNode scalar => [scalar.Value ?? ""],
+        YamlSequenceNode list => list.Children.SelectMany(child => child is YamlMappingNode map && mapKey is not null
+            ? Paths(Find(map, mapKey) ?? new YamlScalarNode(map.ToString()), null)
+            : Paths(child, null)),
+        _ => [node.ToString()],
+    };
 
     /// <summary>Looks the key up in the mapping, then in its merge keys ("&lt;&lt;: *defaults"), as compose does.</summary>
     private static YamlNode? Find(YamlMappingNode mapping, string key)

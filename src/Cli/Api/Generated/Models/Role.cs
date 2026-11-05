@@ -20,5 +20,9 @@ namespace ContainerForest.Cli.Api.Generated.Models
         #pragma warning disable CS1591
         Editor,
         #pragma warning restore CS1591
+        [EnumMember(Value = "EnvironmentAdmin")]
+        #pragma warning disable CS1591
+        EnvironmentAdmin,
+        #pragma warning restore CS1591
     }
 }

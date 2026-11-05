@@ -141,6 +141,13 @@ internal static class StackEndpoints
             .WithName("SetStackRequireImageDigests")
             .ProducesProblem(StatusCodes.Status409Conflict);
 
+        api.MapPut(
+                "/stacks/{id:guid}/policy-allowances",
+                async (Guid id, SetPolicyAllowancesRequest request, StackService service, CancellationToken ct) =>
+                    ToResponse(await service.SetPolicyAllowancesAsync(StackId.From(id), request.Allowances, ct)))
+            .WithName("SetStackPolicyAllowances")
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
         api.MapPost(
                 "/stacks/{id:guid}/deploy-hook",
                 async (Guid id, StackService service, CancellationToken ct) =>
@@ -239,7 +246,9 @@ internal static class StackEndpoints
         s.RequireImageDigests,
         s.CanDeploy,
         s.CanRestart,
-        s.CanRemove);
+        s.CanRemove,
+        s.PolicyAllowances,
+        s.CanAdministerEnvironment);
 
     private static DeploymentDetailsResponse ToDetails(Deployment d) => new(
         d.Id.Value,

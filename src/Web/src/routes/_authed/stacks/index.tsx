@@ -3,6 +3,7 @@ import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { environmentsQuery, stacksQuery } from "@/api/queries";
+import { isEditorRole } from "@/api/users";
 import { ErrorText } from "@/components/form-messages";
 import { Loader2Icon, RefreshCwIcon } from "@/components/icons";
 import { CreateStackDialog } from "@/components/stacks/create-stack-dialog";
@@ -49,7 +50,7 @@ function StacksScreen() {
           <p className="text-muted-foreground mt-1">{t("stacks.description")}</p>
         </div>
         {/* Adding a stack takes Editor on the environment; hiding is cosmetic, the aggregator answers 403 otherwise. */}
-        {environment && (me.isAdmin || environment.role === "Editor") && <CreateStackDialog environmentId={environment.id} />}
+        {environment && (me.isAdmin || isEditorRole(environment.role)) && <CreateStackDialog environmentId={environment.id} />}
       </div>
 
       {environment === undefined ? (

@@ -37,7 +37,9 @@ public static class DependencyInjection
         services.AddSingleton<IStackFileStore, StackFileStore>();
         services.AddSingleton<IComposeRunner, DockerComposeCli>();
         services.AddSingleton<RegistryConfigWriter>();
+        services.AddSingleton<HostPathInspector>();
         services.AddSingleton<IAgentCommandHandler, DeployStackHandler>();
+        services.AddSingleton<IAgentCommandHandler, RenderStackHandler>();
         services.AddSingleton<IAgentCommandHandler, RestartStackHandler>();
         services.AddSingleton<IAgentCommandHandler, DownStackHandler>();
         services.AddSingleton<CommandDispatcher>();

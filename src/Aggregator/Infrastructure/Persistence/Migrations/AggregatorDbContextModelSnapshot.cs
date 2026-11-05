@@ -467,12 +467,17 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasMaxLength(62)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("StackId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EnvironmentId");
 
                     b.HasIndex("Recipient")
                         .IsUnique();
+
+                    b.HasIndex("StackId");
 
                     b.ToTable("AgeKeys", (string)null);
                 });
@@ -698,6 +703,34 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.ToTable("NotificationRules", (string)null);
                 });
 
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Policies.ComposePolicy", b =>
+                {
+                    b.Property<Guid>("EnvironmentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Allowances")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DataRoot")
+                        .IsRequired()
+                        .HasMaxLength(4096)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SystemReadOnlyPaths")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("EnvironmentId");
+
+                    b.ToTable("ComposePolicies", (string)null);
+                });
+
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Repositories.GitConnection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -803,6 +836,9 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DeployedComposeFacts")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("DeployedWithSecrets")
                         .HasColumnType("INTEGER");
 
@@ -816,6 +852,12 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(63)
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("PolicyAllowances")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("[]");
 
                     b.Property<Guid>("RepositoryId")
                         .HasColumnType("TEXT");
@@ -1199,6 +1241,11 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasForeignKey("EnvironmentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("ContainerForest.Aggregator.Domain.Stacks.Stack", null)
+                        .WithMany()
+                        .HasForeignKey("StackId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Environments.RegistryCredential", b =>
@@ -1227,6 +1274,15 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("StackId")
                         .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Policies.ComposePolicy", b =>
+                {
+                    b.HasOne("ContainerForest.Aggregator.Domain.Environments.DockerEnvironment", null)
+                        .WithOne()
+                        .HasForeignKey("ContainerForest.Aggregator.Domain.Policies.ComposePolicy", "EnvironmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Repositories.GitConnection", b =>

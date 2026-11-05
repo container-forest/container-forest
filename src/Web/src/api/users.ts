@@ -9,7 +9,21 @@ export type RoleAssignment = components["schemas"]["RoleAssignmentResponse"];
 export type Role = components["schemas"]["Role"];
 export type CreateUserRequest = components["schemas"]["CreateUserRequest"];
 
+/** Roles a stack can have; the environment administrator is given on a whole environment only (ADR-0012). */
 export const roles = ["Viewer", "Operator", "Editor"] as const satisfies readonly Role[];
+
+/** Roles a whole environment can have. */
+export const environmentRoles = [...roles, "EnvironmentAdmin"] as const satisfies readonly Role[];
+
+/** The roles offered for a scope: a stack cannot have the environment administrator role. */
+export function rolesFor(stackId: string | null | undefined): readonly Role[] {
+  return stackId ? roles : environmentRoles;
+}
+
+/** Editor or above: may deploy, add stacks and repositories. */
+export function isEditorRole(role: Role | null | undefined): boolean {
+  return role === "Editor" || role === "EnvironmentAdmin";
+}
 
 /** Every change to a user shows in the list and in their card, so both are refetched. */
 function useInvalidateUsers() {

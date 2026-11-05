@@ -19,7 +19,11 @@ public sealed record EnvironmentCreated(EnvironmentId Id, string Name, Enrollmen
 /// Administrators get null too and rely on <see cref="User.IsAdmin"/>.
 /// </param>
 /// <param name="EnrollmentTokenExpiresAt">
-/// Until when an issued enrollment token can still be used; null when there is none. Shown to administrators only.
+/// Until when an issued enrollment token can still be used; null when there is none. Shown to those who administer the
+/// environment only.
+/// </param>
+/// <param name="CanAdminister">
+/// Whether the user administers the environment: an administrator, or its environment administrator (ADR-0012).
 /// </param>
 public sealed record EnvironmentSummary(
     EnvironmentId Id,
@@ -31,14 +35,17 @@ public sealed record EnvironmentSummary(
     string? AgentVersion,
     DateTimeOffset? LastSeenAt,
     Role? Role,
-    DateTimeOffset? EnrollmentTokenExpiresAt = null);
+    DateTimeOffset? EnrollmentTokenExpiresAt = null,
+    bool CanAdminister = false);
 
 /// <summary>
-/// Environments as the current user sees them; creating, changing and removing environments, enrollment tokens and
-/// revoking agents (administrators only), each recorded in the audit log.
+/// Environments as the current user sees them; creating and removing environments (administrators only), changing them,
+/// enrollment tokens and revoking agents (administrators and the environment's administrators), each recorded in the
+/// audit log.
 /// </summary>
 public sealed class EnvironmentService(
     CurrentActor currentActor,
+    EnvironmentAdministration administration,
     IEnvironmentRepository environments,
     IRoleAssignmentRepository roleAssignments,
     IStackRepository stacks,
@@ -75,9 +82,7 @@ public sealed class EnvironmentService(
         var draft = new AuditDraft(AuditAction.EnrollmentTokenIssued, new EnvironmentAuditTarget(id, id.ToString()));
         return audit.RunAsync(draft, async () =>
         {
-            await currentActor.GetAdministratorAsync(cancellationToken);
-
-            var environment = await environments.GetAsync(id, cancellationToken);
+            var (_, environment) = await administration.GetAsync(id, cancellationToken);
             draft.Target = new EnvironmentAuditTarget(environment.Id, environment.Name);
             var token = IssueToken(environment, time.GetUtcNow());
             await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -91,8 +96,7 @@ public sealed class EnvironmentService(
         var draft = new AuditDraft(AuditAction.EnvironmentUpdated, new EnvironmentAuditTarget(id, id.ToString()));
         return audit.RunAsync(draft, async () =>
         {
-            var admin = await currentActor.GetAdministratorAsync(cancellationToken);
-            var environment = await environments.FindAsync(id, cancellationToken) ?? throw new NotFoundException("Environment", id);
+            var (admin, environment) = await administration.GetAsync(id, cancellationToken);
             draft.Target = new EnvironmentAuditTarget(environment.Id, environment.Name);
             draft.Details = $"Name: {name.Trim()}, {(isPrivate ? "private" : "public")}";
 
@@ -127,8 +131,7 @@ public sealed class EnvironmentService(
         var draft = new AuditDraft(AuditAction.AgentRevoked, new EnvironmentAuditTarget(id, id.ToString()));
         return audit.RunAsync(draft, async () =>
         {
-            await currentActor.GetAdministratorAsync(cancellationToken);
-            var environment = await environments.FindAsync(id, cancellationToken) ?? throw new NotFoundException("Environment", id);
+            var (_, environment) = await administration.GetAsync(id, cancellationToken);
             draft.Target = new EnvironmentAuditTarget(environment.Id, environment.Name);
 
             environment.RevokeAgent();
@@ -185,17 +188,22 @@ public sealed class EnvironmentService(
             .ToList();
     }
 
-    private EnvironmentSummary Summarize(Actor user, DockerEnvironment environment, IReadOnlyList<RoleAssignment> assignments) => new(
-        environment.Id,
-        environment.Name,
-        environment.IsPrivate,
-        environment.IsEnrolled,
-        agents.IsOnline(environment.Id),
-        environment.AgentHostname,
-        environment.AgentVersion,
-        environment.LastSeenAt,
-        AccessPolicy.EffectiveRole(user, environment, assignments),
-        user.IsAdmin ? environment.EnrollmentTokenExpiresAt : null);
+    private EnvironmentSummary Summarize(Actor user, DockerEnvironment environment, IReadOnlyList<RoleAssignment> assignments)
+    {
+        var canAdminister = EnvironmentAdministration.CanAdminister(user, environment, assignments);
+        return new(
+            environment.Id,
+            environment.Name,
+            environment.IsPrivate,
+            environment.IsEnrolled,
+            agents.IsOnline(environment.Id),
+            environment.AgentHostname,
+            environment.AgentVersion,
+            environment.LastSeenAt,
+            AccessPolicy.EffectiveRole(user, environment, assignments),
+            canAdminister ? environment.EnrollmentTokenExpiresAt : null,
+            canAdminister);
+    }
 
     private static EnrollmentToken IssueToken(DockerEnvironment environment, DateTimeOffset now)
     {

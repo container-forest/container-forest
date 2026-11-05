@@ -179,7 +179,11 @@ internal sealed class RoleGrantCommand() : UserCommand("grant", "Give a user a r
 {
     private readonly Option<string> environment = new("--env", "-e") { Description = "Environment name or id.", Required = true };
     private readonly Option<string?> stack = new("--stack") { Description = "Stack in the environment; leave out for the whole environment." };
-    private readonly Option<Role> role = new("--role") { Description = "Viewer, Operator or Editor.", Required = true };
+    private readonly Option<Role> role = new("--role")
+    {
+        Description = "Viewer, Operator, Editor, or EnvironmentAdmin (on a whole environment only).",
+        Required = true,
+    };
 
     protected override void ConfigureUser(Command command)
     {
@@ -203,7 +207,11 @@ internal sealed class RoleGrantCommand() : UserCommand("grant", "Give a user a r
 internal sealed class RoleChangeCommand() : UserCommand("change", "Change the role of an assignment (administrators).")
 {
     private readonly Argument<Guid> assignment = new("assignment") { Description = "Assignment id, see 'forest user show'." };
-    private readonly Option<Role> role = new("--role") { Description = "Viewer, Operator or Editor.", Required = true };
+    private readonly Option<Role> role = new("--role")
+    {
+        Description = "Viewer, Operator, Editor, or EnvironmentAdmin (on a whole environment only).",
+        Required = true,
+    };
 
     protected override void ConfigureUser(Command command)
     {

@@ -94,6 +94,20 @@ public sealed class Stack : Entity<StackId>
     /// </summary>
     public bool RequireImageDigests { get; private set; }
 
+    private List<string> policyAllowances = [];
+
+    /// <summary>
+    /// Exceptions to the environment's compose policy for this stack only, as <see cref="Policies.PolicyAllowance.Value"/>
+    /// (ADR-0012). Administrators of the system or of the environment set them.
+    /// </summary>
+    public IReadOnlyList<string> PolicyAllowances => policyAllowances;
+
+    /// <summary>
+    /// The compose policy's facts about the deployed version, serialized; null until a deployment with the policy
+    /// on succeeds. Checked again when the policy changes, since running containers do not stop when it tightens.
+    /// </summary>
+    public string? DeployedComposeFacts { get; private set; }
+
     public static Stack Create(
         EnvironmentId environmentId,
         StackName name,
@@ -148,6 +162,10 @@ public sealed class Stack : Entity<StackId>
         EnsureDeployable(enabled, "require image digests");
         RequireImageDigests = enabled;
     }
+
+    /// <exception cref="Common.DomainValidationException">An allowance is not valid.</exception>
+    public void SetPolicyAllowances(IEnumerable<string> allowances) =>
+        policyAllowances = Policies.ComposePolicy.NormalizeAllowances(allowances);
 
     private void EnsureDeployable(bool enabled, string what)
     {
@@ -214,7 +232,8 @@ public sealed class Stack : Entity<StackId>
 
     /// <summary>Remembers the commit of a successful deployment of this stack.</summary>
     /// <param name="withSecrets">The deployment sent secret files to the agent.</param>
-    public void RecordDeployment(Deployment deployment, bool withSecrets)
+    /// <param name="composeFacts">The compose policy's facts about the deployed version; null keeps the previous ones.</param>
+    public void RecordDeployment(Deployment deployment, bool withSecrets, string? composeFacts = null)
     {
         if (deployment.StackId != Id)
         {
@@ -235,6 +254,7 @@ public sealed class Stack : Entity<StackId>
         DeployedCommit = deployment.Commit;
         DeployedAt = deployment.FinishedAt;
         DeployedWithSecrets = withSecrets;
+        DeployedComposeFacts = composeFacts ?? DeployedComposeFacts;
     }
 
     /// <summary>

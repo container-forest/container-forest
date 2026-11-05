@@ -8,8 +8,13 @@ export const keysSearchSchema = z.object({
 });
 
 /** The aggregator lists keys newest first; files are encrypted for the newest, older ones still decrypt. */
-export function currentKey(keys: readonly AgeKey[]): AgeKey | undefined {
-  return keys[0];
+export function currentKey(keys: readonly AgeKey[], stackId: string | null = null): AgeKey | undefined {
+  return keys.find((key) => (key.stackId ?? null) === stackId);
+}
+
+/** Whether a key is the newest of its scope: the environment's own, or one stack's (ADR-0012). */
+export function isCurrent(keys: readonly AgeKey[], key: AgeKey): boolean {
+  return currentKey(keys, key.stackId ?? null)?.id === key.id;
 }
 
 /**

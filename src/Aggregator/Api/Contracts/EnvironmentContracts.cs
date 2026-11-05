@@ -20,18 +20,27 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 //
 // Administrators only:
 //   POST   /api/environments                                       -> 201 EnvironmentCreatedResponse with the first enrollment token
+//   DELETE /api/environments/{id}                                  -> 204; only without stacks
+//
+// Administrators and the environment's administrators (role EnvironmentAdmin, ADR-0012; canAdminister in the response):
 //   PUT    /api/environments/{id}                                  -> EnvironmentResponse; name and privacy
 //   POST   /api/environments/{id}/enrollment-token                 -> EnrollmentTokenResponse; the previous token stops working
 //   POST   /api/environments/{id}/revoke-agent                     -> 204; forgets the agent's credentials and drops its connection
 //   GET    /api/environments/{id}/registry-credentials             -> RegistryCredentialResponse[] (server order); never the password
 //   PUT    /api/environments/{id}/registry-credentials             -> 201 or 200 RegistryCredentialResponse; by server, replaces its login
 //   DELETE /api/environments/{id}/registry-credentials/{credential} -> 204
+//   GET    /api/environments/{id}/role-assignments                 -> EnvironmentRoleResponse[]; roles on the environment and its stacks
+//   POST   /api/environments/{id}/role-assignments                 -> 201 EnvironmentRoleResponse; 409 when the user has a role on that scope
+//   PUT    /api/environments/{id}/role-assignments/{assignment}    -> EnvironmentRoleResponse
+//   DELETE /api/environments/{id}/role-assignments/{assignment}    -> 204
+// The EnvironmentAdmin role itself is given, changed and taken by administrators only (403 for anyone else).
 //
 // The enrollment token is shown once, in the answer that issues it: the aggregator keeps only its hash.
 
 /// <param name="IsOnline">Whether the environment's agent is connected right now.</param>
 /// <param name="EnrollmentTokenExpiresAt">Until when an issued enrollment token is valid; null when there is none, and for non-administrators.</param>
 /// <param name="Role">The user's role on the environment as a whole; null for administrators and for users who see it only through stack roles.</param>
+/// <param name="CanAdminister">Whether the user administers the environment (administrator or its EnvironmentAdmin); for showing controls only.</param>
 public sealed record EnvironmentResponse(
     Guid Id,
     string Name,
@@ -42,7 +51,8 @@ public sealed record EnvironmentResponse(
     string? AgentVersion,
     DateTimeOffset? LastSeenAt,
     Role? Role,
-    DateTimeOffset? EnrollmentTokenExpiresAt);
+    DateTimeOffset? EnrollmentTokenExpiresAt,
+    bool CanAdminister);
 
 /// <param name="StackName">The compose project; null for a container outside compose.</param>
 /// <param name="StatusText">Docker's human-readable status, e.g. "Up 3 minutes (healthy)".</param>
@@ -82,3 +92,13 @@ public sealed record EnrollmentTokenResponse(string EnrollmentToken, DateTimeOff
 public sealed record SetRegistryCredentialRequest(string Server, string Username, string Password);
 
 public sealed record RegistryCredentialResponse(Guid Id, string Server, string Username, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+/// <param name="StackId">Null for a role on the whole environment.</param>
+public sealed record EnvironmentRoleResponse(
+    Guid Id, Guid UserId, string UserName, Guid? StackId, string? StackName, Role Role, DateTimeOffset GrantedAt);
+
+/// <param name="UserName">An existing user; users are created by administrators.</param>
+/// <param name="StackId">Null for a role on the whole environment.</param>
+public sealed record GrantEnvironmentRoleRequest(string UserName, Guid? StackId, Role Role);
+
+public sealed record ChangeEnvironmentRoleRequest(Role Role);

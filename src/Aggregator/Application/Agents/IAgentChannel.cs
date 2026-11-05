@@ -46,6 +46,14 @@ public interface IAgentChannel
         TimeSpan timeout,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Has the agent render the bundle with docker compose config, for the compose policy (ADR-0012); nothing on the
+    /// host changes. Lines compose prints on stderr go to <paramref name="onProgress"/>.
+    /// </summary>
+    /// <exception cref="AgentCommandFailedException">With <see cref="AgentErrorKind.Unsupported"/> for an agent too old to render.</exception>
+    Task<Policies.RenderedCompose> RenderStackAsync(
+        EnvironmentId environmentId, StackBundle bundle, Action<string> onProgress, TimeSpan timeout, CancellationToken cancellationToken);
+
     /// <summary>Runs docker compose restart for a deployed stack; returns when compose has finished.</summary>
     /// <param name="stopTimeout">How long Docker waits for each container's process to exit before killing it.</param>
     /// <param name="onProgress">Receives each line of compose output, as in <see cref="DeployStackAsync"/>.</param>
@@ -85,6 +93,12 @@ public sealed record StackBundle(StackName StackName, CommitSha Commit, IReadOnl
 
     /// <summary>The agent restarts the stack after compose up when its other files changed (<see cref="Stack.RestartOnFileChange"/>).</summary>
     public bool RestartOnFileChange { get; init; }
+
+    /// <summary>Compose reads variables only from the bundle's .env, as when it was rendered (ADR-0012).</summary>
+    public bool ExplicitEnvFile { get; init; }
+
+    /// <summary>Host paths the agent checks for symbolic links right before compose up (ADR-0012).</summary>
+    public IReadOnlyList<string> VerifyPaths { get; init; } = [];
 
     public long TotalBytes => Files.Sum(f => (long)f.Content.Length);
 }

@@ -27,9 +27,18 @@ public abstract class RoleAssignment : Entity<RoleAssignmentId>
         new EnvironmentRoleAssignment(RoleAssignmentId.New(), userId, environmentId, EnsureDefined(role), now);
 
     public static RoleAssignment ForStack(UserId userId, Stack stack, Role role, DateTimeOffset now) =>
-        new StackRoleAssignment(RoleAssignmentId.New(), userId, stack.Id, stack.EnvironmentId, EnsureDefined(role), now);
+        new StackRoleAssignment(RoleAssignmentId.New(), userId, stack.Id, stack.EnvironmentId, EnsureOnStack(EnsureDefined(role)), now);
 
-    public void ChangeRole(Role role) => Role = EnsureDefined(role);
+    public void ChangeRole(Role role) => Role = EnsureAllowed(EnsureDefined(role));
+
+    /// <summary>Rejects a role this kind of scope cannot have.</summary>
+    protected virtual Role EnsureAllowed(Role role) => role;
+
+    /// <summary>The environment administrator administers a whole environment; a stack has nothing of the kind.</summary>
+    protected static Role EnsureOnStack(Role role) =>
+        role == Role.EnvironmentAdmin
+            ? throw new DomainValidationException("The environment administrator role is given on a whole environment, not on a stack.")
+            : role;
 
     /// <summary>Whether this role applies to the stack.</summary>
     public abstract bool Covers(Stack stack);
@@ -83,6 +92,8 @@ public sealed class StackRoleAssignment : RoleAssignment
     public EnvironmentId EnvironmentId { get; private init; }
 
     public override bool Covers(Stack stack) => stack.Id == StackId;
+
+    protected override Role EnsureAllowed(Role role) => EnsureOnStack(role);
 
     public override bool CoversWholeEnvironment(EnvironmentId environmentId) => false;
 

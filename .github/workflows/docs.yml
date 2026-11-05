@@ -2,6 +2,7 @@ name: Docs
 
 # Builds the DocFX site (docfx.json): project docs and the API reference from XML comments.
 # Pull requests only check that it builds; main publishes it to GitHub Pages.
+# The check job runs what DocFX does not check: scripts/check-docs.
 on:
   pull_request:
   push:
@@ -16,6 +17,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check:
+    name: Check documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: src/Web/.nvmrc
+
+      - name: Install tools
+        run: npm ci
+        working-directory: scripts/check-docs
+
+      - name: Check Mermaid diagrams, names from the code and the size of CLAUDE.md
+        run: npm run check
+        working-directory: scripts/check-docs
+
   build:
     name: Build documentation
     runs-on: ubuntu-latest

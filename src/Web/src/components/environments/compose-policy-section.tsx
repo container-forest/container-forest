@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { useUpdateComposePolicyMutation } from "@/api/policy";
+import { useSetStackPolicyAllowancesMutation, useUpdateComposePolicyMutation } from "@/api/policy";
+import { AllowanceList } from "@/components/compose-policy/allowance-list";
 import { composePolicyQuery, composePolicyReportQuery } from "@/api/queries";
 import { ErrorText, FieldError } from "@/components/form-messages";
 import { Loader2Icon } from "@/components/icons";
@@ -15,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   type ComposePolicy,
   type PolicyForm,
+  type StackPolicyReport,
   formOf,
   parseLines,
   policyModes,
@@ -49,11 +51,13 @@ export function ComposePolicySection({ environmentId }: { environmentId: string 
       ) : policy.isError ? (
         <ErrorText>{t("composePolicy.loadFailed")}</ErrorText>
       ) : (
-        // A new form per saved version: the fields start from what the aggregator stored.
-        <PolicyEditor key={JSON.stringify(policy.data)} environmentId={environmentId} policy={policy.data} />
+        <>
+          {/* A new form per saved version: the fields start from what the aggregator stored. */}
+          <PolicyEditor key={JSON.stringify(policy.data)} environmentId={environmentId} policy={policy.data} />
+          <EnvironmentAllowances environmentId={environmentId} policy={policy.data} />
+          <PolicyReport environmentId={environmentId} policy={policy.data} />
+        </>
       )}
-
-      <PolicyReport environmentId={environmentId} />
     </section>
   );
 }
@@ -80,7 +84,7 @@ function PolicyEditor({ environmentId, policy }: { environmentId: string; policy
         mode: form.mode,
         dataRoot: form.dataRoot.trim(),
         systemReadOnlyPaths: parseLines(form.systemReadOnlyPaths),
-        allowances: parseLines(form.allowances),
+        allowances: policy.allowances,
       },
       { onSuccess: () => setSaved(true) },
     );
@@ -138,20 +142,6 @@ function PolicyEditor({ environmentId, policy }: { environmentId: string; policy
         <FieldError id="policy-system-paths-error" message={errors.systemReadOnlyPaths?.message} />
       </div>
 
-      <div className="grid gap-2">
-        <Label htmlFor="policy-allowances">{t("composePolicy.allowances")}</Label>
-        <textarea
-          id="policy-allowances"
-          className={linesClass}
-          disabled={readOnly}
-          spellCheck={false}
-          aria-invalid={errors.allowances ? true : undefined}
-          {...register("allowances")}
-        />
-        <p className="text-muted-foreground text-sm">{t("composePolicy.allowancesHint")}</p>
-        <FieldError id="policy-allowances-error" message={errors.allowances?.message} />
-      </div>
-
       <details className="text-sm">
         <summary className="cursor-pointer font-medium">{t("composePolicy.protectedPaths")}</summary>
         <p className="text-muted-foreground mt-2">{t("composePolicy.protectedPathsHint")}</p>
@@ -180,7 +170,44 @@ function PolicyEditor({ environmentId, policy }: { environmentId: string; policy
   );
 }
 
-function PolicyReport({ environmentId }: { environmentId: string }) {
+/** The environment's allowances, for every stack; each change is saved at once with the stored policy. */
+function EnvironmentAllowances({ environmentId, policy }: { environmentId: string; policy: ComposePolicy }) {
+  const { t } = useTranslation();
+  const update = useUpdateComposePolicyMutation(environmentId);
+  const error = update.error ? describeError(update.error) : undefined;
+
+  return (
+    <div className="grid gap-3 border-t pt-4">
+      <div>
+        <h3 className="font-medium">{t("composePolicy.allowances")}</h3>
+        <p className="text-muted-foreground text-sm">{t("composePolicy.allowancesHint")}</p>
+      </div>
+      <AllowanceList
+        allowances={policy.allowances}
+        protectedPaths={policy.protectedPaths}
+        canChange={policy.canChange}
+        pending={update.isPending}
+        onChange={(allowances) => update.mutate({ ...requestOf(policy), allowances })}
+      />
+      {error && (
+        <ErrorText>
+          {t("allowances.failed")} {t(error.key)} {error.detail}
+        </ErrorText>
+      )}
+    </div>
+  );
+}
+
+function requestOf(policy: ComposePolicy) {
+  return {
+    mode: policy.mode,
+    dataRoot: policy.dataRoot,
+    systemReadOnlyPaths: policy.systemReadOnlyPaths,
+    allowances: policy.allowances,
+  };
+}
+
+function PolicyReport({ environmentId, policy }: { environmentId: string; policy: ComposePolicy }) {
   const { t } = useTranslation();
   const report = useQuery(composePolicyReportQuery(environmentId));
 
@@ -197,40 +224,90 @@ function PolicyReport({ environmentId }: { environmentId: string }) {
       ) : report.data.length === 0 ? (
         <p className="text-muted-foreground text-sm">{t("composePolicy.report.empty")}</p>
       ) : (
-        <ul className="grid gap-3">
+        <ul className="grid gap-4">
           {sortReport(report.data).map((row) => (
-            <li key={row.stackId} className="grid gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{row.stackName}</span>
-                {!row.checked ? (
-                  <Badge variant="outline">{t("composePolicy.report.notChecked")}</Badge>
-                ) : row.violations.length === 0 ? (
-                  <Badge variant="secondary">{t("composePolicy.report.passes")}</Badge>
+            <ReportRow key={row.stackId} environmentId={environmentId} policy={policy} row={row} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** One stack of the report, with "Allow" next to each violation that an allowance lifts. */
+function ReportRow({ environmentId, policy, row }: { environmentId: string; policy: ComposePolicy; row: StackPolicyReport }) {
+  const { t } = useTranslation();
+  const forStack = useSetStackPolicyAllowancesMutation(row.stackId);
+  const forEnvironment = useUpdateComposePolicyMutation(environmentId);
+  const pending = forStack.isPending || forEnvironment.isPending;
+  const error = forStack.error ?? forEnvironment.error;
+  const failure = error ? describeError(error) : undefined;
+
+  return (
+    <li className="grid gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium">{row.stackName}</span>
+        {row.unrestricted && <Badge variant="destructive">{t("composePolicy.report.unrestricted")}</Badge>}
+        {!row.checked ? (
+          <Badge variant="outline">{t("composePolicy.report.notChecked")}</Badge>
+        ) : row.violations.length === 0 ? (
+          <Badge variant="secondary">{t("composePolicy.report.passes")}</Badge>
+        ) : (
+          <Badge variant={row.unrestricted ? "outline" : "destructive"}>
+            {t("composePolicy.report.violations", { count: row.violations.length })}
+          </Badge>
+        )}
+      </div>
+      {row.violations.length > 0 && (
+        <ul className="grid gap-2 sm:ml-4">
+          {row.violations.map((violation, index) => (
+            <li key={index} className="grid gap-1 text-sm">
+              <span className="text-muted-foreground">
+                {violation.service && <span className="font-mono">{violation.service}: </span>}
+                {violation.message}
+              </span>
+              {violation.allowance ? (
+                policy.canChange && !row.unrestricted ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={pending}
+                      onClick={() => forStack.mutate([...row.allowances, violation.allowance!])}
+                    >
+                      {t("allowances.allowForStack")}
+                    </Button>
+                    {!violation.stackOnly && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={pending}
+                        onClick={() =>
+                          forEnvironment.mutate({ ...requestOf(policy), allowances: [...policy.allowances, violation.allowance!] })
+                        }
+                      >
+                        {t("allowances.allowForEnvironment")}
+                      </Button>
+                    )}
+                    <span className="text-muted-foreground font-mono text-xs">{violation.allowance}</span>
+                  </div>
                 ) : (
-                  <Badge variant="destructive">{t("composePolicy.report.violations", { count: row.violations.length })}</Badge>
-                )}
-              </div>
-              {row.violations.length > 0 && (
-                <ul className="text-muted-foreground ml-4 list-disc text-sm">
-                  {row.violations.map((violation, index) => (
-                    <li key={index}>
-                      {violation.service && <span className="font-mono">{violation.service}: </span>}
-                      {violation.message}{" "}
-                      <span className="font-mono">
-                        (
-                        {violation.allowance
-                          ? t("composePolicy.report.allowance", { allowance: violation.allowance })
-                          : t("composePolicy.report.noAllowance")}
-                        )
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                  <span className="text-muted-foreground font-mono text-xs">
+                    {t("composePolicy.report.allowance", { allowance: violation.allowance })}
+                  </span>
+                )
+              ) : (
+                <span className="text-muted-foreground text-xs">{t("composePolicy.report.noAllowance")}</span>
               )}
             </li>
           ))}
         </ul>
       )}
-    </div>
+      {failure && (
+        <ErrorText>
+          {t("allowances.failed")} {t(failure.key)} {failure.detail}
+        </ErrorText>
+      )}
+    </li>
   );
 }

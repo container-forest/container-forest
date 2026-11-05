@@ -99,8 +99,8 @@ function StackScreen() {
       <StackContainersCard stack={stack} />
       <SourceCard key={`${stack.repositoryId}/${stack.branch}/${stack.composePath}`} stack={stack} />
       {stack.canDeploy && !stack.isSystem && <EndorsementCard stack={stack} />}
-      {!stack.isSystem && (stack.canAdministerEnvironment || stack.policyAllowances.length > 0) && (
-        <PolicyAllowancesCard key={stack.policyAllowances.join("\n")} stack={stack} />
+      {!stack.isSystem && (stack.canAdministerEnvironment || stack.policyAllowances.length > 0 || stack.policyUnrestricted) && (
+        <PolicyAllowancesCard stack={stack} />
       )}
       {stack.canDeploy && !stack.isSystem && <DeployOnPushCard stack={stack} />}
       {stack.canDeploy && !stack.isSystem && <RestartOnFileChangeCard stack={stack} />}

@@ -35,3 +35,20 @@ export function useSetStackPolicyAllowancesMutation(stackId: string) {
     },
   });
 }
+
+/** Takes the stack out of the compose policy or puts it back. */
+export function useSetStackPolicyUnrestrictedMutation(stackId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (enabled: boolean) =>
+      unwrap(await api.PUT("/api/stacks/{id}/policy-unrestricted", { params: { path: { id: stackId } }, body: { enabled } })),
+    onSuccess: (stack) => {
+      queryClient.setQueryData(stackQuery(stackId).queryKey, stack);
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: stacksQuery(stack.environmentId).queryKey }),
+        queryClient.invalidateQueries({ queryKey: composePolicyQuery(stack.environmentId).queryKey }),
+      ]);
+    },
+  });
+}

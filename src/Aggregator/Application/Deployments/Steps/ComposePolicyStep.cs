@@ -70,7 +70,7 @@ public sealed class ComposePolicyStep(
                     : $"Audit mode: {evaluation.Violations.Count} violation(s) would fail the deployment under Enforce.");
             if (policy.Mode == ComposePolicyMode.Enforce && exemptBy is null)
             {
-                context.Bundle = context.Bundle with { VerifyPaths = PathsToVerify(facts, policy) };
+                context.Bundle = context.Bundle with { VerifyPaths = PathsToVerify(facts, policy, context.Stack) };
             }
 
             return;
@@ -146,8 +146,11 @@ public sealed class ComposePolicyStep(
         return EnvironmentAdministration.CanAdminister(user, context.Environment, assignments) ? user.UserName : null;
     }
 
-    /// <summary>Every host path mounted, except the read-only system paths, which are links themselves at times.</summary>
-    private static IReadOnlyList<string> PathsToVerify(ComposeFacts facts, ComposePolicy policy) =>
+    /// <summary>
+    /// The host paths mounted where a container could have left a symbolic link (<see cref="ComposePolicyEvaluator.IsContainerWritable"/>):
+    /// links elsewhere, such as /var/run → /run, belong to the host.
+    /// </summary>
+    private static IReadOnlyList<string> PathsToVerify(ComposeFacts facts, ComposePolicy policy, Domain.Stacks.Stack stack) =>
         facts.Services
             .SelectMany(s => s.Mounts)
             .Where(m => m.Type == "bind" && m.Source is not null)
@@ -156,6 +159,7 @@ public sealed class ComposePolicyStep(
             .Select(HostPath.TryNormalize)
             .OfType<string>()
             .Where(p => !policy.SystemReadOnlyPaths.Any(system => HostPath.IsAtOrUnder(p, system)))
+            .Where(p => ComposePolicyEvaluator.IsContainerWritable(p, facts, policy, stack.Name.Value, stack.PolicyAllowances))
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToList();

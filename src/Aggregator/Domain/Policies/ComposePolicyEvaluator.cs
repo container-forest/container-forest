@@ -154,9 +154,13 @@ public static class ComposePolicyEvaluator
             context.Require(name, $"sets the reserved label '{label}'", PolicyAllowance.Of(PolicyAllowance.Label, label));
         }
 
-        if (service.ContainerName is { } containerName && !containerName.StartsWith(context.StackName + "-", StringComparison.Ordinal))
+        // The stack's own name or a name under it cannot take another stack's: theirs start with their own name and '-'.
+        if (service.ContainerName is { } containerName
+            && containerName != context.StackName
+            && !containerName.StartsWith(context.StackName + "-", StringComparison.Ordinal))
         {
-            context.Require(name, $"is named '{containerName}', not '{context.StackName}-…'", PolicyAllowance.Flag(PolicyAllowance.ContainerName));
+            context.Require(
+                name, $"is named '{containerName}', not '{context.StackName}' or '{context.StackName}-…'", PolicyAllowance.Flag(PolicyAllowance.ContainerName));
         }
 
         foreach (var key in service.UnknownKeys)
@@ -187,6 +191,7 @@ public static class ComposePolicyEvaluator
             CheckHostPath(context, null, file, readOnly: true, writable);
         }
 
+        var stackAllowances = context.StackAllowances;
         foreach (var inspected in context.Facts.InspectedMounts)
         {
             if (context.IsSystemPath(inspected.Path))
@@ -196,6 +201,12 @@ public static class ComposePolicyEvaluator
 
             if (inspected.Link is { } link)
             {
+                // A link only root on the host could have made, such as /var/run → /run, is part of the host, not a trap.
+                if (!IsContainerWritable(link, context.Facts, context.Policy, context.StackName, stackAllowances))
+                {
+                    continue;
+                }
+
                 context.Forbid(null, $"mount source '{inspected.Path}' goes through the symbolic link '{link}'");
             }
             else
@@ -203,6 +214,27 @@ public static class ComposePolicyEvaluator
                 context.Forbid(null, $"the agent cannot check mount source '{inspected.Path}'; mount the host's root into the agent (CF_AGENT__HOSTROOT)");
             }
         }
+    }
+
+    /// <summary>
+    /// Whether a container may write at <paramref name="path"/>, so it could have put a symbolic link there: the stack's
+    /// directory, the data root, a writable bind mount of this stack, or a writable path an allowance opens. Anything
+    /// else only root on the host changes. Writable paths other stacks got through their own allowances are not known
+    /// here; keep such allowances for the environment, where every stack sees them.
+    /// </summary>
+    public static bool IsContainerWritable(
+        string path, ComposeFacts facts, ComposePolicy policy, string stackName, IEnumerable<string> stackAllowances)
+    {
+        var roots = new List<string> { facts.StackDirectory, policy.DataRoot };
+        roots.AddRange(facts.Services
+            .SelectMany(s => s.Mounts)
+            .Where(m => m.Type == "bind" && !m.ReadOnly && m.Source is not null)
+            .Select(m => HostPath.TryNormalize(m.Source!))
+            .OfType<string>());
+        roots.AddRange(policy.ParsedAllowances.Concat(stackAllowances.Select(PolicyAllowance.Parse))
+            .Where(a => a.Kind == PolicyAllowance.PathReadWrite)
+            .Select(a => a.Argument!));
+        return roots.Any(root => root != "/" && HostPath.IsAtOrUnder(path, root));
     }
 
     private static void CheckHostPath(Context context, string? service, string source, bool readOnly, IReadOnlySet<string> writable)
@@ -291,6 +323,8 @@ public static class ComposePolicyEvaluator
 
     private sealed class Context(ComposeFacts facts, ComposePolicy policy, string stackName, IReadOnlyList<PolicyAllowance> stackAllowances)
     {
+        public IEnumerable<string> StackAllowances => stackAllowances.Select(a => a.Value);
+
         private readonly IReadOnlyList<PolicyAllowance> environmentAllowances = policy.ParsedAllowances.ToList();
 
         public ComposeFacts Facts { get; } = facts;

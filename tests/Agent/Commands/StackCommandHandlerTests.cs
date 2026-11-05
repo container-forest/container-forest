@@ -108,6 +108,23 @@ public sealed class StackCommandHandlerTests : IDisposable
         Assert.Empty(compose.Runs);
     }
 
+    [Fact]
+    public async Task Deploy_accepts_the_link_it_writes_for_a_secret_file_as_a_mount_source()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var command = DeployCommand();
+        command.VerifyPaths.Add(Path.Combine(options.StacksRoot, "web", "secrets", "db_password"));
+
+        var result = await Deploy().HandleAsync(Message(command), progress, Ct);
+
+        Assert.Null(result.Error);
+        Assert.Single(compose.Runs);
+    }
+
     [Theory]
     [InlineData("relative/path")]
     [InlineData("/opt/../etc")]

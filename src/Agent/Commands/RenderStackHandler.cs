@@ -62,9 +62,10 @@ public sealed class RenderStackHandler(
             StackDirectory = stackDirectory,
             AgentDirectories = { options.Value.DataDirectory, options.Value.StacksRoot, options.Value.SecretsDirectory },
         };
+        var secretLinks = inspector.SecretLinks(layout);
         foreach (var source in model.MountSources())
         {
-            if (inspector.Inspect(source) is { } problem)
+            if (inspector.Inspect(source, secretLinks) is { } problem)
             {
                 rendered.InspectedPaths.Add(new InspectedPath { Path = problem.Path, Link = problem.Link ?? "", Unchecked = problem.Link is null });
             }

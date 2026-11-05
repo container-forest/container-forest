@@ -16,7 +16,11 @@ public sealed class HostPathInspector(IOptions<AgentOptions> options)
 {
     /// <summary>What was found on the way to <paramref name="hostPath"/>; null when nothing is wrong with it.</summary>
     /// <param name="hostPath">An absolute, normalized path on the host.</param>
-    public PathProblem? Inspect(string hostPath)
+    /// <param name="agentLinks">
+    /// The links the agent itself puts in the stack directory for the bundle's secret files (<see cref="SecretLinks"/>):
+    /// such a link pointing exactly where the agent points it is not a trap.
+    /// </param>
+    public PathProblem? Inspect(string hostPath, IReadOnlyDictionary<string, string>? agentLinks = null)
     {
         if (OperatingSystem.IsWindows())
         {
@@ -36,8 +40,14 @@ public sealed class HostPathInspector(IOptions<AgentOptions> options)
         {
             current += "/" + segment;
             var seen = View(current);
-            if (new FileInfo(seen).LinkTarget is not null)
+            if (new FileInfo(seen).LinkTarget is { } target)
             {
+                // A secret file's link is the last component: it points at a file on the agent's tmpfs.
+                if (agentLinks is not null && agentLinks.TryGetValue(current, out var expected) && target == expected)
+                {
+                    break;
+                }
+
                 return new PathProblem(hostPath, current);
             }
 
@@ -76,6 +86,27 @@ public sealed class HostPathInspector(IOptions<AgentOptions> options)
 
     private static bool IsUnder(string path, string directory) =>
         path == directory || path.StartsWith(directory + "/", StringComparison.Ordinal);
+
+    /// <summary>
+    /// The links <see cref="StackFileStore"/> puts in the stack directory for the secret files of
+    /// <paramref name="layout"/>: host path of the link → its target on the secrets tmpfs. Empty on Windows, where secret
+    /// files are written into the stack directory.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> SecretLinks(StackLayout layout)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return new Dictionary<string, string>();
+        }
+
+        var settings = options.Value;
+        var stackDirectory = Path.Combine(settings.StacksRoot, layout.StackName);
+        var secrets = Path.Combine(settings.SecretsDirectory, layout.StackName);
+        return layout.SecretFiles.ToDictionary(
+            f => StackLayout.ResolveIn(stackDirectory, f.Path),
+            f => StackLayout.ResolveIn(secrets, f.Path),
+            StringComparer.Ordinal);
+    }
 
     /// <summary>Checks that a path from the aggregator is one this class can inspect without surprises.</summary>
     public static bool IsAcceptable(string path) =>

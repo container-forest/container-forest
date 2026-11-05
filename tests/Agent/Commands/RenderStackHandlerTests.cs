@@ -123,6 +123,53 @@ public sealed class RenderStackHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task The_agents_own_link_for_a_secret_file_is_not_reported_but_a_replaced_one_is()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        // As the previous deploy left it: the stack directory links each secret file to the tmpfs.
+        var stack = Path.Combine(options.StacksRoot, "web");
+        var link = Path.Combine(stack, "secrets", "db_password");
+        var other = Path.Combine(stack, "secrets", "other");
+        Directory.CreateDirectory(Path.GetDirectoryName(link)!);
+        File.CreateSymbolicLink(link, Path.Combine(options.SecretsDirectory, "web", "secrets", "db_password"));
+        File.CreateSymbolicLink(other, "/etc/shadow");
+        compose.Captured = """
+            {"services":{"web":{"volumes":[
+              {"type":"bind","source":"LINK","target":"/run/secrets/db","read_only":true},
+              {"type":"bind","source":"OTHER","target":"/run/secrets/other","read_only":true}]}}}
+            """.Replace("LINK", link, StringComparison.Ordinal).Replace("OTHER", other, StringComparison.Ordinal);
+
+        var result = await Handler().HandleAsync(Message(Command()), progress, Ct);
+
+        var path = Assert.Single(result.RenderedStack.InspectedPaths);
+        Assert.Equal((other, other), (path.Path, path.Link));
+    }
+
+    [Fact]
+    public async Task A_secret_files_link_pointing_elsewhere_is_reported()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var link = Path.Combine(options.StacksRoot, "web", "secrets", "db_password");
+        Directory.CreateDirectory(Path.GetDirectoryName(link)!);
+        File.CreateSymbolicLink(link, "/etc/shadow");
+        compose.Captured = """
+            {"services":{"web":{"volumes":[{"type":"bind","source":"LINK","target":"/run/secrets/db","read_only":true}]}}}
+            """.Replace("LINK", link, StringComparison.Ordinal);
+
+        var result = await Handler().HandleAsync(Message(Command()), progress, Ct);
+
+        Assert.Equal(link, Assert.Single(result.RenderedStack.InspectedPaths).Link);
+    }
+
+    [Fact]
     public async Task Output_that_is_not_json_fails_the_command_and_still_removes_the_directory()
     {
         compose.Captured = "not json";

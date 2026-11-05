@@ -7,8 +7,13 @@ export function useCreateAgeKeyMutation(environmentId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async () =>
-      unwrap(await api.POST("/api/environments/{id}/age-keys", { params: { path: { id: environmentId } } })),
+    // A stack's own key (ADR-0012) with a stack id, the environment's key without one.
+    mutationFn: async (stackId: string | null = null) =>
+      unwrap(
+        await api.POST("/api/environments/{id}/age-keys", {
+          params: { path: { id: environmentId }, query: stackId ? { stackId } : {} },
+        }),
+      ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ageKeysQuery(environmentId).queryKey }),
   });
 }

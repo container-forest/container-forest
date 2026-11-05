@@ -31,6 +31,7 @@ import {
   Trash2Icon,
 } from "@/components/icons";
 import { DeployHookCard } from "@/components/stacks/deploy-hook-card";
+import { PolicyAllowancesCard } from "@/components/stacks/policy-allowances-card";
 import { DeploymentStatusBadge } from "@/components/stacks/deployment-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,9 @@ function StackScreen() {
       <StackContainersCard stack={stack} />
       <SourceCard key={`${stack.repositoryId}/${stack.branch}/${stack.composePath}`} stack={stack} />
       {stack.canDeploy && !stack.isSystem && <EndorsementCard stack={stack} />}
+      {!stack.isSystem && (stack.canAdministerEnvironment || stack.policyAllowances.length > 0) && (
+        <PolicyAllowancesCard key={stack.policyAllowances.join("\n")} stack={stack} />
+      )}
       {stack.canDeploy && !stack.isSystem && <DeployOnPushCard stack={stack} />}
       {stack.canDeploy && !stack.isSystem && <RestartOnFileChangeCard stack={stack} />}
       {stack.canDeploy && !stack.isSystem && <DeployHookCard stack={stack} />}

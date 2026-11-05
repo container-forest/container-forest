@@ -973,6 +973,16 @@ const en: Translation = {
       deployed: "The stack is deployed: take it down first, so that its containers are not left without a stack.",
       failed: "Could not remove the stack.",
     },
+    policy: {
+      title: "Compose policy allowances",
+      description: "What this stack may do beyond the environment's policy. An allowance can give the stack root on the host: grant it knowingly.",
+      label: "Allowances, one per line",
+      hint: "Such as docker-socket, privileged, port:443, or path:/var/lib/docker with the exact path of a protected directory. A failed deployment names the allowance that lifts it.",
+      save: "Save allowances",
+      saved: "Allowances saved.",
+      failed: "Could not save the allowances.",
+      none: "No allowances.",
+    },
     endorsement: {
       title: "Content endorsement",
       description:
@@ -1141,7 +1151,15 @@ const en: Translation = {
     deleteDescription:
       "Files encrypted only for {{recipient}} can no longer be decrypted, and deployments with them will fail. The private key cannot be recovered.",
     deleteFailed: "Could not delete the key.",
+    wholeEnvironment: "Whole environment",
+    stackKey: {
+      title: "A key of one stack",
+      description: "Secrets encrypted for a stack's key are decrypted only by that stack's deployments and by those who may deploy it. They are truly isolated only under the compose policy in Enforce mode. The .sops.yaml rule: forest secrets rule add <path>=<environment>/<stack>.",
+      stack: "Stack",
+      create: "Create stack key",
+    },
     columns: {
+      scope: "Scope",
       recipient: "Public key",
       createdAt: "Created",
       actions: "Actions",

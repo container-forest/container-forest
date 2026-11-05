@@ -61,11 +61,13 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       # The signature tests run the real ssh-keygen, which ubuntu-latest has; with CF_TEST_REQUIRE_SSH_KEYGEN they fail instead of skipping.
+      # The agent's render tests run the real `docker compose config`, which ubuntu-latest has as well (CF_TEST_REQUIRE_DOCKER_COMPOSE).
       - name: Test
         run: dotnet test --solution ContainerForest.slnx --no-build
         env:
           CF_TEST_REQUIRE_SOPS: 1
           CF_TEST_REQUIRE_SSH_KEYGEN: 1
+          CF_TEST_REQUIRE_DOCKER_COMPOSE: 1
 
   web:
     name: Build (web)

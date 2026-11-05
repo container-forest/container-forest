@@ -50,6 +50,7 @@ message ControllerMessage {
     DownStack           down_stack            = 16;
     StreamContainerLogs stream_container_logs = 17;
     CancelRequest       cancel_request        = 18;
+    RenderStack         render_stack          = 19;
   }
 }
 
@@ -127,6 +128,7 @@ message CommandResult {
   // 3-9 are kept for fields shared by all results.
   oneof payload {
     ContainerList containers = 10;
+    RenderedStack rendered_stack = 11;
   }
 }
 
@@ -184,6 +186,43 @@ message DeployStack {
   // containers read bind-mounted files such as configuration when they start, and compose recreates a container
   // only when its definition changes. An agent without this field just never restarts.
   bool restart_on_file_change = 7;
+  // Pass compose the bundle's .env with --env-file, or an empty file when the bundle has none, as RenderStack does:
+  // a .env that something else put into the stack directory must not change what compose interpolates (ADR-0012).
+  bool explicit_env_file = 8;
+  // Absolute host paths of bind-mount sources. Right before compose up the agent fails the command with
+  // ERROR_CODE_COMMAND_FAILED when one of them goes through a symbolic link or cannot be inspected.
+  repeated string verify_paths = 9;
+}
+
+// Renders the bundle with `docker compose config --format json` in a throwaway directory on tmpfs, with the same files,
+// variables and --env-file as DeployStack with explicit_env_file, so the aggregator can check the stack against its
+// compose policy before deploying it (ADR-0012). Nothing in the stack directory changes. The result carries
+// RenderedStack; an agent without this command answers ERROR_CODE_UNSUPPORTED.
+message RenderStack {
+  string stack_name = 1;
+  repeated StackFile files = 2;
+  map<string, string> env = 3;
+}
+
+// model_json is compose's normalized model with paths of the throwaway directory turned into the stack directory's,
+// and without what may hold secrets and is not needed for the policy: environment, command, entrypoint, healthcheck,
+// label values, inline content of secrets and configs, x-* extensions.
+message RenderedStack {
+  string model_json = 1;
+  // Bind-mount sources of the model whose path goes through a symbolic link, or which the agent cannot inspect.
+  repeated InspectedPath inspected_paths = 2;
+  // The stack's directory on the host, which relative paths of the compose file resolve to.
+  string stack_directory = 3;
+  // The agent's own directories on the host (its data, all stacks, the secrets tmpfs): no stack may mount them.
+  repeated string agent_directories = 4;
+}
+
+// link is the first component of path that is a symbolic link; empty when the agent cannot see the path at all
+// (unchecked), for example outside its own directories without the host root mounted.
+message InspectedPath {
+  string path = 1;
+  string link = 2;
+  bool unchecked = 3;
 }
 
 // path is relative to the stack directory. A secret file is written to the tmpfs secrets directory

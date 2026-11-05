@@ -113,7 +113,13 @@ public class CancellationTests
         var locks = new StackLocks();
         var options = Options.Create(new AgentOptions { SecretsDirectory = Path.Combine(Path.GetTempPath(), "cf-cancel-test") });
         var deploy = new DeployStackHandler(
-            store, compose, new RegistryConfigWriter(options, NullLogger<RegistryConfigWriter>.Instance), locks, options, NullLogger<DeployStackHandler>.Instance);
+            store,
+            compose,
+            new RegistryConfigWriter(options, NullLogger<RegistryConfigWriter>.Instance),
+            new HostPathInspector(options),
+            locks,
+            options,
+            NullLogger<DeployStackHandler>.Instance);
         var deployDispatcher = new CommandDispatcher([deploy], NullLogger<CommandDispatcher>.Instance);
 
         var command = deployDispatcher.DispatchAsync(DeployMessage("r1"), new RecordingProgress(), Ct);

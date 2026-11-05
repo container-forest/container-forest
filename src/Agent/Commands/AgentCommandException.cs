@@ -75,3 +75,13 @@ public sealed class StackFileConflictException(string path, string reason)
 {
     public string Path { get; } = path;
 }
+
+public sealed class ComposeOutputTooLargeException(string operation, int maxBytes)
+    : AgentCommandException(ErrorCode.CommandFailed, $"{operation} printed more than {maxBytes / 1024} KiB; the stack is too large to check.")
+{
+    public int MaxBytes { get; } = maxBytes;
+}
+
+/// <summary>A bind-mount source of a stack under the compose policy goes through a symbolic link, or cannot be checked (ADR-0012).</summary>
+public sealed class UnsafeMountSourceException(string message)
+    : AgentCommandException(ErrorCode.CommandFailed, message);

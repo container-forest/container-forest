@@ -335,6 +335,24 @@ internal sealed class FakeComposeRunner : IComposeRunner
             throw failure;
         }
     }
+
+    /// <summary>What <see cref="CaptureAsync"/> returns as compose's standard output.</summary>
+    public string Captured { get; set; } = "{}";
+
+    /// <summary>The files of the run's directory while compose ran: relative path → content.</summary>
+    public Dictionary<string, string> FilesDuringCapture { get; } = [];
+
+    public async Task<string> CaptureAsync(
+        ComposeInvocation invocation, ICommandProgress progress, int maxOutputBytes, CancellationToken cancellationToken)
+    {
+        foreach (var file in Directory.EnumerateFiles(invocation.WorkingDirectory, "*", SearchOption.AllDirectories))
+        {
+            FilesDuringCapture[Path.GetRelativePath(invocation.WorkingDirectory, file).Replace('\\', '/')] = await File.ReadAllTextAsync(file, cancellationToken);
+        }
+
+        await RunAsync(invocation, progress, cancellationToken);
+        return Captured.Replace("$DIR", invocation.WorkingDirectory.Replace('\\', '/'), StringComparison.Ordinal);
+    }
 }
 
 /// <summary>Keeps written layouts in memory and records the secret clean-ups.</summary>

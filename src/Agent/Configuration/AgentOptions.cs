@@ -27,6 +27,13 @@ public sealed class AgentOptions
     /// </summary>
     public string SecretsDirectory { get; set; } = "/run/container-forest";
 
+    /// <summary>
+    /// The host's root directory mounted read-only into the agent's container (deploy/agent/compose.yaml: /:/host:ro,rslave),
+    /// so the agent can check bind-mount sources anywhere on the host for symbolic links (ADR-0012). Null when not
+    /// mounted: then only paths in the agent's own directories, which are mounted at the same path, can be checked.
+    /// </summary>
+    public string? HostRoot { get; set; }
+
     /// <summary>The docker CLI with the compose plugin; a name is looked up in PATH.</summary>
     public string DockerExecutable { get; set; } = "docker";
 
@@ -49,6 +56,7 @@ public sealed class AgentOptions
         && !string.IsNullOrWhiteSpace(DataDirectory)
         && Path.IsPathFullyQualified(StacksRoot)
         && (OperatingSystem.IsWindows() || Path.IsPathFullyQualified(SecretsDirectory))
+        && (HostRoot is null || Path.IsPathFullyQualified(HostRoot))
         && !string.IsNullOrWhiteSpace(DockerExecutable)
         && ComposeTimeout > TimeSpan.Zero
         && HeartbeatInterval > TimeSpan.Zero;

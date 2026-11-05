@@ -1,19 +1,60 @@
 # Середовища, контейнери й логи
 
-Шляхи `Domain/…`, `Application/…`, `Infrastructure/…`, `Api/…` — відносно `src/Aggregator`, шляхи панелі (`src/features/…`, `src/components/…`) — відносно `src/Web`.
+Шляхи ЦА відносно `src/Aggregator`.
 
-## Доступ і команди
+## Доступ
 
-- Середовища створюють і видаляють лише адміністратори; enrollment-токени видають, агента відкликають і середовище змінюють адміністратор або адміністратор середовища (ADR-0012). Списки середовищ і контейнерів фільтруються за `AccessPolicy`; недоступне середовище — 404, а не 403, і до агента запит не йде.
-- Контейнер із запиту шукається `ContainerLookup` як у docker CLI: повний id, потім точне ім'я, потім унікальний префікс id (неоднозначний префікс — 409).
-- Дії з контейнерами йдуть лише через `ContainerCommandService`: (1) середовище, яке користувач не бачить, — 404 ще до звернення до агента, щоб не розкривати його існування; (2) `ListContainers` дає стан і мітку стеку; (3) `AuthorizedCommand` перевіряє право на стеку, а для контейнерів поза керованими стеками — на середовищі; (4) `ContainerCommand` перевіряє стан і надсилає команду. Контейнери системних стеків можна лише запускати: stop/restart обірвали б з'єднання, яким іде команда. Так само — контейнери з міткою `com.container-forest.system: "true"` (ЦА, Caddy панелі, агент у `deploy/*.yaml`): їх розгортають вручну, тож запису `Stack` для них немає, і мітка — єдиний спосіб їх упізнати. Агент передає її в `ContainerInfo.system` (`ContainerInfoMapper.SystemLabel`), ЦА — у `ContainerSnapshot.IsSystem`; `ContainerCommand` відмовляє (409) до звернення до агента, а `ContainerResponse.isSystem` (мітка або системний стек) ховає кнопки в панелі. Бот не показує кнопки «Restart» під сповіщеннями про такі контейнери (`ContainerDetails.system`), а на `/stop` чи `/restart` отримає `FAILED_PRECONDITION`.
-- Результат команди від агента приходить у `AgentSession.Complete` за `request_id`, прогрес (`CommandProgress`) — у колбек `onProgress`, пакети логів (`LogBatch`) — у колбек `onLogs` того самого запиту. `ContainerEvent` іде в `ContainerEventCoalescer`: не частіше одного `ContainersChanged` на середовище за 500 мс (`compose up` дає create і start кожного контейнера, а кожне перечитування — це `ListContainers` на агенті). Вміст події (дія, стан контейнера) бере `ContainerIncidentWatch` для сповіщень.
+- **Середовища** створюють і видаляють лише адміністратори. Enrollment-токени видають, агента відкликають і середовище змінюють адміністратор або адміністратор середовища (ADR-0012).
+- **Видимість:** списки середовищ і контейнерів фільтруються за `AccessPolicy`. Недоступне середовище — 404, а не 403, і до агента запит не йде.
+- **Пошук контейнера** (`ContainerLookup`) — як у docker CLI: повний id, потім точне ім'я, потім унікальний префікс id (неоднозначний префікс — 409).
+
+## Дії з контейнерами
+
+Йдуть лише через `ContainerCommandService`:
+
+1. Середовище, яке користувач не бачить, — 404 ще до звернення до агента, щоб не розкривати його існування.
+2. `ListContainers` дає стан і мітку стеку.
+3. `AuthorizedCommand` перевіряє право на стеку, а для контейнерів поза керованими стеками — на середовищі.
+4. `ContainerCommand` перевіряє стан і надсилає команду.
+
+**Системні контейнери можна лише запускати:** stop/restart обірвали б з'єднання, яким іде команда. Це контейнери системних стеків і контейнери з міткою `com.container-forest.system: "true"` (ЦА, Caddy панелі, агент у `deploy/*.yaml`). Останні розгортають вручну, запису `Stack` для них немає, тож мітка — єдиний спосіб їх упізнати.
+
+- Агент передає мітку в `ContainerInfo.system` (`ContainerInfoMapper.SystemLabel`), ЦА — у `ContainerSnapshot.IsSystem`.
+- `ContainerCommand` відмовляє (409) до звернення до агента.
+- `ContainerResponse.isSystem` (мітка або системний стек) ховає кнопки в панелі.
+- Бот не показує кнопки «Restart» під сповіщеннями про такі контейнери (`ContainerDetails.system`), а на `/stop` чи `/restart` отримає `FAILED_PRECONDITION`.
+
+**Відповіді агента:** результат команди приходить в `AgentSession.Complete` за `request_id`, прогрес (`CommandProgress`) — у колбек `onProgress`, пакети логів (`LogBatch`) — у колбек `onLogs` того самого запиту.
 
 ## Події контейнерів
 
-- **Події контейнерів на агенті:** `ContainerEventForwarder` поки жива сесія читає потік подій Docker (`IDockerGateway.WatchContainerEventsAsync`: `System.MonitorEventsAsync` з фільтром `type=container`, через `Channel`, щоб зберегти порядок) і надсилає `ContainerEvent` зі станом контейнера після події (`FindContainerAsync`; для `destroy` — без нього, а невдалий пошук не скасовує події) і, для `die`, з кодом виходу з атрибута `exitCode` (`DockerDotNetGateway.ExitCodeOf`): статус після події його вже не має, якщо політика перезапуску встигла запустити контейнер. `ContainerEventFilter` пропускає лише зміни стану (create, start, restart, stop, die, pause, unpause, destroy, rename, oom, update, `health_status*`): `exec_*` несуть командний рядок, де може бути секрет, а attach/resize/copy — шум. Docker недоступний або закрив потік — повтор через 5 с. Події за час без з'єднання губляться: панелі після перепідключення агента й так перечитують усе.
+**На агенті:** `ContainerEventForwarder`, поки жива сесія, читає потік подій Docker (`IDockerGateway.WatchContainerEventsAsync`: `System.MonitorEventsAsync` з фільтром `type=container`, через `Channel`, щоб зберегти порядок).
+
+- **Стан після події:** береться з `FindContainerAsync`. Для `destroy` його немає, а невдалий пошук не скасовує події.
+- **Код виходу** для `die` — з атрибута `exitCode` (`DockerDotNetGateway.ExitCodeOf`): статус після події його вже не має, якщо політика перезапуску встигла запустити контейнер.
+- **Фільтр** (`ContainerEventFilter`) пропускає лише зміни стану: create, start, restart, stop, die, pause, unpause, destroy, rename, oom, update, `health_status*`. `exec_*` несуть командний рядок, де може бути секрет, а attach/resize/copy — шум.
+- **Збої:** Docker недоступний або закрив потік — повтор через 5 с. Події за час без з'єднання губляться: панелі після перепідключення агента й так перечитують усе.
+
+**На ЦА:** `ContainerEvent` іде в `ContainerEventCoalescer`: не частіше одного `ContainersChanged` на середовище за 500 мс, бо `compose up` дає create і start кожного контейнера, а кожне перечитування — це `ListContainers` на агенті. Вміст події (дія, стан контейнера) бере `ContainerIncidentWatch` для сповіщень.
 
 ## Логи
 
-- Логи контейнера (`ContainerLogService`, `GET /api/environments/{id}/containers/{container}/logs`) читаються один раз, без `follow`: `StreamContainerLogs` з `tail_lines` (1–5000, типово 200) і `since`, ЦА збирає пакети до `CommandResult` і віддає одну відповідь. Панель по нові рядки питає знову з `since` = час останнього рядка. ЦА тримає лише останні `tail` рядків (`ContainerLogTail`), навіть якщо агент надішле більше. Право — `Permission.ViewLogs` на стеку контейнера або, для контейнера поза керованими стеками, на середовищі; невидимий контейнер — 404. Живого потоку (`follow`) поки немає.
-- Логи на агенті (`StreamContainerLogsHandler`): `GetContainerLogsAsync` з `Timestamps = true`; Docker.DotNet сам робить inspect і для контейнера з TTY віддає один потік, увесь як stdout. `ContainerLogParser` збирає рядки окремо для stdout і stderr (шматки рвуть рядки й символи UTF-8), відрізає час RFC 3339 з наносекундами в `timestamp_unix_ms` (рядок без часу — 0), декодує UTF-8 із заміною невалідних байтів і обрізає рядок до 16 КБ з «…». `LogBatcher` шле пакети `LogBatch`, потім успішний `CommandResult`. `since` передається Docker як `секунди.наносекунди` і включає межу: рядки з тим самим часом повертаються знову, відкидати їх — справа панелі. `follow = true` — `ERROR_CODE_UNSUPPORTED`. Бюджет 30 с лише на відкриття потоку, читання обриває `CancelRequest`. Вміст логів у лог агента не пишеться. `LogBatch` обробник шле через `ILogSink`, який реалізує той самий `StreamCommandProgress`, тож сигнатура `IAgentCommandHandler` не змінилася. Рядок без `\n` у кінці Docker віддає, лише коли контейнер його допише або завершиться; рядок довший за 16 КБ Docker сам ділить на часткові записи, і `tail` рахує записи.
+Живого потоку (`follow`) поки немає: логи читаються один раз.
+
+**На ЦА** (`ContainerLogService`, `GET /api/environments/{id}/containers/{container}/logs`):
+
+- `StreamContainerLogs` з `tail_lines` (1–5000, типово 200) і `since`; ЦА збирає пакети до `CommandResult` і віддає одну відповідь. По нові рядки панель питає знову з `since` = час останнього рядка.
+- ЦА тримає лише останні `tail` рядків (`ContainerLogTail`), навіть якщо агент надішле більше.
+- Право — `Permission.ViewLogs` на стеку контейнера або, для контейнера поза керованими стеками, на середовищі. Невидимий контейнер — 404.
+
+**На агенті** (`StreamContainerLogsHandler`):
+
+- **Читання:** `GetContainerLogsAsync` з `Timestamps = true`. Docker.DotNet сам робить inspect і для контейнера з TTY віддає один потік, увесь як stdout.
+- **Розбір** (`ContainerLogParser`): рядки збираються окремо для stdout і stderr, бо шматки рвуть рядки й символи UTF-8. Час RFC 3339 з наносекундами відрізається в `timestamp_unix_ms` (рядок без часу — 0), UTF-8 декодується із заміною невалідних байтів, рядок обрізається до 16 КБ з «…».
+- **Відправлення:** `LogBatcher` шле пакети `LogBatch`, потім успішний `CommandResult`. `LogBatch` обробник шле через `ILogSink`, який реалізує той самий `StreamCommandProgress`, тож сигнатура `IAgentCommandHandler` не змінилася.
+- **`since`** передається Docker як `секунди.наносекунди` і включає межу: рядки з тим самим часом повертаються знову, відкидати їх — справа панелі.
+- **`follow = true`** — `ERROR_CODE_UNSUPPORTED`.
+- **Тайм-аут:** бюджет 30 с лише на відкриття потоку, читання обриває `CancelRequest`.
+- **Безпека:** вміст логів у лог агента не пишеться.
+
+**Поведінка Docker:** рядок без `\n` у кінці Docker віддає, лише коли контейнер його допише або завершиться. Рядок довший за 16 КБ Docker сам ділить на часткові записи, і `tail` рахує записи.

@@ -54,9 +54,10 @@ public sealed partial class DeployStackHandler(
         var written = await store.WriteAsync(layout, cancellationToken);
 
         // As late as possible: a container could plant a link while the stack is being written (ADR-0012).
+        var secretLinks = inspector.SecretLinks(layout);
         foreach (var path in command.VerifyPaths)
         {
-            if (inspector.Inspect(path) is { } problem)
+            if (inspector.Inspect(path, secretLinks) is { } problem)
             {
                 throw new UnsafeMountSourceException($"Compose up was not run: {problem.Describe()}");
             }

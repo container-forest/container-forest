@@ -167,19 +167,42 @@ internal static class SecretsFiles
         }
     }
 
-    /// <summary>The environments you can see, by the age public keys they have.</summary>
+    /// <summary>
+    /// The environments you can see, by the age public keys they have; a stack's own key (ADR-0012) as
+    /// "environment/stack".
+    /// </summary>
     public static async Task<Dictionary<string, string>> EnvironmentsByRecipientAsync(CommandContext context)
     {
         var environmentsByRecipient = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var environment in await context.Api.ListEnvironmentsAsync(context.CancellationToken))
         {
-            foreach (var key in await context.Api.ListAgeKeysAsync(environment.Id!.Value, context.CancellationToken))
+            var keys = await context.Api.ListAgeKeysAsync(environment.Id!.Value, context.CancellationToken);
+            var stacks = keys.Any(k => k.StackId is not null)
+                ? (await context.Api.ListStacksAsync(environment.Id!.Value, context.CancellationToken)).ToDictionary(s => s.Id!.Value, s => s.Name!)
+                : [];
+            foreach (var key in keys)
             {
-                environmentsByRecipient[key.Recipient!] = environment.Name!;
+                environmentsByRecipient[key.Recipient!] = key.StackId is { } stackId
+                    ? $"{environment.Name}/{stacks.GetValueOrDefault(stackId, stackId.ToString())}"
+                    : environment.Name!;
             }
         }
 
         return environmentsByRecipient;
+    }
+
+    /// <summary>"prod" or "prod/web": an environment's key, or the own key of one of its stacks (ADR-0012).</summary>
+    public static async Task<(string Name, string Recipient)> ResolveKeyAsync(CommandContext context, string target)
+    {
+        var slash = target.IndexOf('/', StringComparison.Ordinal);
+        var environment = await context.Api.ResolveEnvironmentAsync(slash < 0 ? target : target[..slash], null, context.CancellationToken);
+        if (slash < 0)
+        {
+            return (environment.Name!, await SecretsInitCommand.RecipientAsync(context, environment));
+        }
+
+        var stack = await context.Api.FindStackAsync(environment, target[(slash + 1)..], context.CancellationToken);
+        return ($"{environment.Name}/{stack.Name}", await SecretsInitCommand.RecipientAsync(context, environment, stack));
     }
 
     /// <summary>A path the user typed, relative to the working directory, as a path in the repository.</summary>
@@ -207,7 +230,7 @@ internal sealed class SecretsInitCommand() : ForestCommand("init", "Write .sops.
 
     private readonly Option<string[]> rules = new("--rule")
     {
-        Description = "Files under a path prefix are for one environment: --rule stacks/prod/=prod. Repeat for each.",
+        Description = "Files under a path prefix are for one environment, or one stack with its own key: --rule stacks/prod/=prod, --rule stacks/prod/web/=prod/web. Repeat for each.",
     };
 
     private readonly Option<string[]> recovery = new("--recovery")
@@ -258,11 +281,11 @@ internal sealed class SecretsInitCommand() : ForestCommand("init", "Write .sops.
             """);
         foreach (var rule in context.Value(rules) ?? [])
         {
-            var (prefix, environmentName) = rule.Split('=', 2) is [var p, var e] && p.Length > 0 && e.Length > 0
+            var (prefix, target) = rule.Split('=', 2) is [var p, var e] && p.Length > 0 && e.Length > 0
                 ? (p.TrimStart('/'), e)
-                : throw new CliException($"--rule {rule}: expected <path prefix>=<environment>.", ExitCodes.Usage);
-            var environment = await api.ResolveEnvironmentAsync(environmentName, null, ct);
-            AppendRule(config, SopsConfigFile.PrefixRegex(prefix), [environment.Name!], [await RecipientAsync(context, environment), .. recoveryKeys]);
+                : throw new CliException($"--rule {rule}: expected <path prefix>=<environment> or <environment>/<stack>.", ExitCodes.Usage);
+            var (name, recipient) = await SecretsFiles.ResolveKeyAsync(context, target);
+            AppendRule(config, SopsConfigFile.PrefixRegex(prefix), [name], [recipient, .. recoveryKeys]);
         }
 
         var names = context.Value(environments) is { Length: > 0 } named ? named : null;
@@ -306,12 +329,16 @@ internal sealed class SecretsInitCommand() : ForestCommand("init", "Write .sops.
         return ExitCodes.Ok;
     }
 
-    internal static async Task<string> RecipientAsync(CommandContext context, EnvironmentResponse environment)
+    /// <summary>The newest key of the environment, or of one of its stacks (ADR-0012): the one new files are encrypted for.</summary>
+    internal static async Task<string> RecipientAsync(CommandContext context, EnvironmentResponse environment, StackResponse? stack = null)
     {
         var keys = await context.Api.ListAgeKeysAsync(environment.Id!.Value, context.CancellationToken);
-        return keys.FirstOrDefault()?.Recipient
+        return keys.FirstOrDefault(k => k.StackId == stack?.Id)?.Recipient
             ?? throw new CliException(
-                $"Environment '{environment.Name}' has no age key; an administrator creates one: forest env key create -e {environment.Name}.",
+                stack is null
+                    ? $"Environment '{environment.Name}' has no age key; an administrator creates one: forest env key create -e {environment.Name}."
+                    : $"Stack '{stack.Name}' has no age key of its own; an administrator of the environment creates one: " +
+                      $"forest env key create -e {environment.Name} --stack {stack.Name}.",
                 ExitCodes.Failed);
     }
 

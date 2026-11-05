@@ -260,3 +260,29 @@ internal sealed class StackHookRemoveCommand() : StackCommand("remove", "Remove 
         return ExitCodes.Ok;
     }
 }
+
+/// <summary>Adds or removes the stack's own exceptions to the compose policy (ADR-0012).</summary>
+internal sealed class StackPolicyCommand(bool allow)
+    : StackCommand(
+        allow ? "allow" : "disallow",
+        allow
+            ? "Give the stack allowances beyond the environment's compose policy, e.g. docker-socket (administrators of the environment)."
+            : "Take allowances away from the stack (administrators of the environment).")
+{
+    private readonly Argument<string[]> allowances = new("allowance") { Description = "Allowances such as privileged, port:443, path:/srv/media.", Arity = ArgumentArity.OneOrMore };
+
+    protected override void ConfigureStack(Command command) => command.Add(allowances);
+
+    protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment, StackResponse stack)
+    {
+        var given = context.Value(allowances) ?? [];
+        var current = stack.PolicyAllowances ?? [];
+        List<string> next = allow
+            ? [.. current.Concat(given).Distinct(StringComparer.Ordinal)]
+            : [.. current.Except(given, StringComparer.Ordinal)];
+        var updated = await context.Api.SetPolicyAllowancesAsync(stack.Id!.Value, next, context.CancellationToken);
+        var list = updated.PolicyAllowances is { Count: > 0 } a ? string.Join(", ", a) : "none";
+        context.Output.Done($"Allowances of {stack.Name}: {list}.");
+        return ExitCodes.Ok;
+    }
+}

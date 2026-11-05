@@ -26,6 +26,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #else
         public string Recipient { get; set; }
 #endif
+        /// <summary>The stackId property</summary>
+        public Guid? StackId { get; set; }
         /// <summary>
         /// Instantiates a new <see cref="global::ContainerForest.Cli.Api.Generated.Models.AgeKeyResponse"/> and sets the default values.
         /// </summary>
@@ -54,6 +56,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
                 { "createdAt", n => { CreatedAt = n.GetDateTimeOffsetValue(); } },
                 { "id", n => { Id = n.GetGuidValue(); } },
                 { "recipient", n => { Recipient = n.GetStringValue(); } },
+                { "stackId", n => { StackId = n.GetGuidValue(); } },
             };
         }
         /// <summary>
@@ -66,6 +69,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             writer.WriteDateTimeOffsetValue("createdAt", CreatedAt);
             writer.WriteGuidValue("id", Id);
             writer.WriteStringValue("recipient", Recipient);
+            writer.WriteGuidValue("stackId", StackId);
             writer.WriteAdditionalData(AdditionalData);
         }
     }

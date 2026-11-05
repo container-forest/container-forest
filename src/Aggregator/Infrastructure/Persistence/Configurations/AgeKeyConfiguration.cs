@@ -1,4 +1,5 @@
 using ContainerForest.Aggregator.Domain.Environments;
+using ContainerForest.Aggregator.Domain.Stacks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -15,6 +16,9 @@ internal sealed class AgeKeyConfiguration : IEntityTypeConfiguration<AgeKey>
         // Keys die with their environment: nothing else could decrypt with them.
         builder.HasOne<DockerEnvironment>().WithMany().HasForeignKey(k => k.EnvironmentId).OnDelete(DeleteBehavior.Cascade);
         builder.HasIndex(k => k.EnvironmentId);
+
+        // A stack's keys (ADR-0012) go with the stack.
+        builder.HasOne<Stack>().WithMany().HasForeignKey(k => k.StackId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(k => k.Recipient).HasMaxLength(62);
         builder.HasIndex(k => k.Recipient).IsUnique();

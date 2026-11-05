@@ -6,6 +6,7 @@ using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
 using ContainerForest.Aggregator.Domain.Notifications;
+using ContainerForest.Aggregator.Domain.Policies;
 using ContainerForest.Aggregator.Domain.Repositories;
 using ContainerForest.Aggregator.Domain.Stacks;
 using ContainerForest.Aggregator.Infrastructure.Accounts;
@@ -70,6 +71,8 @@ public sealed class AggregatorDbContext : IdentityUserContext<AccountUser, Guid>
     public DbSet<RegistryCredential> RegistryCredentials => Set<RegistryCredential>();
 
     public DbSet<AgeKey> AgeKeys => Set<AgeKey>();
+
+    public DbSet<ComposePolicy> ComposePolicies => Set<ComposePolicy>();
 
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 

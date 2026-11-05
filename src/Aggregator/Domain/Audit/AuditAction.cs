@@ -34,6 +34,7 @@ public enum AuditAction
     // Environments.
     EnvironmentCreated,
     EnvironmentUpdated,
+    ComposePolicyChanged,
     EnvironmentRemoved,
     EnrollmentTokenIssued,
     AgentRevoked,
@@ -47,6 +48,7 @@ public enum AuditAction
     StackRestarted,
     StackTakenDown,
     StackEndorsementChanged,
+    StackPolicyAllowancesChanged,
 
     // Deployments.
     DeploymentQueued,
@@ -96,11 +98,11 @@ public static class AuditActions
             or AuditAction.RoleGranted or AuditAction.RoleChanged or AuditAction.RoleRevoked => AuditCategory.Users,
         AuditAction.ApiTokenCreated or AuditAction.ApiTokenRevoked or AuditAction.SigningKeyAdded
             or AuditAction.SigningKeyChanged or AuditAction.SigningKeyRemoved => AuditCategory.Tokens,
-        AuditAction.EnvironmentCreated or AuditAction.EnvironmentUpdated or AuditAction.EnvironmentRemoved
+        AuditAction.EnvironmentCreated or AuditAction.EnvironmentUpdated or AuditAction.EnvironmentRemoved or AuditAction.ComposePolicyChanged
             or AuditAction.EnrollmentTokenIssued or AuditAction.AgentRevoked => AuditCategory.Environments,
         AuditAction.StackCreated or AuditAction.StackRemoved or AuditAction.StackSourceChanged or AuditAction.DeployHookCreated
             or AuditAction.DeployHookRemoved or AuditAction.StackRestarted or AuditAction.StackTakenDown
-            or AuditAction.StackEndorsementChanged => AuditCategory.Stacks,
+            or AuditAction.StackEndorsementChanged or AuditAction.StackPolicyAllowancesChanged => AuditCategory.Stacks,
         AuditAction.DeploymentQueued => AuditCategory.Deployments,
         AuditAction.ContainerStarted or AuditAction.ContainerStopped or AuditAction.ContainerRestarted => AuditCategory.Containers,
         AuditAction.SecretsDecrypted => AuditCategory.Secrets,

@@ -19,9 +19,10 @@ internal static class AgeKeyEndpoints
                 (await service.ListAsync(EnvironmentId.From(id), ct)).Select(ToResponse).ToList())
             .WithName("ListAgeKeys");
 
-        group.MapPost("/", async (Guid id, AgeKeyService service, CancellationToken ct) =>
+        // ?stackId= creates a key of one stack of the environment (ADR-0012).
+        group.MapPost("/", async (Guid id, Guid? stackId, AgeKeyService service, CancellationToken ct) =>
             {
-                var key = await service.CreateAsync(EnvironmentId.From(id), ct);
+                var key = await service.CreateAsync(EnvironmentId.From(id), stackId is { } s ? StackId.From(s) : null, ct);
                 return TypedResults.Created($"/api/environments/{id}/age-keys/{key.Id}", ToResponse(key));
             })
             .WithName("CreateAgeKey");
@@ -36,5 +37,5 @@ internal static class AgeKeyEndpoints
         return app;
     }
 
-    private static AgeKeyResponse ToResponse(AgeKeySummary key) => new(key.Id.Value, key.Recipient, key.CreatedAt);
+    private static AgeKeyResponse ToResponse(AgeKeySummary key) => new(key.Id.Value, key.Recipient, key.CreatedAt, key.StackId?.Value);
 }

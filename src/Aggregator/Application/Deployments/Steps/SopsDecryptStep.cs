@@ -6,8 +6,8 @@ using ContainerForest.Aggregator.Domain.Stacks;
 namespace ContainerForest.Aggregator.Application.Deployments.Steps;
 
 /// <summary>
-/// Decrypts the stack's SOPS files with the age keys of the target environment only, so a file encrypted for another
-/// environment fails here instead of reaching this host. Decrypted files are marked secret: the agent keeps them in
+/// Decrypts the stack's SOPS files with the age keys of the target environment and of the stack itself only, so a file
+/// encrypted for another environment, or for another stack's own key, fails here instead of reaching this host. Decrypted files are marked secret: the agent keeps them in
 /// memory (tmpfs). The log names the files, never their content.
 /// </summary>
 /// <remarks>
@@ -31,7 +31,10 @@ public sealed class SopsDecryptStep(IAgeKeyRepository keys, ISecretProtector pro
         }
 
         var environment = context.Environment;
-        var environmentKeys = await keys.ListByEnvironmentAsync(environment.Id, cancellationToken);
+        // The environment's keys and this stack's own (ADR-0012): another stack's ciphertext copied here stays closed.
+        var environmentKeys = (await keys.ListByEnvironmentAsync(environment.Id, cancellationToken))
+            .Where(k => k.Serves(context.Stack))
+            .ToList();
         if (environmentKeys.Count == 0)
         {
             throw new DeploymentFailedException(
@@ -61,7 +64,7 @@ public sealed class SopsDecryptStep(IAgeKeyRepository keys, ISecretProtector pro
                 .ToList(),
         };
         context.Info(
-            $"Decrypted {Describe(encrypted)} with the {environmentKeys.Count} age key(s) of environment '{environment.Name}'; " +
+            $"Decrypted {Describe(encrypted)} with the {environmentKeys.Count} age key(s) of environment '{environment.Name}' and the stack; " +
             "the agent keeps them in memory only.");
     }
 

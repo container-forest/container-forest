@@ -22,6 +22,8 @@ namespace ContainerForest.Aggregator.Application.Stacks;
 /// <param name="RequireImageDigests">Every image must be pinned by a digest.</param>
 /// <param name="CanRestart">Whether the current user may restart the stack.</param>
 /// <param name="CanRemove">Whether the current user may remove the stack: an Editor of its environment, as for adding one.</param>
+/// <param name="PolicyAllowances">Exceptions to the environment's compose policy for this stack (ADR-0012).</param>
+/// <param name="CanAdministerEnvironment">Whether the current user may change the stack's allowances.</param>
 public sealed record StackSummary(
     StackId Id,
     EnvironmentId EnvironmentId,
@@ -40,7 +42,9 @@ public sealed record StackSummary(
     bool RequireImageDigests,
     bool CanDeploy,
     bool CanRestart,
-    bool CanRemove);
+    bool CanRemove,
+    IReadOnlyList<string> PolicyAllowances,
+    bool CanAdministerEnvironment);
 
 /// <summary>
 /// Stacks as the current user sees them; adding and removing stacks (Editor on the environment) and changing their
@@ -223,6 +227,33 @@ public sealed class StackService(
     }
 
     /// <summary>
+    /// Sets the stack's own exceptions to the compose policy (ADR-0012). Administrators of the system or of the
+    /// stack's environment only: an allowance can hand the stack root on the host.
+    /// </summary>
+    /// <exception cref="DomainValidationException">An allowance is not valid.</exception>
+    public Task<StackSummary> SetPolicyAllowancesAsync(StackId stackId, IReadOnlyList<string> allowances, CancellationToken cancellationToken)
+    {
+        var draft = new AuditDraft(AuditAction.StackPolicyAllowancesChanged) { Details = Describe(allowances) };
+        return audit.RunAsync(draft, async () =>
+        {
+            var (actor, stack, environment, assignments) = await LoadVisibleAsync(stackId, cancellationToken);
+            draft.Target = new StackAuditTarget(stack.Id, stack.Name.Value, stack.EnvironmentId);
+            if (!EnvironmentAdministration.CanAdminister(actor, environment, assignments))
+            {
+                throw new AccessDeniedException($"Only administrators of environment '{environment.Name}' give stacks policy allowances.");
+            }
+
+            var before = stack.PolicyAllowances;
+            stack.SetPolicyAllowances(allowances);
+            draft.Details = $"{Describe(before)} → {Describe(stack.PolicyAllowances)}";
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+        }, cancellationToken);
+    }
+
+    private static string Describe(IReadOnlyList<string> allowances) => allowances.Count == 0 ? "none" : string.Join(", ", allowances);
+
+    /// <summary>
     /// Creates the stack's deploy hook, or replaces its token. The token is returned once and only its hash is kept.
     /// The same role as deploying, since every call then deploys.
     /// </summary>
@@ -324,7 +355,9 @@ public sealed class StackService(
         stack.RequireImageDigests,
         AccessPolicy.CanPerform(actor, environment, stack, assignments, Permission.Deploy),
         AccessPolicy.CanPerform(actor, environment, stack, assignments, StackOperation.Restart),
-        CanRemove(actor, environment, assignments) && !stack.IsSystem);
+        CanRemove(actor, environment, assignments) && !stack.IsSystem,
+        stack.PolicyAllowances,
+        EnvironmentAdministration.CanAdminister(actor, environment, assignments));
 
     /// <summary>
     /// The repository, if stacks of the environment may deploy from it (ADR-0006). One that may not is reported as

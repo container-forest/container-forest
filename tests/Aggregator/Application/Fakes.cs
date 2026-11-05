@@ -4,6 +4,7 @@ using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Policies;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Secrets;
@@ -330,6 +331,18 @@ internal sealed class FakeAgentChannel : IAgentChannel
         LastBundle = bundle;
         DeployOutput.ForEach(onProgress);
         return DeployError is null ? Task.CompletedTask : Task.FromException(DeployError);
+    }
+
+    /// <summary>What <see cref="RenderStackAsync"/> answers; an agent too old to render when null.</summary>
+    public RenderedCompose? Rendered { get; set; }
+
+    public Task<RenderedCompose> RenderStackAsync(
+        EnvironmentId environmentId, StackBundle bundle, Action<string> onProgress, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        Calls.Add($"render {bundle.StackName}");
+        return Rendered is { } rendered
+            ? Task.FromResult(rendered)
+            : Task.FromException<RenderedCompose>(new AgentCommandFailedException(environmentId, AgentErrorKind.Unsupported, "too old"));
     }
 
     public Task RestartStackAsync(

@@ -20,6 +20,8 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 //   PUT  /api/stacks/{id}/restart-on-file-change -> StackResponse; Editor on the stack; 409 for a system stack
 //   PUT  /api/stacks/{id}/require-signed-commits -> StackResponse; Editor on the stack; 409 for a system stack (ADR-0011)
 //   PUT  /api/stacks/{id}/require-image-digests -> StackResponse; Editor on the stack; 409 for a system stack
+//   PUT  /api/stacks/{id}/policy-allowances      -> StackResponse; administrators of the system or of the environment;
+//                                                  the stack's exceptions to the compose policy (ADR-0012, PolicyContracts)
 //   POST /api/stacks/{id}/deploy-hook            -> DeployHookTokenResponse; Editor on the stack; 409 for a system stack;
 //                                                  a new token, the old one stops working
 //   DELETE /api/stacks/{id}/deploy-hook          -> StackResponse; Editor on the stack; calls are no longer accepted
@@ -102,6 +104,8 @@ public sealed record ChangeStackSourceRequest(Guid RepositoryId, string Branch, 
 /// <param name="CanDeploy">Whether the user may deploy, change the source and take the stack down; for hiding buttons only.</param>
 /// <param name="CanRestart">Whether the user may restart the stack; for hiding buttons only.</param>
 /// <param name="CanRemove">Whether the user may remove the stack (an Editor of its environment); for hiding buttons only.</param>
+/// <param name="PolicyAllowances">The stack's own exceptions to the environment's compose policy, e.g. "docker-socket" (ADR-0012).</param>
+/// <param name="CanAdministerEnvironment">Whether the user may change the stack's allowances; for hiding buttons only.</param>
 public sealed record StackResponse(
     Guid Id,
     Guid EnvironmentId,
@@ -120,7 +124,12 @@ public sealed record StackResponse(
     bool RequireImageDigests,
     bool CanDeploy,
     bool CanRestart,
-    bool CanRemove);
+    bool CanRemove,
+    IReadOnlyList<string> PolicyAllowances,
+    bool CanAdministerEnvironment);
+
+/// <param name="Allowances">The whole list; it replaces the previous one.</param>
+public sealed record SetPolicyAllowancesRequest(IReadOnlyList<string> Allowances);
 
 /// <param name="Error">Why compose failed, or null when it succeeded.</param>
 /// <param name="Output">The last lines of compose output.</param>

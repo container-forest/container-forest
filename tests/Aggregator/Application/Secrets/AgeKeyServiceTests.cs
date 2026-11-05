@@ -17,6 +17,7 @@ public class AgeKeyServiceTests
     private readonly InMemoryEnvironments environments = new();
     private readonly InMemoryRoleAssignments roleAssignments = new();
     private readonly InMemoryAgeKeys keys = new();
+    private readonly InMemoryStacks stacks = new();
     private readonly FakeAgeKeyGenerator generator = new();
     private readonly FakeCurrentUser currentUser = new();
     private readonly FakeUnitOfWork unitOfWork = new();
@@ -41,6 +42,7 @@ public class AgeKeyServiceTests
             environments,
             roleAssignments,
             keys,
+            stacks,
             generator,
             new FakeSecretProtector(),
             unitOfWork,

@@ -128,6 +128,22 @@ export const ageKeysQuery = (environmentId: string) =>
   });
 
 /** Registry logins of one environment, by server; never the passwords. Administrators only. */
+/** The compose policy of an environment (ADR-0012); whoever sees the environment reads it. */
+export const composePolicyQuery = (environmentId: string) =>
+  queryOptions({
+    queryKey: ["environments", environmentId, "compose-policy"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/environments/{id}/compose-policy", { params: { path: { id: environmentId } }, signal })),
+  });
+
+/** The environment's deployed stacks checked against its current compose policy. */
+export const composePolicyReportQuery = (environmentId: string) =>
+  queryOptions({
+    queryKey: ["environments", environmentId, "compose-policy", "report"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/environments/{id}/compose-policy/report", { params: { path: { id: environmentId } }, signal })),
+  });
+
 /** Roles on an environment and its stacks; for those who administer the environment. */
 export const environmentRolesQuery = (environmentId: string) =>
   queryOptions({

@@ -22,6 +22,8 @@ public class SopsSecretsServiceTests
     private readonly InMemoryUsers users = new();
     private readonly InMemoryRoleAssignments roleAssignments = new();
     private readonly InMemoryAgeKeys keys = new();
+    private readonly InMemoryEnvironments environments = new();
+    private readonly InMemoryStacks stacks = new();
     private readonly FakeSecretProtector protector = new();
     private readonly FakeSopsDecryptor decryptor = new();
     private readonly FakeSopsEncryptor encryptor = new();
@@ -65,6 +67,27 @@ public class SopsSecretsServiceTests
         await Service().DecryptAsync(Env, Encrypted("prod-identity", "x", ProdRecipient), Ct);
 
         Assert.Equal(["prod-identity"], Assert.Single(decryptor.Calls).Identities);
+    }
+
+    [Fact]
+    public async Task Stack_key_decrypts_only_for_those_who_may_deploy_that_stack()
+    {
+        var web = Stack.Create(
+            prod.Id, StackName.Parse("web"), RepositoryId.New(), BranchName.Parse("main"), StackFilePath.Parse("web/compose.yaml"), isSystem: false, Now);
+        var db = Stack.Create(
+            prod.Id, StackName.Parse("db"), RepositoryId.New(), BranchName.Parse("main"), StackFilePath.Parse("db/compose.yaml"), isSystem: false, Now);
+        environments.Add(prod);
+        stacks.Add(web);
+        stacks.Add(db);
+        keys.Add(AgeKey.Create(prod.Id, PersonalRecipient, protector.Protect(SecretPurpose.AgeIdentity, "web-identity"), Now, web.Id));
+        var file = Encrypted("web-identity", "TOKEN=x", PersonalRecipient);
+
+        roleAssignments.Add(RoleAssignment.ForStack(alice.Id, db, Role.Editor, Now));
+        await Assert.ThrowsAsync<AccessDeniedException>(() => Service().DecryptAsync(Env, file, Ct));
+
+        roleAssignments.Add(RoleAssignment.ForStack(alice.Id, web, Role.Editor, Now));
+        await Service().DecryptAsync(Env, file, Ct);
+        Assert.Equal(["web-identity"], Assert.Single(decryptor.Calls).Identities);
     }
 
     [Theory]
@@ -160,6 +183,8 @@ public class SopsSecretsServiceTests
     private SopsSecretsService Service() => new(
         new CurrentActor(currentUser, users),
         roleAssignments,
+        environments,
+        stacks,
         keys,
         protector,
         decryptor,

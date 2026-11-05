@@ -71,6 +71,7 @@ app.MapAgeKeyEndpoints();
 app.MapSopsEndpoints();
 app.MapGitConnectionEndpoints();
 app.MapStackEndpoints();
+app.MapPolicyEndpoints();
 app.MapWebhookEndpoints();
 app.MapNotificationEndpoints();
 app.MapDiscordLinkEndpoints();

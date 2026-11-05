@@ -26,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<CurrentActor>();
         services.AddScoped<EnvironmentAdministration>();
         services.AddScoped<EnvironmentRoleService>();
+        services.AddScoped<Policies.ComposePolicyService>();
         services.AddScoped<IAuditTrail, AuditTrail>();
         services.AddScoped<AuditService>();
         services.AddScoped<DiscordLinkService>();
@@ -57,6 +58,7 @@ public static class DependencyInjection
         services.AddScoped<IDeployStep, ValidateComposeStep>();
         services.AddScoped<IDeployStep, BuildBundleStep>();
         services.AddScoped<IDeployStep, ResolveRegistryAuthStep>();
+        services.AddScoped<IDeployStep, ComposePolicyStep>();
         services.AddScoped<IDeployStep, SendToAgentStep>();
         services.AddScoped<DeployPipeline>();
 

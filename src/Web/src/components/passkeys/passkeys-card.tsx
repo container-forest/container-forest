@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useAddPasskeyMutation, useRemovePasskeyMutation, useRenamePasskeyMutation } from "@/api/passkeys";
-import { passkeysQuery } from "@/api/queries";
+import { passkeyConfirmationQuery, passkeysQuery } from "@/api/queries";
+import { ConfirmIdentityDialog } from "@/components/confirm-identity-dialog";
 import { ErrorText, FieldError } from "@/components/form-messages";
 import { KeyIcon, Loader2Icon, PencilIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,20 @@ export function PasskeysCard() {
   const supported = passkeysSupported();
   const form = useForm<PasskeyNameForm>({ resolver: zodResolver(passkeyNameSchema), defaultValues: { name: "" } });
 
-  const onAdd = form.handleSubmit(({ name }) => add.mutate(name, { onSuccess: () => form.reset({ name: "" }) }));
+  const confirmationNeed = useQuery(passkeyConfirmationQuery);
+  const [confirmingName, setConfirmingName] = useState<string>();
+
+  const addNamed = (name: string, confirmation: string | null) =>
+    add.mutate({ name, confirmation }, { onSuccess: () => form.reset({ name: "" }) });
+
+  // Unknown counts as needed: the aggregator would refuse the other way round, after the browser's dialog.
+  const onAdd = form.handleSubmit(({ name }) => {
+    if (confirmationNeed.data?.required === false) {
+      addNamed(name, null);
+    } else {
+      setConfirmingName(name);
+    }
+  });
   const addError = add.error && !isCancelled(add.error) ? errorText(add.error) : undefined;
   const removeError = remove.error ? describeError(remove.error) : undefined;
 
@@ -95,6 +109,20 @@ export function PasskeysCard() {
         </div>
       </CardContent>
       <RenameDialog passkey={renaming} onClose={() => setRenaming(undefined)} />
+      <ConfirmIdentityDialog
+        open={confirmingName !== undefined}
+        description={t("passkeys.confirmDescription")}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmingName(undefined);
+          }
+        }}
+        onConfirmed={(token) => {
+          if (confirmingName !== undefined) {
+            addNamed(confirmingName, token);
+          }
+        }}
+      />
     </Card>
   );
 

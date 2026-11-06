@@ -6,6 +6,7 @@ import { useLogoutMutation } from "@/api/auth";
 import { environmentsQuery, meQuery, stackQuery } from "@/api/queries";
 import { isEditorRole } from "@/api/users";
 import {
+  BackupIcon,
   BellIcon,
   BoxIcon,
   FileSearchIcon,
@@ -248,6 +249,11 @@ export function SidebarContent({ onNavigate = () => {} }: { onNavigate?: () => v
           {isAdmin && (
             <NavItem active={at("/notifications")} icon={BellIcon} label={t("layout.nav.notifications")}>
               {(props) => <Link to="/notifications" onClick={onNavigate} {...props} />}
+            </NavItem>
+          )}
+          {isAdmin && (
+            <NavItem active={at("/backup")} icon={BackupIcon} label={t("layout.nav.backup")}>
+              {(props) => <Link to="/backup" onClick={onNavigate} {...props} />}
             </NavItem>
           )}
           {isAdmin && (

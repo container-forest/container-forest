@@ -97,7 +97,7 @@ internal static class NotificationEndpoints
                         e.ChannelName,
                         e.Notification.Kind,
                         e.Notification.Severity,
-                        e.Notification.EnvironmentId.Value,
+                        e.Notification.EnvironmentId?.Value,
                         e.Notification.StackId?.Value,
                         e.Notification.OccurredAt,
                         e.Notification.Summary,

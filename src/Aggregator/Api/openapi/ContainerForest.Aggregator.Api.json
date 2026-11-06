@@ -173,6 +173,194 @@
         }
       }
     },
+    "/api/settings/backup": {
+      "get": {
+        "tags": [
+          "Backup"
+        ],
+        "operationId": "GetBackupSettings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupSettingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Backup"
+        ],
+        "operationId": "UpdateBackupSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBackupSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupSettingsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backup": {
+      "get": {
+        "tags": [
+          "Backup"
+        ],
+        "operationId": "GetBackupStatus",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backup/run": {
+      "post": {
+        "tags": [
+          "Backup"
+        ],
+        "operationId": "RunBackup",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupRunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/webhooks/{repositoryId}": {
       "post": {
         "tags": [
@@ -682,6 +870,46 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/passkeys/needs-confirmation": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "GetPasskeyConfirmationNeed",
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyConfirmationResponse"
                 }
               }
             }
@@ -2933,6 +3161,169 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/confirm/password": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "ConfirmIdentityWithPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmWithPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityConfirmationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/confirm/passkey/options": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "GetConfirmationPasskeyOptions",
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/auth/confirm/passkey": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "ConfirmIdentityWithPasskey",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmWithPasskeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityConfirmationResponse"
                 }
               }
             }
@@ -8015,7 +8406,8 @@
       "AddPasskeyRequest": {
         "required": [
           "credential",
-          "name"
+          "name",
+          "confirmation"
         ],
         "type": "object",
         "properties": {
@@ -8024,6 +8416,12 @@
           },
           "name": {
             "type": "string"
+          },
+          "confirmation": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -8228,7 +8626,10 @@
           "ContainerStarted",
           "ContainerStopped",
           "ContainerRestarted",
-          "SecretsDecrypted"
+          "SecretsDecrypted",
+          "IdentityConfirmed",
+          "SettingsChanged",
+          "BackupRequested"
         ]
       },
       "AuditCategory": {
@@ -8240,7 +8641,8 @@
           "Stacks",
           "Deployments",
           "Containers",
-          "Secrets"
+          "Secrets",
+          "System"
         ]
       },
       "AuditChannel": {
@@ -8412,7 +8814,170 @@
           "Stack",
           "Container",
           "File",
+          "Settings",
           null
+        ]
+      },
+      "BackupOutcome": {
+        "enum": [
+          "Succeeded",
+          "Failed"
+        ]
+      },
+      "BackupRunResponse": {
+        "required": [
+          "id",
+          "trigger",
+          "outcome",
+          "startedAt",
+          "finishedAt",
+          "objectKey",
+          "sizeBytes",
+          "error"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/BackupTrigger"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/BackupOutcome"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "objectKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sizeBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "BackupSettingsResponse": {
+        "required": [
+          "enabled",
+          "intervalHours",
+          "recipient",
+          "endpoint",
+          "bucket",
+          "region",
+          "prefix",
+          "accessKeyId",
+          "secretAccessKey"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "$ref": "#/components/schemas/SettingTextResponse"
+          },
+          "intervalHours": {
+            "$ref": "#/components/schemas/SettingTextResponse"
+          },
+          "recipient": {
+            "$ref": "#/components/schemas/SettingTextResponse"
+          },
+          "endpoint": {
+            "$ref": "#/components/schemas/SettingTextResponse"
+          },
+          "bucket": {
+            "$ref": "#/components/schemas/SettingTextResponse"
+          },
+          "region": {
+            "$ref": "#/components/schemas/SettingTextResponse"
+          },
+          "prefix": {
+            "$ref": "#/components/schemas/SettingTextResponse"
+          },
+          "accessKeyId": {
+            "$ref": "#/components/schemas/SettingTextResponse"
+          },
+          "secretAccessKey": {
+            "$ref": "#/components/schemas/SettingSecretResponse"
+          }
+        }
+      },
+      "BackupStatusResponse": {
+        "required": [
+          "enabled",
+          "problems",
+          "isRunning",
+          "nextRunAt",
+          "lastSucceededAt",
+          "notifiesFailures",
+          "notifiesChanges",
+          "runs"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isRunning": {
+            "type": "boolean"
+          },
+          "nextRunAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lastSucceededAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "notifiesFailures": {
+            "type": "boolean"
+          },
+          "notifiesChanges": {
+            "type": "boolean"
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BackupRunResponse"
+            }
+          }
+        }
+      },
+      "BackupTrigger": {
+        "enum": [
+          "Scheduled",
+          "Manual"
         ]
       },
       "ChangeEnvironmentRoleRequest": {
@@ -8658,6 +9223,28 @@
           },
           "canChange": {
             "type": "boolean"
+          }
+        }
+      },
+      "ConfirmWithPasskeyRequest": {
+        "required": [
+          "credential"
+        ],
+        "type": "object",
+        "properties": {
+          "credential": {
+            "type": "string"
+          }
+        }
+      },
+      "ConfirmWithPasswordRequest": {
+        "required": [
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string"
           }
         }
       },
@@ -9648,6 +10235,22 @@
           }
         }
       },
+      "IdentityConfirmationResponse": {
+        "required": [
+          "token",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "ImagePullPolicy": {
         "enum": [
           "Missing",
@@ -9778,7 +10381,10 @@
             "$ref": "#/components/schemas/NotificationSeverity"
           },
           "environmentId": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "uuid"
           },
           "stackId": {
@@ -9890,6 +10496,17 @@
           "Failed",
           "Expired"
         ]
+      },
+      "PasskeyConfirmationResponse": {
+        "required": [
+          "required"
+        ],
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "boolean"
+          }
+        }
       },
       "PasskeyLoginRequest": {
         "required": [
@@ -10291,6 +10908,68 @@
           }
         }
       },
+      "SettingSecretResponse": {
+        "required": [
+          "isSet",
+          "source",
+          "locked",
+          "problem"
+        ],
+        "type": "object",
+        "properties": {
+          "isSet": {
+            "type": "boolean"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SettingSource"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "problem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SettingSource": {
+        "enum": [
+          "Default",
+          "Database",
+          "Environment"
+        ]
+      },
+      "SettingTextResponse": {
+        "required": [
+          "value",
+          "source",
+          "locked",
+          "problem"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "source": {
+            "$ref": "#/components/schemas/SettingSource"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "problem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "SigningKeyResponse": {
         "required": [
           "id",
@@ -10613,6 +11292,82 @@
           }
         }
       },
+      "UpdateBackupSettingsRequest": {
+        "required": [
+          "enabled",
+          "intervalHours",
+          "recipient",
+          "endpoint",
+          "bucket",
+          "region",
+          "prefix",
+          "accessKeyId",
+          "secretAccessKey",
+          "confirmation"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "intervalHours": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "recipient": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "endpoint": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bucket": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "region": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "prefix": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "accessKeyId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "secretAccessKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "confirmation": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "UpdateComposePolicyRequest": {
         "required": [
           "mode",
@@ -10916,6 +11671,9 @@
     },
     {
       "name": "Audit"
+    },
+    {
+      "name": "Backup"
     },
     {
       "name": "Webhooks"

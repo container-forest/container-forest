@@ -21,6 +21,9 @@ export const notificationEventKinds = [
   "AgentOffline",
   "AgentOnline",
   "ContainerHealthy",
+  "BackupFailed",
+  "SettingsChanged",
+  "AccountSecurityChanged",
 ] as const;
 
 export type NotificationEventKind = (typeof notificationEventKinds)[number];

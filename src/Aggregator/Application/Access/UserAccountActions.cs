@@ -1,6 +1,7 @@
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
+using ContainerForest.Aggregator.Domain.Notifications;
 
 namespace ContainerForest.Aggregator.Application.Access;
 
@@ -18,6 +19,12 @@ public abstract class UserAccountAction
 
     /// <summary>What else the audit log should say about the change, e.g. the new name. Never a password.</summary>
     public virtual string? AuditDetails => null;
+
+    /// <summary>
+    /// What to announce (<see cref="NotificationEventKinds.AccountSecurityChanged"/>) when the change gives someone a way
+    /// in, read before it applies. Null for any other change. Never a password.
+    /// </summary>
+    public virtual string? AnnouncementFor(User user) => null;
 
     /// <summary>Whether the user's existing sessions must end, so the change applies to them right away.</summary>
     protected virtual bool EndsSessions => false;
@@ -95,6 +102,9 @@ public sealed class GrantAdminAction : UserAccountAction
 {
     public override AuditAction AuditAction => AuditAction.AdminGranted;
 
+    public override string? AnnouncementFor(User user) =>
+        user.IsAdmin ? null : $"'{user.UserName}' was made an administrator";
+
     protected override Task ApplyAsync(User user, UserActionContext context, CancellationToken cancellationToken)
     {
         user.GrantAdmin();
@@ -129,6 +139,8 @@ public sealed class RenameUserAction(string userName) : UserAccountAction
 public sealed class ResetPasswordAction(string newPassword) : UserAccountAction
 {
     public override AuditAction AuditAction => AuditAction.PasswordReset;
+
+    public override string? AnnouncementFor(User user) => $"The password of '{user.UserName}' was reset";
 
     protected override Task ApplyAsync(User user, UserActionContext context, CancellationToken cancellationToken) =>
         context.Accounts.SetPasswordAsync(user, newPassword, cancellationToken);

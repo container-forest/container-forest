@@ -11,6 +11,18 @@ export const meQuery = queryOptions({
   staleTime: 60_000,
 });
 
+/** Whether backups run and how the latest ones went (ADR-0014). Administrators only. */
+export const backupStatusQuery = queryOptions({
+  queryKey: ["backup", "status"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/backup", { signal })),
+});
+
+/** The backup settings, where each value comes from; never the secret itself. Administrators only. */
+export const backupSettingsQuery = queryOptions({
+  queryKey: ["backup", "settings"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/settings/backup", { signal })),
+});
+
 /** Whether the signed-in user's account is linked to a Discord account. */
 export const discordLinkQuery = queryOptions({
   queryKey: ["me", "discord"],
@@ -28,6 +40,12 @@ export const signInMethodsQuery = queryOptions({
 export const passkeysQuery = queryOptions({
   queryKey: ["me", "passkeys"],
   queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/passkeys", { signal })),
+});
+
+/** Whether adding a passkey needs a fresh confirmation; not for an account with nothing to confirm with. */
+export const passkeyConfirmationQuery = queryOptions({
+  queryKey: ["me", "passkeys", "needs-confirmation"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/passkeys/needs-confirmation", { signal })),
 });
 
 /** The signed-in user's commit signing keys, newest first (ADR-0011). */

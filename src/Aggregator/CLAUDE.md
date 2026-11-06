@@ -8,6 +8,7 @@
 - Домен не читає годинник сам: методи приймають `DateTimeOffset now`. Ідентифікатори — `readonly record struct` над `Guid` v7 з інтерфейсом `IStronglyTypedId<TSelf>`.
 - Кожна операція з БД у довгому gRPC-виклику `Connect` — у власному DI-scope: один `DbContext` на години виклику тримав би застарілі сутності.
 - Сервісний метод, що змінює сам обліковий запис або видає облікові дані, бере користувача через `CurrentActor.GetSignedInUserAsync` ([auth](../../docs/design/auth.md)).
+- Налаштування необов'язкової функції, яке змінюють із панелі, — секція `SettingsSection`, а не нове поле options ([налаштування](../../docs/design/backup.md)).
 - Дія, яку треба бачити в журналі, проходить через `IAuditTrail` ([audit](../../docs/design/audit.md)). Новий запис у БД, що має бути видно наживо, — випадок у `LiveChanges.Collect` ([live-оновлення](../../docs/design/live-updates.md)).
 
 ## З'єднання з агентами
@@ -26,6 +27,6 @@
 ## Пастки
 
 - Генератор OpenAPI під час збірки (`GetDocument.Insider`) запускає хост **разом із hosted-сервісами**. Тому в `Program.cs` міграції вимикаються, коли entry assembly — `GetDocument.Insider`; інакше збірка створює базу. З тієї ж причини в цьому режимі не підключається Data Protection з файловим key ring (ефемерний провайдер), інакше збірка створює `data-protection-keys/`.
-- Key ring Data Protection (`DataProtection:KeyDirectory`, типово `data-protection-keys`) — єдиний спосіб розшифрувати збережені секрети: бекапити разом із базою, у контейнері ЦА монтувати томом. Втрачений key ring — `SecretUnreadableException`, креди треба задати заново.
+- Key ring Data Protection (`DataProtection:KeyDirectory`, типово `data-protection-keys`) — єдиний спосіб розшифрувати збережені секрети: бекапити разом із базою ([бекап](../../docs/design/backup.md)), у контейнері ЦА монтувати томом. Втрачений key ring — `SecretUnreadableException`, креди треба задати заново.
 - SQLite не має типу `DateTimeOffset`: як текст його не можна порівнювати й сортувати в запитах. Усі `DateTimeOffset` зберігаються як `long` (`DateTimeOffsetToBinaryConverter`, конвенція в `AggregatorDbContext`).
 - Вирази EF (`ValueConverter`) не можуть викликати `static abstract` члени інтерфейсу напряму — лише через звичайний статичний метод (див. `StronglyTypedIdConverter`).

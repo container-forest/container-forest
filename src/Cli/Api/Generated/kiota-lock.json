@@ -1,5 +1,5 @@
 {
-  "descriptionHash": "A92149F68FC6203A1DB28264DEDD46736BECDD09E3993F49E7FFF0EB5D4DBDBDCDFA97AAD5B36437BA9C28F3579A94AC1BEA09DEA4483514AFB795381E5C966F",
+  "descriptionHash": "8111A605A95D0FCCBF18D9F007DCF3B55606B3DD10CD6D26F4752B5DE2EEB37FD384466E37FE504D86C15136BB582114F8CBD1E257A4E5F9B7A383E4CE27BF03",
   "descriptionLocation": "../../../Aggregator/Api/openapi/ContainerForest.Aggregator.Api.json",
   "lockFileVersion": "1.0.0",
   "kiotaVersion": "1.35.0",
@@ -34,6 +34,7 @@
     "/api/deploy-hooks/**",
     "/api/auth/**",
     "/api/audit",
+    "/api/settings/**",
     "/api/me/discord",
     "/api/me/passkeys",
     "/api/me/signing-keys",

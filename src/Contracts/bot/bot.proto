@@ -306,6 +306,10 @@ enum NotificationKind {
   NOTIFICATION_KIND_AGENT_ONLINE = 6;
   // A container that was notified as unhealthy passes its health check again; container details are set.
   NOTIFICATION_KIND_CONTAINER_HEALTHY = 7;
+  // Events about the whole system: environment_id is empty and environment_name is "System".
+  NOTIFICATION_KIND_BACKUP_FAILED = 8;
+  NOTIFICATION_KIND_SETTINGS_CHANGED = 9;
+  NOTIFICATION_KIND_ACCOUNT_SECURITY_CHANGED = 10;
 }
 
 enum NotificationSeverity {

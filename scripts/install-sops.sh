@@ -1,5 +1,5 @@
 #!/bin/sh
-# Installs sops and age-keygen, the tools the aggregator decrypts SOPS files and creates age keys with,
+# Installs sops, age-keygen and age, the tools the aggregator decrypts SOPS files, creates age keys and encrypts backups with,
 # after checking them against the checksums below. Used by the aggregator image and by CI.
 #   scripts/install-sops.sh <directory> [amd64|arm64]
 # To update: change a version, download both architectures and replace the checksums
@@ -34,6 +34,6 @@ curl -fsSL -o "$tmp/age.tar.gz" "https://github.com/FiloSottile/age/releases/dow
 echo "$sops_sha256  $tmp/sops" | sha256sum -c -
 echo "$age_sha256  $tmp/age.tar.gz" | sha256sum -c -
 
-tar -xzf "$tmp/age.tar.gz" -C "$tmp" age/age-keygen
+tar -xzf "$tmp/age.tar.gz" -C "$tmp" age/age-keygen age/age
 mkdir -p "$dir"
-install -m 0755 "$tmp/sops" "$tmp/age/age-keygen" "$dir/"
+install -m 0755 "$tmp/sops" "$tmp/age/age-keygen" "$tmp/age/age" "$dir/"

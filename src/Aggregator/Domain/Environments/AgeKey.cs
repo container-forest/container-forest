@@ -69,6 +69,13 @@ public sealed partial class AgeKey : Entity<AgeKeyId>
         return new AgeKey(AgeKeyId.New(), environmentId, stackId, recipient, protectedIdentity, now);
     }
 
+    /// <summary>The recipient as it is, for code that keeps one outside an <see cref="AgeKey"/>.</summary>
+    /// <exception cref="DomainValidationException">It is not an X25519 age recipient.</exception>
+    public static string NormalizeRecipient(string recipient) =>
+        RecipientPattern().IsMatch(recipient)
+            ? recipient
+            : throw new DomainValidationException($"'{recipient}' is not an age recipient (age1… in lowercase Bech32).");
+
     // "age1" and 58 Bech32 characters: a 32-byte X25519 key and a 6-character checksum.
     [GeneratedRegex(@"^age1[02-9ac-hj-np-z]{58}\z")]
     private static partial Regex RecipientPattern();

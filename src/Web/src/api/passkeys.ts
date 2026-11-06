@@ -35,15 +35,15 @@ export function usePasskeyLoginMutation() {
   });
 }
 
-/** Creates a passkey in the browser and adds it to the signed-in user under `name`. */
+/** Creates a passkey in the browser and adds it to the signed-in user under `name`; `confirmation` proves identity (ADR-0013). */
 export function useAddPasskeyMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (name: string) => {
+    mutationFn: async ({ name, confirmation }: { name: string; confirmation: string | null }) => {
       const options = unwrap(await api.POST("/api/me/passkeys/options"));
       const credential = await createPasskey(options);
-      return unwrap(await api.POST("/api/me/passkeys", { body: { credential, name } }));
+      return unwrap(await api.POST("/api/me/passkeys", { body: { credential, name, confirmation } }));
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: passkeysQuery.queryKey }),
   });

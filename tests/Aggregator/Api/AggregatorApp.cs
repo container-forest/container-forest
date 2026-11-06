@@ -67,6 +67,27 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
     private GrpcChannel Channel =>
         channel ??= GrpcChannel.ForAddress(Server.BaseAddress, new GrpcChannelOptions { HttpHandler = Server.CreateHandler() });
 
+    /// <summary>Whether the text is anywhere in the database's files, to show that a secret is not stored in clear.</summary>
+    public async Task<bool> DatabaseContainsAsync(string text)
+    {
+        foreach (var path in new[] { databasePath, databasePath + "-wal" })
+        {
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            await using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(file, System.Text.Encoding.Latin1);
+            if ((await reader.ReadToEndAsync()).Contains(text, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>A client that acts as the given user; null for an anonymous client.</summary>
     public HttpClient CreateClientAs(string? userName)
     {

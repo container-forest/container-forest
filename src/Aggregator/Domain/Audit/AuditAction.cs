@@ -61,6 +61,11 @@ public enum AuditAction
 
     // Secrets.
     SecretsDecrypted,
+
+    // System: settings of the whole system and what depends on them.
+    IdentityConfirmed,
+    SettingsChanged,
+    BackupRequested,
 }
 
 /// <summary>Groups of actions, for filtering the log.</summary>
@@ -74,6 +79,7 @@ public enum AuditCategory
     Deployments,
     Containers,
     Secrets,
+    System,
 }
 
 /// <summary>How the attempt ended.</summary>
@@ -108,6 +114,7 @@ public static class AuditActions
         AuditAction.DeploymentQueued => AuditCategory.Deployments,
         AuditAction.ContainerStarted or AuditAction.ContainerStopped or AuditAction.ContainerRestarted => AuditCategory.Containers,
         AuditAction.SecretsDecrypted => AuditCategory.Secrets,
+        AuditAction.IdentityConfirmed or AuditAction.SettingsChanged or AuditAction.BackupRequested => AuditCategory.System,
         _ => throw new ArgumentOutOfRangeException(nameof(action), action, "Unknown audit action."),
     };
 }

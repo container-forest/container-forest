@@ -36,6 +36,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetBackupSettings"];
+        put: operations["UpdateBackupSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetBackupStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/backup/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RunBackup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/webhooks/{repositoryId}": {
         parameters: {
             query?: never;
@@ -206,6 +254,22 @@ export interface paths {
         get: operations["ListPasskeys"];
         put?: never;
         post: operations["AddPasskey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/passkeys/needs-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetPasskeyConfirmationNeed"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -639,6 +703,54 @@ export interface paths {
         put: operations["ChangeRole"];
         post?: never;
         delete: operations["RevokeRole"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/confirm/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ConfirmIdentityWithPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/confirm/passkey/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["GetConfirmationPasskeyOptions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/confirm/passkey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ConfirmIdentityWithPasskey"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1403,6 +1515,7 @@ export interface components {
         AddPasskeyRequest: {
             credential: string;
             name: string;
+            confirmation: null | string;
         };
         AddSigningKeyRequest: {
             name: string;
@@ -1444,9 +1557,9 @@ export interface components {
             secrets: boolean;
         };
         /** @enum {unknown} */
-        AuditAction: "SignedIn" | "SignInFailed" | "SignedOut" | "PasswordChanged" | "DiscordLinked" | "DiscordUnlinked" | "UserCreated" | "UserRenamed" | "UserDeactivated" | "UserActivated" | "AdminGranted" | "AdminRevoked" | "PasswordReset" | "UserUnlocked" | "RoleGranted" | "RoleChanged" | "RoleRevoked" | "ApiTokenCreated" | "ApiTokenRevoked" | "SigningKeyAdded" | "SigningKeyChanged" | "SigningKeyRemoved" | "EnvironmentCreated" | "EnvironmentUpdated" | "ComposePolicyChanged" | "EnvironmentRemoved" | "EnrollmentTokenIssued" | "AgentRevoked" | "StackCreated" | "StackRemoved" | "StackSourceChanged" | "DeployHookCreated" | "DeployHookRemoved" | "StackRestarted" | "StackTakenDown" | "StackEndorsementChanged" | "StackPolicyAllowancesChanged" | "StackPolicyUnrestrictedChanged" | "DeploymentQueued" | "ContainerStarted" | "ContainerStopped" | "ContainerRestarted" | "SecretsDecrypted";
+        AuditAction: "SignedIn" | "SignInFailed" | "SignedOut" | "PasswordChanged" | "DiscordLinked" | "DiscordUnlinked" | "UserCreated" | "UserRenamed" | "UserDeactivated" | "UserActivated" | "AdminGranted" | "AdminRevoked" | "PasswordReset" | "UserUnlocked" | "RoleGranted" | "RoleChanged" | "RoleRevoked" | "ApiTokenCreated" | "ApiTokenRevoked" | "SigningKeyAdded" | "SigningKeyChanged" | "SigningKeyRemoved" | "EnvironmentCreated" | "EnvironmentUpdated" | "ComposePolicyChanged" | "EnvironmentRemoved" | "EnrollmentTokenIssued" | "AgentRevoked" | "StackCreated" | "StackRemoved" | "StackSourceChanged" | "DeployHookCreated" | "DeployHookRemoved" | "StackRestarted" | "StackTakenDown" | "StackEndorsementChanged" | "StackPolicyAllowancesChanged" | "StackPolicyUnrestrictedChanged" | "DeploymentQueued" | "ContainerStarted" | "ContainerStopped" | "ContainerRestarted" | "SecretsDecrypted" | "IdentityConfirmed" | "SettingsChanged" | "BackupRequested";
         /** @enum {unknown} */
-        AuditCategory: "Account" | "Users" | "Tokens" | "Environments" | "Stacks" | "Deployments" | "Containers" | "Secrets";
+        AuditCategory: "Account" | "Users" | "Tokens" | "Environments" | "Stacks" | "Deployments" | "Containers" | "Secrets" | "System";
         /** @enum {unknown} */
         AuditChannel: "Panel" | "ApiToken" | "Bot" | "Anonymous";
         AuditEntryResponse: {
@@ -1483,7 +1596,48 @@ export interface components {
             pageSize: number | string;
         };
         /** @enum {unknown} */
-        AuditTargetKind: "User" | "RoleAssignment" | "ApiToken" | "SigningKey" | "Environment" | "Stack" | "Container" | "File" | null;
+        AuditTargetKind: "User" | "RoleAssignment" | "ApiToken" | "SigningKey" | "Environment" | "Stack" | "Container" | "File" | "Settings" | null;
+        /** @enum {unknown} */
+        BackupOutcome: "Succeeded" | "Failed";
+        BackupRunResponse: {
+            /** Format: uuid */
+            id: string;
+            trigger: components["schemas"]["BackupTrigger"];
+            outcome: components["schemas"]["BackupOutcome"];
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            finishedAt: string;
+            objectKey: null | string;
+            /** Format: int64 */
+            sizeBytes: null | number | string;
+            error: null | string;
+        };
+        BackupSettingsResponse: {
+            enabled: components["schemas"]["SettingTextResponse"];
+            intervalHours: components["schemas"]["SettingTextResponse"];
+            recipient: components["schemas"]["SettingTextResponse"];
+            endpoint: components["schemas"]["SettingTextResponse"];
+            bucket: components["schemas"]["SettingTextResponse"];
+            region: components["schemas"]["SettingTextResponse"];
+            prefix: components["schemas"]["SettingTextResponse"];
+            accessKeyId: components["schemas"]["SettingTextResponse"];
+            secretAccessKey: components["schemas"]["SettingSecretResponse"];
+        };
+        BackupStatusResponse: {
+            enabled: boolean;
+            problems: string[];
+            isRunning: boolean;
+            /** Format: date-time */
+            nextRunAt: null | string;
+            /** Format: date-time */
+            lastSucceededAt: null | string;
+            notifiesFailures: boolean;
+            notifiesChanges: boolean;
+            runs: components["schemas"]["BackupRunResponse"][];
+        };
+        /** @enum {unknown} */
+        BackupTrigger: "Scheduled" | "Manual";
         ChangeEnvironmentRoleRequest: {
             role: components["schemas"]["Role"];
         };
@@ -1543,6 +1697,12 @@ export interface components {
             allowances: string[];
             protectedPaths: string[];
             canChange: boolean;
+        };
+        ConfirmWithPasskeyRequest: {
+            credential: string;
+        };
+        ConfirmWithPasswordRequest: {
+            password: string;
         };
         ContainerLogLineResponse: {
             /** Format: date-time */
@@ -1787,6 +1947,11 @@ export interface components {
             stackId: null | string;
             role: components["schemas"]["Role"];
         };
+        IdentityConfirmationResponse: {
+            token: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
         /** @enum {unknown} */
         ImagePullPolicy: "Missing" | "Always";
         LoginRequest: {
@@ -1824,7 +1989,7 @@ export interface components {
             kind: components["schemas"]["NotificationEventKinds"];
             severity: components["schemas"]["NotificationSeverity"];
             /** Format: uuid */
-            environmentId: string;
+            environmentId: null | string;
             /** Format: uuid */
             stackId: null | string;
             /** Format: date-time */
@@ -1855,6 +2020,9 @@ export interface components {
         NotificationSeverity: "Info" | "Warning" | "Error";
         /** @enum {unknown} */
         NotificationStatus: "Pending" | "Delivered" | "Failed" | "Expired";
+        PasskeyConfirmationResponse: {
+            required: boolean;
+        };
         PasskeyLoginRequest: {
             credential: string;
             rememberMe: boolean;
@@ -1959,6 +2127,20 @@ export interface components {
             username: string;
             password: string;
         };
+        SettingSecretResponse: {
+            isSet: boolean;
+            source: components["schemas"]["SettingSource"];
+            locked: boolean;
+            problem: null | string;
+        };
+        /** @enum {unknown} */
+        SettingSource: "Default" | "Database" | "Environment";
+        SettingTextResponse: {
+            value: null | string;
+            source: components["schemas"]["SettingSource"];
+            locked: boolean;
+            problem: null | string;
+        };
         SigningKeyResponse: {
             /** Format: uuid */
             id: string;
@@ -2040,6 +2222,19 @@ export interface components {
             hostName: string;
             /** @default false */
             secrets: boolean;
+        };
+        UpdateBackupSettingsRequest: {
+            enabled: boolean;
+            /** Format: int32 */
+            intervalHours: number | string;
+            recipient: null | string;
+            endpoint: null | string;
+            bucket: null | string;
+            region: null | string;
+            prefix: null | string;
+            accessKeyId: null | string;
+            secretAccessKey: null | string;
+            confirmation: null | string;
         };
         UpdateComposePolicyRequest: {
             mode: components["schemas"]["ComposePolicyMode"];
@@ -2200,6 +2395,180 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetBackupSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupSettingsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateBackupSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBackupSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupSettingsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetBackupStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupStatusResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RunBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupRunResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2648,6 +3017,44 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetPasskeyConfirmationNeed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyConfirmationResponse"];
                 };
             };
             /** @description Unauthorized */
@@ -4501,6 +4908,153 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ConfirmIdentityWithPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmWithPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityConfirmationResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetConfirmationPasskeyOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ConfirmIdentityWithPasskey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmWithPasskeyRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityConfirmationResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

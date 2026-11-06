@@ -1,3 +1,7 @@
+using ContainerForest.Aggregator.Domain.Settings;
+using ContainerForest.Aggregator.Domain.Backups;
+using ContainerForest.Aggregator.Application.Settings;
+using ContainerForest.Aggregator.Application.Backups;
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
@@ -218,6 +222,40 @@ internal sealed class NotificationRepository(AggregatorDbContext db)
 
     public async Task<IReadOnlyList<Notification>> ListRecentAsync(int limit, CancellationToken cancellationToken) =>
         await Set.OrderByDescending(n => n.CreatedAt).Take(limit).ToListAsync(cancellationToken);
+}
+
+internal sealed class StoredSettingRepository(AggregatorDbContext db) : IStoredSettingRepository
+{
+    public async Task<IReadOnlyList<StoredSetting>> ListAsync(string section, CancellationToken cancellationToken) =>
+        await db.StoredSettings.Where(s => s.Section == section).ToListAsync(cancellationToken);
+
+    public void Add(StoredSetting setting) => db.StoredSettings.Add(setting);
+
+    public void Remove(StoredSetting setting) => db.StoredSettings.Remove(setting);
+}
+
+internal sealed class BackupRunRepository(AggregatorDbContext db) : IBackupRunRepository
+{
+    public void Add(BackupRun run) => db.BackupRuns.Add(run);
+
+    public async Task<IReadOnlyList<BackupRun>> ListRecentAsync(int limit, CancellationToken cancellationToken) =>
+        await db.BackupRuns.OrderByDescending(r => r.FinishedAt).ThenByDescending(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public Task<BackupRun?> FindLastSucceededAsync(CancellationToken cancellationToken) =>
+        db.BackupRuns.Where(r => r.Outcome == BackupOutcome.Succeeded)
+            .OrderByDescending(r => r.FinishedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task RemoveOlderRunsAsync(int keep, CancellationToken cancellationToken)
+    {
+        var expired = await db.BackupRuns.OrderByDescending(r => r.FinishedAt).ThenByDescending(r => r.Id).Skip(keep)
+            .Select(r => r.Id)
+            .ToListAsync(cancellationToken);
+        if (expired.Count > 0)
+        {
+            await db.BackupRuns.Where(r => expired.Contains(r.Id)).ExecuteDeleteAsync(cancellationToken);
+        }
+    }
 }
 
 internal sealed class RegistryCredentialRepository(AggregatorDbContext db)

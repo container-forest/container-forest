@@ -45,9 +45,13 @@ internal static class PasskeyEndpoints
                 (await passkeys.ListMineAsync(ct)).Select(ToResponse).ToList())
             .WithName("ListPasskeys");
 
+        mine.MapGet("/needs-confirmation", async (PasskeyManagement passkeys, CancellationToken ct) =>
+                new PasskeyConfirmationResponse(await passkeys.NeedsConfirmationAsync(ct)))
+            .WithName("GetPasskeyConfirmationNeed");
+
         mine.MapPost("/", async (AddPasskeyRequest request, PasskeyManagement passkeys, CancellationToken ct) =>
             {
-                var added = await passkeys.AddAsync(request.Credential, request.Name, ct);
+                var added = await passkeys.AddAsync(request.Credential, request.Name, request.Confirmation, ct);
                 return TypedResults.Created($"/api/me/passkeys/{added.Id}", ToResponse(added));
             })
             .WithName("AddPasskey")

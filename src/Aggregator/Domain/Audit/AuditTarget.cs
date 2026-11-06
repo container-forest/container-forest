@@ -12,6 +12,7 @@ public enum AuditTargetKind
     Stack,
     Container,
     File,
+    Settings,
 }
 
 /// <summary>
@@ -124,4 +125,14 @@ public sealed record FileAuditTarget(string Path) : AuditTarget
     public override string? Id => null;
 
     public override string Name => Path;
+}
+
+/// <summary>A section of the system's settings, by its name; never its values.</summary>
+public sealed record SettingsAuditTarget(string Section) : AuditTarget
+{
+    public override AuditTargetKind Kind => AuditTargetKind.Settings;
+
+    public override string? Id => Section;
+
+    public override string Name => Section;
 }

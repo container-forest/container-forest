@@ -14,6 +14,9 @@
 #   CF_DISCORDAUTH__CLIENTSECRET=...
 #       Optional: sign-in and account linking with Discord (ADR-0009). The OAuth2 client of a Discord application
 #       (the bot's one will do) with the redirect https://<CF_DOMAIN>/api/auth/discord/callback.
+#   CF_BACKUP__ENABLED=true (and CF_BACKUP__RECIPIENT, __ENDPOINT, __BUCKET, __ACCESSKEYID, __SECRETACCESSKEY)
+#       Optional: fixes a backup setting here, so the panel cannot change it; the panel can set all of them too.
+#       See docs/design/backup.md.
 # The whole file is passed to the aggregator, so a variable that is not in it stays unset.
 services:
   aggregator:
@@ -28,8 +31,8 @@ services:
       # so every request comes through Caddy and the headers can be trusted.
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
     volumes:
-      # Database, Data Protection key ring and git clones. Back up the whole volume: without the key ring
-      # the stored registry credentials cannot be decrypted.
+      # Database, Data Protection key ring and git clones. Back them up with the built-in backup or an atomic disk
+      # snapshot: without the key ring the stored secrets cannot be decrypted. See docs/design/backup.md.
       - aggregator-data:/data
     read_only: true
     tmpfs:

@@ -2,6 +2,7 @@ using System.Buffers.Text;
 using System.Text.Json;
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
+using ContainerForest.Aggregator.Application.Settings;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Infrastructure.Accounts;
@@ -16,7 +17,10 @@ internal sealed record PasskeyView(string Id, string Name, DateTimeOffset Create
 /// The passkeys of the signed-in user (only from a session: a token must not add a way to sign in), and of any user
 /// for administrators, who can remove a lost one.
 /// </summary>
-internal sealed class PasskeyManagement(SignInManager<AccountUser> signInManager, CurrentActor currentActor)
+internal sealed class PasskeyManagement(
+    SignInManager<AccountUser> signInManager,
+    CurrentActor currentActor,
+    IdentityConfirmations confirmations)
 {
     public const int MaxNameLength = 64;
 
@@ -43,12 +47,32 @@ internal sealed class PasskeyManagement(SignInManager<AccountUser> signInManager
         });
     }
 
-    /// <summary>Checks the browser's new credential and adds it to the signed-in user.</summary>
-    /// <param name="credentialJson">The result of <c>navigator.credentials.create()</c>, serialized with <c>toJSON()</c>.</param>
-    /// <exception cref="DomainValidationException">The credential does not check out, or the name is invalid.</exception>
-    public async Task<PasskeyView> AddAsync(string credentialJson, string name, CancellationToken cancellationToken)
+    /// <summary>
+    /// Whether adding a passkey needs a fresh confirmation (ADR-0013): otherwise a stolen session could add its own passkey
+    /// and confirm anything with it. An account signing in only through Discord has nothing to confirm with yet.
+    /// </summary>
+    public async Task<bool> NeedsConfirmationAsync(CancellationToken cancellationToken)
     {
         var (_, account) = await SignedInAsync(cancellationToken);
+        return await NeedsConfirmationAsync(account);
+    }
+
+    private async Task<bool> NeedsConfirmationAsync(AccountUser account) =>
+        await Accounts.HasPasswordAsync(account) || (await Accounts.GetPasskeysAsync(account)).Count > 0;
+
+    /// <summary>Checks the browser's new credential and adds it to the signed-in user.</summary>
+    /// <param name="credentialJson">The result of <c>navigator.credentials.create()</c>, serialized with <c>toJSON()</c>.</param>
+    /// <param name="confirmation">A fresh identity confirmation; see <see cref="NeedsConfirmationAsync(CancellationToken)"/>.</param>
+    /// <exception cref="DomainValidationException">The credential does not check out, or the name is invalid.</exception>
+    /// <exception cref="IdentityConfirmationRequiredException">The account has something to confirm with, and the confirmation is not valid.</exception>
+    public async Task<PasskeyView> AddAsync(string credentialJson, string name, string? confirmation, CancellationToken cancellationToken)
+    {
+        var (user, account) = await SignedInAsync(cancellationToken);
+        if (await NeedsConfirmationAsync(account))
+        {
+            confirmations.Require(confirmation, user.Id);
+        }
+
         var cleanName = NormalizeName(name);
 
         PasskeyAttestationResult attestation;

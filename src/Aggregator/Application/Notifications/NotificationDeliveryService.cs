@@ -8,7 +8,10 @@ namespace ContainerForest.Aggregator.Application.Notifications;
 
 /// <summary>A pending notification with what the bot needs to post it, resolved at sending time.</summary>
 /// <param name="DiscordChannelId">The channel's current Discord channel, so moving a channel also moves its pending notifications.</param>
-/// <param name="EnvironmentName">The environment's current name; its id if the environment was deleted since.</param>
+/// <param name="EnvironmentName">
+/// The environment's current name; its id if the environment was deleted since; <see cref="NotificationDeliveryService.SystemName"/>
+/// for an event about the whole system, because a bot of an older version needs a name to show.
+/// </param>
 public sealed record OutgoingNotification(Notification Notification, ulong DiscordChannelId, string EnvironmentName);
 
 /// <summary>
@@ -23,6 +26,7 @@ public sealed class NotificationDeliveryService(
     TimeProvider time,
     ILogger<NotificationDeliveryService> logger)
 {
+    public const string SystemName = "System";
     public const string ChannelDeletedError = "The notification channel was deleted.";
     public const string ChannelDisabledError = "The notification channel was disabled.";
     public const string UnknownBotError = "The bot could not post the notification.";
@@ -68,11 +72,16 @@ public sealed class NotificationDeliveryService(
                 continue;
             }
 
-            if (!environmentNames.TryGetValue(notification.EnvironmentId, out var environmentName))
+            string? environmentName;
+            if (notification.EnvironmentId is not { } environmentId)
             {
-                var environment = await environments.FindAsync(notification.EnvironmentId, cancellationToken);
-                environmentName = environment?.Name ?? notification.EnvironmentId.ToString();
-                environmentNames[notification.EnvironmentId] = environmentName;
+                environmentName = SystemName;
+            }
+            else if (!environmentNames.TryGetValue(environmentId, out environmentName))
+            {
+                var environment = await environments.FindAsync(environmentId, cancellationToken);
+                environmentName = environment?.Name ?? environmentId.ToString();
+                environmentNames[environmentId] = environmentName;
             }
 
             ready.Add(new OutgoingNotification(notification, channel.DiscordChannelId, environmentName));

@@ -7,7 +7,9 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 //   POST   /api/auth/passkey/login          -> MeResponse and the cf_session cookie; 401 for any failure
 //   POST   /api/me/passkeys/options         -> options for navigator.credentials.create(), as JSON; a session only
 //   GET    /api/me/passkeys                 -> PasskeyResponse[], oldest first; a session only
-//   POST   /api/me/passkeys                 -> 201 PasskeyResponse; a session only; 400 when the credential does not check out
+//   GET    /api/me/passkeys/needs-confirmation -> PasskeyConfirmationResponse; a session only
+//   POST   /api/me/passkeys                 -> 201 PasskeyResponse; a session only and, when the account has a password or
+//                                              a passkey, a fresh confirmation (403 without one); 400 when the credential does not check out
 //   PUT    /api/me/passkeys/{id}            -> PasskeyResponse; renames; a session only
 //   DELETE /api/me/passkeys/{id}            -> 204; a session only
 //   GET    /api/users/{id}/passkeys         -> PasskeyResponse[]; administrators
@@ -22,7 +24,11 @@ public sealed record PasskeyLoginRequest(string Credential, bool RememberMe);
 
 /// <param name="Credential">The result of <c>navigator.credentials.create()</c>, serialized with <c>toJSON()</c>.</param>
 /// <param name="Name">How the user tells the passkey apart, e.g. "Laptop" or "YubiKey"; 1-64 characters.</param>
-public sealed record AddPasskeyRequest(string Credential, string Name);
+/// <param name="Confirmation">The token from /api/auth/confirm/*; not needed for the first credential of an account.</param>
+public sealed record AddPasskeyRequest(string Credential, string Name, string? Confirmation);
+
+/// <param name="Required">Whether adding a passkey needs a fresh confirmation; false only for an account with nothing to confirm with.</param>
+public sealed record PasskeyConfirmationResponse(bool Required);
 
 public sealed record RenamePasskeyRequest(string Name);
 

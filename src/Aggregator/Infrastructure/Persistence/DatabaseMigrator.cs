@@ -1,4 +1,6 @@
 using ContainerForest.Aggregator.Infrastructure.Accounts;
+using ContainerForest.Aggregator.Infrastructure.Backups;
+using Microsoft.Data.Sqlite;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -11,6 +13,8 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence;
 /// <summary>Applies pending migrations when the host starts.</summary>
 internal sealed class DatabaseMigrator(IServiceScopeFactory scopeFactory, ILogger<DatabaseMigrator> logger) : IHostedService
 {
+    public const string BeforeMigrationSuffix = ".before-migration";
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
@@ -20,6 +24,7 @@ internal sealed class DatabaseMigrator(IServiceScopeFactory scopeFactory, ILogge
         if (pending.Count > 0)
         {
             logger.LogInformation("Applying {Count} database migration(s): {Migrations}", pending.Count, string.Join(", ", pending));
+            await KeepCopyBeforeMigratingAsync(db, cancellationToken);
         }
 
         await db.Database.MigrateAsync(cancellationToken);
@@ -29,6 +34,34 @@ internal sealed class DatabaseMigrator(IServiceScopeFactory scopeFactory, ILogge
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// A migration cannot be undone, so an existing database gets a copy next to it, replaced at the next migration
+    /// (ADR-0014). It holds nothing the database does not. No copy must not stop the aggregator from starting.
+    /// </summary>
+    private async Task KeepCopyBeforeMigratingAsync(AggregatorDbContext db, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!(await db.Database.GetAppliedMigrationsAsync(cancellationToken)).Any())
+            {
+                return;
+            }
+
+            var source = db.Database.GetConnectionString()!;
+            var databasePath = new SqliteConnectionStringBuilder(source).DataSource;
+            if (string.IsNullOrEmpty(databasePath) || databasePath == ":memory:")
+            {
+                return;
+            }
+
+            await SqliteSnapshot.WriteAsync(source, Path.GetFullPath(databasePath) + BeforeMigrationSuffix, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Could not keep a copy of the database before migrating it");
+        }
+    }
 }
 
 /// <summary>Lets `dotnet ef` create the context without starting the Api host.</summary>

@@ -370,6 +370,45 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.ToTable("AuditEntries", (string)null);
                 });
 
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Backups.BackupRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("FinishedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ObjectKey")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("StartedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Trigger")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FinishedAt");
+
+                    b.ToTable("BackupRuns", (string)null);
+                });
+
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Deployments.Deployment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -590,7 +629,7 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.Property<string>("Details")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("EnvironmentId")
+                    b.Property<Guid?>("EnvironmentId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Error")
@@ -803,6 +842,36 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.HasIndex("Name");
 
                     b.ToTable("Repositories", (string)null);
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Settings.StoredSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Field")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Section")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Section", "Field")
+                        .IsUnique();
+
+                    b.ToTable("StoredSettings", (string)null);
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Stacks.Stack", b =>

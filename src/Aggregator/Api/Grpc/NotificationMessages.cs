@@ -20,7 +20,7 @@ internal static class NotificationMessages
             Kind = ToKind(notification.Kind),
             Severity = ToSeverity(notification.Severity),
             OccurredUnixMs = notification.OccurredAt.ToUnixTimeMilliseconds(),
-            EnvironmentId = notification.EnvironmentId.ToString(),
+            EnvironmentId = notification.EnvironmentId?.ToString() ?? "",
             EnvironmentName = outgoing.EnvironmentName,
             Summary = notification.Summary,
         };
@@ -65,6 +65,8 @@ internal static class NotificationMessages
         NotificationEventKinds.AgentOffline => NotificationKind.AgentOffline,
         NotificationEventKinds.AgentOnline => NotificationKind.AgentOnline,
         NotificationEventKinds.ContainerHealthy => NotificationKind.ContainerHealthy,
+        NotificationEventKinds.BackupFailed => NotificationKind.BackupFailed,
+        NotificationEventKinds.SettingsChanged => NotificationKind.SettingsChanged,
         _ => NotificationKind.Unspecified,
     };
 

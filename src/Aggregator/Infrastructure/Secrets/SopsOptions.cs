@@ -8,6 +8,9 @@ public sealed class SopsOptions
     /// <summary>The sops binary; a bare name is looked up in PATH. The aggregator image has it.</summary>
     public string SopsPath { get; set; } = "sops";
 
+    /// <summary>The age binary, which encrypts backups.</summary>
+    public string AgePath { get; set; } = "age";
+
     /// <summary>The age-keygen binary; a bare name is looked up in PATH. The aggregator image has it.</summary>
     public string AgeKeygenPath { get; set; } = "age-keygen";
 

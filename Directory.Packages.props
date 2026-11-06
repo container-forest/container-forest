@@ -28,6 +28,9 @@
     <PackageVersion Include="LibGit2Sharp" Version="0.32.0" />
     <PackageVersion Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
+  <ItemGroup Label="Backup">
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.104.10" />
+  </ItemGroup>
   <ItemGroup Label="Discord">
     <PackageVersion Include="AspNet.Security.OAuth.Discord" Version="10.0.0" />
     <PackageVersion Include="Discord.Net" Version="3.20.1" />

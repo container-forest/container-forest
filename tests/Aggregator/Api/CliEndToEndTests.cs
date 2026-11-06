@@ -182,6 +182,23 @@ public sealed class CliEndToEndTests : IDisposable
     }
 
     [Fact]
+    public async Task Backup_status_and_run_work_from_the_command_line()
+    {
+        await using var app = new AggregatorApp();
+        var token = await CreateTokenAsync(app);
+        string[] connection = ["--url", "http://localhost", "--token", token];
+
+        var status = await RunAsync(app, null, "", [.. connection, "backup", "status"]);
+        Assert.Equal(0, status.ExitCode);
+        Assert.Contains("Enabled", status.Output);
+
+        // Nothing is configured, so the aggregator refuses to start one, and the command says why.
+        var run = await RunAsync(app, null, "", [.. connection, "backup", "run"]);
+        Assert.NotEqual(0, run.ExitCode);
+        Assert.Contains("not configured", run.Error);
+    }
+
+    [Fact]
     public async Task Repository_and_notification_rule_are_added_from_the_command_line()
     {
         await using var app = new AggregatorApp();
@@ -198,7 +215,7 @@ public sealed class CliEndToEndTests : IDisposable
         Assert.Equal(0, repository.ExitCode);
         Assert.Contains("https://git.example.com/app.git", repositories.Output);
         Assert.Equal(0, rule.ExitCode);
-        Assert.Equal(7, Assert.Single(JsonDocument.Parse(rules.Output).RootElement.EnumerateArray()).GetProperty("events").GetArrayLength());
+        Assert.Equal(9, Assert.Single(JsonDocument.Parse(rules.Output).RootElement.EnumerateArray()).GetProperty("events").GetArrayLength());
     }
 
     [Fact]

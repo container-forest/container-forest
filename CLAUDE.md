@@ -18,6 +18,7 @@
 | Політика compose, адміністратор середовища | [docs/design/compose-policy.md](docs/design/compose-policy.md) |
 | Вхід, сесії, користувачі, API-токени, passkeys, Discord OAuth2 | [docs/design/auth.md](docs/design/auth.md) |
 | Журнал аудиту | [docs/design/audit.md](docs/design/audit.md) |
+| Налаштування системи, підтвердження особи, бекап і відновлення ЦА | [docs/design/backup.md](docs/design/backup.md) |
 | Середовища, дії з контейнерами, логи, події контейнерів | [docs/design/containers.md](docs/design/containers.md) |
 | SignalR і live-оновлення | [docs/design/live-updates.md](docs/design/live-updates.md) |
 | Сповіщення | [docs/design/notifications.md](docs/design/notifications.md) |

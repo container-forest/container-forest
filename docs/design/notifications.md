@@ -18,6 +18,8 @@
 - `NotificationEvent` — одна подія з рівно одним видом.
 - `Notification` — запис історії: Pending → Delivered | Failed | Expired. Історія не має зовнішніх ключів на правила й канали, щоб переживати їх видалення.
 
+**Події всієї системи** (`BackupFailed`, `SettingsChanged`) не мають середовища: `NotificationEvent.EnvironmentId` порожній, тому їх отримують лише правила на всю систему. Боту йде `environment_name` зі значенням `System`, а не порожнє: старіший бот показав би поле середовища й не зміг би зібрати embed. Такі події створює `SystemNotifier`, збій якого лише логується.
+
 ## ЦА
 
 - **Диспетчер:** джерело подій викликає `NotificationDispatcher.DispatchAsync(event, summary)`. Той створює одне `Notification` на канал (від найконкретнішого правила, що збіглося), зберігає й будить потік бота через `NotificationFeed`.

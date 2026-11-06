@@ -73,7 +73,7 @@ public sealed record BackupRunResponse(
 /// <param name="Problems">What stops a backup; empty when it can run.</param>
 /// <param name="NextRunAt">Null while backups are off.</param>
 /// <param name="NotifiesFailures">A notification rule on the whole system covers failed backups.</param>
-/// <param name="NotifiesChanges">A notification rule on the whole system covers changes of settings.</param>
+/// <param name="NotifiesChanges">Notification rules on the whole system cover changes of settings and of account security.</param>
 /// <param name="Runs">The latest runs, newest first.</param>
 public sealed record BackupStatusResponse(
     bool Enabled,

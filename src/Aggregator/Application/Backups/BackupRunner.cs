@@ -15,7 +15,7 @@ public sealed partial class BackupRunner(
     IBackupStorage storage,
     IBackupRunRepository runs,
     BackupGate gate,
-    SystemNotifier notifier,
+    ISystemNotifier notifier,
     IUnitOfWork unitOfWork,
     TimeProvider time,
     ILogger<BackupRunner> logger)

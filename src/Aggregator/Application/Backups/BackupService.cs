@@ -11,7 +11,7 @@ namespace ContainerForest.Aggregator.Application.Backups;
 
 /// <param name="NextRunAt">Null while backups are off.</param>
 /// <param name="NotifiesFailures">A rule on the whole system sends failed backups somewhere.</param>
-/// <param name="NotifiesChanges">A rule on the whole system sends changes of settings somewhere.</param>
+/// <param name="NotifiesChanges">Rules on the whole system send changes of settings and of account security somewhere.</param>
 public sealed record BackupStatus(
     bool Enabled,
     IReadOnlyList<string> Problems,
@@ -54,7 +54,7 @@ public sealed class BackupService(
             settings.Enabled ? BackupSchedule.NextRunAt(recent.FirstOrDefault(), settings.Interval, now) : null,
             lastSucceeded?.FinishedAt,
             Notifies(NotificationEventKinds.BackupFailed),
-            Notifies(NotificationEventKinds.SettingsChanged),
+            Notifies(NotificationEventKinds.SettingsChanged) && Notifies(NotificationEventKinds.AccountSecurityChanged),
             recent);
     }
 

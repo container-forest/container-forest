@@ -23,6 +23,7 @@ export const notificationEventKinds = [
   "ContainerHealthy",
   "BackupFailed",
   "SettingsChanged",
+  "AccountSecurityChanged",
 ] as const;
 
 export type NotificationEventKind = (typeof notificationEventKinds)[number];

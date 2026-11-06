@@ -28,8 +28,14 @@ public enum NotificationEventKinds
     /// <summary>Someone changed the system's settings. About the whole system: only rules on the whole system get it.</summary>
     SettingsChanged = 1 << 8,
 
+    /// <summary>
+    /// Someone gained administrator rights or had a password reset by an administrator: both give a way in. About the
+    /// whole system: only rules on the whole system get it.
+    /// </summary>
+    AccountSecurityChanged = 1 << 9,
+
     All = DeploymentSucceeded | DeploymentFailed | ContainerDied | ContainerUnhealthy | AgentOffline | AgentOnline
-        | ContainerHealthy | BackupFailed | SettingsChanged,
+        | ContainerHealthy | BackupFailed | SettingsChanged | AccountSecurityChanged,
 }
 
 public enum NotificationSeverity
@@ -57,7 +63,8 @@ public sealed record NotificationEvent(
     {
         NotificationEventKinds.DeploymentFailed or NotificationEventKinds.ContainerDied or NotificationEventKinds.AgentOffline
             or NotificationEventKinds.BackupFailed => NotificationSeverity.Error,
-        NotificationEventKinds.ContainerUnhealthy or NotificationEventKinds.SettingsChanged => NotificationSeverity.Warning,
+        NotificationEventKinds.ContainerUnhealthy or NotificationEventKinds.SettingsChanged
+            or NotificationEventKinds.AccountSecurityChanged => NotificationSeverity.Warning,
         _ => NotificationSeverity.Info,
     };
 

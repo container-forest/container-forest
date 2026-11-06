@@ -1,10 +1,12 @@
 using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
+using ContainerForest.Aggregator.Domain.Notifications;
 using ContainerForest.Aggregator.Domain.Stacks;
 
 namespace ContainerForest.Aggregator.Application.Access;
@@ -38,6 +40,7 @@ public sealed class UserManagementService(
     IAccountStore accounts,
     IUnitOfWork unitOfWork,
     IAuditTrail audit,
+    ISystemNotifier notifier,
     TimeProvider time)
 {
     public async Task<IReadOnlyList<UserSummary>> ListAsync(CancellationToken cancellationToken)
@@ -80,7 +83,7 @@ public sealed class UserManagementService(
     private async Task<UserSummary> CreateUserAsync(
         AuditDraft draft, string userName, string password, bool isAdmin, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
+        var actor = await currentActor.GetAdministratorAsync(cancellationToken);
         var now = time.GetUtcNow();
         var user = isAdmin ? User.CreateAdministrator(userName, now) : User.Create(userName, now);
         if (await users.FindByUserNameAsync(user.UserName, cancellationToken) is { } existing)
@@ -98,6 +101,11 @@ public sealed class UserManagementService(
         {
             users.Remove(user);
             throw;
+        }
+
+        if (isAdmin)
+        {
+            await AnnounceAsync($"Administrator '{user.UserName}' was created", actor);
         }
 
         return new UserSummary(user, LockedOutUntil: null);
@@ -223,14 +231,23 @@ public sealed class UserManagementService(
         var draft = new AuditDraft(action.AuditAction, new UserAuditTarget(id, id.ToString())) { Details = action.AuditDetails };
         return audit.RunAsync(draft, async () =>
         {
-            await currentActor.GetAdministratorAsync(cancellationToken);
+            var actor = await currentActor.GetAdministratorAsync(cancellationToken);
             var user = await users.GetAsync(id, cancellationToken);
             draft.Target = new UserAuditTarget(user.Id, user.UserName);
+            var announcement = action.AnnouncementFor(user);
             await action.ExecuteAsync(user, new UserActionContext(users, accounts), cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
+            if (announcement is not null)
+            {
+                await AnnounceAsync(announcement, actor);
+            }
+
             return await SummarizeAsync(user, cancellationToken);
         }, cancellationToken);
     }
+
+    private Task AnnounceAsync(string what, Actor actor) =>
+        notifier.NotifyAsync(NotificationEventKinds.AccountSecurityChanged, $"{what} by {actor.User.UserName}");
 
     /// <summary>The user's name for the audit log; their id when they do not exist.</summary>
     private async Task<string> NameOfAsync(UserId id, CancellationToken cancellationToken) =>

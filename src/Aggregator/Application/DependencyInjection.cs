@@ -37,7 +37,7 @@ public static class DependencyInjection
         services.AddScoped<BackupRunner>();
         services.AddScoped<BackupService>();
         services.AddScoped<BackupSettingsService>();
-        services.AddScoped<SystemNotifier>();
+        services.AddScoped<ISystemNotifier, SystemNotifier>();
         services.AddScoped<DiscordLinkService>();
         services.AddScoped<ApiTokenService>();
         services.AddScoped<SigningKeyService>();

@@ -309,6 +309,7 @@ enum NotificationKind {
   // Events about the whole system: environment_id is empty and environment_name is "System".
   NOTIFICATION_KIND_BACKUP_FAILED = 8;
   NOTIFICATION_KIND_SETTINGS_CHANGED = 9;
+  NOTIFICATION_KIND_ACCOUNT_SECURITY_CHANGED = 10;
 }
 
 enum NotificationSeverity {

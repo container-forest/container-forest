@@ -1,3 +1,5 @@
+using ContainerForest.Aggregator.Domain.Notifications;
+using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Tests.Deployments;
@@ -25,6 +27,7 @@ public class UserManagementServiceTests
     private readonly UserManagementService service;
 
     private readonly User admin = User.CreateAdministrator("root", Now);
+    private readonly RecordingNotifier notifier = new();
     private readonly User alice = User.Create("alice", Now);
     private readonly DockerEnvironment prod = DockerEnvironment.Create("prod", isPrivate: true, Now);
     private readonly DockerEnvironment staging = DockerEnvironment.Create("staging", isPrivate: false, Now);
@@ -42,7 +45,7 @@ public class UserManagementServiceTests
         stacks.Add(web);
         currentUser.Id = admin.Id;
         service = new UserManagementService(
-            new CurrentActor(currentUser, users), users, roleAssignments, environments, stacks, accounts, unitOfWork, audit, new FixedTime(Now));
+            new CurrentActor(currentUser, users), users, roleAssignments, environments, stacks, accounts, unitOfWork, audit, notifier, new FixedTime(Now));
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -282,5 +285,76 @@ public class UserManagementServiceTests
         var entry = Assert.Single(audit.Entries);
         Assert.Equal((AuditAction.RoleGranted, "alice", "Role: Operator on prod"), (entry.Action, entry.Target?.Name, entry.Details));
         Assert.Equal(prod.Id, entry.Target?.EnvironmentId);
+    }
+
+    [Fact]
+    public async Task Granting_administrator_rights_is_announced_with_who_did_it()
+    {
+        await service.SetAdminAsync(alice.Id, true, Ct);
+
+        var (kind, summary) = Assert.Single(notifier.Sent);
+        Assert.Equal(NotificationEventKinds.AccountSecurityChanged, kind);
+        Assert.Contains("'alice'", summary);
+        Assert.Contains(admin.UserName, summary);
+    }
+
+    [Fact]
+    public async Task Granting_to_an_administrator_changes_nothing_and_announces_nothing()
+    {
+        await service.SetAdminAsync(admin.Id, true, Ct);
+
+        Assert.Empty(notifier.Sent);
+    }
+
+    [Fact]
+    public async Task A_password_reset_is_announced_without_the_password()
+    {
+        await service.ResetPasswordAsync(alice.Id, Password, Ct);
+
+        var (kind, summary) = Assert.Single(notifier.Sent);
+        Assert.Equal(NotificationEventKinds.AccountSecurityChanged, kind);
+        Assert.Contains("'alice'", summary);
+        Assert.DoesNotContain(Password, summary);
+    }
+
+    [Fact]
+    public async Task Creating_an_administrator_is_announced_and_an_ordinary_user_is_not()
+    {
+        await service.CreateAsync("bob", Password, isAdmin: false, Ct);
+        Assert.Empty(notifier.Sent);
+
+        await service.CreateAsync("carol", Password, isAdmin: true, Ct);
+
+        Assert.Contains("'carol'", Assert.Single(notifier.Sent).Summary);
+    }
+
+    [Fact]
+    public async Task Other_changes_announce_nothing()
+    {
+        await service.RenameAsync(alice.Id, "alicia", Ct);
+        await service.SetAdminAsync(alice.Id, false, Ct);
+
+        Assert.Empty(notifier.Sent);
+    }
+
+    [Fact]
+    public async Task A_refused_reset_announces_nothing()
+    {
+        currentUser.Id = alice.Id;
+
+        await Assert.ThrowsAsync<AccessDeniedException>(() => service.ResetPasswordAsync(admin.Id, Password, Ct));
+
+        Assert.Empty(notifier.Sent);
+    }
+
+    private sealed class RecordingNotifier : ISystemNotifier
+    {
+        public List<(NotificationEventKinds Kind, string Summary)> Sent { get; } = [];
+
+        public Task NotifyAsync(NotificationEventKinds kind, string summary)
+        {
+            Sent.Add((kind, summary));
+            return Task.CompletedTask;
+        }
     }
 }

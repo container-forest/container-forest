@@ -1419,7 +1419,7 @@ const en: Translation = {
       nextRun: "Next run",
       never: "None yet",
       problems: "What stops the backup:",
-      noRule: "No whole-system rule sends backup failures or settings changes anywhere.",
+      noRule: "Whole-system rules do not send backup failures, settings changes, or new administrators and password resets anywhere.",
       noRuleLink: "Set up notifications",
       runNow: "Back up now",
     },
@@ -1596,6 +1596,7 @@ const en: Translation = {
       ContainerHealthy: "Container healthy again",
       BackupFailed: "Backup failed (whole-system rules only)",
       SettingsChanged: "Settings changed (whole-system rules only)",
+      AccountSecurityChanged: "New administrator or password reset (whole-system rules only)",
     },
     severity: {
       Info: "Info",

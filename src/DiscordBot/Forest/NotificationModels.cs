@@ -40,6 +40,7 @@ public enum NotificationKind
     ContainerHealthy,
     BackupFailed,
     SettingsChanged,
+    AccountSecurityChanged,
 }
 
 public enum NotificationSeverity

@@ -28,7 +28,7 @@ public sealed class BackupSettingsService(
     CurrentActor currentActor,
     SettingsStore store,
     IdentityConfirmations confirmations,
-    SystemNotifier notifier,
+    ISystemNotifier notifier,
     IAuditTrail audit)
 {
     private static BackupSettingsSection Section => BackupSettingsSection.Instance;

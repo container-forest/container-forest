@@ -67,6 +67,7 @@ internal static class NotificationMessages
         NotificationEventKinds.ContainerHealthy => NotificationKind.ContainerHealthy,
         NotificationEventKinds.BackupFailed => NotificationKind.BackupFailed,
         NotificationEventKinds.SettingsChanged => NotificationKind.SettingsChanged,
+        NotificationEventKinds.AccountSecurityChanged => NotificationKind.AccountSecurityChanged,
         _ => NotificationKind.Unspecified,
     };
 

@@ -9,7 +9,6 @@ import { ErrorText, FieldError, PasswordReasons } from "@/components/form-messag
 import { Loader2Icon } from "@/components/icons";
 import { PasskeysCard } from "@/components/passkeys/passkeys-card";
 import { InstallCard } from "@/components/pwa/install-card";
-import { SeasonCard } from "@/components/seasons/season-card";
 import { SigningKeysCard } from "@/components/signing-keys/signing-keys-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -123,9 +122,6 @@ function AccountScreen() {
       <SigningKeysCard />
 
       <InstallCard />
-
-      {/* Last: the backdrop is the least important setting on the page. */}
-      <SeasonCard />
     </div>
   );
 }

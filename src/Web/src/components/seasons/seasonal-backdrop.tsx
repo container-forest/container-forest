@@ -236,7 +236,8 @@ function drawRain(context: CanvasRenderingContext2D, { size, color }: Particle) 
   tail.addColorStop(0, color);
   tail.addColorStop(1, "rgba(255, 255, 255, 0)");
   context.strokeStyle = tail;
-  context.lineWidth = 1.3;
+  // Longer streaks are thicker too, so a downpour reads heavier than a drizzle.
+  context.lineWidth = Math.max(1.3, size / 22);
   context.lineCap = "round";
   context.beginPath();
   context.moveTo(0, 0);

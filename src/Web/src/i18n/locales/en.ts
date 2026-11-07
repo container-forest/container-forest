@@ -46,6 +46,7 @@ const en: Translation = {
       backup: "Backup",
       account: "My account",
       tokens: "API tokens",
+      appearance: "Appearance",
     },
   },
   roles: {
@@ -180,7 +181,9 @@ const en: Translation = {
   },
   appearance: {
     title: "Appearance",
-    description: "The panel's colours and a quiet seasonal backdrop behind it: it takes no clicks and covers no content. The settings are remembered in this browser.",
+    description: "The panel's colours and seasonal backdrop. The settings are remembered in this browser and sent nowhere.",
+    backdrop: "Seasonal backdrop",
+    backdropDescription: "A quiet backdrop behind the panel: it takes no clicks and covers no content.",
     palette: "Colour theme",
     palettes: {
       forest: "Forest",
@@ -198,6 +201,7 @@ const en: Translation = {
       summer: "Summer: butterflies and poplar fluff",
       autumn: "Autumn: red and orange leaves",
       winter: "Winter: snowflakes",
+      downpour: "Downpour: heavy rain",
     },
     current: {
       spring: "spring",

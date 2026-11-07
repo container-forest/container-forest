@@ -16,6 +16,7 @@ import {
   LogOutIcon,
   MessageCircleIcon,
   ServerIcon,
+  PaletteIcon,
   TokenIcon,
   SettingsIcon,
   UserIcon,
@@ -275,6 +276,9 @@ export function SidebarContent({ onNavigate = () => {} }: { onNavigate?: () => v
           </NavItem>
           <NavItem active={at("/tokens")} icon={TokenIcon} label={t("layout.nav.tokens")}>
             {(props) => <Link to="/tokens" onClick={onNavigate} {...props} />}
+          </NavItem>
+          <NavItem active={at("/appearance")} icon={PaletteIcon} label={t("layout.nav.appearance")}>
+            {(props) => <Link to="/appearance" onClick={onNavigate} {...props} />}
           </NavItem>
         </NavGroup>
         <div className="flex items-center justify-between gap-2 px-1">

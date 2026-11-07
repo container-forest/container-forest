@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type DiscordLinkCode, useIssueDiscordLinkCodeMutation, useUnlinkDiscordMutation } from "@/api/discord";
 import { discordLinkQuery, signInMethodsQuery } from "@/api/queries";
-import { CheckIcon, CopyIcon, LinkIcon, Loader2Icon, MessageCircleIcon, RefreshCwIcon, UnlinkIcon } from "@/components/icons";
+import { DiscordIcon } from "@/components/discord-icon";
+import { CheckIcon, CopyIcon, LinkIcon, Loader2Icon, RefreshCwIcon, UnlinkIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMinutesSeconds, useSecondsLeft } from "@/hooks/use-seconds-left";
@@ -93,7 +94,7 @@ function OAuthLinkCard({ relink }: { relink: boolean }) {
           {/* A browser navigation to Discord's page; the aggregator brings the browser back here. */}
           <Button asChild>
             <a href="/api/me/discord/oauth">
-              <MessageCircleIcon data-icon="inline-start" />
+              <DiscordIcon data-icon="inline-start" />
               {relink ? t("discord.oauth.relink") : t("discord.oauth.link")}
             </a>
           </Button>

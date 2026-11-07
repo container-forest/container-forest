@@ -1,12 +1,32 @@
 // The quiet seasonal backdrop of the panel, without React: which season it is, what the viewer chose, and how the
-// particles (leaves, butterflies, snowflakes) move. Drawing lives in the component.
+// particles (leaves, butterflies, poplar fluff, snowflakes) move. Drawing lives in the component.
 
 export const seasons = ["spring", "summer", "autumn", "winter"] as const;
 export type Season = (typeof seasons)[number];
 
-/** What the viewer chose: follow the calendar, keep one season, or no animation at all. */
-export const seasonPreferences = ["auto", ...seasons, "off"] as const;
-export type SeasonPreference = (typeof seasonPreferences)[number];
+/** Which season to show: the one the calendar says, or one the viewer keeps all year. */
+export const seasonChoices = ["auto", ...seasons] as const;
+export type SeasonChoice = (typeof seasonChoices)[number];
+
+/** Every kind of particle; a season shows one or more of them. */
+export const effects = ["springLeaves", "butterflies", "fluff", "autumnLeaves", "snowflakes"] as const;
+export type Effect = (typeof effects)[number];
+
+/** What each season shows. Summer has two layers: butterflies and the poplar fluff around them. */
+export const seasonEffects: Record<Season, readonly Effect[]> = {
+  spring: ["springLeaves"],
+  summer: ["butterflies", "fluff"],
+  autumn: ["autumnLeaves"],
+  winter: ["snowflakes"],
+};
+
+/** Everything the viewer set. The default is the animation on, by the calendar. */
+export interface BackdropSettings {
+  enabled: boolean;
+  season: SeasonChoice;
+}
+
+export const defaultBackdropSettings: BackdropSettings = { enabled: true, season: "auto" };
 
 /** Meteorological seasons of the northern hemisphere: winter is December to February. */
 export function seasonOf(date: Date): Season {
@@ -17,67 +37,100 @@ export function seasonOf(date: Date): Season {
   return "winter";
 }
 
-/** The season to show, or none. */
-export function shownSeason(preference: SeasonPreference, now: Date): Season | null {
-  if (preference === "off") return null;
-  return preference === "auto" ? seasonOf(now) : preference;
+/** The season to show, or none when the animation is off. */
+export function shownSeason(settings: BackdropSettings, now: Date): Season | null {
+  if (!settings.enabled) return null;
+  return settings.season === "auto" ? seasonOf(now) : settings.season;
 }
 
-// The choice is remembered in this browser only. Storage may be unavailable (private mode, blocked site data), so
-// every access is guarded and the default is the calendar.
-const STORAGE_KEY = "cf-season";
+/** The effects to draw now: those of the shown season. */
+export function shownEffects(settings: BackdropSettings, now: Date): readonly Effect[] {
+  const season = shownSeason(settings, now);
+  return season ? seasonEffects[season] : [];
+}
+
+// The settings are remembered in this browser only. Storage may be unavailable (private mode, blocked site data), so
+// every access is guarded and anything unreadable falls back to the defaults.
+const STORAGE_KEY = "cf-backdrop";
+// Before the settings had their own record, only the season was kept, with "off" for no animation.
+const LEGACY_KEY = "cf-season";
 const listeners = new Set<() => void>();
 
-function isPreference(value: unknown): value is SeasonPreference {
-  return (seasonPreferences as readonly unknown[]).includes(value);
+const isSeasonChoice = (value: unknown): value is SeasonChoice => (seasonChoices as readonly unknown[]).includes(value);
+
+/** Settings from their stored form; unknown or broken values fall back to the defaults one by one, and other fields are ignored. */
+export function parseBackdropSettings(stored: string | null, legacy: string | null): BackdropSettings {
+  if (stored !== null) {
+    try {
+      const value: unknown = JSON.parse(stored);
+      if (typeof value === "object" && value !== null) {
+        const { enabled, season } = value as Record<string, unknown>;
+        return {
+          enabled: typeof enabled === "boolean" ? enabled : defaultBackdropSettings.enabled,
+          season: isSeasonChoice(season) ? season : defaultBackdropSettings.season,
+        };
+      }
+    } catch {
+      // Not JSON: the defaults.
+    }
+    return defaultBackdropSettings;
+  }
+  if (legacy === "off") return { ...defaultBackdropSettings, enabled: false };
+  if (isSeasonChoice(legacy)) return { ...defaultBackdropSettings, season: legacy };
+  return defaultBackdropSettings;
 }
 
-export function readSeasonPreference(): SeasonPreference {
+function readBackdropSettings(): BackdropSettings {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return isPreference(stored) ? stored : "auto";
+    return parseBackdropSettings(localStorage.getItem(STORAGE_KEY), localStorage.getItem(LEGACY_KEY));
   } catch {
-    return "auto";
+    return defaultBackdropSettings;
   }
 }
 
-export function writeSeasonPreference(preference: SeasonPreference) {
-  try {
-    localStorage.setItem(STORAGE_KEY, preference);
-  } catch {
-    // Not remembered, but still applied until the page reloads.
-  }
-  memory = preference;
-  listeners.forEach((listener) => listener());
+let memory: BackdropSettings | undefined;
+
+/** For `useSyncExternalStore`: the same object until the settings change, kept in memory so a failed write still applies. */
+export function backdropSettingsSnapshot(): BackdropSettings {
+  memory ??= readBackdropSettings();
+  return memory;
 }
 
-let memory: SeasonPreference | undefined;
-
-/** For `useSyncExternalStore`: the current choice, kept in memory once written so a failed write still applies. */
-export function seasonPreferenceSnapshot(): SeasonPreference {
-  return memory ?? readSeasonPreference();
-}
-
-export function subscribeSeasonPreference(listener: () => void) {
+export function subscribeBackdropSettings(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-/** How a season's particles look and move. Speeds are in CSS pixels per second. */
+/** Changes part of the settings, remembers them and redraws the backdrop. */
+export function updateBackdropSettings(change: Partial<BackdropSettings>) {
+  memory = { ...backdropSettingsSnapshot(), ...change };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(memory));
+    localStorage.removeItem(LEGACY_KEY);
+  } catch {
+    // Not remembered, but still applied until the page reloads.
+  }
+  listeners.forEach((listener) => listener());
+}
+
+/** How an effect's particles look and move. Speeds are in CSS pixels per second. */
 export interface SeasonStyle {
-  shape: "leaf" | "butterfly" | "snowflake";
+  shape: "leaf" | "butterfly" | "fluff" | "snowflake";
   colors: readonly string[];
+  /** Colours on the light theme, for particles that would vanish on a light background. */
+  lightColors?: readonly string[];
   /** Particles per 100 000 square pixels of the window, before the limits below. */
   density: number;
   minCount: number;
   maxCount: number;
   size: readonly [number, number];
+  /** Downward speed; a negative one rises. */
   fall: readonly [number, number];
   opacity: readonly [number, number];
 }
 
-export const seasonStyles: Record<Season, SeasonStyle> = {
-  spring: {
+export const effectStyles: Record<Effect, SeasonStyle> = {
+  springLeaves: {
     shape: "leaf",
     colors: ["#8fc49a", "#a8d5a2", "#6fae84", "#c3e2b0"],
     density: 1.4,
@@ -87,7 +140,7 @@ export const seasonStyles: Record<Season, SeasonStyle> = {
     fall: [14, 28],
     opacity: [0.35, 0.6],
   },
-  summer: {
+  butterflies: {
     shape: "butterfly",
     colors: ["#e8c27a", "#d9a7c7", "#9cc5e0", "#f1e3a1"],
     density: 0.8,
@@ -97,7 +150,19 @@ export const seasonStyles: Record<Season, SeasonStyle> = {
     fall: [-6, 6],
     opacity: [0.45, 0.7],
   },
-  autumn: {
+  fluff: {
+    // Poplar fluff: tiny bright specks that hang in the air, drift with a light breeze and sometimes rise.
+    shape: "fluff",
+    colors: ["#fffbe6", "#fff3b8", "#ffffff", "#ffe9a3"],
+    lightColors: ["#c99a2e", "#d8a93c", "#b8892a", "#e0b54a"],
+    density: 2.2,
+    minCount: 12,
+    maxCount: 34,
+    size: [1.4, 3.2],
+    fall: [-5, 9],
+    opacity: [0.55, 0.95],
+  },
+  autumnLeaves: {
     shape: "leaf",
     colors: ["#b5462f", "#c9692f", "#d98b3a", "#8f2f24", "#c7a04a"],
     density: 1.4,
@@ -107,12 +172,13 @@ export const seasonStyles: Record<Season, SeasonStyle> = {
     fall: [16, 32],
     opacity: [0.35, 0.6],
   },
-  winter: {
+  snowflakes: {
     shape: "snowflake",
     colors: ["#f2f7f4", "#dfeee6", "#ffffff"],
-    density: 2,
-    minCount: 10,
-    maxCount: 28,
+    lightColors: ["#9fb8c4", "#b3c8d1", "#8fa9b6"],
+    density: 3,
+    minCount: 15,
+    maxCount: 42,
     size: [2, 6],
     fall: [12, 26],
     opacity: [0.3, 0.6],
@@ -125,7 +191,7 @@ export interface Particle {
   size: number;
   color: string;
   opacity: number;
-  /** Downward speed; butterflies use it as a slow drift instead. */
+  /** Downward speed (negative rises); butterflies use it as a slow drift instead. */
   fall: number;
   /** Sideways sway: amplitude in pixels and angular speed. */
   sway: number;
@@ -134,7 +200,7 @@ export interface Particle {
   spin: number;
   /** Phase of the sway and, for butterflies, of the wing beat. */
   phase: number;
-  /** Butterflies wander: their current heading in radians. */
+  /** Butterflies wander and fluff drifts with the breeze: the current heading in radians. */
   heading: number;
 }
 
@@ -151,19 +217,29 @@ export function particleCount(style: SeasonStyle, width: number, height: number)
  * A new particle. At the start they are spread over the whole window; later ones enter above the top edge
  * (butterflies anywhere, as they fly in from the side).
  */
-export function spawnParticle(style: SeasonStyle, width: number, height: number, random: Random, initial: boolean): Particle {
+export function spawnParticle(
+  style: SeasonStyle,
+  width: number,
+  height: number,
+  random: Random,
+  initial: boolean,
+  light = false,
+): Particle {
   const size = between(random, style.size);
+  const colors = (light && style.lightColors) || style.colors;
+  const fall = between(random, style.fall);
   const fromLeft = random() < 0.5;
   // A butterfly that is not there from the start flies in from a side edge, towards the other one.
   const sideEntry = style.shape === "butterfly" && !initial;
   return {
     x: sideEntry ? (fromLeft ? -size * 2 : width + size * 2) : random() * width,
-    y: initial || sideEntry ? random() * height : -size * 2,
+    // Rising fluff comes in from below the bottom edge.
+    y: initial || sideEntry ? random() * height : fall < 0 ? height + size * 2 : -size * 2,
     size,
-    color: style.colors[Math.floor(random() * style.colors.length)] ?? style.colors[0]!,
+    color: colors[Math.floor(random() * colors.length)] ?? colors[0]!,
     opacity: between(random, style.opacity),
-    fall: between(random, style.fall),
-    sway: style.shape === "snowflake" ? between(random, [4, 14]) : between(random, [12, 36]),
+    fall,
+    sway: style.shape === "snowflake" ? between(random, [4, 14]) : style.shape === "fluff" ? between(random, [10, 28]) : between(random, [12, 36]),
     swaySpeed: between(random, [0.4, 1.1]),
     rotation: random() * Math.PI * 2,
     spin: style.shape === "leaf" ? between(random, [-0.9, 0.9]) : 0,
@@ -190,6 +266,15 @@ export function stepParticle(particle: Particle, style: SeasonStyle, dt: number,
 
   particle.y += particle.fall * dt;
   particle.rotation += particle.spin * dt;
+  if (style.shape === "fluff") {
+    // A breeze that slowly changes direction; fluff that drifts out at one side comes back at the other.
+    particle.heading += (random() - 0.5) * 0.8 * dt;
+    particle.x += Math.cos(particle.heading) * 7 * dt;
+    const margin = particle.size * 3 + particle.sway;
+    if (particle.x < -margin) particle.x = width + margin;
+    else if (particle.x > width + margin) particle.x = -margin;
+    return particle.y < height + particle.size * 3 && particle.y > -particle.size * 3;
+  }
   return particle.y < height + particle.size * 3;
 }
 

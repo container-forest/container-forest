@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Brand } from "@/components/layout/brand";
 import { autofillSupported, browserErrorKey, isCancelled, passkeysSupported } from "@/features/passkeys/model";
 import type { MessageKey } from "@/i18n";
@@ -111,8 +112,9 @@ function LoginScreen() {
 
   return (
     <main className="relative flex min-h-svh flex-col items-center justify-center gap-6 p-6">
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4 flex items-center gap-1">
         <LanguageSwitcher />
+        <ThemeToggle />
       </div>
       <Brand className="text-2xl" />
       <Card className="w-full max-w-sm">

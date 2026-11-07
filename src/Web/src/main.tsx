@@ -4,6 +4,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { ApiError } from "./api/client";
 import { setUpApp } from "./features/pwa/model";
+import { setUpTheme } from "./features/theme/model";
 import "./i18n";
 import { routeTree } from "./routeTree.gen";
 import "./styles.css";
@@ -33,6 +34,7 @@ declare module "@tanstack/react-router" {
   }
 }
 
+setUpTheme();
 setUpApp();
 
 createRoot(document.getElementById("root")!).render(

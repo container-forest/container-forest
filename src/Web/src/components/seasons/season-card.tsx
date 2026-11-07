@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useBackdropSettings } from "@/components/seasons/seasonal-backdrop";
+import { PalettePicker } from "@/components/palette-picker";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,7 +12,7 @@ function isSeasonChoice(value: string): value is SeasonChoice {
 }
 
 /**
- * The seasonal backdrop: on or off, which season (by the calendar or one kept all year), and rain when it rains
+ * The panel's colour theme and the seasonal backdrop: on or off, which season (by the calendar or one kept all year), and rain when it rains
  * where the viewer is. All on, by the calendar, unless the viewer changes it. Remembered in this browser.
  */
 export function SeasonCard() {
@@ -31,6 +32,14 @@ export function SeasonCard() {
         <CardDescription>{t("appearance.description")}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
+        <div className="grid gap-2">
+          <span id="appearance-palette" className="text-sm leading-none font-medium">
+            {t("appearance.palette")}
+          </span>
+          <PalettePicker />
+          <p className="text-muted-foreground text-xs">{t("appearance.paletteCredit")}</p>
+        </div>
+
         <div className="flex items-center justify-between gap-4">
           <Label htmlFor="appearance-enabled">{t("appearance.enabled")}</Label>
           <Switch

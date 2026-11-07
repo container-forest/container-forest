@@ -180,7 +180,16 @@ const en: Translation = {
   },
   appearance: {
     title: "Appearance",
-    description: "A quiet seasonal backdrop behind the panel: it takes no clicks and covers no content. The settings are remembered in this browser.",
+    description: "The panel's colours and a quiet seasonal backdrop behind it: it takes no clicks and covers no content. The settings are remembered in this browser.",
+    palette: "Colour theme",
+    palettes: {
+      forest: "Forest",
+      meadow: "Meadow",
+      lilac: "Lilac",
+      lake: "Lake",
+      sunset: "Sunset",
+    },
+    paletteCredit: "Meadow is light on pale green instead of white. Lilac, Lake, Sunset and the dark Meadow follow the Catppuccin palette. Light or dark: the button next to the language.",
     enabled: "Seasonal animation",
     season: "Season",
     auto: "By the calendar (now: {{season}})",

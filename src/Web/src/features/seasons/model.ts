@@ -190,16 +190,17 @@ export const effectStyles: Record<Effect, SeasonStyle> = {
     opacity: [0.3, 0.6],
   },
   downpour: {
-    // Heavy rain the viewer chooses: thick, long, fast streaks, dense enough to read as rain behind the cards.
+    // Heavy rain the viewer chooses: thick, long streaks, dense enough to read as rain behind the cards, but slow and
+    // soft enough not to tire the eyes.
     shape: "rain",
     colors: ["#c6dcea", "#b0cade", "#d8e7f1", "#9fbcd2"],
     lightColors: ["#5f8197", "#527489", "#6d8ea3"],
-    density: 16,
-    minCount: 110,
-    maxCount: 380,
+    density: 10,
+    minCount: 70,
+    maxCount: 240,
     size: [26, 52],
-    fall: [1000, 1400],
-    opacity: [0.4, 0.75],
+    fall: [380, 520],
+    opacity: [0.3, 0.6],
   },
 };
 

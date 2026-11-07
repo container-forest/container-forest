@@ -22,6 +22,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #else
         public string Branch { get; set; }
 #endif
+        /// <summary>The canAdministerEnvironment property</summary>
+        public bool? CanAdministerEnvironment { get; set; }
         /// <summary>The canDeploy property</summary>
         public bool? CanDeploy { get; set; }
         /// <summary>The canRemove property</summary>
@@ -64,6 +66,16 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #else
         public string Name { get; set; }
 #endif
+        /// <summary>The policyAllowances property</summary>
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
+#nullable enable
+        public List<string>? PolicyAllowances { get; set; }
+#nullable restore
+#else
+        public List<string> PolicyAllowances { get; set; }
+#endif
+        /// <summary>The policyUnrestricted property</summary>
+        public bool? PolicyUnrestricted { get; set; }
         /// <summary>The repositoryId property</summary>
         public Guid? RepositoryId { get; set; }
         /// <summary>The repositoryName property</summary>
@@ -74,6 +86,10 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #else
         public string RepositoryName { get; set; }
 #endif
+        /// <summary>The requireImageDigests property</summary>
+        public bool? RequireImageDigests { get; set; }
+        /// <summary>The requireSignedCommits property</summary>
+        public bool? RequireSignedCommits { get; set; }
         /// <summary>The restartOnFileChange property</summary>
         public bool? RestartOnFileChange { get; set; }
         /// <summary>
@@ -102,6 +118,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             return new Dictionary<string, Action<IParseNode>>
             {
                 { "branch", n => { Branch = n.GetStringValue(); } },
+                { "canAdministerEnvironment", n => { CanAdministerEnvironment = n.GetBoolValue(); } },
                 { "canDeploy", n => { CanDeploy = n.GetBoolValue(); } },
                 { "canRemove", n => { CanRemove = n.GetBoolValue(); } },
                 { "canRestart", n => { CanRestart = n.GetBoolValue(); } },
@@ -114,8 +131,12 @@ namespace ContainerForest.Cli.Api.Generated.Models
                 { "id", n => { Id = n.GetGuidValue(); } },
                 { "isSystem", n => { IsSystem = n.GetBoolValue(); } },
                 { "name", n => { Name = n.GetStringValue(); } },
+                { "policyAllowances", n => { PolicyAllowances = n.GetCollectionOfPrimitiveValues<string>()?.AsList(); } },
+                { "policyUnrestricted", n => { PolicyUnrestricted = n.GetBoolValue(); } },
                 { "repositoryId", n => { RepositoryId = n.GetGuidValue(); } },
                 { "repositoryName", n => { RepositoryName = n.GetStringValue(); } },
+                { "requireImageDigests", n => { RequireImageDigests = n.GetBoolValue(); } },
+                { "requireSignedCommits", n => { RequireSignedCommits = n.GetBoolValue(); } },
                 { "restartOnFileChange", n => { RestartOnFileChange = n.GetBoolValue(); } },
             };
         }
@@ -127,6 +148,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
         {
             if(ReferenceEquals(writer, null)) throw new ArgumentNullException(nameof(writer));
             writer.WriteStringValue("branch", Branch);
+            writer.WriteBoolValue("canAdministerEnvironment", CanAdministerEnvironment);
             writer.WriteBoolValue("canDeploy", CanDeploy);
             writer.WriteBoolValue("canRemove", CanRemove);
             writer.WriteBoolValue("canRestart", CanRestart);
@@ -139,8 +161,12 @@ namespace ContainerForest.Cli.Api.Generated.Models
             writer.WriteGuidValue("id", Id);
             writer.WriteBoolValue("isSystem", IsSystem);
             writer.WriteStringValue("name", Name);
+            writer.WriteCollectionOfPrimitiveValues<string>("policyAllowances", PolicyAllowances);
+            writer.WriteBoolValue("policyUnrestricted", PolicyUnrestricted);
             writer.WriteGuidValue("repositoryId", RepositoryId);
             writer.WriteStringValue("repositoryName", RepositoryName);
+            writer.WriteBoolValue("requireImageDigests", RequireImageDigests);
+            writer.WriteBoolValue("requireSignedCommits", RequireSignedCommits);
             writer.WriteBoolValue("restartOnFileChange", RestartOnFileChange);
             writer.WriteAdditionalData(AdditionalData);
         }

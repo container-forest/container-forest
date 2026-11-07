@@ -57,12 +57,36 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
 
     public StubSops Sops { get; } = new();
 
+    /// <summary>Signatures of fetched commits; by default every commit is unsigned.</summary>
+    public StubCommits Commits { get; } = new();
+
     public BotGateway.BotGatewayClient BotGateway => new(Channel);
 
     public AgentGateway.AgentGatewayClient Gateway => new(Channel);
 
     private GrpcChannel Channel =>
         channel ??= GrpcChannel.ForAddress(Server.BaseAddress, new GrpcChannelOptions { HttpHandler = Server.CreateHandler() });
+
+    /// <summary>Whether the text is anywhere in the database's files, to show that a secret is not stored in clear.</summary>
+    public async Task<bool> DatabaseContainsAsync(string text)
+    {
+        foreach (var path in new[] { databasePath, databasePath + "-wal" })
+        {
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            await using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(file, System.Text.Encoding.Latin1);
+            if ((await reader.ReadToEndAsync()).Contains(text, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>A client that acts as the given user; null for an anonymous client.</summary>
     public HttpClient CreateClientAs(string? userName)
@@ -139,6 +163,8 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         builder.ConfigureTestServices(services =>
         {
             services.Replace(ServiceDescriptor.Singleton<IGitSource>(Git));
+            services.Replace(ServiceDescriptor.Singleton<ICommitInspector>(Commits));
+            services.Replace(ServiceDescriptor.Singleton<ICommitSignatureVerifier>(Commits));
             services.Replace(ServiceDescriptor.Singleton<IAgeKeyGenerator>(Sops));
             services.Replace(ServiceDescriptor.Singleton<ISopsDecryptor>(Sops));
             services.Replace(ServiceDescriptor.Singleton<ISopsEncryptor>(Sops));
@@ -202,6 +228,28 @@ internal sealed class StubGitSource : IGitSource
         ReadCommits.Add(commit.Value);
         return Task.FromResult(Snapshot!);
     }
+}
+
+/// <summary>
+/// Commit signatures without git or ssh-keygen: <see cref="Signature"/> is what every commit carries, and it verifies
+/// when it names the key (the real check is tested in the infrastructure tests).
+/// </summary>
+internal sealed class StubCommits : ICommitInspector, ICommitSignatureVerifier
+{
+    public CommitSignatureData? Signature { get; set; }
+
+    public bool Descends { get; set; } = true;
+
+    public Task<CommitSignatureData?> ReadSignatureAsync(
+        Domain.Repositories.GitRepository repository, Domain.Stacks.CommitSha commit, CancellationToken cancellationToken) =>
+        Task.FromResult(Signature);
+
+    public Task<bool> DescendsFromAsync(
+        Domain.Repositories.GitRepository repository, Domain.Stacks.CommitSha commit, Domain.Stacks.CommitSha ancestor, CancellationToken cancellationToken) =>
+        Task.FromResult(Descends);
+
+    public Task<bool> VerifyAsync(SshPublicKey key, SshSignature signature, byte[] signedData, CancellationToken cancellationToken) =>
+        Task.FromResult(key.Fingerprint == signature.PublicKey.Fingerprint);
 }
 
 /// <summary>

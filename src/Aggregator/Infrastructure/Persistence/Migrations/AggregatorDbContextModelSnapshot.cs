@@ -15,7 +15,7 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.ApiToken", b =>
                 {
@@ -213,6 +213,58 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.UseTphMappingStrategy();
                 });
 
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.SigningKey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AddedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Algorithm")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsRestricted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LastUsedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PublicKey")
+                        .IsRequired()
+                        .HasMaxLength(4096)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AddedBy");
+
+                    b.HasIndex("Fingerprint")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("SigningKeys", (string)null);
+                });
+
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -318,13 +370,65 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.ToTable("AuditEntries", (string)null);
                 });
 
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Backups.BackupRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("FinishedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ObjectKey")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("StartedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Trigger")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FinishedAt");
+
+                    b.ToTable("BackupRuns", (string)null);
+                });
+
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Deployments.Deployment", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ApprovedCommit")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Commit")
                         .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Endorsement")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EndorsementProblem")
+                        .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Error")
@@ -343,6 +447,17 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<Guid?>("RequestedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("SignedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SignerName")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SigningKeyFingerprint")
+                        .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("StackId")
@@ -391,12 +506,17 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasMaxLength(62)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("StackId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EnvironmentId");
 
                     b.HasIndex("Recipient")
                         .IsUnique();
+
+                    b.HasIndex("StackId");
 
                     b.ToTable("AgeKeys", (string)null);
                 });
@@ -509,7 +629,7 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.Property<string>("Details")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("EnvironmentId")
+                    b.Property<Guid?>("EnvironmentId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Error")
@@ -622,6 +742,34 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.ToTable("NotificationRules", (string)null);
                 });
 
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Policies.ComposePolicy", b =>
+                {
+                    b.Property<Guid>("EnvironmentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Allowances")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DataRoot")
+                        .IsRequired()
+                        .HasMaxLength(4096)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SystemReadOnlyPaths")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("EnvironmentId");
+
+                    b.ToTable("ComposePolicies", (string)null);
+                });
+
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Repositories.GitConnection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -696,6 +844,36 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.ToTable("Repositories", (string)null);
                 });
 
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Settings.StoredSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Field")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Section")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Section", "Field")
+                        .IsUnique();
+
+                    b.ToTable("StoredSettings", (string)null);
+                });
+
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Stacks.Stack", b =>
                 {
                     b.Property<Guid>("Id")
@@ -727,6 +905,9 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DeployedComposeFacts")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("DeployedWithSecrets")
                         .HasColumnType("INTEGER");
 
@@ -741,8 +922,23 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasMaxLength(63)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PolicyAllowances")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("[]");
+
+                    b.Property<bool>("PolicyUnrestricted")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid>("RepositoryId")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("RequireImageDigests")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("RequireSignedCommits")
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("RestartOnFileChange")
                         .HasColumnType("INTEGER");
@@ -1030,6 +1226,41 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Access.SigningKey", b =>
+                {
+                    b.HasOne("ContainerForest.Aggregator.Domain.Access.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsMany("ContainerForest.Aggregator.Domain.Access.SigningKeyEnvironment", "environments", b1 =>
+                        {
+                            b1.Property<Guid>("SigningKeyId")
+                                .HasColumnType("TEXT");
+
+                            b1.Property<Guid>("EnvironmentId")
+                                .HasColumnType("TEXT");
+
+                            b1.HasKey("SigningKeyId", "EnvironmentId");
+
+                            b1.HasIndex("EnvironmentId");
+
+                            b1.ToTable("SigningKeyEnvironments", (string)null);
+
+                            b1.HasOne("ContainerForest.Aggregator.Domain.Environments.DockerEnvironment", null)
+                                .WithMany()
+                                .HasForeignKey("EnvironmentId")
+                                .OnDelete(DeleteBehavior.Cascade)
+                                .IsRequired();
+
+                            b1.WithOwner()
+                                .HasForeignKey("SigningKeyId");
+                        });
+
+                    b.Navigation("environments");
+                });
+
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Deployments.Deployment", b =>
                 {
                     b.HasOne("ContainerForest.Aggregator.Domain.Access.User", null)
@@ -1082,6 +1313,11 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasForeignKey("EnvironmentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("ContainerForest.Aggregator.Domain.Stacks.Stack", null)
+                        .WithMany()
+                        .HasForeignKey("StackId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Environments.RegistryCredential", b =>
@@ -1110,6 +1346,15 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("StackId")
                         .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Policies.ComposePolicy", b =>
+                {
+                    b.HasOne("ContainerForest.Aggregator.Domain.Environments.DockerEnvironment", null)
+                        .WithOne()
+                        .HasForeignKey("ContainerForest.Aggregator.Domain.Policies.ComposePolicy", "EnvironmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Repositories.GitConnection", b =>

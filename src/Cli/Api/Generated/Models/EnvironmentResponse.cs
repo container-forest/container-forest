@@ -30,6 +30,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #else
         public string AgentVersion { get; set; }
 #endif
+        /// <summary>The canAdminister property</summary>
+        public bool? CanAdminister { get; set; }
         /// <summary>The enrollmentTokenExpiresAt property</summary>
         public DateTimeOffset? EnrollmentTokenExpiresAt { get; set; }
         /// <summary>The id property</summary>
@@ -79,6 +81,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             {
                 { "agentHostname", n => { AgentHostname = n.GetStringValue(); } },
                 { "agentVersion", n => { AgentVersion = n.GetStringValue(); } },
+                { "canAdminister", n => { CanAdminister = n.GetBoolValue(); } },
                 { "enrollmentTokenExpiresAt", n => { EnrollmentTokenExpiresAt = n.GetDateTimeOffsetValue(); } },
                 { "id", n => { Id = n.GetGuidValue(); } },
                 { "isEnrolled", n => { IsEnrolled = n.GetBoolValue(); } },
@@ -98,6 +101,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             if(ReferenceEquals(writer, null)) throw new ArgumentNullException(nameof(writer));
             writer.WriteStringValue("agentHostname", AgentHostname);
             writer.WriteStringValue("agentVersion", AgentVersion);
+            writer.WriteBoolValue("canAdminister", CanAdminister);
             writer.WriteDateTimeOffsetValue("enrollmentTokenExpiresAt", EnrollmentTokenExpiresAt);
             writer.WriteGuidValue("id", Id);
             writer.WriteBoolValue("isEnrolled", IsEnrolled);

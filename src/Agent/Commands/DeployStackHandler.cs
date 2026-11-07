@@ -17,6 +17,7 @@ public sealed partial class DeployStackHandler(
     IStackFileStore store,
     IComposeRunner compose,
     RegistryConfigWriter registryConfigs,
+    HostPathInspector inspector,
     StackLocks locks,
     IOptions<AgentOptions> options,
     ILogger<DeployStackHandler> logger)
@@ -44,11 +45,28 @@ public sealed partial class DeployStackHandler(
         var layout = StackLayout.Create(stackName, command.Files);
         var environment = ValidateEnvironment(command.Env);
         RegistryConfigWriter.Validate(command.RegistryAuths);
+        if (command.VerifyPaths.FirstOrDefault(p => !HostPathInspector.IsAcceptable(p)) is { } badPath)
+        {
+            throw new InvalidCommandArgumentException($"Path to verify '{badPath}' must be absolute and normalized.");
+        }
 
         await progress.ReportAsync(Describe(command, layout), cancellationToken);
         var written = await store.WriteAsync(layout, cancellationToken);
 
-        var invocation = ComposeInvocation.Up(stackName, written.Directory, command.Pull, environment);
+        // As late as possible: a container could plant a link while the stack is being written (ADR-0012).
+        var secretLinks = inspector.SecretLinks(layout);
+        foreach (var path in command.VerifyPaths)
+        {
+            if (inspector.Inspect(path, secretLinks) is { } problem)
+            {
+                throw new UnsafeMountSourceException($"Compose up was not run: {problem.Describe()}");
+            }
+        }
+
+        var envFile = command.ExplicitEnvFile
+            ? ComposeInvocation.EnvFileFor(written.Directory, RenderStackHandler.HasEnvFile(layout))
+            : null;
+        var invocation = ComposeInvocation.Up(stackName, written.Directory, command.Pull, environment, envFile);
         using (var registryConfig = await registryConfigs.WriteAsync(command.RegistryAuths, cancellationToken))
         {
             if (registryConfig is not null)
@@ -84,7 +102,8 @@ public sealed partial class DeployStackHandler(
         await compose.RunAsync(ComposeInvocation.Restart(stackName, options.Value.StacksRoot, RestartTimeout), progress, cancellationToken);
     }
 
-    private static Dictionary<string, string> ValidateEnvironment(MapField<string, string> env)
+    /// <summary>Checks the variables for compose; shared with <see cref="RenderStackHandler"/>.</summary>
+    internal static Dictionary<string, string> ValidateEnvironment(MapField<string, string> env)
     {
         foreach (var (name, value) in env)
         {

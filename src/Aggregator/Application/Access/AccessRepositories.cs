@@ -18,4 +18,7 @@ public interface IUserRepository : IRepository<User, UserId>
 public interface IRoleAssignmentRepository : IRepository<RoleAssignment, RoleAssignmentId>
 {
     Task<IReadOnlyList<RoleAssignment>> ListForUserAsync(UserId userId, CancellationToken cancellationToken);
+
+    /// <summary>Roles on the environment and on each of its stacks.</summary>
+    Task<IReadOnlyList<RoleAssignment>> ListForEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken);
 }

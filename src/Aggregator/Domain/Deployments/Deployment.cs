@@ -24,6 +24,52 @@ public enum DeploymentTrigger
     DeployHook,
 }
 
+/// <summary>Whether someone who may deploy the stack endorsed the deployed content (ADR-0011).</summary>
+public enum CommitEndorsement
+{
+    /// <summary>The stack does not require signed commits, or the pipeline has not reached the check.</summary>
+    NotChecked,
+
+    /// <summary>Signed with the signing key of a user who may deploy the stack.</summary>
+    Signed,
+
+    /// <summary>Not endorsed by a signature; deployed because a user who may deploy it approved this exact commit.</summary>
+    ApprovedUnsigned,
+
+    /// <summary>Rehydration of the commit already running: nothing new is deployed, so it is not checked again.</summary>
+    AlreadyDeployed,
+
+    /// <summary>Not endorsed; the deployment failed before the secrets were decrypted.</summary>
+    Rejected,
+}
+
+/// <summary>Why a commit was not endorsed.</summary>
+public enum EndorsementProblem
+{
+    Unsigned,
+
+    /// <summary>Signed, but not with SSH (GPG, X.509) or in a form the aggregator does not accept.</summary>
+    UnsupportedSignature,
+
+    /// <summary>Signed with a key no user has added.</summary>
+    UnknownKey,
+
+    /// <summary>The signature does not match the commit or the key.</summary>
+    InvalidSignature,
+
+    /// <summary>The key is limited to other environments.</summary>
+    KeyOutsideScope,
+
+    /// <summary>The key's user is deactivated or may not deploy the stack.</summary>
+    SignerMayNotDeploy,
+
+    /// <summary>An automatic deployment of a commit that does not descend from the deployed one, e.g. after a force-push.</summary>
+    NotDescendant,
+
+    /// <summary>An unsigned commit was approved, but the branch has moved on to another commit since.</summary>
+    ApprovalOutdated,
+}
+
 public enum DeploymentLogLevel
 {
     Info,
@@ -62,9 +108,11 @@ public sealed class Deployment : Entity<DeploymentId>
         DeploymentTrigger trigger,
         UserId? requestedBy,
         ImagePullPolicy pullPolicy,
-        DateTimeOffset queuedAt)
+        DateTimeOffset queuedAt,
+        CommitSha? approvedCommit = null)
         : base(id)
     {
+        ApprovedCommit = approvedCommit;
         StackId = stackId;
         Trigger = trigger;
         RequestedBy = requestedBy;
@@ -86,6 +134,26 @@ public sealed class Deployment : Entity<DeploymentId>
     public ImagePullPolicy PullPolicy { get; private init; }
 
     public DeploymentStatus Status { get; private set; }
+
+    /// <summary>
+    /// The unsigned commit the user who started a manual deployment approved by its SHA: deployed only when the branch
+    /// head is still this commit (ADR-0011). Null when nothing was approved.
+    /// </summary>
+    public CommitSha? ApprovedCommit { get; private init; }
+
+    public CommitEndorsement Endorsement { get; private set; }
+
+    /// <summary>Why the commit was not endorsed; null unless <see cref="Endorsement"/> is Rejected or ApprovedUnsigned.</summary>
+    public EndorsementProblem? EndorsementProblem { get; private set; }
+
+    /// <summary>The user whose key signed the commit; null unless it was Signed.</summary>
+    public UserId? SignedBy { get; private set; }
+
+    /// <summary>Their name at the time, so history reads correctly after the user is renamed or removed.</summary>
+    public string? SignerName { get; private set; }
+
+    /// <summary>"SHA256:…" of the key that signed the commit; null unless it was Signed.</summary>
+    public string? SigningKeyFingerprint { get; private set; }
 
     /// <summary>Commit being deployed; known once the pipeline has fetched the repository.</summary>
     public CommitSha? Commit { get; private set; }
@@ -109,8 +177,10 @@ public sealed class Deployment : Entity<DeploymentId>
 
     public TimeSpan? Duration => StartedAt is { } started && FinishedAt is { } finished ? finished - started : null;
 
-    public static Deployment QueueManual(StackId stackId, UserId requestedBy, ImagePullPolicy pullPolicy, DateTimeOffset now) =>
-        new(DeploymentId.New(), stackId, DeploymentTrigger.Manual, requestedBy, pullPolicy, now);
+    /// <param name="approvedCommit">An unsigned commit the user approves for a stack that requires signed commits.</param>
+    public static Deployment QueueManual(
+        StackId stackId, UserId requestedBy, ImagePullPolicy pullPolicy, DateTimeOffset now, CommitSha? approvedCommit = null) =>
+        new(DeploymentId.New(), stackId, DeploymentTrigger.Manual, requestedBy, pullPolicy, now, approvedCommit);
 
     public static Deployment QueueFromWebhook(StackId stackId, DateTimeOffset now) =>
         new(DeploymentId.New(), stackId, DeploymentTrigger.Webhook, requestedBy: null, ImagePullPolicy.Missing, now);
@@ -151,6 +221,45 @@ public sealed class Deployment : Entity<DeploymentId>
         }
 
         Commit = commit;
+    }
+
+    /// <summary>True for deployments nobody started by hand: they must not move a stack off the line of its deployed commit.</summary>
+    public bool IsAutomatic => Trigger is DeploymentTrigger.Webhook or DeploymentTrigger.DeployHook;
+
+    public void RecordSigned(UserId signer, string signerName, string keyFingerprint)
+    {
+        EnsureStatus(DeploymentStatus.Running);
+        Endorsement = CommitEndorsement.Signed;
+        EndorsementProblem = null;
+        SignedBy = signer;
+        SignerName = signerName;
+        SigningKeyFingerprint = keyFingerprint;
+    }
+
+    /// <summary>The commit is not endorsed by a signature for <paramref name="problem"/>, but it is the approved one.</summary>
+    public void RecordApprovedUnsigned(EndorsementProblem problem)
+    {
+        EnsureStatus(DeploymentStatus.Running);
+        if (Trigger != DeploymentTrigger.Manual || ApprovedCommit is null || ApprovedCommit != Commit)
+        {
+            throw new DomainConflictException($"Deployment {Id} did not approve commit {Commit?.Short}.");
+        }
+
+        Endorsement = CommitEndorsement.ApprovedUnsigned;
+        EndorsementProblem = problem;
+    }
+
+    public void RecordAlreadyDeployed()
+    {
+        EnsureStatus(DeploymentStatus.Running);
+        Endorsement = CommitEndorsement.AlreadyDeployed;
+    }
+
+    public void RecordRejected(EndorsementProblem problem)
+    {
+        EnsureStatus(DeploymentStatus.Running);
+        Endorsement = CommitEndorsement.Rejected;
+        EndorsementProblem = problem;
     }
 
     public void Succeed(DateTimeOffset now)

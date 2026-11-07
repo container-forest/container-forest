@@ -76,4 +76,19 @@ public sealed partial class ForestApi
 
     public Task RemoveUserPasskeyAsync(Guid userId, string passkeyId, CancellationToken cancellationToken) =>
         Api.Users[userId].Passkeys[passkeyId].DeleteAsync(cancellationToken: cancellationToken);
+
+    public async Task<IReadOnlyList<SigningKeyResponse>> ListUserSigningKeysAsync(Guid userId, CancellationToken cancellationToken) =>
+        await Api.Users[userId].SigningKeys.GetAsync(cancellationToken: cancellationToken) ?? [];
+
+    /// <param name="environmentIds">Null for every environment.</param>
+    public async Task<SigningKeyResponse> AddUserSigningKeyAsync(
+        Guid userId, string name, string publicKey, List<Guid?>? environmentIds, CancellationToken cancellationToken) =>
+        Required(
+            await Api.Users[userId].SigningKeys.PostAsync(
+                new AddSigningKeyRequest { Name = name, PublicKey = publicKey, EnvironmentIds = environmentIds },
+                cancellationToken: cancellationToken),
+            "signing key");
+
+    public Task RemoveUserSigningKeyAsync(Guid userId, Guid keyId, CancellationToken cancellationToken) =>
+        Api.Users[userId].SigningKeys[keyId].DeleteAsync(cancellationToken: cancellationToken);
 }

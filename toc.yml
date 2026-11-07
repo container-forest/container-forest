@@ -2,6 +2,42 @@
   href: docs/project-overview.md
 - name: Архітектура
   href: docs/architecture.md
+- name: Підпис комітів і git по SSH
+  href: docs/signing-commits.md
+- name: Безпека
+  href: docs/security-invariants.md
+- name: Опис підсистем
+  items:
+  - name: Перелік
+    href: docs/design/README.md
+  - name: Рішення та їх обґрунтування
+    href: docs/design/decisions.md
+  - name: Деплой стеку
+    href: docs/design/deployment.md
+  - name: Webhook і хук деплою
+    href: docs/design/deployment-triggers.md
+  - name: Git і підключення до git-серверів
+    href: docs/design/git.md
+  - name: "Секрети: SOPS, git-фільтр, rehydrate"
+    href: docs/design/secrets.md
+  - name: Підписи комітів
+    href: docs/design/signed-commits.md
+  - name: Політика compose й адміністратор середовища
+    href: docs/design/compose-policy.md
+  - name: Автентифікація, користувачі, токени
+    href: docs/design/auth.md
+  - name: Журнал аудиту
+    href: docs/design/audit.md
+  - name: Середовища, контейнери й логи
+    href: docs/design/containers.md
+  - name: Live-оновлення
+    href: docs/design/live-updates.md
+  - name: Сповіщення
+    href: docs/design/notifications.md
+  - name: "Discord-бот: шлюз і меню"
+    href: docs/design/discord-bot.md
+  - name: Екрани панелі
+    href: docs/design/web-panel.md
 - name: ADR
   items:
   - name: Перелік
@@ -20,7 +56,11 @@
     href: CONTRIBUTING.md
   - name: Облік лабораторних
     href: CONTRIBUTIONS.md
-  - name: Рішення й домовленості
+  - name: Вимоги курсу
+    href: docs/course-requirements.md
+  - name: Стан реалізації
+    href: docs/project-status.md
+  - name: Інструкції для Claude Code
     href: CLAUDE.md
   - name: Використання ШІ
     href: docs/ai-usage.md

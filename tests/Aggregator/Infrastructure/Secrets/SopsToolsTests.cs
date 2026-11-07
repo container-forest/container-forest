@@ -85,6 +85,21 @@ public sealed class SopsToolsTests
             Decryptor().DecryptAsync(StackFilePath.Parse(".env"), damaged, [key.Identity], Ct));
     }
 
+    [Fact]
+    public async Task File_with_crlf_line_endings_is_reported_as_such()
+    {
+        RequireTools();
+        var key = await new AgeKeygenCli(Options).GenerateAsync(Ct);
+        var encrypted = Encoding.UTF8.GetString(await EncryptAsync(".env", "API_KEY=abc123\n", key.Recipient));
+        var converted = Encoding.UTF8.GetBytes(encrypted.Replace("\n", "\r\n", StringComparison.Ordinal));
+
+        var error = await Assert.ThrowsAsync<SopsDecryptionException>(() =>
+            Decryptor().DecryptAsync(StackFilePath.Parse(".env"), converted, [key.Identity], Ct));
+
+        Assert.StartsWith("the file has CRLF line endings", error.Message, StringComparison.Ordinal);
+        Assert.Contains("eol=lf", error.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("secrets.yaml", "db:\n    password: hunter2\n")]
     [InlineData(".env", "API_KEY=abc123\n")]

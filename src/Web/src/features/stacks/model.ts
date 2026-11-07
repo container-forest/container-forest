@@ -202,3 +202,21 @@ export function describeError(error: unknown): { key: MessageKey; detail?: strin
       return { key: "stacks.errors.unexpected", detail: error.problem?.detail };
   }
 }
+
+/**
+ * Whether the deployment stopped because its commit was not endorsed (ADR-0011) and the user may approve that commit:
+ * a new manual deployment then deploys it unsigned, if it is still the branch head.
+ */
+export function canApproveCommit(
+  deployment: Pick<DeploymentDetails, "status" | "commit" | "endorsement">,
+  stack: Pick<Stack, "canDeploy" | "isSystem" | "requireSignedCommits">,
+): boolean {
+  return (
+    deployment.status === "Failed" &&
+    deployment.endorsement.status === "Rejected" &&
+    deployment.commit != null &&
+    stack.canDeploy &&
+    !stack.isSystem &&
+    stack.requireSignedCommits
+  );
+}

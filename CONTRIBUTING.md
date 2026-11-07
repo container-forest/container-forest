@@ -4,12 +4,13 @@
 
 ## Правила роботи в команді
 
-- Кожен PR перевіряється на [інваріанти безпеки](docs/architecture.md#інваріанти-безпеки): порушувати їх не можна в жодному PR.
+- Кожен PR перевіряється на [інваріанти безпеки](docs/security-invariants.md): порушувати їх не можна в жодному PR.
 - Жодних прямих комітів у `main`. Лише PR із зеленим [CI](#ci), відкритий у `main` (не в гілку іншого PR).
 - Рев'ю (рішення команди): кожен PR Бояра В. О., Синенка Д. В. і Денисенко Л. В. мерджиться лише після аппруву Петренка Б. О.; GitHub додає його рев'юером автоматично (`.github/CODEOWNERS`). Свої PR Петренко Б. О. перевіряє сам.
 - Коміти за [Conventional Commits](https://www.conventionalcommits.org/): `feat(agent): ...`, `fix(web): ...`.
 - **`CONTRIBUTIONS.md`** — кожен веде свій список класів, методів, ієрархій, екранів і обробників для лаб. Оновлюйте разом із PR, а не в кінці семестру. Попередній розподіл класів і екранів між учасниками — у [docs/project-overview.md](docs/project-overview.md#команда).
 - Нотатки для ретроспективи з лаби 3 пишіть у `docs/retro/<бібліотека>.md` одразу, поки пам'ятаєте проблеми. Якщо з бібліотекою працює кілька учасників, кожен пише свій розділ у тому самому файлі.
+- Документацію оновлюйте в тому самому PR: опис підсистеми — у `docs/design/`, конвенції компонента — у `src/<компонент>/CLAUDE.md`, у кореневий `CLAUDE.md` — лише те, що стосується всього проєкту.
 - Архітектурні рішення, про які сперечались (наприклад, «git тягне ЦА, а не агент»), фіксуйте короткими ADR у `docs/adr/`.
 - Аналіз аналогів у `docs/project-overview.md` оновлюється на кожному етапі проєкту новим підрозділом з датою; стан на початку розробки не редагується.
 
@@ -27,6 +28,7 @@ ContainerForest.slnx
 docfx.json, toc.yml, index.md    конфігурація сайту документації
 scripts/install-sops.sh          sops і age-keygen для образу ЦА й CI (версії й контрольні суми)
 scripts/generate-cli-client.sh   клієнт API для CLI (Kiota) з OpenAPI-документа ЦА
+scripts/check-docs/              перевірки документації в CI (Mermaid, назви з коду, розмір CLAUDE.md)
 Directory.Build.props            спільні властивості .NET-проєктів
 Directory.Packages.props         версії NuGet-пакетів (central package management)
 dotnet-tools.json                локальні інструменти .NET (dotnet-ef, docfx)
@@ -45,13 +47,18 @@ src/
 tests/                           дзеркалить src/
 deploy/                          compose-файли для ЦА з панеллю, агента й бота
 docs/
-  architecture.md                компоненти, протоколи, безпека, права
+  architecture.md                компоненти, протоколи, права
+  security-invariants.md         інваріанти безпеки
+  design/                        опис підсистем і рішення з обґрунтуванням
+  course-requirements.md         вимоги лабораторних
+  project-status.md              перелік реалізованого
   project-overview.md            опис проєкту, команда, аналіз аналогів
   adr/                           записи архітектурних рішень
   retro/                         ретроспективи по бібліотеках (лаба 3)
   ai-usage.md                    використання генеративного ШІ (вимога курсу)
 CONTRIBUTING.md                  цей файл: правила команди
 CONTRIBUTIONS.md                 облік елементів лабораторних для кожного учасника
+CLAUDE.md, src/*/CLAUDE.md       інструкції для Claude Code: спільні й конвенції компонента
 ```
 
 ## Іменування
@@ -144,6 +151,23 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    ```
    Для `dotnet run` без опублікованого бінарника підійде обгортка `forest` у `PATH`: `exec dotnet <репозиторій>/src/Cli/bin/Debug/net10.0/forest.dll "$@"`.
 
+   Підписані коміти (ADR-0011): ЦА потрібен `ssh-keygen` (пакет `openssh-client`) у `PATH`. Ключ підпису додає сама людина (сесія, не API-токен), стек вмикає вимогу, а непідписаний коміт можна підтвердити за SHA:
+   ```sh
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/me/signing-keys -H 'content-type: application/json' -d "{\"name\":\"laptop\",\"publicKey\":\"$(cat ~/.ssh/id_ed25519.pub)\",\"environmentIds\":null}"
+   curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/stacks/<stackId>/require-signed-commits -H 'content-type: application/json' -d '{"enabled":true}'
+   git config gpg.format ssh && git config user.signingkey ~/.ssh/id_ed25519.pub && git commit -S -m '…'
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/stacks/<stackId>/deployments -H 'content-type: application/json' -d '{"pull":false,"approveCommit":"<повний SHA>"}'   # лише для непідписаного коміту
+   ```
+
+   Політика compose й адміністратор середовища (ADR-0012): адміністратор призначає роль `EnvironmentAdmin` на середовище, той змінює політику й винятки. Для перевірки рендерингу агенту потрібен `docker compose`; для шляхів поза `/opt/container-forest` — корінь хоста (`CF_AGENT__HOSTROOT`, у контейнері агента `/:/host:ro,rslave`):
+   ```sh
+   curl -X POST -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/role-assignments -H 'content-type: application/json' -d '{"userName":"alice","stackId":null,"role":"EnvironmentAdmin"}'
+   curl -X PUT -H 'X-Dev-User: alice' http://localhost:5080/api/environments/<id>/compose-policy -H 'content-type: application/json' -d '{"mode":"Audit","dataRoot":"/var/lib/container-forest/data","systemReadOnlyPaths":["/etc/localtime"],"allowances":["network:proxy"]}'
+   curl -X PUT -H 'X-Dev-User: alice' http://localhost:5080/api/stacks/<stackId>/policy-allowances -H 'content-type: application/json' -d '{"allowances":["docker-socket"]}'
+   curl -H 'X-Dev-User: alice' http://localhost:5080/api/environments/<id>/compose-policy/report   # розгорнуті стеки за поточною політикою
+   curl -X POST -H 'X-Dev-User: alice' 'http://localhost:5080/api/environments/<id>/age-keys?stackId=<stackId>'   # ключ SOPS лише цього стеку
+   ```
+
    Образи з приватного registry: креди задаються на середовищі (лише адміністратор; пароль ніколи не повертається). Повторний `PUT` для того самого `server` замінює логін:
    ```sh
    curl -X PUT -H 'X-Dev-User: root' http://localhost:5080/api/environments/<id>/registry-credentials -H 'content-type: application/json' -d '{"server":"ghcr.io","username":"<user>","password":"<token>"}'
@@ -174,7 +198,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    $env:CF_BOTGATEWAY__TOKENHASHES__0 = -join ([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($token)) | ForEach-Object { $_.ToString('x2') })   # у ЦА, перед dotnet run
    dotnet user-secrets set Bot:ServiceToken $token --project src/DiscordBot
    ```
-   Токен рівносильний адмінському доступу; деталі й ротація — у `CLAUDE.md` (пункт про токен бота).
+   Токен рівносильний адмінському доступу; деталі й ротація — у [docs/design/discord-bot.md](docs/design/discord-bot.md).
 
    Для Discord потрібен власний тестовий застосунок (https://discord.com/developers/applications → Bot → Reset Token) і тестовий сервер, куди бота запрошено зі scope `bot` і `applications.commands` (OAuth2 → URL Generator). Id сервера: у Discord увімкнути Developer Mode, потім ПКМ на сервері → Copy Server ID. У `Development` slash-команди реєструються лише на цьому сервері, де з'являються одразу:
    ```sh
@@ -196,7 +220,7 @@ CONTRIBUTIONS.md                 облік елементів лаборато�
    - Один бінарник без рантайму (NativeAOT, потрібен clang): `dotnet publish src/Cli -r linux-x64 -c Release -o out` → `out/forest`.
    - Реліз: `git tag cli-v0.2.0 && git push origin cli-v0.2.0` — workflow `CLI` збирає бінарники для linux x64/arm64, macOS arm64 і Windows x64 і публікує їх у GitHub Releases разом із `SHA256SUMS`.
 
-Тести: `dotnet test --solution ContainerForest.slnx`. Тести зі справжніми `sops` і `age-keygen` без них у `PATH` пропускаються (у CI — обов'язкові, `CF_TEST_REQUIRE_SOPS=1`). Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
+Тести: `dotnet test --solution ContainerForest.slnx`. Тести зі справжніми `sops` і `age-keygen` без них у `PATH` пропускаються (у CI — обов'язкові, `CF_TEST_REQUIRE_SOPS=1`), так само тести підписів зі справжнім `ssh-keygen` (`CF_TEST_REQUIRE_SSH_KEYGEN=1`) і тести рендерингу агента зі справжнім `docker compose` (`CF_TEST_REQUIRE_DOCKER_COMPOSE=1`; демона Docker вони не потребують). Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
 
 Docker-образ агента збирається з кореня репозиторію (контексту потрібні `src/Contracts` і `Directory.*.props`), а запускається так само, як у [прикладі розгортання](docs/architecture.md#розгортання-агента). Щоб підключити його до ЦА, запущеного локально через `dotnet run`, використовуйте `http://host.docker.internal:5081`:
 
@@ -252,6 +276,14 @@ GitHub Actions (`.github/workflows/ci.yml`) запускається на кож
 2. Перевірка, що закомічений `src/Aggregator/Api/openapi/*.json` збігається з тим, що згенерувала збірка. Якщо крок упав — зберіть `src/Aggregator/Api` локально й закомітьте JSON. Так само для клієнта CLI: `scripts/generate-cli-client.sh` не має нічого змінити в `src/Cli/Api/Generated`.
 3. `dotnet test --solution ContainerForest.slnx`.
 4. Окремий job для панелі (`src/Web`): `npm ci` → перевірка, що `src/api/schema.gen.ts` збігається з OpenAPI-документом → `npm run build` (перевірка типів і збірка) → перевірка, що `src/routeTree.gen.ts` закомічений актуальним.
+
+Workflow документації (`.github/workflows/docs.yml`) збирає сайт і запускає `scripts/check-docs`:
+
+- кожна діаграма Mermaid у Markdown-файлах проходить парсер;
+- назви й шляхи файлів у зворотних лапках у `CLAUDE.md`, `CONTRIBUTING.md`, `src/*/CLAUDE.md`, `docs/design/`, `docs/architecture.md`, `docs/project-status.md` є в коді. Якщо крок упав, виправте документ. Лише справді зовнішню назву додавайте в `scripts/check-docs/identifier-allowlist.txt`;
+- кореневий `CLAUDE.md` не довший за 150 рядків.
+
+Перевірити документацію локально: `cd scripts/check-docs && npm ci && npm run check`.
 
 Відтворити CI локально перед пушем:
 

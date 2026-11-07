@@ -206,4 +206,28 @@ public class UserManagementTests
 
     private static Task<HttpResponseMessage> LoginAsync(HttpClient client, string userName, string password) =>
         client.PostAsJsonAsync("/api/auth/login", new { userName, password, rememberMe = false }, Ct);
+
+    [Fact]
+    public async Task A_new_administrator_and_a_password_reset_reach_a_rule_on_the_whole_system()
+    {
+        await using var app = new AggregatorApp();
+        var admin = app.CreateClient();
+        var channel = await admin.PostAsJsonAsync("/api/notification-channels", new { name = "security", discordChannelId = "111" }, Ct);
+        var channelId = (await channel.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct)).GetProperty("id").GetGuid();
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Created,
+            admin.PostAsJsonAsync($"/api/notification-channels/{channelId}/rules", new { events = new[] { "AccountSecurityChanged" }, environmentId = (Guid?)null, stackId = (Guid?)null }, Ct));
+
+        var alice = await app.CreateUserAsync("alice", isAdmin: false);
+        await app.CreateUserAsync("bob", isAdmin: true);
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.NoContent,
+            admin.PostAsJsonAsync($"/api/users/{alice}/password", new { newPassword = "handed over by the admin" }, Ct));
+
+        var history = await admin.GetFromJsonAsync<JsonElement[]>("/api/notifications", AggregatorApp.Json, Ct);
+        Assert.Equal(2, history!.Length);
+        Assert.All(history, n => Assert.Equal("AccountSecurityChanged", n.GetProperty("kind").GetString()));
+        Assert.All(history, n => Assert.Equal(JsonValueKind.Null, n.GetProperty("environmentId").ValueKind));
+        Assert.DoesNotContain(history, n => n.GetRawText().Contains("handed over", StringComparison.Ordinal));
+    }
 }

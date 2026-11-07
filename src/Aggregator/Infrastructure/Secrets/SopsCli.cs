@@ -50,11 +50,21 @@ internal sealed partial class SopsCli(IOptions<SopsOptions> options, ILogger<Sop
 
         // sops' errors carry key ids, recipients and hashes, never the plain text it could not produce.
         LogFailed(path.Value, result.ExitCode, result.Stderr);
-        throw new SopsDecryptionException(result.ExitCode == CouldNotRetrieveKey
-            ? "none of this environment's age keys is a recipient of the file. Add the environment's public key to " +
-              ".sops.yaml and re-encrypt the file (sops updatekeys)."
-            : $"sops failed with exit code {result.ExitCode}: {FirstLine(result.Stderr)}");
+        throw new SopsDecryptionException(result.ExitCode switch
+        {
+            CouldNotRetrieveKey =>
+                "none of this environment's age keys is a recipient of the file. Add the environment's public key to " +
+                ".sops.yaml and re-encrypt the file (sops updatekeys).",
+
+            // sops never writes CR, so CRLF means a tool converted the file, usually git on Windows (core.autocrlf).
+            _ when HasCrLf(content) =>
+                $"the file has CRLF line endings, which sops cannot read (sops: {FirstLine(result.Stderr)}). Convert it " +
+                "to LF; on Windows git adds CR unless .gitattributes sets eol=lf for it ('forest secrets fix-eol').",
+            _ => $"sops failed with exit code {result.ExitCode}: {FirstLine(result.Stderr)}",
+        });
     }
+
+    private static bool HasCrLf(byte[] content) => content.AsSpan().IndexOf("\r\n"u8) >= 0;
 
     /// <summary>
     /// Encrypts with a configuration written from the rule alone: the repository's own .sops.yaml never reaches sops,

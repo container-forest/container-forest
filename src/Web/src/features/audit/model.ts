@@ -20,6 +20,7 @@ export const auditCategories = [
   "Deployments",
   "Containers",
   "Secrets",
+  "System",
 ] as const satisfies readonly AuditCategory[];
 
 export const auditOutcomes = ["Succeeded", "Denied", "Failed"] as const satisfies readonly AuditOutcome[];
@@ -62,6 +63,9 @@ export const auditActions = [
   "ContainerStopped",
   "ContainerRestarted",
   "SecretsDecrypted",
+  "IdentityConfirmed",
+  "SettingsChanged",
+  "BackupRequested",
 ] as const satisfies readonly AuditAction[];
 
 export function isKnownAction(action: string): action is (typeof auditActions)[number] {

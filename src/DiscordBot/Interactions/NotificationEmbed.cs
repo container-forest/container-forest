@@ -106,6 +106,9 @@ public static class NotificationEmbed
         NotificationKind.AgentOffline => "🔌 Agent offline",
         NotificationKind.AgentOnline => "🔌 Agent back online",
         NotificationKind.ContainerHealthy => "💚 Container healthy again",
+        NotificationKind.BackupFailed => "🗄️ Backup failed",
+        NotificationKind.SettingsChanged => "⚙️ Settings changed",
+        NotificationKind.AccountSecurityChanged => "🔐 Account security changed",
         _ => "Notification",
     };
 

@@ -1,6 +1,7 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Audit;
+using ContainerForest.Aggregator.Application.Backups;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
@@ -8,10 +9,13 @@ using ContainerForest.Aggregator.Application.Live;
 using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
+using ContainerForest.Aggregator.Application.Policies;
 using ContainerForest.Aggregator.Application.Secrets;
+using ContainerForest.Aggregator.Application.Settings;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Infrastructure.Accounts;
 using ContainerForest.Aggregator.Infrastructure.Agents;
+using ContainerForest.Aggregator.Infrastructure.Backups;
 using ContainerForest.Aggregator.Infrastructure.Deployments;
 using ContainerForest.Aggregator.Infrastructure.Persistence;
 using ContainerForest.Aggregator.Infrastructure.Secrets;
@@ -51,6 +55,7 @@ public static class DependencyInjection
         services.AddScoped<IRoleAssignmentRepository, RoleAssignmentRepository>();
         services.AddScoped<IDiscordLinkRepository, DiscordLinkRepository>();
         services.AddScoped<IApiTokenRepository, ApiTokenRepository>();
+        services.AddScoped<ISigningKeyRepository, SigningKeyRepository>();
         services.AddScoped<ICliAuthorizationRepository, CliAuthorizationRepository>();
         services.AddScoped<INotificationChannelRepository, NotificationChannelRepository>();
         services.AddScoped<INotificationRuleRepository, NotificationRuleRepository>();
@@ -60,7 +65,11 @@ public static class DependencyInjection
         services.AddScoped<IDeploymentRepository, DeploymentRepository>();
         services.AddScoped<IRegistryCredentialRepository, RegistryCredentialRepository>();
         services.AddScoped<IAgeKeyRepository, AgeKeyRepository>();
+        services.AddScoped<IComposePolicyRepository, ComposePolicyRepository>();
         services.AddScoped<IAuditLog, AuditLog>();
+        services.AddScoped<IStoredSettingRepository, StoredSettingRepository>();
+        services.AddScoped<IBackupRunRepository, BackupRunRepository>();
+        services.AddSingleton<ISettingOverrides>(new ConfigurationSettingOverrides(configuration));
 
         // Accounts for signing in; the Api adds the sign-in manager and the session cookie.
         services.AddIdentityCore<AccountUser>(AccountPolicy.Configure)
@@ -104,6 +113,7 @@ public static class DependencyInjection
             services.AddHostedService<AdminBootstrapper>();
             services.AddHostedService<DeploymentWorker>();
             services.AddHostedService<AuditRetention>();
+            services.AddHostedService<BackupScheduler>();
         }
 
         services.AddOptions<AgentGatewayOptions>()
@@ -134,7 +144,14 @@ public static class DependencyInjection
             .Validate(o => o.IsValid(), "Git:MaxCacheBytes must be positive and Git:CacheDirectory set.")
             .ValidateOnStart();
         services.AddSingleton<GitHostGuard>();
-        services.AddSingleton<IGitSource, LibGit2SharpGitSource>();
+        services.AddSingleton<LibGit2SharpGitSource>();
+        services.AddSingleton<IGitSource>(sp => sp.GetRequiredService<LibGit2SharpGitSource>());
+        services.AddSingleton<ICommitInspector>(sp => sp.GetRequiredService<LibGit2SharpGitSource>());
+        services.AddOptions<SignatureOptions>()
+            .Bind(configuration.GetSection(SignatureOptions.SectionName))
+            .Validate(o => o.IsValid(), "Signatures:SshKeygenPath must be set and Signatures:Timeout must be positive.")
+            .ValidateOnStart();
+        services.AddSingleton<ICommitSignatureVerifier, SshKeygenSignatureVerifier>();
         services.AddSingleton<IComposeParser, YamlComposeParser>();
         services.AddOptions<SopsOptions>()
             .Bind(configuration.GetSection(SopsOptions.SectionName))
@@ -145,6 +162,11 @@ public static class DependencyInjection
         services.AddSingleton<ISopsEncryptor>(sp => sp.GetRequiredService<SopsCli>());
         services.AddSingleton<ISopsConfigReader, YamlSopsConfigReader>();
         services.AddSingleton<IAgeKeyGenerator, AgeKeygenCli>();
+        services.AddSingleton<IBackupStorage, S3BackupStorage>();
+        services.AddSingleton<IBackupArchiver>(sp => new SqliteBackupArchiver(
+            connectionString,
+            Path.GetFullPath((configuration.GetSection(SecretProtectionOptions.SectionName).Get<SecretProtectionOptions>() ?? new()).KeyDirectory),
+            sp.GetRequiredService<IOptions<SopsOptions>>().Value.AgePath));
         services.AddSingleton<DeploymentQueue>();
         services.AddSingleton<IDeploymentQueue>(sp => sp.GetRequiredService<DeploymentQueue>());
 

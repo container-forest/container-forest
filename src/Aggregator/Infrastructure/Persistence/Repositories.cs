@@ -1,8 +1,13 @@
+using ContainerForest.Aggregator.Domain.Settings;
+using ContainerForest.Aggregator.Domain.Backups;
+using ContainerForest.Aggregator.Application.Settings;
+using ContainerForest.Aggregator.Application.Backups;
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Notifications;
+using ContainerForest.Aggregator.Application.Policies;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Secrets;
@@ -12,6 +17,7 @@ using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
 using ContainerForest.Aggregator.Domain.Notifications;
+using ContainerForest.Aggregator.Domain.Policies;
 using ContainerForest.Aggregator.Domain.Repositories;
 using ContainerForest.Aggregator.Domain.Stacks;
 using Microsoft.EntityFrameworkCore;
@@ -101,6 +107,18 @@ internal sealed class ApiTokenRepository(AggregatorDbContext db) : EfRepository<
         Set.CountAsync(t => t.UserId == userId, cancellationToken);
 }
 
+internal sealed class SigningKeyRepository(AggregatorDbContext db) : EfRepository<SigningKey, SigningKeyId>(db), ISigningKeyRepository
+{
+    public Task<SigningKey?> FindByFingerprintAsync(string fingerprint, CancellationToken cancellationToken) =>
+        Set.SingleOrDefaultAsync(k => k.Fingerprint == fingerprint, cancellationToken);
+
+    public async Task<IReadOnlyList<SigningKey>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>
+        await Set.Where(k => k.UserId == userId).OrderByDescending(k => k.CreatedAt).ToListAsync(cancellationToken);
+
+    public Task<int> CountForUserAsync(UserId userId, CancellationToken cancellationToken) =>
+        Set.CountAsync(k => k.UserId == userId, cancellationToken);
+}
+
 internal sealed class CliAuthorizationRepository(AggregatorDbContext db)
     : EfRepository<CliAuthorization, CliAuthorizationId>(db), ICliAuthorizationRepository
 {
@@ -122,6 +140,13 @@ internal sealed class RoleAssignmentRepository(AggregatorDbContext db)
 {
     public async Task<IReadOnlyList<RoleAssignment>> ListForUserAsync(UserId userId, CancellationToken cancellationToken) =>
         await Set.Where(a => a.UserId == userId).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<RoleAssignment>> ListForEnvironmentAsync(EnvironmentId environmentId, CancellationToken cancellationToken)
+    {
+        var onEnvironment = await Db.Set<EnvironmentRoleAssignment>().Where(a => a.EnvironmentId == environmentId).ToListAsync(cancellationToken);
+        var onStacks = await Db.Set<StackRoleAssignment>().Where(a => a.EnvironmentId == environmentId).ToListAsync(cancellationToken);
+        return [.. onEnvironment, .. onStacks];
+    }
 }
 
 internal sealed class GitRepositoryRepository(AggregatorDbContext db)
@@ -165,7 +190,7 @@ internal sealed class DeploymentRepository(AggregatorDbContext db)
             .OrderByDescending(d => d.QueuedAt)
             .Take(limit)
             .Select(d => new DeploymentSummary(
-                d.Id, d.Status, d.Trigger, d.PullPolicy, d.Commit, d.QueuedAt, d.StartedAt, d.FinishedAt, d.Error))
+                d.Id, d.Status, d.Trigger, d.PullPolicy, d.Commit, d.QueuedAt, d.StartedAt, d.FinishedAt, d.Error, d.Endorsement, d.SignerName))
             .ToListAsync(cancellationToken);
 }
 
@@ -199,6 +224,40 @@ internal sealed class NotificationRepository(AggregatorDbContext db)
         await Set.OrderByDescending(n => n.CreatedAt).Take(limit).ToListAsync(cancellationToken);
 }
 
+internal sealed class StoredSettingRepository(AggregatorDbContext db) : IStoredSettingRepository
+{
+    public async Task<IReadOnlyList<StoredSetting>> ListAsync(string section, CancellationToken cancellationToken) =>
+        await db.StoredSettings.Where(s => s.Section == section).ToListAsync(cancellationToken);
+
+    public void Add(StoredSetting setting) => db.StoredSettings.Add(setting);
+
+    public void Remove(StoredSetting setting) => db.StoredSettings.Remove(setting);
+}
+
+internal sealed class BackupRunRepository(AggregatorDbContext db) : IBackupRunRepository
+{
+    public void Add(BackupRun run) => db.BackupRuns.Add(run);
+
+    public async Task<IReadOnlyList<BackupRun>> ListRecentAsync(int limit, CancellationToken cancellationToken) =>
+        await db.BackupRuns.OrderByDescending(r => r.FinishedAt).ThenByDescending(r => r.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public Task<BackupRun?> FindLastSucceededAsync(CancellationToken cancellationToken) =>
+        db.BackupRuns.Where(r => r.Outcome == BackupOutcome.Succeeded)
+            .OrderByDescending(r => r.FinishedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task RemoveOlderRunsAsync(int keep, CancellationToken cancellationToken)
+    {
+        var expired = await db.BackupRuns.OrderByDescending(r => r.FinishedAt).ThenByDescending(r => r.Id).Skip(keep)
+            .Select(r => r.Id)
+            .ToListAsync(cancellationToken);
+        if (expired.Count > 0)
+        {
+            await db.BackupRuns.Where(r => expired.Contains(r.Id)).ExecuteDeleteAsync(cancellationToken);
+        }
+    }
+}
+
 internal sealed class RegistryCredentialRepository(AggregatorDbContext db)
     : EfRepository<RegistryCredential, RegistryCredentialId>(db), IRegistryCredentialRepository
 {
@@ -218,4 +277,15 @@ internal sealed class AgeKeyRepository(AggregatorDbContext db) : EfRepository<Ag
     public async Task<IReadOnlyList<AgeKey>> FindByRecipientsAsync(
         IReadOnlyCollection<string> recipients, CancellationToken cancellationToken) =>
         recipients.Count == 0 ? [] : await Set.Where(k => recipients.Contains(k.Recipient)).ToListAsync(cancellationToken);
+}
+
+internal sealed class ComposePolicyRepository(AggregatorDbContext db) : IComposePolicyRepository
+{
+    public async Task<ComposePolicy> GetAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        await FindAsync(environmentId, cancellationToken) ?? ComposePolicy.Default(environmentId);
+
+    public async Task<ComposePolicy?> FindAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        await db.ComposePolicies.FindAsync([environmentId], cancellationToken);
+
+    public void Add(ComposePolicy policy) => db.ComposePolicies.Add(policy);
 }

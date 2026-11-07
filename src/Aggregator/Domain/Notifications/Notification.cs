@@ -62,7 +62,8 @@ public sealed class Notification : Entity<NotificationId>
 
     public NotificationSeverity Severity { get; private init; }
 
-    public EnvironmentId EnvironmentId { get; private init; }
+    /// <summary>Null for an event about the whole system.</summary>
+    public EnvironmentId? EnvironmentId { get; private init; }
 
     public StackId? StackId { get; private init; }
 

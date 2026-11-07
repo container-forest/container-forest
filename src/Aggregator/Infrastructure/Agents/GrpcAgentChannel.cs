@@ -1,5 +1,7 @@
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Live;
+using ContainerForest.Aggregator.Application.Policies;
+using ContainerForest.Aggregator.Domain.Policies;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Stacks;
@@ -72,14 +74,10 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
             CommitSha = bundle.Commit.Value,
             Pull = bundle.Pull == ImagePullPolicy.Always ? PullPolicy.Always : PullPolicy.Missing,
             RestartOnFileChange = bundle.RestartOnFileChange,
+            ExplicitEnvFile = bundle.ExplicitEnvFile,
         };
-        command.Files.AddRange(bundle.Files.Select(f => new StackFile
-        {
-            Path = f.Path.Value,
-            Content = ByteString.CopyFrom(f.Content),
-            Mode = (uint)f.Mode,
-            Secret = f.IsSecret,
-        }));
+        command.VerifyPaths.AddRange(bundle.VerifyPaths);
+        command.Files.AddRange(FilesOf(bundle));
         command.RegistryAuths.AddRange(bundle.RegistryLogins.Select(l => new RegistryAuth
         {
             Server = l.Server,
@@ -90,6 +88,34 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
         return ChangeContainersAsync(
             environmentId, () => SendAsync(environmentId, new ControllerMessage { DeployStack = command }, timeout, cancellationToken, onProgress));
     }
+
+    public async Task<RenderedCompose> RenderStackAsync(
+        EnvironmentId environmentId, StackBundle bundle, Action<string> onProgress, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var command = new RenderStack { StackName = bundle.StackName.Value };
+        command.Files.AddRange(FilesOf(bundle));
+        var result = await SendAsync(environmentId, new ControllerMessage { RenderStack = command }, timeout, cancellationToken, onProgress);
+        if (result.PayloadCase != CommandResult.PayloadOneofCase.RenderedStack)
+        {
+            // An agent that ignores the unknown command answers with an empty success.
+            throw new AgentCommandFailedException(environmentId, AgentErrorKind.Unsupported, "This agent version cannot render stacks.");
+        }
+
+        var rendered = result.RenderedStack;
+        return new RenderedCompose(
+            rendered.ModelJson,
+            rendered.StackDirectory,
+            [.. rendered.AgentDirectories],
+            [.. rendered.InspectedPaths.Select(p => new InspectedMount(p.Path, p.Unchecked ? null : p.Link))]);
+    }
+
+    private static IEnumerable<StackFile> FilesOf(StackBundle bundle) => bundle.Files.Select(f => new StackFile
+    {
+        Path = f.Path.Value,
+        Content = ByteString.CopyFrom(f.Content),
+        Mode = (uint)f.Mode,
+        Secret = f.IsSecret,
+    });
 
     public Task RestartStackAsync(
         EnvironmentId environmentId,

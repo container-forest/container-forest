@@ -1,8 +1,9 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { type ErrorComponentProps, createFileRoute, redirect } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCreateAgeKeyMutation, useDeleteAgeKeyMutation } from "@/api/keys";
-import { ageKeysQuery, environmentsQuery } from "@/api/queries";
+import { ageKeysQuery, environmentsQuery, stacksQuery } from "@/api/queries";
 import { ConfirmAction } from "@/components/confirm-action";
 import { CopyButton } from "@/components/copy-button";
 import { ErrorText } from "@/components/form-messages";
@@ -11,7 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Environment } from "@/features/containers/model";
-import { type AgeKey, currentKey, keysSearchSchema, sopsCommands, sopsConfig } from "@/features/keys/model";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { type AgeKey, currentKey, isCurrent, keysSearchSchema, sopsCommands, sopsConfig } from "@/features/keys/model";
 import { describeError } from "@/features/stacks/model";
 import { formatDateTime } from "@/lib/format";
 
@@ -59,10 +61,13 @@ function KeysScreen() {
 
 function EnvironmentKeys({ environment }: { environment: Environment }) {
   const { t, i18n } = useTranslation();
-  const { me } = Route.useRouteContext();
   const keys = useQuery(ageKeysQuery(environment.id));
   const create = useCreateAgeKeyMutation(environment.id);
   const remove = useDeleteAgeKeyMutation(environment.id);
+  const stacks = useQuery(stacksQuery(environment.id));
+  const [stackForKey, setStackForKey] = useState("");
+  const stackName = (stackId: string | null | undefined) =>
+    stackId ? (stacks.data?.find((s) => s.id === stackId)?.name ?? stackId) : t("keys.wholeEnvironment");
 
   if (keys.isPending) {
     return (
@@ -87,7 +92,11 @@ function EnvironmentKeys({ environment }: { environment: Environment }) {
   const removeError = remove.error ? describeError(remove.error) : undefined;
   const onCreate = () => {
     remove.reset();
-    create.mutate();
+    create.mutate(null);
+  };
+  const onCreateForStack = () => {
+    remove.reset();
+    create.mutate(stackForKey, { onSuccess: () => setStackForKey("") });
   };
   const onDelete = (key: AgeKey) => {
     create.reset();
@@ -101,8 +110,8 @@ function EnvironmentKeys({ environment }: { environment: Environment }) {
           <h2 id="keys-list" className="font-heading text-lg font-semibold">
             {t("keys.listTitle", { name: environment.name })}
           </h2>
-          {/* Only a convenience: the aggregator refuses non-administrators anyway. */}
-          {me.isAdmin &&
+          {/* Only a convenience: the aggregator refuses anyone who does not administer the environment anyway. */}
+          {environment.canAdminister &&
             (current === undefined ? (
               <Button onClick={onCreate} disabled={create.isPending}>
                 {create.isPending ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : <PlusIcon data-icon="inline-start" />}
@@ -130,6 +139,7 @@ function EnvironmentKeys({ environment }: { environment: Environment }) {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("keys.columns.recipient")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("keys.columns.scope")}</TableHead>
                 <TableHead>{t("keys.columns.createdAt")}</TableHead>
                 <TableHead className="sr-only">{t("keys.columns.actions")}</TableHead>
               </TableRow>
@@ -140,18 +150,19 @@ function EnvironmentKeys({ environment }: { environment: Environment }) {
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
                       <code className="font-mono text-xs break-all">{key.recipient}</code>
-                      {key.id === current?.id ? (
+                      {isCurrent(keys.data, key) ? (
                         <Badge>{t("keys.current")}</Badge>
                       ) : (
                         <Badge variant="outline">{t("keys.previous")}</Badge>
                       )}
                     </div>
                   </TableCell>
+                  <TableCell className="text-muted-foreground hidden text-sm sm:table-cell">{stackName(key.stackId)}</TableCell>
                   <TableCell className="text-sm whitespace-nowrap">{formatDateTime(key.createdAt, i18n.resolvedLanguage)}</TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">
                       <CopyButton text={key.recipient} label={t("keys.copy")} />
-                      {me.isAdmin && (
+                      {environment.canAdminister && (
                         <ConfirmAction
                           variant="outline"
                           size="sm"
@@ -171,6 +182,30 @@ function EnvironmentKeys({ environment }: { environment: Environment }) {
               ))}
             </TableBody>
           </Table>
+        )}
+        {environment.canAdminister && (stacks.data?.length ?? 0) > 0 && (
+          <div className="grid gap-2 border-t pt-4">
+            <h3 className="font-medium">{t("keys.stackKey.title")}</h3>
+            <p className="text-muted-foreground text-sm">{t("keys.stackKey.description")}</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Select value={stackForKey} onValueChange={(value) => value !== "" && setStackForKey(value)}>
+                <SelectTrigger className="w-56" aria-label={t("keys.stackKey.stack")}>
+                  <SelectValue placeholder={t("keys.stackKey.stack")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {stacks.data?.map((stack) => (
+                    <SelectItem key={stack.id} value={stack.id}>
+                      {stack.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={onCreateForStack} disabled={stackForKey === "" || create.isPending}>
+                <PlusIcon data-icon="inline-start" />
+                {t("keys.stackKey.create")}
+              </Button>
+            </div>
+          </div>
         )}
         <div aria-live="polite">
           {createError && (

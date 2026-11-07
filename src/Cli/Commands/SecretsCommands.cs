@@ -13,20 +13,37 @@ internal static class SecretsFiles
 {
     public const string Attributes = ".gitattributes";
     public const string SopsConfig = ".sops.yaml";
-    public const string FilterAttributes = "filter=forest diff=forest";
+
+    /// <summary>
+    /// eol=lf: git converts line endings before smudge, and with core.autocrlf (the default of Git for Windows) the
+    /// ciphertext would reach sops with CRLF, which it cannot read. eol=lf keeps LF in the work tree and in git.
+    /// </summary>
+    public const string FilterAttributes = "filter=forest diff=forest eol=lf";
+
+    /// <summary>What versions before eol=lf wrote; still recognised as the commands' own lines.</summary>
+    public const string LegacyFilterAttributes = "filter=forest diff=forest";
 
     /// <summary>Default patterns: dotenv files and anything in a secrets directory, at any depth.</summary>
     public static readonly string[] DefaultPatterns = [".env", "**/secrets/**"];
 
-    /// <summary>Appends the lines .gitattributes does not have yet; returns how many were added.</summary>
+    /// <summary>
+    /// Appends the lines .gitattributes does not have yet, after giving eol=lf to the forest lines it has; returns how
+    /// many lines were added.
+    /// </summary>
     public static int AddAttributes(GitWorkTree tree, IEnumerable<string> patterns, string comment)
     {
         var path = Path.Combine(tree.Root, Attributes);
-        var existing = File.Exists(path) ? File.ReadAllText(path) : "";
+        var original = File.Exists(path) ? File.ReadAllText(path) : "";
+        var (existing, _) = WithLineEndings(original);
         var present = existing.Split('\n').Select(l => l.Trim()).ToHashSet(StringComparer.Ordinal);
         var lines = patterns.Select(p => $"{p} {FilterAttributes}").Where(l => !present.Contains(l)).ToList();
         if (lines.Count == 0)
         {
+            if (existing != original)
+            {
+                File.WriteAllText(path, existing);
+            }
+
             return 0;
         }
 
@@ -56,6 +73,55 @@ internal static class SecretsFiles
     }
 
     /// <summary>
+    /// .gitattributes text with eol=lf added to each line that puts files under the forest filter and says nothing of
+    /// line endings itself (eol=, -text or binary); returns how many lines changed. Comments and other lines stay.
+    /// </summary>
+    public static (string Text, int Changed) WithLineEndings(string text)
+    {
+        var filter = $"filter={GitWorkTree.FilterDriver}";
+        var lines = text.Split('\n');
+        var changed = 0;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var body = lines[i].TrimEnd('\r');
+            var tokens = body.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length < 2 || tokens[0].StartsWith('#') || !tokens.Contains(filter)
+                || tokens.Skip(1).Any(t => t.StartsWith("eol=", StringComparison.Ordinal) || t is "-text" or "binary"))
+            {
+                continue;
+            }
+
+            lines[i] = body.TrimEnd() + " eol=lf" + lines[i][body.Length..];
+            changed++;
+        }
+
+        return (string.Join('\n', lines), changed);
+    }
+
+    /// <summary>
+    /// Of the files under the filter, those git may convert to CRLF in the work tree: .gitattributes gives them
+    /// neither eol=lf nor -text, so core.autocrlf decides, and the ciphertext reaches sops with CR.
+    /// </summary>
+    public static IReadOnlyList<string> WithoutLineEndings(GitWorkTree tree, IReadOnlyList<string> filtered)
+    {
+        var textUnset = tree.Attribute(filtered, "text").Where(a => a.Value == "unset").Select(a => a.Path).ToHashSet(StringComparer.Ordinal);
+        return tree.Attribute(filtered, "eol").Where(a => a.Value != "lf" && !textUnset.Contains(a.Path)).Select(a => a.Path).ToList();
+    }
+
+    /// <summary>Notes the files under the filter that .gitattributes does not keep in LF, with what to do.</summary>
+    public static void NoteLineEndings(GitWorkTree tree, IReadOnlyList<string> filtered, CliOutput output)
+    {
+        var exposed = WithoutLineEndings(tree, filtered);
+        if (exposed.Count > 0)
+        {
+            output.Note(
+                $"{exposed.Count} secret file(s) have no eol=lf in .gitattributes ({exposed[0]}{(exposed.Count > 1 ? ", …" : "")}): " +
+                "with core.autocrlf (Git for Windows) git gives them CRLF, which sops cannot read. Run 'forest secrets fix-eol' " +
+                "and commit .gitattributes.");
+        }
+    }
+
+    /// <summary>
     /// Takes files out from under the filter: drops the line 'forest secrets add' or 'adopt' wrote for a file, and
     /// for a file a pattern covers, adds a line that unsets the filter for it. Puts .gitattributes back when a file is
     /// still under the filter afterwards (a .gitattributes deeper in the tree sets it).
@@ -65,7 +131,7 @@ internal static class SecretsFiles
     {
         var path = Path.Combine(tree.Root, Attributes);
         var original = File.Exists(path) ? File.ReadAllText(path) : "";
-        var own = paths.Select(p => $"/{p} {FilterAttributes}").ToHashSet(StringComparer.Ordinal);
+        var own = paths.SelectMany(p => new[] { $"/{p} {FilterAttributes}", $"/{p} {LegacyFilterAttributes}" }).ToHashSet(StringComparer.Ordinal);
         var lines = original.Split('\n').ToList();
         if (lines.Count > 0 && lines[^1].Length == 0)
         {
@@ -101,19 +167,42 @@ internal static class SecretsFiles
         }
     }
 
-    /// <summary>The environments you can see, by the age public keys they have.</summary>
+    /// <summary>
+    /// The environments you can see, by the age public keys they have; a stack's own key (ADR-0012) as
+    /// "environment/stack".
+    /// </summary>
     public static async Task<Dictionary<string, string>> EnvironmentsByRecipientAsync(CommandContext context)
     {
         var environmentsByRecipient = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var environment in await context.Api.ListEnvironmentsAsync(context.CancellationToken))
         {
-            foreach (var key in await context.Api.ListAgeKeysAsync(environment.Id!.Value, context.CancellationToken))
+            var keys = await context.Api.ListAgeKeysAsync(environment.Id!.Value, context.CancellationToken);
+            var stacks = keys.Any(k => k.StackId is not null)
+                ? (await context.Api.ListStacksAsync(environment.Id!.Value, context.CancellationToken)).ToDictionary(s => s.Id!.Value, s => s.Name!)
+                : [];
+            foreach (var key in keys)
             {
-                environmentsByRecipient[key.Recipient!] = environment.Name!;
+                environmentsByRecipient[key.Recipient!] = key.StackId is { } stackId
+                    ? $"{environment.Name}/{stacks.GetValueOrDefault(stackId, stackId.ToString())}"
+                    : environment.Name!;
             }
         }
 
         return environmentsByRecipient;
+    }
+
+    /// <summary>"prod" or "prod/web": an environment's key, or the own key of one of its stacks (ADR-0012).</summary>
+    public static async Task<(string Name, string Recipient)> ResolveKeyAsync(CommandContext context, string target)
+    {
+        var slash = target.IndexOf('/', StringComparison.Ordinal);
+        var environment = await context.Api.ResolveEnvironmentAsync(slash < 0 ? target : target[..slash], null, context.CancellationToken);
+        if (slash < 0)
+        {
+            return (environment.Name!, await SecretsInitCommand.RecipientAsync(context, environment));
+        }
+
+        var stack = await context.Api.FindStackAsync(environment, target[(slash + 1)..], context.CancellationToken);
+        return ($"{environment.Name}/{stack.Name}", await SecretsInitCommand.RecipientAsync(context, environment, stack));
     }
 
     /// <summary>A path the user typed, relative to the working directory, as a path in the repository.</summary>
@@ -141,7 +230,7 @@ internal sealed class SecretsInitCommand() : ForestCommand("init", "Write .sops.
 
     private readonly Option<string[]> rules = new("--rule")
     {
-        Description = "Files under a path prefix are for one environment: --rule stacks/prod/=prod. Repeat for each.",
+        Description = "Files under a path prefix are for one environment, or one stack with its own key: --rule stacks/prod/=prod, --rule stacks/prod/web/=prod/web. Repeat for each.",
     };
 
     private readonly Option<string[]> recovery = new("--recovery")
@@ -192,11 +281,11 @@ internal sealed class SecretsInitCommand() : ForestCommand("init", "Write .sops.
             """);
         foreach (var rule in context.Value(rules) ?? [])
         {
-            var (prefix, environmentName) = rule.Split('=', 2) is [var p, var e] && p.Length > 0 && e.Length > 0
+            var (prefix, target) = rule.Split('=', 2) is [var p, var e] && p.Length > 0 && e.Length > 0
                 ? (p.TrimStart('/'), e)
-                : throw new CliException($"--rule {rule}: expected <path prefix>=<environment>.", ExitCodes.Usage);
-            var environment = await api.ResolveEnvironmentAsync(environmentName, null, ct);
-            AppendRule(config, SopsConfigFile.PrefixRegex(prefix), [environment.Name!], [await RecipientAsync(context, environment), .. recoveryKeys]);
+                : throw new CliException($"--rule {rule}: expected <path prefix>=<environment> or <environment>/<stack>.", ExitCodes.Usage);
+            var (name, recipient) = await SecretsFiles.ResolveKeyAsync(context, target);
+            AppendRule(config, SopsConfigFile.PrefixRegex(prefix), [name], [recipient, .. recoveryKeys]);
         }
 
         var names = context.Value(environments) is { Length: > 0 } named ? named : null;
@@ -227,9 +316,10 @@ internal sealed class SecretsInitCommand() : ForestCommand("init", "Write .sops.
             tree,
             context.Value(patterns) is { Length: > 0 } custom ? custom : SecretsFiles.DefaultPatterns,
             "Secrets the forest git filter keeps encrypted in git (ADR-0010).");
-        var (decrypted, total) = GitFilterSetup.Apply(tree, context.Connection.ContextName, GitFilterSetup.Executable(), context.Output);
+        var refreshed = GitFilterSetup.Apply(tree, context.Connection.ContextName, GitFilterSetup.Executable(), context.Output);
 
-        context.Output.Done($"Wrote .sops.yaml and {added} line(s) of .gitattributes; the forest filter is on ({decrypted} of {total} secret file(s) decrypted).");
+        context.Output.Done($"Wrote .sops.yaml and {added} line(s) of .gitattributes; the forest filter is on ({refreshed.Decrypted} of {refreshed.Total} secret file(s) decrypted).");
+        GitSetupCommand.Report(refreshed, context.Output);
         context.Output.Note("Commit .sops.yaml and .gitattributes; files that match them are encrypted when you git add them.");
         if (recoveryKeys.Count == 0)
         {
@@ -239,12 +329,16 @@ internal sealed class SecretsInitCommand() : ForestCommand("init", "Write .sops.
         return ExitCodes.Ok;
     }
 
-    internal static async Task<string> RecipientAsync(CommandContext context, EnvironmentResponse environment)
+    /// <summary>The newest key of the environment, or of one of its stacks (ADR-0012): the one new files are encrypted for.</summary>
+    internal static async Task<string> RecipientAsync(CommandContext context, EnvironmentResponse environment, StackResponse? stack = null)
     {
         var keys = await context.Api.ListAgeKeysAsync(environment.Id!.Value, context.CancellationToken);
-        return keys.FirstOrDefault()?.Recipient
+        return keys.FirstOrDefault(k => k.StackId == stack?.Id)?.Recipient
             ?? throw new CliException(
-                $"Environment '{environment.Name}' has no age key; an administrator creates one: forest env key create -e {environment.Name}.",
+                stack is null
+                    ? $"Environment '{environment.Name}' has no age key; an administrator creates one: forest env key create -e {environment.Name}."
+                    : $"Stack '{stack.Name}' has no age key of its own; an administrator of the environment creates one: " +
+                      $"forest env key create -e {environment.Name} --stack {stack.Name}.",
                 ExitCodes.Failed);
     }
 
@@ -287,8 +381,9 @@ internal sealed class SecretsAdoptCommand() : ForestCommand("adopt", "Put the so
             context.Output.Note("There is no .sops.yaml: changed files cannot be encrypted until there is one ('forest secrets init').");
         }
 
-        var (decrypted, total) = GitFilterSetup.Apply(tree, GitSetupCommand.CurrentContextName(context), GitFilterSetup.Executable(), context.Output);
-        context.Output.Done($"Adopted {added} sops file(s); the forest filter is on ({decrypted} of {total} secret file(s) decrypted).");
+        var refreshed = GitFilterSetup.Apply(tree, GitSetupCommand.CurrentContextName(context), GitFilterSetup.Executable(), context.Output);
+        context.Output.Done($"Adopted {added} sops file(s); the forest filter is on ({refreshed.Decrypted} of {refreshed.Total} secret file(s) decrypted).");
+        GitSetupCommand.Report(refreshed, context.Output);
         if (added > 0)
         {
             context.Output.Note(
@@ -418,7 +513,7 @@ internal sealed class SecretsRemoveCommand() : ForestCommand("remove", "Take fil
         }
         else
         {
-            tree.CheckOutAgain(inGit);
+            _ = tree.CheckOutAgain(inGit);
             context.Output.Done($"{paths.Count} file(s) are sops files outside the filter now; commit .gitattributes.");
             context.Output.Note("They are encrypted in this clone too: edit them with sops, which needs an age key of your own among their recipients.");
         }
@@ -443,8 +538,11 @@ internal sealed class SecretsCheckCommand() : ForestCommand("check", "Fail if a 
     {
         var tree = GitWorkTree.Open(context.Host.WorkingDirectory);
         var filtered = tree.Filtered(context.Value(staged) ? tree.StagedFiles() : tree.TrackedFiles());
-        var plain = filtered.Where(p => !SopsFiles.IsEncrypted(p, tree.IndexBlob(p))).ToList();
-        if (plain.Count == 0)
+        var blobs = filtered.ToDictionary(p => p, tree.IndexBlob, StringComparer.Ordinal);
+        var plain = filtered.Where(p => !SopsFiles.IsEncrypted(p, blobs[p])).ToList();
+        var crlf = filtered.Except(plain).Where(p => SopsFiles.HasCrLf(blobs[p])).ToList();
+        SecretsFiles.NoteLineEndings(tree, filtered, context.Output);
+        if (plain.Count == 0 && crlf.Count == 0)
         {
             context.Output.Done($"{filtered.Count} secret file(s) checked: all encrypted.");
             return Task.FromResult(ExitCodes.Ok);
@@ -455,9 +553,25 @@ internal sealed class SecretsCheckCommand() : ForestCommand("check", "Fail if a 
             context.Output.Note($"forest: {path} is under filter=forest but not encrypted in git.");
         }
 
-        throw new CliException(
-            $"{plain.Count} secret file(s) in plain text. Turn the filter on ('forest git setup'), then 'git add --renormalize' them; " +
-            "a secret that was ever committed in plain text must be changed.");
+        foreach (var path in crlf)
+        {
+            context.Output.Note($"forest: {path} is encrypted in git with CRLF line endings, which sops cannot read.");
+        }
+
+        var problems = new List<string>();
+        if (plain.Count > 0)
+        {
+            problems.Add(
+                $"{plain.Count} secret file(s) in plain text. Turn the filter on ('forest git setup'), then 'git add --renormalize' them; " +
+                "a secret that was ever committed in plain text must be changed.");
+        }
+
+        if (crlf.Count > 0)
+        {
+            problems.Add($"{crlf.Count} secret file(s) with CRLF line endings. Run 'forest secrets fix-eol' and commit.");
+        }
+
+        throw new CliException(string.Join(' ', problems));
     }
 }
 
@@ -493,6 +607,63 @@ internal sealed class SecretsUpdateKeysCommand() : ForestCommand("updatekeys", "
         cache.Save();
         tree.Renormalize(decrypted);
         context.Output.Done($"Re-encrypted {decrypted.Count} file(s) for the current .sops.yaml; commit them.");
+        return Task.FromResult(ExitCodes.Ok);
+    }
+}
+
+/// <summary>
+/// <c>forest secrets fix-eol</c>: keeps the secret files in LF, which sops needs to read dotenv and INI files, on every
+/// machine. Gives eol=lf to the forest lines of the root .gitattributes (git otherwise converts the ciphertext to CRLF
+/// before smudge where core.autocrlf is on, the default of Git for Windows), stages without CR the files git has with
+/// CRLF, and checks out again the ciphertext this clone has with CRLF.
+/// </summary>
+internal sealed class SecretsFixEolCommand() : ForestCommand("fix-eol", "Keep the secret files in LF: eol=lf in .gitattributes, CRLF out of git and this clone.")
+{
+    public override bool NeedsConnection => false;
+
+    protected override Task<int> ExecuteAsync(CommandContext context)
+    {
+        var tree = GitWorkTree.Open(context.Host.WorkingDirectory);
+        var attributes = Path.Combine(tree.Root, SecretsFiles.Attributes);
+        var lines = 0;
+        if (File.Exists(attributes))
+        {
+            (var text, lines) = SecretsFiles.WithLineEndings(File.ReadAllText(attributes));
+            if (lines > 0)
+            {
+                File.WriteAllText(attributes, text);
+            }
+        }
+
+        var filtered = tree.Filtered(tree.TrackedFiles());
+        var elsewhere = SecretsFiles.WithoutLineEndings(tree, filtered);
+        foreach (var path in elsewhere)
+        {
+            context.Output.Note($"{path}: another .gitattributes puts it under the filter without eol=lf; add eol=lf there yourself.");
+        }
+
+        // The content itself, not 'git add': that would also stage uncommitted changes to the plain text.
+        var staged = 0;
+        foreach (var path in filtered)
+        {
+            var blob = tree.IndexBlob(path);
+            if (SopsFiles.IsEncrypted(path, blob) && SopsFiles.HasCrLf(blob))
+            {
+                tree.StageContent(path, SopsFiles.WithoutCr(blob));
+                staged++;
+            }
+        }
+
+        var refreshed = GitFilterSetup.Refresh(tree);
+        context.Output.Done(
+            $"{lines} line(s) of .gitattributes now keep LF, {staged} file(s) staged without CRLF; " +
+            $"{refreshed.Decrypted} of {refreshed.Total} secret file(s) decrypted here.");
+        GitSetupCommand.Report(refreshed, context.Output);
+        if (lines + staged > 0)
+        {
+            context.Output.Note("Commit .gitattributes and the staged files, so every clone gets them in LF.");
+        }
+
         return Task.FromResult(ExitCodes.Ok);
     }
 }
@@ -553,6 +724,17 @@ internal sealed class SecretsStatusCommand() : ForestCommand("status", "Show the
             context.Output.Note($"{file.Path} is for no environment you can see: the aggregator will not decrypt it for you or deploy it.");
         }
 
+        foreach (var file in files.Where(f => f.EncryptedInGit && SopsFiles.HasCrLf(tree.IndexBlob(f.Path))))
+        {
+            context.Output.Note($"{file.Path} is encrypted in git with CRLF line endings, which sops cannot read: run 'forest secrets fix-eol'.");
+        }
+
+        foreach (var file in files.Where(f => f.WorkTree == "encrypted" && SopsFiles.HasCrLf(tree.WorkTreeFile(f.Path)!)))
+        {
+            context.Output.Note($"{file.Path} has CRLF line endings in this clone, which sops cannot read: run 'forest secrets fix-eol'.");
+        }
+
+        SecretsFiles.NoteLineEndings(tree, files.Select(f => f.Path).ToList(), context.Output);
         return files.Any(f => !f.EncryptedInGit) ? ExitCodes.Failed : ExitCodes.Ok;
     }
 }

@@ -40,8 +40,12 @@ public sealed class ComposeInvocation
     /// <see cref="PullPolicy.Missing"/>, redeploy with pull for <see cref="PullPolicy.Always"/>.
     /// Only -f compose.yaml is read, so compose.override.yaml and other files in the directory are not merged in.
     /// </summary>
+    /// <param name="envFile">
+    /// Passed as --env-file: the only file compose reads variables from, instead of whatever .env lies in the
+    /// directory. Null to keep compose's own lookup of .env.
+    /// </param>
     public static ComposeInvocation Up(
-        string stackName, string stackDirectory, PullPolicy pull, IReadOnlyDictionary<string, string> environment)
+        string stackName, string stackDirectory, PullPolicy pull, IReadOnlyDictionary<string, string> environment, string? envFile = null)
     {
         var pullArgument = pull switch
         {
@@ -52,10 +56,30 @@ public sealed class ComposeInvocation
 
         return new(
             "docker compose up",
-            [.. Global, "-p", stackName, "-f", "compose.yaml", "up", "-d", "--remove-orphans", "--pull", pullArgument, "--wait"],
+            [.. Global, "-p", stackName, "-f", "compose.yaml", .. EnvFile(envFile), "up", "-d", "--remove-orphans", "--pull", pullArgument, "--wait"],
             stackDirectory,
             environment);
     }
+
+    /// <summary>
+    /// Prints compose's normalized model of compose.yaml in <paramref name="directory"/> as JSON on stdout, for the
+    /// aggregator's compose policy (ADR-0012). It reads files and variables exactly as <see cref="Up"/> with the same
+    /// <paramref name="envFile"/> does, and changes nothing.
+    /// </summary>
+    public static ComposeInvocation Config(
+        string stackName, string directory, IReadOnlyDictionary<string, string> environment, string envFile) =>
+        new(
+            "docker compose config",
+            [.. Global, "-p", stackName, "-f", "compose.yaml", .. EnvFile(envFile), "config", "--format", "json"],
+            directory,
+            environment);
+
+    /// <summary>The --env-file for a bundle: its own .env at the root, or an empty file when it has none.</summary>
+    public static string EnvFileFor(string directory, bool bundleHasEnvFile) =>
+        bundleHasEnvFile ? Path.Combine(directory, DotEnv) : OperatingSystem.IsWindows() ? "NUL" : "/dev/null";
+
+    /// <summary>The file compose reads variables from by default.</summary>
+    public const string DotEnv = ".env";
 
     /// <summary>
     /// Restarts the processes in the stack's existing containers. Without -f compose does not read the compose file,
@@ -75,6 +99,8 @@ public sealed class ComposeInvocation
             [.. Global, "-p", stackName, "down", "--timeout", Seconds(stopTimeout)],
             workingDirectory,
             NoEnvironment);
+
+    private static IEnumerable<string> EnvFile(string? envFile) => envFile is null ? [] : ["--env-file", envFile];
 
     // Plain progress without colours: every line goes to the deployment log as text.
     private static IEnumerable<string> Global => ["compose", "--ansi", "never", "--progress", "plain"];

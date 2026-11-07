@@ -46,6 +46,8 @@ internal sealed class StackShowCommand() : StackCommand("show", "Show a stack: i
             ("Deploy on push", CliOutput.YesNo(s.DeployOnPush)),
             ("Restart on file change", CliOutput.YesNo(s.RestartOnFileChange)),
             ("Deploy hook", CliOutput.YesNo(s.HasDeployHook)),
+            ("Require signed commits", CliOutput.YesNo(s.RequireSignedCommits)),
+            ("Require image digests", CliOutput.YesNo(s.RequireImageDigests)),
             ("System stack", CliOutput.YesNo(s.IsSystem)),
             ("You may deploy", CliOutput.YesNo(s.CanDeploy)),
         ]);
@@ -124,16 +126,21 @@ internal sealed class StackDeployCommand() : StackCommand("deploy", "Deploy the 
 {
     private readonly Option<bool> pull = new("--pull") { Description = "Pull every image again, for moving tags such as latest." };
     private readonly Option<bool> noWait = new("--no-wait") { Description = "Only queue the deployment and print its id." };
+    private readonly Option<string?> approve = new("--approve")
+    {
+        Description = "Full SHA of an unsigned commit to deploy to a stack that requires signed commits; only while it is the branch head.",
+    };
 
     protected override void ConfigureStack(Command command)
     {
         command.Add(pull);
         command.Add(noWait);
+        command.Add(approve);
     }
 
     protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment, StackResponse stack)
     {
-        var queued = await context.Api.DeployAsync(stack.Id!.Value, context.Value(pull), context.CancellationToken);
+        var queued = await context.Api.DeployAsync(stack.Id!.Value, context.Value(pull), context.CancellationToken, context.Value(approve));
         var id = queued.Id!.Value;
         if (context.Value(noWait))
         {
@@ -250,6 +257,32 @@ internal sealed class StackHookRemoveCommand() : StackCommand("remove", "Remove 
     {
         await context.Api.RemoveDeployHookAsync(stack.Id!.Value, context.CancellationToken);
         context.Output.Done($"The deploy hook of {stack.Name} is removed.");
+        return ExitCodes.Ok;
+    }
+}
+
+/// <summary>Adds or removes the stack's own exceptions to the compose policy (ADR-0012).</summary>
+internal sealed class StackPolicyCommand(bool allow)
+    : StackCommand(
+        allow ? "allow" : "disallow",
+        allow
+            ? "Give the stack allowances beyond the environment's compose policy, e.g. docker-socket (administrators of the environment)."
+            : "Take allowances away from the stack (administrators of the environment).")
+{
+    private readonly Argument<string[]> allowances = new("allowance") { Description = "Allowances such as privileged, port:443, path:/srv/media.", Arity = ArgumentArity.OneOrMore };
+
+    protected override void ConfigureStack(Command command) => command.Add(allowances);
+
+    protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment, StackResponse stack)
+    {
+        var given = context.Value(allowances) ?? [];
+        var current = stack.PolicyAllowances ?? [];
+        List<string> next = allow
+            ? [.. current.Concat(given).Distinct(StringComparer.Ordinal)]
+            : [.. current.Except(given, StringComparer.Ordinal)];
+        var updated = await context.Api.SetPolicyAllowancesAsync(stack.Id!.Value, next, context.CancellationToken);
+        var list = updated.PolicyAllowances is { Count: > 0 } a ? string.Join(", ", a) : "none";
+        context.Output.Done($"Allowances of {stack.Name}: {list}.");
         return ExitCodes.Ok;
     }
 }

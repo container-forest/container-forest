@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { hasStatus } from "@/api/client";
 import { environmentsQuery, stacksQuery } from "@/api/queries";
-import { type RoleAssignment, roles, useGrantRoleMutation } from "@/api/users";
+import { type RoleAssignment, environmentRoles, rolesFor, useGrantRoleMutation } from "@/api/users";
 import { ErrorText, FieldError } from "@/components/form-messages";
 import { Loader2Icon, PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ const WHOLE_ENVIRONMENT = "environment";
 const grantRoleSchema = z.object({
   environmentId: z.string().min(1, "user.roles.grant.environmentRequired" satisfies MessageKey),
   scope: z.string(),
-  role: z.enum(roles),
+  role: z.enum(environmentRoles),
 });
 
 type GrantRoleForm = z.infer<typeof grantRoleSchema>;
@@ -46,6 +46,7 @@ export function GrantRoleForm({ userId, assignments }: { userId: string; assignm
   } = useForm<GrantRoleForm>({ resolver: zodResolver(grantRoleSchema), defaultValues: emptyForm });
 
   const environmentId = watch("environmentId");
+  const scope = watch("scope");
   const stacks = useQuery({ ...stacksQuery(environmentId), enabled: environmentId !== "" });
 
   const onSubmit = handleSubmit(({ environmentId, scope, role }) =>
@@ -114,6 +115,10 @@ export function GrantRoleForm({ userId, assignments }: { userId: string; assignm
                 disabled={environmentId === "" || stacks.isPending}
                 onValueChange={(value) => {
                   field.onChange(value);
+                  // A stack cannot have the environment administrator role.
+                  if (value !== WHOLE_ENVIRONMENT && watch("role") === "EnvironmentAdmin") {
+                    setValue("role", "Editor");
+                  }
                   grant.reset();
                 }}
               >
@@ -144,11 +149,11 @@ export function GrantRoleForm({ userId, assignments }: { userId: string; assignm
             name="role"
             render={({ field }) => (
               <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger id="grant-role" className="w-36">
+                <SelectTrigger id="grant-role" className="w-52">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {roles.map((role) => (
+                  {rolesFor(scope === WHOLE_ENVIRONMENT ? null : scope).map((role) => (
                     <SelectItem key={role} value={role}>
                       {t(`roles.${role}`)}
                     </SelectItem>

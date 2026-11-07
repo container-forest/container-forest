@@ -8,6 +8,7 @@
 
 export { default as ArrowLeftIcon } from "~icons/material-symbols/arrow-back-rounded";
 export { default as ArrowRightIcon } from "~icons/material-symbols/arrow-forward-rounded";
+export { default as BackupIcon } from "~icons/material-symbols/backup-rounded";
 export { default as BellIcon } from "~icons/material-symbols/notifications-rounded";
 export { default as BoxIcon } from "~icons/material-symbols/view-in-ar-rounded";
 export { default as CheckCircleIcon } from "~icons/material-symbols/check-circle-rounded";

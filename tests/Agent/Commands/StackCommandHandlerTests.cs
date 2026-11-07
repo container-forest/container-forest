@@ -65,6 +65,89 @@ public sealed class StackCommandHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task Deploy_with_an_explicit_env_file_reads_only_the_bundles_env()
+    {
+        var command = DeployCommand();
+        command.ExplicitEnvFile = true;
+
+        await Deploy().HandleAsync(Message(command), progress, Ct);
+        command.Files.Add(new StackFile { Path = ".env", Content = ByteString.CopyFromUtf8("TAG=1"), Mode = 0b110_100_100 });
+        await Deploy().HandleAsync(Message(command), progress, Ct);
+
+        var directory = Path.Combine(Path.GetTempPath(), "stacks", "web");
+        Assert.Equal(OperatingSystem.IsWindows() ? "NUL" : "/dev/null", EnvFileOf(compose.Runs[0]));
+        Assert.Equal(Path.Combine(directory, ".env"), EnvFileOf(compose.Runs[1]));
+    }
+
+    [Fact]
+    public async Task Deploy_without_an_explicit_env_file_leaves_env_lookup_to_compose()
+    {
+        await Deploy().HandleAsync(Message(DeployCommand()), progress, Ct);
+
+        Assert.DoesNotContain("--env-file", Assert.Single(compose.Runs).Arguments);
+    }
+
+    [Fact]
+    public async Task Deploy_stops_before_compose_up_when_a_mount_source_goes_through_a_link()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var data = Path.Combine(options.DataDirectory, "data", "web");
+        Directory.CreateDirectory(data);
+        File.CreateSymbolicLink(Path.Combine(data, "root"), "/");
+        var command = DeployCommand();
+        command.VerifyPaths.Add(Path.Combine(data, "root", "etc"));
+
+        var result = await Deploy().HandleAsync(Message(command), progress, Ct);
+
+        Assert.Equal(ErrorCode.CommandFailed, result.Error.Code);
+        Assert.Contains("symbolic link", result.Error.Message, StringComparison.Ordinal);
+        Assert.Empty(compose.Runs);
+    }
+
+    [Fact]
+    public async Task Deploy_accepts_the_link_it_writes_for_a_secret_file_as_a_mount_source()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var command = DeployCommand();
+        command.VerifyPaths.Add(Path.Combine(options.StacksRoot, "web", "secrets", "db_password"));
+
+        var result = await Deploy().HandleAsync(Message(command), progress, Ct);
+
+        Assert.Null(result.Error);
+        Assert.Single(compose.Runs);
+    }
+
+    [Theory]
+    [InlineData("relative/path")]
+    [InlineData("/opt/../etc")]
+    [InlineData("/opt//x")]
+    public async Task Deploy_refuses_paths_to_verify_that_are_not_normalized(string path)
+    {
+        var command = DeployCommand();
+        command.VerifyPaths.Add(path);
+
+        var result = await Deploy().HandleAsync(Message(command), progress, Ct);
+
+        Assert.Equal(ErrorCode.InvalidArgument, result.Error.Code);
+        Assert.Empty(store.Written);
+    }
+
+    private static string EnvFileOf(ComposeInvocation run)
+    {
+        var index = run.Arguments.ToList().IndexOf("--env-file");
+        Assert.True(index >= 0, "compose got no --env-file");
+        return run.Arguments[index + 1];
+    }
+
+    [Fact]
     public async Task Deploy_discards_the_previous_secrets_only_after_compose_succeeded()
     {
         await Deploy().HandleAsync(Message(DeployCommand()), progress, Ct);
@@ -361,6 +444,7 @@ public sealed class StackCommandHandlerTests : IDisposable
         store,
         compose,
         new RegistryConfigWriter(Options.Create(options), NullLogger<RegistryConfigWriter>.Instance),
+        new HostPathInspector(Options.Create(options)),
         locks,
         Options.Create(options),
         NullLogger<DeployStackHandler>.Instance);

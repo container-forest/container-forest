@@ -11,6 +11,18 @@ export const meQuery = queryOptions({
   staleTime: 60_000,
 });
 
+/** Whether backups run and how the latest ones went (ADR-0014). Administrators only. */
+export const backupStatusQuery = queryOptions({
+  queryKey: ["backup", "status"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/backup", { signal })),
+});
+
+/** The backup settings, where each value comes from; never the secret itself. Administrators only. */
+export const backupSettingsQuery = queryOptions({
+  queryKey: ["backup", "settings"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/settings/backup", { signal })),
+});
+
 /** Whether the signed-in user's account is linked to a Discord account. */
 export const discordLinkQuery = queryOptions({
   queryKey: ["me", "discord"],
@@ -29,6 +41,26 @@ export const passkeysQuery = queryOptions({
   queryKey: ["me", "passkeys"],
   queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/passkeys", { signal })),
 });
+
+/** Whether adding a passkey needs a fresh confirmation; not for an account with nothing to confirm with. */
+export const passkeyConfirmationQuery = queryOptions({
+  queryKey: ["me", "passkeys", "needs-confirmation"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/passkeys/needs-confirmation", { signal })),
+});
+
+/** The signed-in user's commit signing keys, newest first (ADR-0011). */
+export const signingKeysQuery = queryOptions({
+  queryKey: ["me", "signing-keys"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/signing-keys", { signal })),
+});
+
+/** Another user's signing keys. Administrators only. */
+export const userSigningKeysQuery = (userId: string) =>
+  queryOptions({
+    queryKey: ["users", userId, "signing-keys"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/users/{userId}/signing-keys", { params: { path: { userId } }, signal })),
+  });
 
 /** Another user's passkeys. Administrators only. */
 export const userPasskeysQuery = (userId: string) =>
@@ -114,6 +146,30 @@ export const ageKeysQuery = (environmentId: string) =>
   });
 
 /** Registry logins of one environment, by server; never the passwords. Administrators only. */
+/** The compose policy of an environment (ADR-0012); whoever sees the environment reads it. */
+export const composePolicyQuery = (environmentId: string) =>
+  queryOptions({
+    queryKey: ["environments", environmentId, "compose-policy"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/environments/{id}/compose-policy", { params: { path: { id: environmentId } }, signal })),
+  });
+
+/** The environment's deployed stacks checked against its current compose policy. */
+export const composePolicyReportQuery = (environmentId: string) =>
+  queryOptions({
+    queryKey: ["environments", environmentId, "compose-policy", "report"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/environments/{id}/compose-policy/report", { params: { path: { id: environmentId } }, signal })),
+  });
+
+/** Roles on an environment and its stacks; for those who administer the environment. */
+export const environmentRolesQuery = (environmentId: string) =>
+  queryOptions({
+    queryKey: ["environments", environmentId, "role-assignments"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/environments/{id}/role-assignments", { params: { path: { id: environmentId } }, signal })),
+  });
+
 export const registryCredentialsQuery = (environmentId: string) =>
   queryOptions({
     queryKey: ["environments", environmentId, "registry-credentials"],

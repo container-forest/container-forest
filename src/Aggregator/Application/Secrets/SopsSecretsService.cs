@@ -1,6 +1,8 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
+using ContainerForest.Aggregator.Application.Stacks;
+using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
@@ -23,6 +25,8 @@ namespace ContainerForest.Aggregator.Application.Secrets;
 public sealed partial class SopsSecretsService(
     CurrentActor currentActor,
     IRoleAssignmentRepository roleAssignments,
+    IEnvironmentRepository environments,
+    IStackRepository stacks,
     IAgeKeyRepository keys,
     ISecretProtector protector,
     ISopsDecryptor decryptor,
@@ -107,12 +111,34 @@ public sealed partial class SopsSecretsService(
         return await encryptor.EncryptAsync(path, content, rule, cancellationToken);
     }
 
+    /// <summary>
+    /// Keys of environments where the actor is an Editor; a stack's own key (ADR-0012) only for those who may deploy
+    /// that stack, so an Editor of one stack does not read another stack's secrets.
+    /// </summary>
     private async Task<IReadOnlyList<AgeKey>> EditableAsync(
         Actor actor, IReadOnlyList<AgeKey> recipientKeys, CancellationToken cancellationToken)
     {
         var assignments = await roleAssignments.ListForUserAsync(actor.Id, cancellationToken);
         var editable = AccessPolicy.EditorEnvironments(actor, assignments);
-        return recipientKeys.Where(k => editable.Contains(k.EnvironmentId)).ToList();
+        var usable = new List<AgeKey>();
+        foreach (var key in recipientKeys.Where(k => editable.Contains(k.EnvironmentId)))
+        {
+            if (key.StackId is not { } stackId)
+            {
+                usable.Add(key);
+                continue;
+            }
+
+            var stack = await stacks.FindAsync(stackId, cancellationToken);
+            var environment = await environments.FindAsync(key.EnvironmentId, cancellationToken);
+            if (stack is not null && environment is not null
+                && AccessPolicy.CanPerform(actor, environment, stack, assignments, Permission.Deploy))
+            {
+                usable.Add(key);
+            }
+        }
+
+        return usable;
     }
 
     private static void EnsureSize(byte[] content)

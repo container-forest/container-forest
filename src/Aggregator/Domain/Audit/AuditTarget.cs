@@ -7,10 +7,12 @@ public enum AuditTargetKind
     User,
     RoleAssignment,
     ApiToken,
+    SigningKey,
     Environment,
     Stack,
     Container,
     File,
+    Settings,
 }
 
 /// <summary>
@@ -66,6 +68,16 @@ public sealed record ApiTokenAuditTarget(ApiTokenId? TokenId, string TokenName) 
     public override string Name => TokenName;
 }
 
+/// <param name="KeyName">The key's name and, after it, its fingerprint.</param>
+public sealed record SigningKeyAuditTarget(SigningKeyId? KeyId, string KeyName) : AuditTarget
+{
+    public override AuditTargetKind Kind => AuditTargetKind.SigningKey;
+
+    public override string? Id => KeyId?.ToString();
+
+    public override string Name => KeyName;
+}
+
 public sealed record EnvironmentAuditTarget(EnvironmentId? Environment, string EnvironmentName) : AuditTarget
 {
     public override AuditTargetKind Kind => AuditTargetKind.Environment;
@@ -113,4 +125,14 @@ public sealed record FileAuditTarget(string Path) : AuditTarget
     public override string? Id => null;
 
     public override string Name => Path;
+}
+
+/// <summary>A section of the system's settings, by its name; never its values.</summary>
+public sealed record SettingsAuditTarget(string Section) : AuditTarget
+{
+    public override AuditTargetKind Kind => AuditTargetKind.Settings;
+
+    public override string? Id => Section;
+
+    public override string Name => Section;
 }

@@ -153,6 +153,52 @@ public sealed class CliEndToEndTests : IDisposable
     }
 
     [Fact]
+    public async Task Compose_policy_and_stack_allowances_are_set_from_the_command_line()
+    {
+        await using var app = new AggregatorApp();
+        var environment = await app.CreateEnvironmentAsync("r2");
+        var token = await CreateTokenAsync(app);
+        string[] connection = ["--url", "http://localhost", "--token", token];
+        var repository = await app.CreateClient().PostAsJsonAsync("/api/repositories", new { name = "infra", url = "https://git.example.com/infra.git" }, Ct);
+        var repositoryId = (await repository.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct)).GetProperty("id").GetGuid();
+        await app.CreateClient().PostAsJsonAsync(
+            $"/api/environments/{environment.Id}/stacks", new { name = "web", repositoryId, branch = "main", composePath = "compose.yaml" }, Ct);
+
+        var set = await RunAsync(app, null, "", [.. connection, "env", "policy", "set", "-e", "r2", "--mode", "Audit", "--allow", "network:proxy"]);
+        var shown = await RunAsync(app, null, "", [.. connection, "env", "policy", "show", "-e", "r2", "-o", "json"]);
+        var allowed = await RunAsync(app, null, "", [.. connection, "stack", "policy", "allow", "-e", "r2", "web", "docker-socket", "port:443"]);
+        var key = await RunAsync(app, null, "", [.. connection, "env", "key", "list", "-e", "r2"]);
+        var invalid = await RunAsync(app, null, "", [.. connection, "stack", "policy", "allow", "-e", "r2", "web", "everything"]);
+
+        Assert.True(set.ExitCode == 0, set.Error);
+        var policy = JsonDocument.Parse(shown.Output).RootElement;
+        Assert.Equal("Audit", policy.GetProperty("mode").GetString());
+        Assert.Equal(["network:proxy"], policy.GetProperty("allowances").EnumerateArray().Select(a => a.GetString()));
+        Assert.True(allowed.ExitCode == 0, allowed.Error);
+        Assert.Contains("docker-socket, port:443", allowed.Output + allowed.Error, StringComparison.Ordinal);
+        Assert.Equal(0, key.ExitCode);
+        Assert.NotEqual(0, invalid.ExitCode);
+        Assert.Contains("not a compose policy allowance", invalid.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Backup_status_and_run_work_from_the_command_line()
+    {
+        await using var app = new AggregatorApp();
+        var token = await CreateTokenAsync(app);
+        string[] connection = ["--url", "http://localhost", "--token", token];
+
+        var status = await RunAsync(app, null, "", [.. connection, "backup", "status"]);
+        Assert.Equal(0, status.ExitCode);
+        Assert.Contains("Enabled", status.Output);
+
+        // Nothing is configured, so the aggregator refuses to start one, and the command says why.
+        var run = await RunAsync(app, null, "", [.. connection, "backup", "run"]);
+        Assert.NotEqual(0, run.ExitCode);
+        Assert.Contains("not configured", run.Error);
+    }
+
+    [Fact]
     public async Task Repository_and_notification_rule_are_added_from_the_command_line()
     {
         await using var app = new AggregatorApp();
@@ -169,7 +215,7 @@ public sealed class CliEndToEndTests : IDisposable
         Assert.Equal(0, repository.ExitCode);
         Assert.Contains("https://git.example.com/app.git", repositories.Output);
         Assert.Equal(0, rule.ExitCode);
-        Assert.Equal(7, Assert.Single(JsonDocument.Parse(rules.Output).RootElement.EnumerateArray()).GetProperty("events").GetArrayLength());
+        Assert.Equal(10, Assert.Single(JsonDocument.Parse(rules.Output).RootElement.EnumerateArray()).GetProperty("events").GetArrayLength());
     }
 
     [Fact]

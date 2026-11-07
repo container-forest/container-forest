@@ -2,6 +2,7 @@ using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Secrets;
+using ContainerForest.Aggregator.Application.Settings;
 using ContainerForest.Aggregator.Application.Webhooks;
 using ContainerForest.Aggregator.Domain.Common;
 using Microsoft.AspNetCore.Diagnostics;
@@ -21,6 +22,7 @@ internal sealed class ProblemDetailsExceptionHandler(IProblemDetailsService prob
             NotFoundException => (StatusCodes.Status404NotFound, "Not found"),
             UnauthenticatedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
             AccessDeniedException => (StatusCodes.Status403Forbidden, "Forbidden"),
+            IdentityConfirmationRequiredException => (StatusCodes.Status403Forbidden, "Confirmation required"),
             AgentOfflineException or AgentDisconnectedException => (StatusCodes.Status503ServiceUnavailable, "Agent unavailable"),
             AgentTimeoutException => (StatusCodes.Status504GatewayTimeout, "Agent timeout"),
             WebhookRejectedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),

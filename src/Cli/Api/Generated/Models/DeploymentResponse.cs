@@ -22,6 +22,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #else
         public string Commit { get; set; }
 #endif
+        /// <summary>The endorsement property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Models.CommitEndorsement? Endorsement { get; set; }
         /// <summary>The error property</summary>
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
 #nullable enable
@@ -38,6 +40,14 @@ namespace ContainerForest.Cli.Api.Generated.Models
         public global::ContainerForest.Cli.Api.Generated.Models.ImagePullPolicy? PullPolicy { get; set; }
         /// <summary>The queuedAt property</summary>
         public DateTimeOffset? QueuedAt { get; set; }
+        /// <summary>The signedBy property</summary>
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
+#nullable enable
+        public string? SignedBy { get; set; }
+#nullable restore
+#else
+        public string SignedBy { get; set; }
+#endif
         /// <summary>The startedAt property</summary>
         public DateTimeOffset? StartedAt { get; set; }
         /// <summary>The status property</summary>
@@ -70,11 +80,13 @@ namespace ContainerForest.Cli.Api.Generated.Models
             return new Dictionary<string, Action<IParseNode>>
             {
                 { "commit", n => { Commit = n.GetStringValue(); } },
+                { "endorsement", n => { Endorsement = n.GetEnumValue<global::ContainerForest.Cli.Api.Generated.Models.CommitEndorsement>(); } },
                 { "error", n => { Error = n.GetStringValue(); } },
                 { "finishedAt", n => { FinishedAt = n.GetDateTimeOffsetValue(); } },
                 { "id", n => { Id = n.GetGuidValue(); } },
                 { "pullPolicy", n => { PullPolicy = n.GetEnumValue<global::ContainerForest.Cli.Api.Generated.Models.ImagePullPolicy>(); } },
                 { "queuedAt", n => { QueuedAt = n.GetDateTimeOffsetValue(); } },
+                { "signedBy", n => { SignedBy = n.GetStringValue(); } },
                 { "startedAt", n => { StartedAt = n.GetDateTimeOffsetValue(); } },
                 { "status", n => { Status = n.GetEnumValue<global::ContainerForest.Cli.Api.Generated.Models.DeploymentStatus>(); } },
                 { "trigger", n => { Trigger = n.GetEnumValue<global::ContainerForest.Cli.Api.Generated.Models.DeploymentTrigger>(); } },
@@ -88,11 +100,13 @@ namespace ContainerForest.Cli.Api.Generated.Models
         {
             if(ReferenceEquals(writer, null)) throw new ArgumentNullException(nameof(writer));
             writer.WriteStringValue("commit", Commit);
+            writer.WriteEnumValue<global::ContainerForest.Cli.Api.Generated.Models.CommitEndorsement>("endorsement", Endorsement);
             writer.WriteStringValue("error", Error);
             writer.WriteDateTimeOffsetValue("finishedAt", FinishedAt);
             writer.WriteGuidValue("id", Id);
             writer.WriteEnumValue<global::ContainerForest.Cli.Api.Generated.Models.ImagePullPolicy>("pullPolicy", PullPolicy);
             writer.WriteDateTimeOffsetValue("queuedAt", QueuedAt);
+            writer.WriteStringValue("signedBy", SignedBy);
             writer.WriteDateTimeOffsetValue("startedAt", StartedAt);
             writer.WriteEnumValue<global::ContainerForest.Cli.Api.Generated.Models.DeploymentStatus>("status", Status);
             writer.WriteEnumValue<global::ContainerForest.Cli.Api.Generated.Models.DeploymentTrigger>("trigger", Trigger);

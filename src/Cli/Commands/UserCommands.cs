@@ -179,7 +179,11 @@ internal sealed class RoleGrantCommand() : UserCommand("grant", "Give a user a r
 {
     private readonly Option<string> environment = new("--env", "-e") { Description = "Environment name or id.", Required = true };
     private readonly Option<string?> stack = new("--stack") { Description = "Stack in the environment; leave out for the whole environment." };
-    private readonly Option<Role> role = new("--role") { Description = "Viewer, Operator or Editor.", Required = true };
+    private readonly Option<Role> role = new("--role")
+    {
+        Description = "Viewer, Operator, Editor, or EnvironmentAdmin (on a whole environment only).",
+        Required = true,
+    };
 
     protected override void ConfigureUser(Command command)
     {
@@ -203,7 +207,11 @@ internal sealed class RoleGrantCommand() : UserCommand("grant", "Give a user a r
 internal sealed class RoleChangeCommand() : UserCommand("change", "Change the role of an assignment (administrators).")
 {
     private readonly Argument<Guid> assignment = new("assignment") { Description = "Assignment id, see 'forest user show'." };
-    private readonly Option<Role> role = new("--role") { Description = "Viewer, Operator or Editor.", Required = true };
+    private readonly Option<Role> role = new("--role")
+    {
+        Description = "Viewer, Operator, Editor, or EnvironmentAdmin (on a whole environment only).",
+        Required = true,
+    };
 
     protected override void ConfigureUser(Command command)
     {
@@ -308,6 +316,95 @@ internal sealed class UserRemovePasskeyCommand() : UserCommand("remove", "Remove
         Confirmation.Require(context, yes, $"remove a passkey of {user.UserName}; it will no longer sign them in");
         await context.Api.RemoveUserPasskeyAsync(user.Id!.Value, context.Value(passkey), context.CancellationToken);
         context.Output.Done($"Passkey of {user.UserName} removed.");
+        return ExitCodes.Ok;
+    }
+}
+
+internal sealed class UserSigningKeysCommand() : UserCommand("list", "List a user's signing keys (administrators).")
+{
+    protected override async Task<int> ExecuteAsync(CommandContext context, UserResponse user)
+    {
+        var keys = await context.Api.ListUserSigningKeysAsync(user.Id!.Value, context.CancellationToken);
+        var environments = context.Output.IsJson ? [] : await context.Api.ListEnvironmentsAsync(context.CancellationToken);
+        await context.Output.ListAsync(
+            keys,
+            items =>
+            {
+                var table = new Table("NAME", "FINGERPRINT", "ENVIRONMENTS", "ADDED BY", "LAST USED", "ID");
+                foreach (var k in items)
+                {
+                    var scope = k.EnvironmentIds is null
+                        ? "all"
+                        : string.Join(",", environments.Where(e => k.EnvironmentIds.Contains(e.Id)).Select(e => e.Name));
+                    table.AddRow(k.Name, k.Fingerprint, scope, k.AddedBy ?? user.UserName, CliOutput.Time(k.LastUsedAt), k.Id?.ToString());
+                }
+
+                return table;
+            },
+            $"{user.UserName} has no signing keys.");
+        return ExitCodes.Ok;
+    }
+}
+
+/// <summary>
+/// <c>forest user signing-key add USER NAME KEY.pub [--env E]…</c>: a key for an account without a session, such as
+/// CI (ADR-0011). People add their own keys in the panel.
+/// </summary>
+internal sealed class UserAddSigningKeyCommand() : UserCommand("add", "Add a signing key for a user, e.g. a CI account (administrators).")
+{
+    private readonly Argument<string> name = new("name") { Description = "Name of the key, e.g. the machine it lives on." };
+    private readonly Argument<string> file = new("public-key-file") { Description = "The .pub file; '-' reads it from standard input." };
+    private readonly Option<string[]> environments = new("--env", "-e")
+    {
+        Description = "An environment the key endorses deployments in; repeat for more. Without it, every environment.",
+        AllowMultipleArgumentsPerToken = false,
+    };
+
+    protected override void ConfigureUser(Command command)
+    {
+        command.Add(name);
+        command.Add(file);
+        command.Add(environments);
+    }
+
+    protected override async Task<int> ExecuteAsync(CommandContext context, UserResponse user)
+    {
+        var path = context.Value(file);
+        var publicKey = path == "-"
+            ? await new StreamReader(context.Host.StandardInput).ReadToEndAsync(context.CancellationToken)
+            : await File.ReadAllTextAsync(path, context.CancellationToken);
+        List<Guid?>? ids = null;
+        if (context.Value(environments) is { Length: > 0 } names)
+        {
+            ids = [];
+            foreach (var environment in names)
+            {
+                ids.Add((await context.Api.ResolveEnvironmentAsync(environment, null, context.CancellationToken)).Id);
+            }
+        }
+
+        var key = await context.Api.AddUserSigningKeyAsync(user.Id!.Value, context.Value(name), publicKey.Trim(), ids, context.CancellationToken);
+        context.Output.Done($"Signing key {key.Fingerprint} added for {user.UserName}{(ids is null ? "" : $", limited to {ids.Count} environment(s)")}.");
+        return ExitCodes.Ok;
+    }
+}
+
+internal sealed class UserRemoveSigningKeyCommand() : UserCommand("remove", "Remove a user's signing key (administrators).")
+{
+    private readonly Argument<Guid> key = new("key") { Description = "Key id, see 'forest user signing-key list'." };
+    private readonly Option<bool> yes = Confirmation.Option();
+
+    protected override void ConfigureUser(Command command)
+    {
+        command.Add(key);
+        command.Add(yes);
+    }
+
+    protected override async Task<int> ExecuteAsync(CommandContext context, UserResponse user)
+    {
+        Confirmation.Require(context, yes, $"remove a signing key of {user.UserName}; commits signed with it stop deploying");
+        await context.Api.RemoveUserSigningKeyAsync(user.Id!.Value, context.Value(key), context.CancellationToken);
+        context.Output.Done($"Signing key of {user.UserName} removed.");
         return ExitCodes.Ok;
     }
 }

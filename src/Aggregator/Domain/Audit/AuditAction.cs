@@ -27,10 +27,14 @@ public enum AuditAction
     // Tokens.
     ApiTokenCreated,
     ApiTokenRevoked,
+    SigningKeyAdded,
+    SigningKeyChanged,
+    SigningKeyRemoved,
 
     // Environments.
     EnvironmentCreated,
     EnvironmentUpdated,
+    ComposePolicyChanged,
     EnvironmentRemoved,
     EnrollmentTokenIssued,
     AgentRevoked,
@@ -43,6 +47,9 @@ public enum AuditAction
     DeployHookRemoved,
     StackRestarted,
     StackTakenDown,
+    StackEndorsementChanged,
+    StackPolicyAllowancesChanged,
+    StackPolicyUnrestrictedChanged,
 
     // Deployments.
     DeploymentQueued,
@@ -54,6 +61,11 @@ public enum AuditAction
 
     // Secrets.
     SecretsDecrypted,
+
+    // System: settings of the whole system and what depends on them.
+    IdentityConfirmed,
+    SettingsChanged,
+    BackupRequested,
 }
 
 /// <summary>Groups of actions, for filtering the log.</summary>
@@ -67,6 +79,7 @@ public enum AuditCategory
     Deployments,
     Containers,
     Secrets,
+    System,
 }
 
 /// <summary>How the attempt ended.</summary>
@@ -90,14 +103,18 @@ public static class AuditActions
         AuditAction.UserCreated or AuditAction.UserRenamed or AuditAction.UserDeactivated or AuditAction.UserActivated
             or AuditAction.AdminGranted or AuditAction.AdminRevoked or AuditAction.PasswordReset or AuditAction.UserUnlocked
             or AuditAction.RoleGranted or AuditAction.RoleChanged or AuditAction.RoleRevoked => AuditCategory.Users,
-        AuditAction.ApiTokenCreated or AuditAction.ApiTokenRevoked => AuditCategory.Tokens,
-        AuditAction.EnvironmentCreated or AuditAction.EnvironmentUpdated or AuditAction.EnvironmentRemoved
+        AuditAction.ApiTokenCreated or AuditAction.ApiTokenRevoked or AuditAction.SigningKeyAdded
+            or AuditAction.SigningKeyChanged or AuditAction.SigningKeyRemoved => AuditCategory.Tokens,
+        AuditAction.EnvironmentCreated or AuditAction.EnvironmentUpdated or AuditAction.EnvironmentRemoved or AuditAction.ComposePolicyChanged
             or AuditAction.EnrollmentTokenIssued or AuditAction.AgentRevoked => AuditCategory.Environments,
         AuditAction.StackCreated or AuditAction.StackRemoved or AuditAction.StackSourceChanged or AuditAction.DeployHookCreated
-            or AuditAction.DeployHookRemoved or AuditAction.StackRestarted or AuditAction.StackTakenDown => AuditCategory.Stacks,
+            or AuditAction.DeployHookRemoved or AuditAction.StackRestarted or AuditAction.StackTakenDown
+            or AuditAction.StackEndorsementChanged or AuditAction.StackPolicyAllowancesChanged
+            or AuditAction.StackPolicyUnrestrictedChanged => AuditCategory.Stacks,
         AuditAction.DeploymentQueued => AuditCategory.Deployments,
         AuditAction.ContainerStarted or AuditAction.ContainerStopped or AuditAction.ContainerRestarted => AuditCategory.Containers,
         AuditAction.SecretsDecrypted => AuditCategory.Secrets,
+        AuditAction.IdentityConfirmed or AuditAction.SettingsChanged or AuditAction.BackupRequested => AuditCategory.System,
         _ => throw new ArgumentOutOfRangeException(nameof(action), action, "Unknown audit action."),
     };
 }

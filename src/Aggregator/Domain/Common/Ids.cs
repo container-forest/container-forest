@@ -116,3 +116,24 @@ public readonly record struct AuditEntryId(Guid Value) : IStronglyTypedId<AuditE
     public static AuditEntryId From(Guid value) => new(value);
     public override string ToString() => Value.ToString();
 }
+
+public readonly record struct SigningKeyId(Guid Value) : IStronglyTypedId<SigningKeyId>
+{
+    public static SigningKeyId New() => new(Guid.CreateVersion7());
+    public static SigningKeyId From(Guid value) => new(value);
+    public override string ToString() => Value.ToString();
+}
+
+public readonly record struct StoredSettingId(Guid Value) : IStronglyTypedId<StoredSettingId>
+{
+    public static StoredSettingId New() => new(Guid.CreateVersion7());
+    public static StoredSettingId From(Guid value) => new(value);
+    public override string ToString() => Value.ToString();
+}
+
+public readonly record struct BackupRunId(Guid Value) : IStronglyTypedId<BackupRunId>
+{
+    public static BackupRunId New() => new(Guid.CreateVersion7());
+    public static BackupRunId From(Guid value) => new(value);
+    public override string ToString() => Value.ToString();
+}

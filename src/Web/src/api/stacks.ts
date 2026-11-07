@@ -119,6 +119,33 @@ export function useSetRestartOnFileChangeMutation(stackId: string) {
   });
 }
 
+/** Turns requiring signed commits on or off (ADR-0011); the answer is the changed stack. */
+export function useSetRequireSignedCommitsMutation(stackId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (enabled: boolean) =>
+      unwrap(await api.PUT("/api/stacks/{id}/require-signed-commits", { params: { path: { id: stackId } }, body: { enabled } })),
+    onSuccess: (stack) => {
+      queryClient.setQueryData(stackQuery(stackId).queryKey, stack);
+      return queryClient.invalidateQueries({ queryKey: stacksQuery(stack.environmentId).queryKey });
+    },
+  });
+}
+
+export function useSetRequireImageDigestsMutation(stackId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (enabled: boolean) =>
+      unwrap(await api.PUT("/api/stacks/{id}/require-image-digests", { params: { path: { id: stackId } }, body: { enabled } })),
+    onSuccess: (stack) => {
+      queryClient.setQueryData(stackQuery(stackId).queryKey, stack);
+      return queryClient.invalidateQueries({ queryKey: stacksQuery(stack.environmentId).queryKey });
+    },
+  });
+}
+
 /**
  * Removes the stack with its history. The caller leaves the stack's screen first and then drops its queries
  * (`forgetStack`): dropping them while the screen is mounted would refetch a stack that is gone.
@@ -173,6 +200,20 @@ export function useDeployStackMutation(stackId: string) {
   return useMutation({
     mutationFn: async (pull: boolean) =>
       unwrap(await api.POST("/api/stacks/{id}/deployments", { params: { path: { id: stackId } }, body: { pull } })),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: deploymentsQuery(stackId).queryKey }),
+  });
+}
+
+/**
+ * Deploys an unsigned commit to a stack that requires signed commits: the user approves it by its full SHA, and the
+ * aggregator deploys it only while it is still the branch head (ADR-0011).
+ */
+export function useApproveCommitMutation(stackId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ commit, pull }: { commit: string; pull: boolean }) =>
+      unwrap(await api.POST("/api/stacks/{id}/deployments", { params: { path: { id: stackId } }, body: { pull, approveCommit: commit } })),
     onSettled: () => queryClient.invalidateQueries({ queryKey: deploymentsQuery(stackId).queryKey }),
   });
 }

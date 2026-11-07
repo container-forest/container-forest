@@ -3,6 +3,7 @@ using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
+using ContainerForest.Aggregator.Domain.Policies;
 using ContainerForest.Aggregator.Domain.Repositories;
 using ContainerForest.Aggregator.Domain.Stacks;
 
@@ -20,7 +21,9 @@ internal static class DeployFixtures
         ImagePullPolicy pull = ImagePullPolicy.Missing,
         bool isSystem = false,
         GitConnection? connection = null,
-        DockerEnvironment? environment = null)
+        DockerEnvironment? environment = null,
+        ComposePolicyMode policyMode = ComposePolicyMode.Off,
+        UserId? requestedBy = null)
     {
         environment ??= DockerEnvironment.Create("prod", isPrivate: false, Now);
         var repository = GitRepository.Create("infra", "https://git.example.com/infra.git", connection, Now);
@@ -32,16 +35,22 @@ internal static class DeployFixtures
             StackFilePath.Parse(composePath),
             isSystem,
             Now);
-        var deployment = Deployment.QueueManual(stack.Id, UserId.New(), pull, Now);
-        return new DeployContext(deployment, stack, environment, repository, new FixedTime(Now), connection);
+        var deployment = Deployment.QueueManual(stack.Id, requestedBy ?? UserId.New(), pull, Now);
+        var policy = ComposePolicy.Default(environment.Id);
+        policy.Change(policyMode, ComposePolicy.DefaultDataRoot, ComposePolicy.DefaultSystemReadOnlyPaths, []);
+        return new DeployContext(deployment, stack, environment, repository, new FixedTime(Now), connection, policy);
     }
 
     /// <summary>A context as it is after <see cref="Steps.GitFetchStep"/>.</summary>
     public static DeployContext Fetched(params SourceFile[] files) => Fetched("compose.yaml", files);
 
-    public static DeployContext Fetched(string composePath, params SourceFile[] files)
+    public static DeployContext Fetched(string composePath, params SourceFile[] files) =>
+        Fetched(ComposePolicyMode.Off, composePath, files);
+
+    /// <summary>A context after the fetch step, in an environment whose compose policy is in <paramref name="mode"/>.</summary>
+    public static DeployContext Fetched(ComposePolicyMode mode, string composePath, params SourceFile[] files)
     {
-        var context = Context(composePath);
+        var context = Context(composePath, policyMode: mode);
         context.Deployment.Start(Now);
         context.Deployment.ResolveCommit(Commit);
         context.Source = new GitSnapshot(Commit, files, []);

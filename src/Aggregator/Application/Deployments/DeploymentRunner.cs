@@ -1,5 +1,6 @@
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Policies;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Common;
@@ -17,6 +18,7 @@ public sealed class DeploymentRunner(
     IEnvironmentRepository environments,
     IGitRepositoryRepository repositories,
     IGitConnectionRepository connections,
+    IComposePolicyRepository policies,
     IUnitOfWork unitOfWork,
     DeployPipeline pipeline,
     TimeProvider time)
@@ -34,7 +36,9 @@ public sealed class DeploymentRunner(
         var repository = await repositories.GetAsync(stack.RepositoryId, cancellationToken);
         var connection = repository.ConnectionId is { } connectionId ? await connections.GetAsync(connectionId, cancellationToken) : null;
 
-        await pipeline.RunAsync(new DeployContext(deployment, stack, environment, repository, time, connection), cancellationToken);
+        var policy = await policies.GetAsync(environment.Id, cancellationToken);
+
+        await pipeline.RunAsync(new DeployContext(deployment, stack, environment, repository, time, connection, policy), cancellationToken);
     }
 
     /// <summary>

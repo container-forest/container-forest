@@ -1,6 +1,7 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Environments;
@@ -8,20 +9,23 @@ using ContainerForest.Aggregator.Domain.Environments;
 namespace ContainerForest.Aggregator.Application.Secrets;
 
 /// <summary>An environment's age key without its private part, which never leaves the aggregator.</summary>
-public sealed record AgeKeySummary(AgeKeyId Id, string Recipient, DateTimeOffset CreatedAt)
+/// <param name="StackId">The stack the key belongs to (ADR-0012); null for a key of the whole environment.</param>
+public sealed record AgeKeySummary(AgeKeyId Id, string Recipient, DateTimeOffset CreatedAt, StackId? StackId = null)
 {
-    public static AgeKeySummary Of(AgeKey key) => new(key.Id, key.Recipient, key.CreatedAt);
+    public static AgeKeySummary Of(AgeKey key) => new(key.Id, key.Recipient, key.CreatedAt, key.StackId);
 }
 
 /// <summary>
 /// The age keys SOPS files of an environment are encrypted for. Anyone who sees the environment reads the public keys,
-/// to encrypt secrets for it; only administrators create and delete keys, as with registry credentials.
+/// to encrypt secrets for it; only administrators of the system or of the environment create and delete keys, as with registry credentials.
 /// </summary>
 public sealed class AgeKeyService(
     CurrentActor currentActor,
+    EnvironmentAdministration administration,
     IEnvironmentRepository environments,
     IRoleAssignmentRepository roleAssignments,
     IAgeKeyRepository keys,
+    IStackRepository stacks,
     IAgeKeyGenerator generator,
     ISecretProtector protector,
     IUnitOfWork unitOfWork,
@@ -45,14 +49,22 @@ public sealed class AgeKeyService(
     /// Generates a new key pair. Files are encrypted for its recipient from now on; older keys keep decrypting
     /// the files not yet re-encrypted, until they are deleted.
     /// </summary>
-    public async Task<AgeKeySummary> CreateAsync(EnvironmentId environmentId, CancellationToken cancellationToken)
+    public Task<AgeKeySummary> CreateAsync(EnvironmentId environmentId, CancellationToken cancellationToken) =>
+        CreateAsync(environmentId, null, cancellationToken);
+
+    /// <param name="stackId">A stack of the environment, for a key of that stack only (ADR-0012); null for the environment.</param>
+    /// <exception cref="NotFoundException">The stack is not in the environment.</exception>
+    public async Task<AgeKeySummary> CreateAsync(EnvironmentId environmentId, StackId? stackId, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
-        await environments.GetAsync(environmentId, cancellationToken);
+        await administration.GetAsync(environmentId, cancellationToken);
+        if (stackId is { } id && (await stacks.FindAsync(id, cancellationToken))?.EnvironmentId != environmentId)
+        {
+            throw new NotFoundException("Stack", id);
+        }
 
         var generated = await generator.GenerateAsync(cancellationToken);
         var key = AgeKey.Create(
-            environmentId, generated.Recipient, protector.Protect(SecretPurpose.AgeIdentity, generated.Identity), time.GetUtcNow());
+            environmentId, generated.Recipient, protector.Protect(SecretPurpose.AgeIdentity, generated.Identity), time.GetUtcNow(), stackId);
         keys.Add(key);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return AgeKeySummary.Of(key);
@@ -61,7 +73,7 @@ public sealed class AgeKeyService(
     /// <summary>Forgets a key for good: files encrypted only for it cannot be decrypted any more.</summary>
     public async Task DeleteAsync(EnvironmentId environmentId, AgeKeyId keyId, CancellationToken cancellationToken)
     {
-        await currentActor.GetAdministratorAsync(cancellationToken);
+        await administration.GetAsync(environmentId, cancellationToken);
 
         var key = await keys.FindAsync(keyId, cancellationToken);
         if (key is null || key.EnvironmentId != environmentId)

@@ -32,7 +32,7 @@ public class AgentNotificationTests
         await agent.DisposeAsync();
         var offline = await WaitForAsync(app, 1);
         Assert.Equal(NotificationEventKinds.AgentOffline, offline[0].Kind);
-        Assert.Equal(agent.EnvironmentId, offline[0].EnvironmentId.Value);
+        Assert.Equal(agent.EnvironmentId, offline[0].EnvironmentId!.Value.Value);
         Assert.Equal($"The agent of '{environmentName}' went offline and has not reconnected.", offline[0].Summary);
 
         await using var back = await FakeAgent.ConnectAsync(app.Gateway, agent.Enrollment, "boot-1");

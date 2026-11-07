@@ -54,8 +54,41 @@ public sealed partial class ForestApi
     public async Task<IReadOnlyList<AgeKeyResponse>> ListAgeKeysAsync(Guid environmentId, CancellationToken cancellationToken) =>
         await Api.Environments[environmentId].AgeKeys.GetAsync(cancellationToken: cancellationToken) ?? [];
 
-    public async Task<AgeKeyResponse> CreateAgeKeyAsync(Guid environmentId, CancellationToken cancellationToken) =>
-        Required(await Api.Environments[environmentId].AgeKeys.PostAsync(cancellationToken: cancellationToken), "age key");
+    /// <param name="stackId">A stack of the environment, for a key of that stack only (ADR-0012); null for the environment's.</param>
+    public async Task<AgeKeyResponse> CreateAgeKeyAsync(Guid environmentId, Guid? stackId, CancellationToken cancellationToken) =>
+        Required(
+            await Api.Environments[environmentId].AgeKeys.PostAsync(c => c.QueryParameters.StackId = stackId, cancellationToken),
+            "age key");
+
+    public async Task<ComposePolicyResponse> GetComposePolicyAsync(Guid environmentId, CancellationToken cancellationToken) =>
+        Required(await Api.Environments[environmentId].ComposePolicy.GetAsync(cancellationToken: cancellationToken), "compose policy");
+
+    public async Task<ComposePolicyResponse> UpdateComposePolicyAsync(
+        Guid environmentId, UpdateComposePolicyRequest request, CancellationToken cancellationToken) =>
+        Required(await Api.Environments[environmentId].ComposePolicy.PutAsync(request, cancellationToken: cancellationToken), "compose policy");
+
+    public async Task<IReadOnlyList<StackPolicyReportResponse>> GetComposePolicyReportAsync(Guid environmentId, CancellationToken cancellationToken) =>
+        await Api.Environments[environmentId].ComposePolicy.Report.GetAsync(cancellationToken: cancellationToken) ?? [];
+
+    public async Task<IReadOnlyList<EnvironmentRoleResponse>> ListEnvironmentRolesAsync(Guid environmentId, CancellationToken cancellationToken) =>
+        await Api.Environments[environmentId].RoleAssignments.GetAsync(cancellationToken: cancellationToken) ?? [];
+
+    public async Task<EnvironmentRoleResponse> GrantEnvironmentRoleAsync(
+        Guid environmentId, string userName, Guid? stackId, Role role, CancellationToken cancellationToken) =>
+        Required(
+            await Api.Environments[environmentId].RoleAssignments.PostAsync(
+                new GrantEnvironmentRoleRequest { UserName = userName, StackId = stackId, Role = role }, cancellationToken: cancellationToken),
+            "role assignment");
+
+    public async Task<EnvironmentRoleResponse> ChangeEnvironmentRoleAsync(
+        Guid environmentId, Guid assignmentId, Role role, CancellationToken cancellationToken) =>
+        Required(
+            await Api.Environments[environmentId].RoleAssignments[assignmentId].PutAsync(
+                new ChangeEnvironmentRoleRequest { Role = role }, cancellationToken: cancellationToken),
+            "role assignment");
+
+    public Task RevokeEnvironmentRoleAsync(Guid environmentId, Guid assignmentId, CancellationToken cancellationToken) =>
+        Api.Environments[environmentId].RoleAssignments[assignmentId].DeleteAsync(cancellationToken: cancellationToken);
 
     public Task RemoveAgeKeyAsync(Guid environmentId, Guid keyId, CancellationToken cancellationToken) =>
         Api.Environments[environmentId].AgeKeys[keyId].DeleteAsync(cancellationToken: cancellationToken);

@@ -29,6 +29,8 @@ internal sealed class StackConfiguration : IEntityTypeConfiguration<Stack>
             .HasConversion(sha => sha!.Value, value => CommitSha.Parse(value))
             .HasMaxLength(64);
 
+        builder.Property(s => s.PolicyAllowances).HasField("policyAllowances").StoredAsJsonList().HasDefaultValue(Array.Empty<string>());
+
         builder.HasOne<DockerEnvironment>().WithMany().HasForeignKey(s => s.EnvironmentId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<GitRepository>().WithMany().HasForeignKey(s => s.RepositoryId).OnDelete(DeleteBehavior.Restrict);
     }

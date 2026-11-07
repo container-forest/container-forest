@@ -14,6 +14,13 @@ public interface IComposeRunner
     /// <exception cref="ComposeTimeoutException">Compose ran longer than the configured timeout and was killed.</exception>
     /// <exception cref="ComposeUnavailableException">The docker CLI could not be started.</exception>
     Task RunAsync(ComposeInvocation invocation, ICommandProgress progress, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Runs compose and returns its standard output, at most <paramref name="maxOutputBytes"/> characters; standard
+    /// error is reported line by line as for <see cref="RunAsync"/>.
+    /// </summary>
+    /// <exception cref="ComposeOutputTooLargeException">The output is longer than the limit.</exception>
+    Task<string> CaptureAsync(ComposeInvocation invocation, ICommandProgress progress, int maxOutputBytes, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -29,7 +36,36 @@ public sealed class DockerComposeCli(IOptions<AgentOptions> options, ILogger<Doc
     // them into a container's environment from a compose file.
     private const string AgentVariablePrefix = "CF_";
 
-    public async Task RunAsync(ComposeInvocation invocation, ICommandProgress progress, CancellationToken cancellationToken)
+    public Task RunAsync(ComposeInvocation invocation, ICommandProgress progress, CancellationToken cancellationToken) =>
+        RunCoreAsync(invocation, (stdout, token) => PumpAsync(stdout, progress, token), progress, cancellationToken);
+
+    public async Task<string> CaptureAsync(
+        ComposeInvocation invocation, ICommandProgress progress, int maxOutputBytes, CancellationToken cancellationToken)
+    {
+        var output = new StringBuilder();
+        await RunCoreAsync(invocation, async (stdout, token) =>
+        {
+            var buffer = new char[8192];
+            int read;
+            while ((read = await stdout.ReadAsync(buffer.AsMemory(), token)) > 0)
+            {
+                if (output.Length + read > maxOutputBytes)
+                {
+                    throw new ComposeOutputTooLargeException(invocation.Operation, maxOutputBytes);
+                }
+
+                output.Append(buffer, 0, read);
+            }
+        }, progress, cancellationToken);
+        return output.ToString();
+    }
+
+    /// <param name="readStdout">Consumes standard output; standard error always goes to <paramref name="progress"/>.</param>
+    private async Task RunCoreAsync(
+        ComposeInvocation invocation,
+        Func<StreamReader, CancellationToken, Task> readStdout,
+        ICommandProgress progress,
+        CancellationToken cancellationToken)
     {
         using var process = new Process { StartInfo = CreateStartInfo(invocation) };
         try
@@ -49,7 +85,7 @@ public sealed class DockerComposeCli(IOptions<AgentOptions> options, ILogger<Doc
         budget.CancelAfter(timeout);
 
         var output = Task.WhenAll(
-            PumpAsync(process.StandardOutput, progress, budget.Token),
+            CancelOnFailureAsync(readStdout(process.StandardOutput, budget.Token), budget),
             PumpAsync(process.StandardError, progress, budget.Token));
         try
         {
@@ -110,6 +146,20 @@ public sealed class DockerComposeCli(IOptions<AgentOptions> options, ILogger<Doc
         }
 
         return info;
+    }
+
+    // A reader that gives up (too much output) must stop the other one too, or waiting for both never ends.
+    private static async Task CancelOnFailureAsync(Task reading, CancellationTokenSource budget)
+    {
+        try
+        {
+            await reading;
+        }
+        catch
+        {
+            await budget.CancelAsync();
+            throw;
+        }
     }
 
     private static async Task PumpAsync(StreamReader reader, ICommandProgress progress, CancellationToken cancellationToken)

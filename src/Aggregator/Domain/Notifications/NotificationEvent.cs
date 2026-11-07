@@ -22,8 +22,20 @@ public enum NotificationEventKinds
     /// <summary>A container that was notified as unhealthy passes its health check again.</summary>
     ContainerHealthy = 1 << 6,
 
+    /// <summary>A backup of the aggregator failed. About the whole system: only rules on the whole system get it.</summary>
+    BackupFailed = 1 << 7,
+
+    /// <summary>Someone changed the system's settings. About the whole system: only rules on the whole system get it.</summary>
+    SettingsChanged = 1 << 8,
+
+    /// <summary>
+    /// Someone gained administrator rights or had a password reset by an administrator: both give a way in. About the
+    /// whole system: only rules on the whole system get it.
+    /// </summary>
+    AccountSecurityChanged = 1 << 9,
+
     All = DeploymentSucceeded | DeploymentFailed | ContainerDied | ContainerUnhealthy | AgentOffline | AgentOnline
-        | ContainerHealthy,
+        | ContainerHealthy | BackupFailed | SettingsChanged | AccountSecurityChanged,
 }
 
 public enum NotificationSeverity
@@ -37,11 +49,12 @@ public enum NotificationSeverity
 /// Something that happened and may be worth a notification. Rules decide where it goes
 /// (<see cref="NotificationRule.Matches"/>); the text is written when the notification is created.
 /// </summary>
+/// <param name="EnvironmentId">Null for events about the whole system, e.g. a failed backup.</param>
 /// <param name="StackId">Null for events not tied to a managed stack, e.g. an agent going offline.</param>
 /// <param name="Details">What the event is about, for the message; null when kind and scope say it all.</param>
 public sealed record NotificationEvent(
     NotificationEventKinds Kind,
-    EnvironmentId EnvironmentId,
+    EnvironmentId? EnvironmentId,
     StackId? StackId,
     DateTimeOffset OccurredAt,
     NotificationDetails? Details = null)
@@ -49,8 +62,9 @@ public sealed record NotificationEvent(
     public NotificationSeverity Severity => Kind switch
     {
         NotificationEventKinds.DeploymentFailed or NotificationEventKinds.ContainerDied or NotificationEventKinds.AgentOffline
-            => NotificationSeverity.Error,
-        NotificationEventKinds.ContainerUnhealthy => NotificationSeverity.Warning,
+            or NotificationEventKinds.BackupFailed => NotificationSeverity.Error,
+        NotificationEventKinds.ContainerUnhealthy or NotificationEventKinds.SettingsChanged
+            or NotificationEventKinds.AccountSecurityChanged => NotificationSeverity.Warning,
         _ => NotificationSeverity.Info,
     };
 

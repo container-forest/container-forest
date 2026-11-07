@@ -48,9 +48,12 @@ public sealed partial class ForestApi
         Api.Stacks[stackId].DeleteAsync(cancellationToken: cancellationToken);
 
     /// <summary>Queues a deployment; with <paramref name="pull"/> every image is pulled again (redeploy with pull).</summary>
-    public async Task<DeploymentDetailsResponse> DeployAsync(Guid stackId, bool pull, CancellationToken cancellationToken) =>
+    /// <param name="approveCommit">An unsigned commit to deploy to a stack that requires signed commits (ADR-0011).</param>
+    public async Task<DeploymentDetailsResponse> DeployAsync(
+        Guid stackId, bool pull, CancellationToken cancellationToken, string? approveCommit = null) =>
         Required(
-            await Api.Stacks[stackId].Deployments.PostAsync(new DeployRequest { Pull = pull }, cancellationToken: cancellationToken),
+            await Api.Stacks[stackId].Deployments.PostAsync(
+                new DeployRequest { Pull = pull, ApproveCommit = approveCommit }, cancellationToken: cancellationToken),
             "queued deployment");
 
     /// <summary>Runs compose restart or down and returns its output; waits as long as compose does.</summary>
@@ -76,6 +79,30 @@ public sealed partial class ForestApi
         Required(
             await Api.Stacks[stackId].RestartOnFileChange.PutAsync(
                 new RestartOnFileChangeRequest { Enabled = enabled }, cancellationToken: cancellationToken),
+            "stack");
+
+    public async Task<StackResponse> SetRequireSignedCommitsAsync(Guid stackId, bool enabled, CancellationToken cancellationToken) =>
+        Required(
+            await Api.Stacks[stackId].RequireSignedCommits.PutAsync(
+                new RequireSignedCommitsRequest { Enabled = enabled }, cancellationToken: cancellationToken),
+            "stack");
+
+    public async Task<StackResponse> SetRequireImageDigestsAsync(Guid stackId, bool enabled, CancellationToken cancellationToken) =>
+        Required(
+            await Api.Stacks[stackId].RequireImageDigests.PutAsync(
+                new RequireImageDigestsRequest { Enabled = enabled }, cancellationToken: cancellationToken),
+            "stack");
+
+    public async Task<StackResponse> SetPolicyAllowancesAsync(Guid stackId, IReadOnlyList<string> allowances, CancellationToken cancellationToken) =>
+        Required(
+            await Api.Stacks[stackId].PolicyAllowances.PutAsync(
+                new SetPolicyAllowancesRequest { Allowances = [.. allowances] }, cancellationToken: cancellationToken),
+            "stack");
+
+    public async Task<StackResponse> SetPolicyUnrestrictedAsync(Guid stackId, bool enabled, CancellationToken cancellationToken) =>
+        Required(
+            await Api.Stacks[stackId].PolicyUnrestricted.PutAsync(
+                new PolicyUnrestrictedRequest { Enabled = enabled }, cancellationToken: cancellationToken),
             "stack");
 
     public async Task<DeployHookTokenResponse> CreateDeployHookAsync(Guid stackId, CancellationToken cancellationToken) =>

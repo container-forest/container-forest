@@ -2,11 +2,14 @@ using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Live;
 using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Audit;
+using ContainerForest.Aggregator.Domain.Backups;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
 using ContainerForest.Aggregator.Domain.Notifications;
+using ContainerForest.Aggregator.Domain.Policies;
 using ContainerForest.Aggregator.Domain.Repositories;
+using ContainerForest.Aggregator.Domain.Settings;
 using ContainerForest.Aggregator.Domain.Stacks;
 using ContainerForest.Aggregator.Infrastructure.Accounts;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -57,6 +60,8 @@ public sealed class AggregatorDbContext : IdentityUserContext<AccountUser, Guid>
 
     public DbSet<ApiToken> ApiTokens => Set<ApiToken>();
 
+    public DbSet<SigningKey> SigningKeys => Set<SigningKey>();
+
     public DbSet<CliAuthorization> CliAuthorizations => Set<CliAuthorization>();
 
     public DbSet<NotificationChannel> NotificationChannels => Set<NotificationChannel>();
@@ -69,7 +74,13 @@ public sealed class AggregatorDbContext : IdentityUserContext<AccountUser, Guid>
 
     public DbSet<AgeKey> AgeKeys => Set<AgeKey>();
 
+    public DbSet<ComposePolicy> ComposePolicies => Set<ComposePolicy>();
+
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+
+    public DbSet<StoredSetting> StoredSettings => Set<StoredSetting>();
+
+    public DbSet<BackupRun> BackupRuns => Set<BackupRun>();
 
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
@@ -105,7 +116,10 @@ public sealed class AggregatorDbContext : IdentityUserContext<AccountUser, Guid>
         configurationBuilder.AddStronglyTypedId<AgeKeyId>();
         configurationBuilder.AddStronglyTypedId<ApiTokenId>();
         configurationBuilder.AddStronglyTypedId<CliAuthorizationId>();
+        configurationBuilder.AddStronglyTypedId<SigningKeyId>();
         configurationBuilder.AddStronglyTypedId<AuditEntryId>();
+        configurationBuilder.AddStronglyTypedId<StoredSettingId>();
+        configurationBuilder.AddStronglyTypedId<BackupRunId>();
 
         // SQLite has no DateTimeOffset type: stored as text it cannot be compared or ordered in queries.
         configurationBuilder.Properties<DateTimeOffset>().HaveConversion<DateTimeOffsetToBinaryConverter>();

@@ -1,5 +1,6 @@
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Secrets;
+using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Repositories;
@@ -77,12 +78,21 @@ public interface IComposeParser
     ComposeFile Parse(string yaml);
 }
 
-public sealed record ComposeFile(IReadOnlyList<ComposeService> Services);
+/// <param name="Includes">Paths of the top-level "include" section as written: compose files and their env files.</param>
+/// <param name="HasTags">Some node has an explicit YAML tag, such as !reset or !override, which changes how compose merges.</param>
+public sealed record ComposeFile(IReadOnlyList<ComposeService> Services, IReadOnlyList<string>? Includes = null, bool HasTags = false)
+{
+    public IReadOnlyList<string> IncludedFiles => Includes ?? [];
+}
 
 /// <param name="Image">Value of "image" as written, before variable interpolation; null when absent.</param>
 /// <param name="HasBuild">The service has a "build" section.</param>
 /// <param name="Extends">The service extends another one, which may supply the image.</param>
-public sealed record ComposeService(string Name, string? Image, bool HasBuild, bool Extends);
+/// <param name="FileReferences">Files compose reads for the service as written: env_file, label_file, extends.file.</param>
+public sealed record ComposeService(string Name, string? Image, bool HasBuild, bool Extends, IReadOnlyList<string>? FileReferences = null)
+{
+    public IReadOnlyList<string> ReferencedFiles => FileReferences ?? [];
+}
 
 /// <summary>Hands queued deployments to the background worker.</summary>
 public interface IDeploymentQueue
@@ -114,7 +124,9 @@ public sealed record DeploymentSummary(
     DateTimeOffset QueuedAt,
     DateTimeOffset? StartedAt,
     DateTimeOffset? FinishedAt,
-    string? Error);
+    string? Error,
+    CommitEndorsement Endorsement = CommitEndorsement.NotChecked,
+    string? SignerName = null);
 
 /// <summary>Configuration section "Deployments" (env: CF_DEPLOYMENTS__...).</summary>
 public sealed class DeploymentOptions
@@ -133,5 +145,36 @@ public sealed class DeploymentOptions
     /// <summary>Deployments of different stacks that may run at the same time.</summary>
     public int MaxConcurrentDeployments { get; set; } = 4;
 
-    public bool IsValid() => MaxBundleBytes > 0 && AgentTimeout > TimeSpan.Zero && MaxConcurrentDeployments > 0;
+    /// <summary>How long the agent may take to render a stack for the compose policy (ADR-0012); nothing is pulled.</summary>
+    public TimeSpan RenderTimeout { get; set; } = TimeSpan.FromMinutes(2);
+
+    public bool IsValid() =>
+        MaxBundleBytes > 0 && AgentTimeout > TimeSpan.Zero && MaxConcurrentDeployments > 0 && RenderTimeout > TimeSpan.Zero;
+}
+
+/// <summary>The signature git stored in a commit and the bytes it covers.</summary>
+/// <param name="Signature">The "gpgsig" header as git wrote it: armored SSH, GPG or X.509.</param>
+/// <param name="SignedData">The commit object without its signature, which is what was signed.</param>
+public sealed record CommitSignatureData(string Signature, byte[] SignedData);
+
+/// <summary>Reads what the commit graph says about fetched commits (ADR-0011). Implemented with LibGit2Sharp.</summary>
+public interface ICommitInspector
+{
+    /// <summary>The commit's signature; null for an unsigned commit.</summary>
+    /// <exception cref="DeploymentFailedException">The commit has not been fetched.</exception>
+    Task<CommitSignatureData?> ReadSignatureAsync(GitRepository repository, CommitSha commit, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// True when <paramref name="commit"/> is <paramref name="ancestor"/> or descends from it. False when the
+    /// ancestor is not in the clone, e.g. after the stack was pointed at another repository.
+    /// </summary>
+    Task<bool> DescendsFromAsync(GitRepository repository, CommitSha commit, CommitSha ancestor, CancellationToken cancellationToken);
+}
+
+/// <summary>Checks an SSH signature cryptographically. Implemented with <c>ssh-keygen -Y verify</c>.</summary>
+public interface ICommitSignatureVerifier
+{
+    /// <summary>True when <paramref name="signature"/> is a valid git signature of <paramref name="signedData"/> by <paramref name="key"/>.</summary>
+    /// <exception cref="DeploymentFailedException">ssh-keygen is missing or does not answer.</exception>
+    Task<bool> VerifyAsync(SshPublicKey key, SshSignature signature, byte[] signedData, CancellationToken cancellationToken);
 }

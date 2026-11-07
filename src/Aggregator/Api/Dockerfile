@@ -20,7 +20,8 @@ COPY src/Aggregator/ src/Aggregator/
 RUN dotnet publish src/Aggregator/Api/ContainerForest.Aggregator.Api.csproj \
     --configuration Release --no-restore --output /app -p:UseAppHost=false -p:OpenApiGenerateDocuments=false
 
-# sops and age-keygen for the target architecture: the aggregator decrypts SOPS files and creates age keys with them.
+# sops, age-keygen and age for the target architecture: the aggregator decrypts SOPS files, creates age keys and
+# encrypts backups with them.
 # The runtime image has no curl, so they are downloaded and checked here.
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS tools
 ARG TARGETARCH
@@ -35,6 +36,11 @@ LABEL org.opencontainers.image.title="container-forest-aggregator" \
 WORKDIR /app
 COPY --from=build /app .
 COPY --from=tools /tools/ /usr/local/bin/
+
+# ssh-keygen checks the SSH signatures of commits for stacks that require them (ADR-0011).
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends openssh-client \
+    && rm -rf /var/lib/apt/lists/*
 
 # Everything the aggregator keeps lives in /data: the database, the Data Protection key ring (without it stored
 # secrets cannot be decrypted, so it is backed up with the database) and the git clones. A named volume mounted

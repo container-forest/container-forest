@@ -131,6 +131,31 @@ public sealed class DockerComposeCliTests : IDisposable
     private static void SkipOnWindows() =>
         Assert.SkipWhen(OperatingSystem.IsWindows(), "/bin/sh stands in for the docker CLI.");
 
+    [Fact]
+    public async Task Capture_returns_standard_output_and_reports_standard_error()
+    {
+        SkipOnWindows();
+        Script("""
+            printf '{"services":'
+            echo "a warning" >&2
+            printf '{}}'
+            """);
+
+        var output = await Cli().CaptureAsync(Up([]), progress, maxOutputBytes: 1024, Ct);
+
+        Assert.Equal("""{"services":{}}""", output);
+        Assert.Equal(["a warning"], progress.Lines);
+    }
+
+    [Fact]
+    public async Task Capture_stops_compose_that_prints_too_much()
+    {
+        SkipOnWindows();
+        Script("while true; do echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx; done");
+
+        await Assert.ThrowsAsync<ComposeOutputTooLargeException>(() => Cli().CaptureAsync(Up([]), progress, maxOutputBytes: 4096, Ct));
+    }
+
     private DockerComposeCli Cli() => new(Options.Create(options), NullLogger<DockerComposeCli>.Instance);
 
     private ComposeInvocation Up(Dictionary<string, string> environment) =>

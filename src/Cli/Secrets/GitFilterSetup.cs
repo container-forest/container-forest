@@ -16,8 +16,8 @@ internal static class GitFilterSetup
     /// <summary>Marks the hook as ours, so setup may rewrite it and leaves anyone else's alone.</summary>
     public const string HookMarker = "# Installed by 'forest git setup'";
 
-    /// <returns>How many files under the filter are now decrypted, and how many there are.</returns>
-    public static (int Decrypted, int Total) Apply(GitWorkTree tree, string? contextName, string executable, CliOutput output)
+    /// <returns>How many files under the filter are now decrypted, how many there are, and what the checkout said.</returns>
+    public static RefreshResult Apply(GitWorkTree tree, string? contextName, string executable, CliOutput output)
     {
         tree.SetConfig("filter.forest.process", $"{executable} git filter-process");
         tree.SetConfig("filter.forest.required", "true");
@@ -62,7 +62,7 @@ internal static class GitFilterSetup
         }
 
         RemoveHook(tree, output);
-        tree.CheckOutAgain(decrypted);
+        _ = tree.CheckOutAgain(decrypted);
         var cache = Path.Combine(tree.GitDirectory, "forest");
         if (Directory.Exists(cache))
         {
@@ -83,20 +83,31 @@ internal static class GitFilterSetup
         return path is not null && name == "forest" ? $"'{path.Replace("'", "'\\''", StringComparison.Ordinal)}'" : "forest";
     }
 
-    /// <summary>Checks out again the files under the filter that are still encrypted and unchanged, through smudge.</summary>
-    public static (int Decrypted, int Total) Refresh(GitWorkTree tree)
+    /// <summary>
+    /// Checks out again the files under the filter that are still encrypted and unchanged, through smudge. A copy that
+    /// differs from git only in CR counts as unchanged: git converted it on an earlier checkout (core.autocrlf), and
+    /// nobody edits ciphertext.
+    /// </summary>
+    public static RefreshResult Refresh(GitWorkTree tree)
     {
         var filtered = tree.Filtered(tree.TrackedFiles());
-        var stale = filtered
-            .Where(p => tree.WorkTreeFile(p) is { } content && SopsFiles.IsEncrypted(p, content) && tree.IsUnmodified(p))
+        var encrypted = filtered.Where(p => tree.WorkTreeFile(p) is { } content && SopsFiles.IsEncrypted(p, content)).ToList();
+        var stale = encrypted
+            .Where(p => tree.IsUnmodified(p) || SopsFiles.SameButLineEndings(tree.WorkTreeFile(p)!, tree.IndexBlob(p)))
             .ToList();
+        var messages = new List<string>();
         if (stale.Count > 0)
         {
-            tree.CheckOutAgain(stale);
+            messages.AddRange(tree.CheckOutAgain(stale));
+        }
+
+        foreach (var path in encrypted.Except(stale))
+        {
+            messages.Add($"forest: {path} is encrypted here and differs from git, so it is left as it is; see 'git diff -- {path}'.");
         }
 
         var decrypted = filtered.Count(p => tree.WorkTreeFile(p) is { } content && !SopsFiles.IsEncrypted(p, content));
-        return (decrypted, filtered.Count);
+        return new RefreshResult(decrypted, filtered.Count, messages);
     }
 
     private static void RemoveHook(GitWorkTree tree, CliOutput output)
@@ -140,3 +151,8 @@ internal static class GitFilterSetup
         }
     }
 }
+
+/// <param name="Decrypted">Files under the filter that are plain text in the work tree now.</param>
+/// <param name="Total">Files under the filter.</param>
+/// <param name="Messages">What git and the filter said during the checkout (why a file stays encrypted), and files left alone.</param>
+internal sealed record RefreshResult(int Decrypted, int Total, IReadOnlyList<string> Messages);

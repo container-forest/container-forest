@@ -186,10 +186,10 @@ internal sealed class KeyListCommand() : EnvironmentCommand("list", "List the en
             keys,
             items =>
             {
-                var table = new Table("ID", "RECIPIENT", "CREATED");
+                var table = new Table("ID", "RECIPIENT", "STACK", "CREATED");
                 foreach (var key in items)
                 {
-                    table.AddRow(key.Id?.ToString(), key.Recipient, CliOutput.Time(key.CreatedAt));
+                    table.AddRow(key.Id?.ToString(), key.Recipient, key.StackId?.ToString() ?? "(environment)", CliOutput.Time(key.CreatedAt));
                 }
 
                 return table;
@@ -199,11 +199,23 @@ internal sealed class KeyListCommand() : EnvironmentCommand("list", "List the en
     }
 }
 
-internal sealed class KeyCreateCommand() : EnvironmentCommand("create", "Create a new age key for the environment (administrators).")
+internal sealed class KeyCreateCommand() : EnvironmentCommand("create", "Create a new age key for the environment or one of its stacks (its administrators).")
 {
+    private readonly Option<string?> stack = new("--stack")
+    {
+        Description = "A stack of the environment: only its deployments and Editors decrypt with the key (ADR-0012).",
+    };
+
+    protected override void Configure(Command command)
+    {
+        base.Configure(command);
+        command.Add(stack);
+    }
+
     protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment)
     {
-        var key = await context.Api.CreateAgeKeyAsync(environment.Id!.Value, context.CancellationToken);
+        var stackId = context.Value(stack) is { } name ? (await context.Api.FindStackAsync(environment, name, context.CancellationToken)).Id : null;
+        var key = await context.Api.CreateAgeKeyAsync(environment.Id!.Value, stackId, context.CancellationToken);
         if (context.Output.IsJson)
         {
             await context.Output.ItemAsync(key, _ => []);
@@ -300,6 +312,180 @@ internal sealed class RegistryRemoveCommand() : EnvironmentCommand("remove", "Re
             ?? throw new CliException($"{environment.Name} has no login for {requested}.", ExitCodes.Denied);
         await context.Api.RemoveRegistryCredentialAsync(environment.Id!.Value, credential.Id!.Value, context.CancellationToken);
         context.Output.Done($"Login for {credential.Server} removed from {environment.Name}.");
+        return ExitCodes.Ok;
+    }
+}
+
+internal sealed class PolicyShowCommand() : EnvironmentCommand("show", "Show the environment's compose policy (ADR-0012).")
+{
+    protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment)
+    {
+        var policy = await context.Api.GetComposePolicyAsync(environment.Id!.Value, context.CancellationToken);
+        await context.Output.ItemAsync(policy, p =>
+        [
+            ("Mode", p.Mode?.ToString()),
+            ("Data root", p.DataRoot),
+            ("System read-only paths", string.Join(", ", p.SystemReadOnlyPaths ?? [])),
+            ("Allowances", p.Allowances is { Count: > 0 } a ? string.Join(", ", a) : "none"),
+            ("Protected paths", string.Join(", ", p.ProtectedPaths ?? [])),
+        ]);
+        return ExitCodes.Ok;
+    }
+}
+
+/// <summary>Changes parts of the policy; what is not given stays as it is.</summary>
+internal sealed class PolicySetCommand() : EnvironmentCommand("set", "Change the environment's compose policy (its administrators).")
+{
+    private readonly Option<ComposePolicyMode?> mode = new("--mode") { Description = "Off, Audit (warnings only) or Enforce." };
+    private readonly Option<string?> dataRoot = new("--data-root") { Description = "Parent of the stacks' data directories." };
+    private readonly Option<string[]> allow = new("--allow") { Description = "Add an allowance for every stack, e.g. network:proxy.", AllowMultipleArgumentsPerToken = true };
+    private readonly Option<string[]> disallow = new("--disallow") { Description = "Remove an allowance.", AllowMultipleArgumentsPerToken = true };
+    private readonly Option<string[]> systemPath = new("--system-path") { Description = "Add a read-only system path.", AllowMultipleArgumentsPerToken = true };
+    private readonly Option<string[]> removeSystemPath = new("--remove-system-path") { Description = "Remove a read-only system path.", AllowMultipleArgumentsPerToken = true };
+
+    protected override void Configure(Command command)
+    {
+        base.Configure(command);
+        command.Add(mode);
+        command.Add(dataRoot);
+        command.Add(allow);
+        command.Add(disallow);
+        command.Add(systemPath);
+        command.Add(removeSystemPath);
+    }
+
+    protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment)
+    {
+        var id = environment.Id!.Value;
+        var current = await context.Api.GetComposePolicyAsync(id, context.CancellationToken);
+        var request = new UpdateComposePolicyRequest
+        {
+            Mode = context.Value(mode) ?? current.Mode,
+            DataRoot = context.Value(dataRoot) ?? current.DataRoot,
+            Allowances = Edit(current.Allowances, context.Value(allow), context.Value(disallow)),
+            SystemReadOnlyPaths = Edit(current.SystemReadOnlyPaths, context.Value(systemPath), context.Value(removeSystemPath)),
+        };
+        var updated = await context.Api.UpdateComposePolicyAsync(id, request, context.CancellationToken);
+        context.Output.Done($"The compose policy of {environment.Name} is {updated.Mode}; allowances: {Describe(updated.Allowances)}.");
+        return ExitCodes.Ok;
+    }
+
+    private static List<string> Edit(List<string>? current, string[]? add, string[]? remove) =>
+        [.. (current ?? []).Concat(add ?? []).Except(remove ?? [], StringComparer.Ordinal).Distinct(StringComparer.Ordinal)];
+
+    private static string Describe(List<string>? allowances) => allowances is { Count: > 0 } ? string.Join(", ", allowances) : "none";
+}
+
+internal sealed class PolicyReportCommand() : EnvironmentCommand("report", "Check the deployed stacks against the current compose policy.")
+{
+    protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment)
+    {
+        var report = await context.Api.GetComposePolicyReportAsync(environment.Id!.Value, context.CancellationToken);
+        await context.Output.ListAsync(
+            report,
+            items =>
+            {
+                var table = new Table("STACK", "STATE", "VIOLATIONS");
+                foreach (var row in items)
+                {
+                    var state = row.Checked != true ? "not checked" : row.Violations is { Count: > 0 } ? "violates" : "follows";
+                    var violations = string.Join("; ", (row.Violations ?? []).Select(v =>
+                        $"{(v.Service is null ? "" : v.Service + ": ")}{v.Message} ({(v.Allowance is null ? "no allowance" : "allowance " + v.Allowance)})"));
+                    table.AddRow(row.StackName, state, violations);
+                }
+
+                return table;
+            },
+            $"{environment.Name} has no stacks.");
+        return ExitCodes.Ok;
+    }
+}
+
+internal sealed class EnvRoleListCommand() : EnvironmentCommand("list", "List roles on the environment and its stacks (its administrators).")
+{
+    protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment)
+    {
+        var roles = await context.Api.ListEnvironmentRolesAsync(environment.Id!.Value, context.CancellationToken);
+        await context.Output.ListAsync(
+            roles,
+            items =>
+            {
+                var table = new Table("USER", "SCOPE", "ROLE", "ID");
+                foreach (var role in items)
+                {
+                    table.AddRow(role.UserName, role.StackName ?? "(environment)", role.Role?.ToString(), role.Id?.ToString());
+                }
+
+                return table;
+            },
+            $"Nobody has a role on {environment.Name}.");
+        return ExitCodes.Ok;
+    }
+}
+
+internal sealed class EnvRoleGrantCommand() : EnvironmentCommand("grant", "Give an existing user a role on the environment or a stack (its administrators).")
+{
+    private readonly Argument<string> user = new("user") { Description = "User name." };
+    private readonly Option<string?> stack = new("--stack") { Description = "Stack in the environment; leave out for the whole environment." };
+    private readonly Option<Role> role = new("--role")
+    {
+        Description = "Viewer, Operator, Editor, or EnvironmentAdmin (whole environment, administrators only).",
+        Required = true,
+    };
+
+    protected override void Configure(Command command)
+    {
+        base.Configure(command);
+        command.Add(user);
+        command.Add(stack);
+        command.Add(role);
+    }
+
+    protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment)
+    {
+        var stackId = context.Value(stack) is { } name ? (await context.Api.FindStackAsync(environment, name, context.CancellationToken)).Id : null;
+        var granted = await context.Api.GrantEnvironmentRoleAsync(
+            environment.Id!.Value, context.Value(user), stackId, context.Value(role), context.CancellationToken);
+        context.Output.Done($"{granted.UserName} is {granted.Role} on {granted.StackName ?? environment.Name} (assignment {granted.Id}).");
+        return ExitCodes.Ok;
+    }
+}
+
+internal sealed class EnvRoleChangeCommand() : EnvironmentCommand("change", "Change a role on the environment (its administrators).")
+{
+    private readonly Argument<Guid> assignment = new("assignment") { Description = "Assignment id, see 'forest env role list'." };
+    private readonly Option<Role> role = new("--role") { Description = "Viewer, Operator, Editor or EnvironmentAdmin.", Required = true };
+
+    protected override void Configure(Command command)
+    {
+        base.Configure(command);
+        command.Add(assignment);
+        command.Add(role);
+    }
+
+    protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment)
+    {
+        var changed = await context.Api.ChangeEnvironmentRoleAsync(
+            environment.Id!.Value, context.Value(assignment), context.Value(role), context.CancellationToken);
+        context.Output.Done($"{changed.UserName} is now {changed.Role} on {changed.StackName ?? environment.Name}.");
+        return ExitCodes.Ok;
+    }
+}
+
+internal sealed class EnvRoleRevokeCommand() : EnvironmentCommand("revoke", "Take a role on the environment away (its administrators).")
+{
+    private readonly Argument<Guid> assignment = new("assignment") { Description = "Assignment id, see 'forest env role list'." };
+
+    protected override void Configure(Command command)
+    {
+        base.Configure(command);
+        command.Add(assignment);
+    }
+
+    protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment)
+    {
+        await context.Api.RevokeEnvironmentRoleAsync(environment.Id!.Value, context.Value(assignment), context.CancellationToken);
+        context.Output.Done("Role revoked.");
         return ExitCodes.Ok;
     }
 }

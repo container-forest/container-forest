@@ -23,12 +23,47 @@ public class YamlComposeParserTests
             """);
 
         Assert.Equal(
-            [
-                new ComposeService("web", "nginx:1.27", HasBuild: false, Extends: false),
-                new ComposeService("api", null, HasBuild: true, Extends: false),
-                new ComposeService("worker", null, HasBuild: false, Extends: true),
-            ],
-            compose.Services);
+            [("web", "nginx:1.27", false, false), ("api", null, true, false), ("worker", null, false, true)],
+            compose.Services.Select(s => (s.Name, s.Image, s.HasBuild, s.Extends)));
+    }
+
+    [Fact]
+    public void Reads_the_files_compose_would_read_for_the_policy()
+    {
+        var compose = parser.Parse("""
+            include:
+              - other/compose.yaml
+              - path: [a.yaml, b.yaml]
+                env_file: inc.env
+            services:
+              web:
+                image: nginx
+                env_file:
+                  - app.env
+                  - path: extra.env
+                    required: false
+                label_file: labels.txt
+                extends:
+                  file: base.yaml
+                  service: base
+            """);
+
+        Assert.Equal(["app.env", "extra.env", "labels.txt", "base.yaml"], Assert.Single(compose.Services).ReferencedFiles);
+        Assert.Equal(["other/compose.yaml", "a.yaml", "b.yaml", "inc.env"], compose.IncludedFiles);
+        Assert.False(compose.HasTags);
+    }
+
+    [Fact]
+    public void Notices_yaml_tags()
+    {
+        var compose = parser.Parse("""
+            services:
+              web:
+                image: nginx
+                ports: !reset []
+            """);
+
+        Assert.True(compose.HasTags);
     }
 
     [Fact]

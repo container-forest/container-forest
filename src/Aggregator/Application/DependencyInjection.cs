@@ -1,6 +1,7 @@
 using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Audit;
+using ContainerForest.Aggregator.Application.Backups;
 using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Deployments.Steps;
@@ -9,6 +10,7 @@ using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
 using ContainerForest.Aggregator.Application.Secrets;
+using ContainerForest.Aggregator.Application.Settings;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Application.Webhooks;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,10 +26,21 @@ public static class DependencyInjection
         services.AddScoped<EnvironmentService>();
         services.AddScoped<AgentEnrollmentService>();
         services.AddScoped<CurrentActor>();
+        services.AddScoped<EnvironmentAdministration>();
+        services.AddScoped<EnvironmentRoleService>();
+        services.AddScoped<Policies.ComposePolicyService>();
         services.AddScoped<IAuditTrail, AuditTrail>();
         services.AddScoped<AuditService>();
+        services.AddScoped<SettingsStore>();
+        services.AddSingleton<IdentityConfirmations>();
+        services.AddSingleton<BackupGate>();
+        services.AddScoped<BackupRunner>();
+        services.AddScoped<BackupService>();
+        services.AddScoped<BackupSettingsService>();
+        services.AddScoped<ISystemNotifier, SystemNotifier>();
         services.AddScoped<DiscordLinkService>();
         services.AddScoped<ApiTokenService>();
+        services.AddScoped<SigningKeyService>();
         services.AddScoped<ApiTokenAuthenticator>();
         services.AddScoped<CliAuthorizationService>();
         services.AddScoped<UserManagementService>();
@@ -49,10 +62,12 @@ public static class DependencyInjection
 
         // Steps run in this order.
         services.AddScoped<IDeployStep, GitFetchStep>();
+        services.AddScoped<IDeployStep, VerifyCommitStep>();
         services.AddScoped<IDeployStep, SopsDecryptStep>();
         services.AddScoped<IDeployStep, ValidateComposeStep>();
         services.AddScoped<IDeployStep, BuildBundleStep>();
         services.AddScoped<IDeployStep, ResolveRegistryAuthStep>();
+        services.AddScoped<IDeployStep, ComposePolicyStep>();
         services.AddScoped<IDeployStep, SendToAgentStep>();
         services.AddScoped<DeployPipeline>();
 

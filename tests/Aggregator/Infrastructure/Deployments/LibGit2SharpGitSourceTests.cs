@@ -243,6 +243,70 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
         await Assert.ThrowsAsync<DeploymentFailedException>(() => source.ReadAsync("repo", sha, "", 1024, Ct));
     }
 
+    [Fact]
+    public async Task Reads_no_signature_from_an_unsigned_commit()
+    {
+        Commit(new() { ["compose.yaml"] = "v1" });
+        var sha = await source.FetchAsync("repo", origin, null, Main, Ct);
+
+        Assert.Null(await source.ReadSignatureAsync("repo", sha, Ct));
+    }
+
+    [Fact]
+    public async Task Signed_commit_verifies_with_its_key_and_not_with_another()
+    {
+        SshKeygen.Require();
+        var keyFile = SshKeygen.Generate(root, "alice");
+        var otherFile = SshKeygen.Generate(root, "mallory");
+        Commit(new() { ["compose.yaml"] = "v1" });
+        var sha = SignedCommit(keyFile, "compose.yaml", "v2");
+        var fetched = await source.FetchAsync("repo", origin, null, Main, Ct);
+        Assert.Equal(sha, fetched.Value);
+
+        var data = await source.ReadSignatureAsync("repo", fetched, Ct);
+
+        Assert.NotNull(data);
+        Assert.True(Domain.Access.SshSignature.TryParse(data.Signature, out var signature));
+        var key = Domain.Access.SshPublicKey.Parse(File.ReadAllText(keyFile + ".pub"));
+        var other = Domain.Access.SshPublicKey.Parse(File.ReadAllText(otherFile + ".pub"));
+        Assert.Equal(key.Fingerprint, signature.PublicKey.Fingerprint);
+        var verifier = new SshKeygenSignatureVerifier(
+            Options.Create(new SignatureOptions()),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SshKeygenSignatureVerifier>.Instance);
+        Assert.True(await verifier.VerifyAsync(key, signature, data.SignedData, Ct));
+        Assert.False(await verifier.VerifyAsync(other, signature, data.SignedData, Ct));
+        Assert.False(await verifier.VerifyAsync(key, signature, [.. data.SignedData, (byte)'x'], Ct));
+    }
+
+    [Fact]
+    public async Task Tells_whether_a_commit_descends_from_another()
+    {
+        var first = CommitSha.Parse(Commit(new() { ["compose.yaml"] = "v1" }));
+        var second = CommitSha.Parse(Commit(new() { ["compose.yaml"] = "v2" }));
+        await source.FetchAsync("repo", origin, null, Main, Ct);
+
+        Assert.True(await source.DescendsFromAsync("repo", second, first, Ct));
+        Assert.True(await source.DescendsFromAsync("repo", second, second, Ct));
+        Assert.False(await source.DescendsFromAsync("repo", first, second, Ct));
+        Assert.False(await source.DescendsFromAsync("repo", second, CommitSha.Parse(new string('a', 40)), Ct));
+    }
+
+    /// <summary>Commits on "main" with an SSH signature, as git does with gpg.format=ssh.</summary>
+    private string SignedCommit(string keyFile, string path, string content)
+    {
+        using var repository = new Repository(origin);
+        File.WriteAllText(Path.Combine(origin, path), content);
+        Commands.Stage(repository, "*");
+        var tree = repository.ObjectDatabase.CreateTree(repository.Index);
+        var author = new Signature("alice", "alice@example.com", DateTimeOffset.UtcNow);
+        var parent = repository.Branches["main"].Tip;
+        var buffer = LibGit2Sharp.Commit.CreateBuffer(author, author, "signed\n", tree, [parent], prettifyMessage: false, commentChar: null);
+        var signature = SshKeygen.Sign(keyFile, buffer);
+        var id = repository.ObjectDatabase.CreateCommitWithSignature(buffer, signature);
+        repository.Refs.UpdateTarget(repository.Branches["main"].Reference, id, logMessage: null);
+        return id.Sha;
+    }
+
     private async Task<GitSnapshot> Fetch(string directory, long maxBytes = 1024 * 1024)
     {
         var commit = await source.FetchAsync("repo", origin, null, Main, Ct);
@@ -269,5 +333,74 @@ public sealed class LibGit2SharpGitSourceTests : IDisposable
         var main = repository.Branches["main"] ?? repository.Branches.Add("main", commit);
         repository.Refs.UpdateTarget(main.Reference, commit.Id, logMessage: null);
         return commit.Sha;
+    }
+}
+
+/// <summary>
+/// Runs the real ssh-keygen. Without it the tests are skipped, unless CF_TEST_REQUIRE_SSH_KEYGEN=1 (as in CI),
+/// where a missing tool is a failure.
+/// </summary>
+internal static class SshKeygen
+{
+    public static void Require()
+    {
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ssh-keygen", "-V")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            });
+            process!.WaitForExit();
+            return;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            const string message = "ssh-keygen is not on PATH.";
+            if (Environment.GetEnvironmentVariable("CF_TEST_REQUIRE_SSH_KEYGEN") == "1")
+            {
+                Assert.Fail(message);
+            }
+
+            Assert.Skip(message);
+        }
+    }
+
+    public static string Generate(string directory, string name)
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, name);
+        Run(["-q", "-t", "ed25519", "-N", "", "-C", name, "-f", path], stdin: null);
+        return path;
+    }
+
+    public static string Sign(string keyFile, string data) =>
+        Run(["-Y", "sign", "-n", "git", "-f", keyFile], stdin: data);
+
+    private static string Run(string[] arguments, string? stdin)
+    {
+        var info = new System.Diagnostics.ProcessStartInfo("ssh-keygen")
+        {
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        foreach (var argument in arguments)
+        {
+            info.ArgumentList.Add(argument);
+        }
+
+        using var process = System.Diagnostics.Process.Start(info)!;
+        if (stdin is not null)
+        {
+            process.StandardInput.Write(stdin);
+        }
+
+        process.StandardInput.Close();
+        var output = process.StandardOutput.ReadToEnd();
+        var error = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        Assert.True(process.ExitCode == 0, error);
+        return output;
     }
 }

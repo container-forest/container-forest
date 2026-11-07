@@ -38,6 +38,9 @@ public enum NotificationKind
     AgentOffline,
     AgentOnline,
     ContainerHealthy,
+    BackupFailed,
+    SettingsChanged,
+    AccountSecurityChanged,
 }
 
 public enum NotificationSeverity

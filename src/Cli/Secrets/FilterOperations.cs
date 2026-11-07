@@ -50,6 +50,12 @@ internal abstract class FilterOperation(FilterServices services)
         }
 
         var reason = string.Join("; ", reasons);
+        // An older aggregator, or local sops, does not say so itself.
+        if (SopsFiles.HasCrLf(content) && !reason.Contains("CRLF", StringComparison.Ordinal))
+        {
+            reason += " (the file reaches the filter with CRLF line endings: set eol=lf for it in .gitattributes, 'forest secrets fix-eol')";
+        }
+
         await Services.Error.WriteLineAsync(Services.ToldReasons.Add(reason)
             ? $"forest: {path} stays encrypted: {reason}"
             : $"forest: {path} stays encrypted.");
@@ -89,6 +95,8 @@ internal sealed class CleanOperation(FilterServices services) : FilterOperation(
 
     protected override async Task<FilterResult> ConvertAsync(string path, byte[] content, CancellationToken cancellationToken)
     {
+        // Before the cache too: the same text saved with CRLF is unchanged.
+        content = SopsFiles.PlainForSops(path, content);
         if (Services.Cache?.Find(path, content) is { } unchanged)
         {
             return FilterResult.Done(unchanged);

@@ -2,6 +2,7 @@ using ContainerForest.Aggregator.Application.Access;
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Secrets;
+using ContainerForest.Aggregator.Application.Settings;
 using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 using Microsoft.Extensions.Logging;
@@ -155,6 +156,7 @@ public static class AuditOutcomes
     public static (AuditOutcome Outcome, string Reason) Of(Exception exception) => exception switch
     {
         AccessDeniedException denied => (AuditOutcome.Denied, denied.Message),
+        IdentityConfirmationRequiredException => (AuditOutcome.Denied, "No valid identity confirmation."),
         NotFoundException notFound => (AuditOutcome.Failed, notFound.Message),
         DomainException domain => (AuditOutcome.Failed, domain.Message),
 

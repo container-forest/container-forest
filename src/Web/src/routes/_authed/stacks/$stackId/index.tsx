@@ -12,6 +12,8 @@ import {
   useForgetStack,
   useRemoveStackMutation,
   useSetDeployOnPushMutation,
+  useSetRequireImageDigestsMutation,
+  useSetRequireSignedCommitsMutation,
   useSetRestartOnFileChangeMutation,
   useStackActionMutation,
 } from "@/api/stacks";
@@ -29,6 +31,7 @@ import {
   Trash2Icon,
 } from "@/components/icons";
 import { DeployHookCard } from "@/components/stacks/deploy-hook-card";
+import { PolicyAllowancesCard } from "@/components/stacks/policy-allowances-card";
 import { DeploymentStatusBadge } from "@/components/stacks/deployment-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -95,6 +98,10 @@ function StackScreen() {
       <ActionsCard stack={stack} />
       <StackContainersCard stack={stack} />
       <SourceCard key={`${stack.repositoryId}/${stack.branch}/${stack.composePath}`} stack={stack} />
+      {stack.canDeploy && !stack.isSystem && <EndorsementCard stack={stack} />}
+      {!stack.isSystem && (stack.canAdministerEnvironment || stack.policyAllowances.length > 0 || stack.policyUnrestricted) && (
+        <PolicyAllowancesCard stack={stack} />
+      )}
       {stack.canDeploy && !stack.isSystem && <DeployOnPushCard stack={stack} />}
       {stack.canDeploy && !stack.isSystem && <RestartOnFileChangeCard stack={stack} />}
       {stack.canDeploy && !stack.isSystem && <DeployHookCard stack={stack} />}
@@ -465,6 +472,63 @@ function DeployOnPushCard({ stack }: { stack: Stack }) {
           {changeError && (
             <ErrorText>
               {t("stack.push.failed")} {t(changeError.key)} {changeError.detail}
+            </ErrorText>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Whose content the stack deploys (ADR-0011): only signed or approved commits, and only images pinned by digest. */
+function EndorsementCard({ stack }: { stack: Stack }) {
+  const { t } = useTranslation();
+  const signed = useSetRequireSignedCommitsMutation(stack.id);
+  const digests = useSetRequireImageDigestsMutation(stack.id);
+  const error = signed.error ?? digests.error;
+  const changeError = error ? describeError(error) : undefined;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("stack.endorsement.title")}</CardTitle>
+        <CardDescription>{t("stack.endorsement.description")}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="grid gap-1">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="require-signed-commits"
+              checked={signed.isPending ? signed.variables : stack.requireSignedCommits}
+              disabled={signed.isPending}
+              onCheckedChange={(enabled) => {
+                digests.reset();
+                signed.mutate(enabled);
+              }}
+            />
+            <Label htmlFor="require-signed-commits">{t("stack.endorsement.signedLabel")}</Label>
+          </div>
+          <p className="text-muted-foreground text-sm">{t("stack.endorsement.signedHint")}</p>
+        </div>
+        <div className="grid gap-1">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="require-image-digests"
+              checked={digests.isPending ? digests.variables : stack.requireImageDigests}
+              disabled={digests.isPending}
+              onCheckedChange={(enabled) => {
+                signed.reset();
+                digests.mutate(enabled);
+              }}
+            />
+            <Label htmlFor="require-image-digests">{t("stack.endorsement.digestsLabel")}</Label>
+          </div>
+          <p className="text-muted-foreground text-sm">{t("stack.endorsement.digestsHint")}</p>
+        </div>
+        <div aria-live="polite">
+          {changeError && (
+            <ErrorText>
+              {t("stack.endorsement.failed")} {t(changeError.key)} {changeError.detail}
             </ErrorText>
           )}
         </div>

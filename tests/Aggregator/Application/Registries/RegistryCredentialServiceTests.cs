@@ -14,6 +14,7 @@ public class RegistryCredentialServiceTests
     private readonly InMemoryUsers users = new();
     private readonly InMemoryEnvironments environments = new();
     private readonly InMemoryRegistryCredentials credentials = new();
+    private readonly InMemoryRoleAssignments roleAssignments = new();
     private readonly FakeCurrentUser currentUser = new();
     private readonly FakeUnitOfWork unitOfWork = new();
     private readonly RegistryCredentialService service;
@@ -28,8 +29,9 @@ public class RegistryCredentialServiceTests
         users.Add(alice);
         environments.Add(environment);
         currentUser.Id = admin.Id;
+        var actor = new CurrentActor(currentUser, users);
         service = new RegistryCredentialService(
-            new CurrentActor(currentUser, users), environments, credentials, new FakeSecretProtector(), unitOfWork, new FixedTime(Now));
+            new EnvironmentAdministration(actor, environments, roleAssignments), credentials, new FakeSecretProtector(), unitOfWork, new FixedTime(Now));
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

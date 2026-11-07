@@ -46,6 +46,7 @@ public sealed record CreateNotificationRuleRequest(IReadOnlyList<NotificationEve
 public sealed record UpdateNotificationRuleRequest(IReadOnlyList<NotificationEventKinds> Events, bool IsEnabled);
 
 /// <param name="ChannelName">Null when the channel has been deleted since.</param>
+/// <param name="EnvironmentId">Null for an event about the whole system, e.g. a failed backup.</param>
 /// <param name="Error">Why delivery failed, e.g. the bot may not post in the channel.</param>
 public sealed record NotificationResponse(
     Guid Id,
@@ -53,7 +54,7 @@ public sealed record NotificationResponse(
     string? ChannelName,
     NotificationEventKinds Kind,
     NotificationSeverity Severity,
-    Guid EnvironmentId,
+    Guid? EnvironmentId,
     Guid? StackId,
     DateTimeOffset OccurredAt,
     string Summary,

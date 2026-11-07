@@ -122,9 +122,10 @@ function AccountScreen() {
 
       <SigningKeysCard />
 
-      <SeasonCard />
-
       <InstallCard />
+
+      {/* Last: the backdrop is the least important setting on the page. */}
+      <SeasonCard />
     </div>
   );
 }

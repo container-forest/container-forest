@@ -20,6 +20,7 @@ export { default as ChevronUpIcon } from "~icons/material-symbols/keyboard-arrow
 export { default as ChevronsUpDownIcon } from "~icons/material-symbols/unfold-more-rounded";
 export { default as CircleIcon } from "~icons/material-symbols/circle";
 export { default as CopyIcon } from "~icons/material-symbols/content-copy-rounded";
+export { default as DarkModeIcon } from "~icons/material-symbols/dark-mode-rounded";
 export { default as DownloadIcon } from "~icons/material-symbols/download-rounded";
 export { default as FileSearchIcon } from "~icons/material-symbols/manage-search-rounded";
 export { default as FilterXIcon } from "~icons/material-symbols/filter-alt-off-rounded";
@@ -28,6 +29,7 @@ export { default as InstallDesktopIcon } from "~icons/material-symbols/install-d
 export { default as KeyIcon } from "~icons/material-symbols/key-rounded";
 export { default as LanguagesIcon } from "~icons/material-symbols/translate-rounded";
 export { default as LayersIcon } from "~icons/material-symbols/stacks-rounded";
+export { default as LightModeIcon } from "~icons/material-symbols/light-mode-rounded";
 export { default as LinkIcon } from "~icons/material-symbols/link-rounded";
 export { default as Loader2Icon } from "~icons/material-symbols/progress-activity";
 export { default as LockIcon } from "~icons/material-symbols/lock-outline";

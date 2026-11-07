@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Renders the PWA icons in public/icons from the SVGs in pwa/ and public/logo.svg with headless Chrome
+# Renders the PWA icons in public/icons from the SVGs in pwa/ and public/icons/icon.svg with headless Chrome
 # (no image tools needed). Run from src/Web after changing the logo; the PNGs are committed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -17,7 +17,7 @@ render() { # <svg> <size> <png>
     --screenshot="$out" "file://$work/page.html" 2>/dev/null
 }
 
-render public/logo.svg 192 public/icons/icon-192.png
-render public/logo.svg 512 public/icons/icon-512.png
+render public/icons/icon.svg 192 public/icons/icon-192.png
+render public/icons/icon.svg 512 public/icons/icon-512.png
 render pwa/logo-maskable.svg 512 public/icons/maskable-512.png
 render pwa/logo-full-bleed.svg 180 public/icons/apple-touch-icon.png

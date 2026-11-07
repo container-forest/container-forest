@@ -17,6 +17,10 @@ const en: Translation = {
     switchTo: "Перейти на українську",
     other: "УКР",
   },
+  theme: {
+    toLight: "Light theme",
+    toDark: "Dark theme",
+  },
   layout: {
     administrator: "(administrator)",
     signOut: "Sign out",
@@ -176,13 +180,13 @@ const en: Translation = {
   },
   appearance: {
     title: "Appearance",
-    description: "A quiet seasonal backdrop behind the panel: it takes no clicks and covers no content. The choice is remembered in this browser.",
-    season: "Seasonal animation",
+    description: "A quiet seasonal backdrop behind the panel: it takes no clicks and covers no content. The settings are remembered in this browser.",
+    enabled: "Seasonal animation",
+    season: "Season",
     auto: "By the calendar (now: {{season}})",
-    off: "Off",
     seasons: {
       spring: "Spring: green leaves",
-      summer: "Summer: butterflies",
+      summer: "Summer: butterflies and poplar fluff",
       autumn: "Autumn: red and orange leaves",
       winter: "Winter: snowflakes",
     },
@@ -192,7 +196,10 @@ const en: Translation = {
       autumn: "autumn",
       winter: "winter",
     },
-    reducedMotion: "With “Reduce motion” on in the system, there is no animation whatever the choice.",
+    rain: "Rain from the weather",
+    rainHint: "When it rains where you are, it rains on the backdrop. The browser asks for your location; coordinates rounded to about 10 km go to Open-Meteo every 15 minutes.",
+    rainSource: "Weather by Open-Meteo.com",
+    reducedMotion: "With “Reduce motion” on in the system, there is no animation whatever the settings.",
   },
   pwa: {
     title: "App",

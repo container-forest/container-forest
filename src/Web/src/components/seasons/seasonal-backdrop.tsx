@@ -1,21 +1,25 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useSyncExternalStore } from "react";
+import { rainQuery } from "@/api/queries";
 import {
+  type Effect,
   type Particle,
-  type Season,
   type SeasonStyle,
+  RAIN_SLANT,
+  backdropSettingsSnapshot,
+  effectStyles,
   particleCount,
-  seasonPreferenceSnapshot,
-  seasonStyles,
-  shownSeason,
+  shownEffects,
   spawnParticle,
   stepParticle,
-  subscribeSeasonPreference,
+  subscribeBackdropSettings,
   swayOffset,
 } from "@/features/seasons/model";
+import { useTheme } from "@/components/theme-toggle";
 
-/** The viewer's choice of season animation, shared by the backdrop and the setting that changes it. */
-export function useSeasonPreference() {
-  return useSyncExternalStore(subscribeSeasonPreference, seasonPreferenceSnapshot);
+/** The viewer's backdrop settings, shared by the backdrop and the card that changes them. */
+export function useBackdropSettings() {
+  return useSyncExternalStore(subscribeBackdropSettings, backdropSettingsSnapshot);
 }
 
 function useReducedMotion() {
@@ -30,19 +34,35 @@ function useReducedMotion() {
 }
 
 /**
- * Leaves, butterflies or snowflakes drifting behind the panel, by season. Purely decorative: the canvas lies under
- * the page content, takes no clicks, is hidden from assistive technology, pauses in a hidden tab and is not drawn
- * at all when the system asks for reduced motion or the viewer turned it off.
+ * Leaves, butterflies with poplar fluff, or snowflakes drifting behind the panel, by season, and rain on top when it
+ * rains where the viewer is (see the Appearance card). Purely decorative: the
+ * canvas lies under the page content, takes no clicks, is hidden from assistive technology, pauses in a hidden tab
+ * and is not drawn at all when the system asks for reduced motion or the viewer turned it (or every effect) off.
  */
 export function SeasonalBackdrop() {
-  const preference = useSeasonPreference();
+  const settings = useBackdropSettings();
   const reducedMotion = useReducedMotion();
-  const season = reducedMotion ? null : shownSeason(preference, new Date());
+  const light = useTheme() === "light";
+  // The weather is not asked for at all while rain is off or motion is reduced.
+  const { data: rain } = useQuery({ ...rainQuery, enabled: settings.rain && !reducedMotion });
+  const raining = rain?.raining ?? false;
+  const shown = reducedMotion ? [] : shownEffects(settings, new Date(), raining);
+  // Rain thickens in steps, so a small change in the weather does not restart the canvas.
+  const rainScale = raining ? Math.round((0.4 + 0.6 * (rain?.intensity ?? 0)) * 4) / 4 : 1;
 
-  return season ? <SeasonCanvas season={season} /> : null;
+  // A string key: the canvas restarts only when the effects, the theme or the rain's strength actually change.
+  return shown.length > 0 ? (
+    <SeasonCanvas key={`${shown.join()}|${light}|${rainScale}`} effects={shown} light={light} rainScale={rainScale} />
+  ) : null;
 }
 
-function SeasonCanvas({ season }: { season: Season }) {
+interface Layer {
+  style: SeasonStyle;
+  scale: number;
+  particles: Particle[];
+}
+
+function SeasonCanvas({ effects, light, rainScale }: { effects: readonly Effect[]; light: boolean; rainScale: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // The animation loop draws on the canvas outside React: nothing here is data loading.
@@ -51,10 +71,14 @@ function SeasonCanvas({ season }: { season: Season }) {
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
 
-    const style = seasonStyles[season];
+    // One layer per effect, drawn in order: summer's fluff floats over its butterflies.
+    const layers: Layer[] = effects.map((effect) => ({
+      style: effectStyles[effect],
+      scale: effect === "rain" ? rainScale : 1,
+      particles: [],
+    }));
     let width = 0;
     let height = 0;
-    let particles: Particle[] = [];
 
     const resize = () => {
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -63,9 +87,11 @@ function SeasonCanvas({ season }: { season: Season }) {
       canvas.width = Math.round(width * ratio);
       canvas.height = Math.round(height * ratio);
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      const count = particleCount(style, width, height);
-      particles = particles.slice(0, count);
-      while (particles.length < count) particles.push(spawnParticle(style, width, height, Math.random, true));
+      for (const layer of layers) {
+        const count = particleCount(layer.style, width, height, layer.scale);
+        layer.particles = layer.particles.slice(0, count);
+        while (layer.particles.length < count) layer.particles.push(spawnParticle(layer.style, width, height, Math.random, true, light));
+      }
     };
 
     let frame = 0;
@@ -75,10 +101,13 @@ function SeasonCanvas({ season }: { season: Season }) {
       const dt = last === 0 ? 0 : Math.min((time - last) / 1000, 0.05);
       last = time;
       context.clearRect(0, 0, width, height);
-      particles = particles.map((p) =>
-        stepParticle(p, style, dt, width, height, Math.random) ? p : spawnParticle(style, width, height, Math.random, false),
-      );
-      for (const particle of particles) drawParticle(context, particle, style);
+      for (const layer of layers) {
+        const { style } = layer;
+        layer.particles = layer.particles.map((p) =>
+          stepParticle(p, style, dt, width, height, Math.random) ? p : spawnParticle(style, width, height, Math.random, false, light),
+        );
+        for (const particle of layer.particles) drawParticle(context, particle, style);
+      }
       frame = requestAnimationFrame(tick);
     };
 
@@ -99,7 +128,8 @@ function SeasonCanvas({ season }: { season: Season }) {
       window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [season]);
+    // The effects and the theme are fixed for this canvas: the parent remounts it with a new key when they change.
+  }, []);
 
   return <canvas ref={canvasRef} aria-hidden className="pointer-events-none fixed inset-0 -z-10 size-full select-none" />;
 }
@@ -107,7 +137,7 @@ function SeasonCanvas({ season }: { season: Season }) {
 function drawParticle(context: CanvasRenderingContext2D, particle: Particle, style: SeasonStyle) {
   context.save();
   context.globalAlpha = particle.opacity;
-  context.translate(particle.x + (style.shape === "butterfly" ? 0 : swayOffset(particle)), particle.y);
+  context.translate(particle.x + (style.shape === "butterfly" || style.shape === "rain" ? 0 : swayOffset(particle)), particle.y);
   context.fillStyle = particle.color;
   context.strokeStyle = particle.color;
 
@@ -118,8 +148,14 @@ function drawParticle(context: CanvasRenderingContext2D, particle: Particle, sty
     case "butterfly":
       drawButterfly(context, particle);
       break;
+    case "fluff":
+      drawFluff(context, particle);
+      break;
     case "snowflake":
       drawSnowflake(context, particle);
+      break;
+    case "rain":
+      drawRain(context, particle);
       break;
   }
   context.restore();
@@ -177,5 +213,33 @@ function drawSnowflake(context: CanvasRenderingContext2D, { size, phase }: Parti
     context.moveTo(Math.cos(angle) * size, Math.sin(angle) * size);
     context.lineTo(-Math.cos(angle) * size, -Math.sin(angle) * size);
   }
+  context.stroke();
+}
+
+function drawFluff(context: CanvasRenderingContext2D, { size, color, phase }: Particle) {
+  // A bright speck with a soft halo that twinkles a little as it turns in the light.
+  const twinkle = 0.75 + 0.25 * Math.sin(phase * 2.3);
+  const halo = context.createRadialGradient(0, 0, 0, 0, 0, size * 2.6);
+  halo.addColorStop(0, color);
+  halo.addColorStop(0.35, color);
+  halo.addColorStop(1, "rgba(255, 255, 255, 0)");
+  context.globalAlpha *= twinkle;
+  context.fillStyle = halo;
+  context.beginPath();
+  context.arc(0, 0, size * 2.6, 0, Math.PI * 2);
+  context.fill();
+}
+
+function drawRain(context: CanvasRenderingContext2D, { size, color }: Particle) {
+  // A thin streak along the direction of fall, fading towards its tail.
+  const tail = context.createLinearGradient(0, 0, -size * RAIN_SLANT, -size);
+  tail.addColorStop(0, color);
+  tail.addColorStop(1, "rgba(255, 255, 255, 0)");
+  context.strokeStyle = tail;
+  context.lineWidth = 1.3;
+  context.lineCap = "round";
+  context.beginPath();
+  context.moveTo(0, 0);
+  context.lineTo(-size * RAIN_SLANT, -size);
   context.stroke();
 }

@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { AuditQuery } from "@/features/audit/model";
+import { RAIN_REFRESH_MS, fetchRain } from "@/features/weather/model";
 import { type LogLine, MAX_LINES, mergeLines, nextSince, shouldRetryLoad } from "@/features/container-logs/model";
 import { api, unwrap } from "./client";
 
@@ -9,6 +10,15 @@ export const meQuery = queryOptions({
   queryKey: ["me"],
   queryFn: async ({ signal }) => unwrap(await api.GET("/api/me", { signal })),
   staleTime: 60_000,
+});
+
+/** Whether it rains at the viewer's location, for the backdrop (Open-Meteo, not the aggregator). Never fails. */
+export const rainQuery = queryOptions({
+  queryKey: ["weather", "rain"],
+  queryFn: ({ signal }) => fetchRain(signal),
+  staleTime: RAIN_REFRESH_MS,
+  refetchInterval: RAIN_REFRESH_MS,
+  retry: false,
 });
 
 /** Whether backups run and how the latest ones went (ADR-0014). Administrators only. */

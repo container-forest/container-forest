@@ -22,6 +22,7 @@ import {
   UsersIcon,
 } from "@/components/icons";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { LiveIndicator } from "@/components/live/live-indicator";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -277,7 +278,10 @@ export function SidebarContent({ onNavigate = () => {} }: { onNavigate?: () => v
           </NavItem>
         </NavGroup>
         <div className="flex items-center justify-between gap-2 px-1">
-          <LanguageSwitcher />
+          <div className="flex items-center gap-1">
+            <LanguageSwitcher />
+            <ThemeToggle />
+          </div>
           <Button
             variant="ghost"
             size="sm"

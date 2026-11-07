@@ -62,7 +62,7 @@ function AccountScreen() {
   });
 
   return (
-    <div className="grid max-w-2xl gap-6">
+    <div className="mx-auto grid w-full max-w-2xl gap-6">
       <div>
         <h1 className="font-heading text-2xl font-semibold">{t("account.title")}</h1>
         <p className="text-muted-foreground mt-1">{t("account.description", { name: me.userName })}</p>

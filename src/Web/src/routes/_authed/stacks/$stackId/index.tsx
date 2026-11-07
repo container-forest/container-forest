@@ -74,7 +74,7 @@ function StackScreen() {
   const { data: stack } = useSuspenseQuery(stackQuery(stackId));
 
   return (
-    <div className="grid max-w-4xl gap-6">
+    <div className="mx-auto grid w-full max-w-4xl gap-6">
       <div className="grid gap-3">
         <Link
           to="/stacks"

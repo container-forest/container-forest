@@ -63,7 +63,7 @@ function UserScreen() {
   const now = new Date();
 
   return (
-    <div className="grid max-w-3xl gap-6">
+    <div className="mx-auto grid w-full max-w-3xl gap-6">
       <div className="grid gap-3">
         <Link to="/users" className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm">
           <ArrowLeftIcon className="size-4" />

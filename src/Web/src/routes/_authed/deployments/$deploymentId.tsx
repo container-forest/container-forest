@@ -51,7 +51,7 @@ function DeploymentScreen() {
   const seconds = durationSeconds(deployment, new Date());
 
   return (
-    <div className="grid max-w-5xl gap-6">
+    <div className="mx-auto grid w-full max-w-5xl gap-6">
       <div className="grid gap-3">
         <Link
           to="/stacks/$stackId/deployments"

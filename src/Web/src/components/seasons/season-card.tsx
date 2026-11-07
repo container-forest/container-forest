@@ -32,14 +32,6 @@ export function SeasonCard() {
         <CardDescription>{t("appearance.description")}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
-        <div className="grid gap-2">
-          <span id="appearance-palette" className="text-sm leading-none font-medium">
-            {t("appearance.palette")}
-          </span>
-          <PalettePicker />
-          <p className="text-muted-foreground text-xs">{t("appearance.paletteCredit")}</p>
-        </div>
-
         <div className="flex items-center justify-between gap-4">
           <Label htmlFor="appearance-enabled">{t("appearance.enabled")}</Label>
           <Switch
@@ -79,6 +71,15 @@ export function SeasonCard() {
         </div>
 
         <p className="text-muted-foreground text-sm">{t("appearance.reducedMotion")}</p>
+
+        {/* Last: the theme mushrooms stand on a meadow along the bottom edge of the card. */}
+        <div className="grid gap-2">
+          <span id="appearance-palette" className="text-sm leading-none font-medium">
+            {t("appearance.palette")}
+          </span>
+          <p className="text-muted-foreground text-xs">{t("appearance.paletteCredit")}</p>
+          <PalettePicker />
+        </div>
       </CardContent>
     </Card>
   );

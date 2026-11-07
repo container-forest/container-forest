@@ -50,7 +50,10 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
+/* The forest colours are the default; [data-palette="forest"] lets an element (a mushroom in the theme picker) wear them
+   inside another theme. */
+:root,
+[data-palette="forest"] {
     --background: oklch(0.985 0.005 155);
     --foreground: oklch(0.22 0.025 165);
     --card: oklch(0.997 0.003 155);
@@ -555,6 +558,13 @@
     --ansi-13: #f5c2e7;
     --ansi-14: #94e2d5;
     --ansi-15: #a6adc8;
+}
+
+/* The theme picker's mushrooms sway a little under the pointer (only without reduced motion, see palette-picker). */
+@keyframes mushroom-sway {
+    0%, 100% { transform: rotate(0deg); }
+    30% { transform: rotate(-6deg); }
+    65% { transform: rotate(4deg); }
 }
 
 @layer base {

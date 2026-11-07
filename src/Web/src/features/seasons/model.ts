@@ -199,7 +199,7 @@ export const effectStyles: Record<Effect, SeasonStyle> = {
     minCount: 70,
     maxCount: 240,
     size: [26, 52],
-    fall: [380, 520],
+    fall: [190, 260],
     opacity: [0.3, 0.6],
   },
 };

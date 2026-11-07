@@ -21,7 +21,7 @@ export function InstallCard() {
       </CardHeader>
       <CardContent className="grid gap-3">
         <div className="flex items-center gap-3">
-          <img src="/logo.svg" alt="" className="size-12 shrink-0" />
+          <img src="/icons/icon.svg" alt="" className="size-12 shrink-0" />
           <div className="min-w-0">
             <p className="font-medium">container-forest</p>
             <p className="text-muted-foreground text-sm">{t(`pwa.state.${state}`)}</p>

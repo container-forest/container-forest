@@ -209,9 +209,6 @@ const en: Translation = {
       autumn: "autumn",
       winter: "winter",
     },
-    rain: "Rain from the weather",
-    rainHint: "When it rains where you are, it rains on the backdrop. The browser asks for your location; coordinates rounded to about 10 km go to Open-Meteo every 15 minutes.",
-    rainSource: "Weather by Open-Meteo.com",
     reducedMotion: "With “Reduce motion” on in the system, there is no animation whatever the settings.",
   },
   pwa: {

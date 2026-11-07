@@ -13,7 +13,7 @@ export const seasonChoices = ["auto", ...scenes] as const;
 export type SeasonChoice = (typeof seasonChoices)[number];
 
 /** Every kind of particle; a season shows one or more of them. */
-export const effects = ["springLeaves", "butterflies", "fluff", "autumnLeaves", "snowflakes", "rain", "downpour"] as const;
+export const effects = ["springLeaves", "butterflies", "fluff", "autumnLeaves", "snowflakes", "downpour"] as const;
 export type Effect = (typeof effects)[number];
 
 /** What each scene shows. Summer has two layers: butterflies and the poplar fluff around them. */
@@ -25,17 +25,13 @@ export const seasonEffects: Record<Scene, readonly Effect[]> = {
   downpour: ["downpour"],
 };
 
-/**
- * Everything the viewer set. The default is the animation on, by the calendar, with rain when it rains outside.
- * Rain does not depend on the seasonal animation: either can be on alone.
- */
+/** Everything the viewer set. The default is the animation on, by the calendar. */
 export interface BackdropSettings {
   enabled: boolean;
   season: SeasonChoice;
-  rain: boolean;
 }
 
-export const defaultBackdropSettings: BackdropSettings = { enabled: true, season: "auto", rain: true };
+export const defaultBackdropSettings: BackdropSettings = { enabled: true, season: "auto" };
 
 /** Meteorological seasons of the northern hemisphere: winter is December to February. */
 export function seasonOf(date: Date): Season {
@@ -52,14 +48,10 @@ export function shownSeason(settings: BackdropSettings, now: Date): Scene | null
   return settings.season === "auto" ? seasonOf(now) : settings.season;
 }
 
-/**
- * The effects to draw now: those of the shown scene, and rain on top when it rains and the viewer wants it; not over a
- * downpour, which is already wetter than any weather.
- */
-export function shownEffects(settings: BackdropSettings, now: Date, raining = false): readonly Effect[] {
+/** The effects to draw now: those of the shown scene. */
+export function shownEffects(settings: BackdropSettings, now: Date): readonly Effect[] {
   const season = shownSeason(settings, now);
-  const seasonal = season ? seasonEffects[season] : [];
-  return settings.rain && raining && season !== "downpour" ? [...seasonal, "rain"] : seasonal;
+  return season ? seasonEffects[season] : [];
 }
 
 // The settings are remembered in this browser only. Storage may be unavailable (private mode, blocked site data), so
@@ -77,11 +69,11 @@ export function parseBackdropSettings(stored: string | null, legacy: string | nu
     try {
       const value: unknown = JSON.parse(stored);
       if (typeof value === "object" && value !== null) {
-        const { enabled, season, rain } = value as Record<string, unknown>;
+        // Fields that are no longer used (the weather rain's `rain`) are ignored.
+        const { enabled, season } = value as Record<string, unknown>;
         return {
           enabled: typeof enabled === "boolean" ? enabled : defaultBackdropSettings.enabled,
           season: isSeasonChoice(season) ? season : defaultBackdropSettings.season,
-          rain: typeof rain === "boolean" ? rain : defaultBackdropSettings.rain,
         };
       }
     } catch {
@@ -197,20 +189,8 @@ export const effectStyles: Record<Effect, SeasonStyle> = {
     fall: [12, 26],
     opacity: [0.3, 0.6],
   },
-  rain: {
-    // Thin streaks falling fast and a little slanted, as in a light wind. `size` is the length of a streak.
-    shape: "rain",
-    colors: ["#b9d3e4", "#a6c3d8", "#cfe0ec"],
-    lightColors: ["#6d8ea3", "#5f8197", "#7d9bae"],
-    density: 6,
-    minCount: 36,
-    maxCount: 130,
-    size: [14, 30],
-    fall: [560, 820],
-    opacity: [0.35, 0.65],
-  },
   downpour: {
-    // Heavy rain the viewer chooses: thick, long, fast streaks, several times the weather's heaviest rain.
+    // Heavy rain the viewer chooses: thick, long, fast streaks, dense enough to read as rain behind the cards.
     shape: "rain",
     colors: ["#c6dcea", "#b0cade", "#d8e7f1", "#9fbcd2"],
     lightColors: ["#5f8197", "#527489", "#6d8ea3"],
@@ -249,10 +229,10 @@ export type Random = () => number;
 
 const between = (random: Random, [min, max]: readonly [number, number]) => min + random() * (max - min);
 
-/** How many particles fill a window; `scale` thins or thickens the layer (rain by its intensity). */
-export function particleCount(style: SeasonStyle, width: number, height: number, scale = 1): number {
+/** How many particles fill a window. */
+export function particleCount(style: SeasonStyle, width: number, height: number): number {
   const count = Math.round(((width * height) / 100_000) * style.density);
-  return Math.round(Math.min(style.maxCount, Math.max(style.minCount, count)) * scale);
+  return Math.min(style.maxCount, Math.max(style.minCount, count));
 }
 
 /**

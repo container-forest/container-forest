@@ -12,8 +12,8 @@ function isSeasonChoice(value: string): value is SeasonChoice {
 }
 
 /**
- * The seasonal backdrop: on or off, which season (by the calendar or one kept all year), and rain when it rains where the viewer is.
- * All on, by the calendar, unless the viewer changes it. Remembered in this browser.
+ * The seasonal backdrop: on or off, and which scene (by the calendar, one season kept all year, or a downpour).
+ * On, by the calendar, unless the viewer changes it. Remembered in this browser.
  */
 export function BackdropCard() {
   const { t } = useTranslation();
@@ -55,19 +55,6 @@ export function BackdropCard() {
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="grid gap-1.5">
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="appearance-rain">{t("appearance.rain")}</Label>
-            <Switch id="appearance-rain" checked={settings.rain} onCheckedChange={(rain) => updateBackdropSettings({ rain })} />
-          </div>
-          <p className="text-muted-foreground text-sm">
-            {t("appearance.rainHint")}{" "}
-            <a href="https://open-meteo.com/" target="_blank" rel="noreferrer" className="underline underline-offset-2">
-              {t("appearance.rainSource")}
-            </a>
-          </p>
         </div>
 
         <p className="text-muted-foreground text-sm">{t("appearance.reducedMotion")}</p>

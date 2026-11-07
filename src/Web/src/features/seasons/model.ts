@@ -9,7 +9,7 @@ export const seasonChoices = ["auto", ...seasons] as const;
 export type SeasonChoice = (typeof seasonChoices)[number];
 
 /** Every kind of particle; a season shows one or more of them. */
-export const effects = ["springLeaves", "butterflies", "fluff", "autumnLeaves", "snowflakes"] as const;
+export const effects = ["springLeaves", "butterflies", "fluff", "autumnLeaves", "snowflakes", "rain"] as const;
 export type Effect = (typeof effects)[number];
 
 /** What each season shows. Summer has two layers: butterflies and the poplar fluff around them. */
@@ -20,13 +20,17 @@ export const seasonEffects: Record<Season, readonly Effect[]> = {
   winter: ["snowflakes"],
 };
 
-/** Everything the viewer set. The default is the animation on, by the calendar. */
+/**
+ * Everything the viewer set. The default is the animation on, by the calendar, with rain when it rains outside.
+ * Rain does not depend on the seasonal animation: either can be on alone.
+ */
 export interface BackdropSettings {
   enabled: boolean;
   season: SeasonChoice;
+  rain: boolean;
 }
 
-export const defaultBackdropSettings: BackdropSettings = { enabled: true, season: "auto" };
+export const defaultBackdropSettings: BackdropSettings = { enabled: true, season: "auto", rain: true };
 
 /** Meteorological seasons of the northern hemisphere: winter is December to February. */
 export function seasonOf(date: Date): Season {
@@ -43,10 +47,11 @@ export function shownSeason(settings: BackdropSettings, now: Date): Season | nul
   return settings.season === "auto" ? seasonOf(now) : settings.season;
 }
 
-/** The effects to draw now: those of the shown season. */
-export function shownEffects(settings: BackdropSettings, now: Date): readonly Effect[] {
+/** The effects to draw now: those of the shown season, and rain on top when it rains and the viewer wants it. */
+export function shownEffects(settings: BackdropSettings, now: Date, raining = false): readonly Effect[] {
   const season = shownSeason(settings, now);
-  return season ? seasonEffects[season] : [];
+  const seasonal = season ? seasonEffects[season] : [];
+  return settings.rain && raining ? [...seasonal, "rain"] : seasonal;
 }
 
 // The settings are remembered in this browser only. Storage may be unavailable (private mode, blocked site data), so
@@ -64,10 +69,11 @@ export function parseBackdropSettings(stored: string | null, legacy: string | nu
     try {
       const value: unknown = JSON.parse(stored);
       if (typeof value === "object" && value !== null) {
-        const { enabled, season } = value as Record<string, unknown>;
+        const { enabled, season, rain } = value as Record<string, unknown>;
         return {
           enabled: typeof enabled === "boolean" ? enabled : defaultBackdropSettings.enabled,
           season: isSeasonChoice(season) ? season : defaultBackdropSettings.season,
+          rain: typeof rain === "boolean" ? rain : defaultBackdropSettings.rain,
         };
       }
     } catch {
@@ -115,7 +121,7 @@ export function updateBackdropSettings(change: Partial<BackdropSettings>) {
 
 /** How an effect's particles look and move. Speeds are in CSS pixels per second. */
 export interface SeasonStyle {
-  shape: "leaf" | "butterfly" | "fluff" | "snowflake";
+  shape: "leaf" | "butterfly" | "fluff" | "snowflake" | "rain";
   colors: readonly string[];
   /** Colours on the light theme, for particles that would vanish on a light background. */
   lightColors?: readonly string[];
@@ -183,7 +189,22 @@ export const effectStyles: Record<Effect, SeasonStyle> = {
     fall: [12, 26],
     opacity: [0.3, 0.6],
   },
+  rain: {
+    // Thin streaks falling fast and a little slanted, as in a light wind. `size` is the length of a streak.
+    shape: "rain",
+    colors: ["#b9d3e4", "#a6c3d8", "#cfe0ec"],
+    lightColors: ["#6d8ea3", "#5f8197", "#7d9bae"],
+    density: 6,
+    minCount: 36,
+    maxCount: 130,
+    size: [14, 30],
+    fall: [560, 820],
+    opacity: [0.35, 0.65],
+  },
 };
+
+/** How slanted the rain falls: sideways pixels per pixel of fall. */
+export const RAIN_SLANT = 0.12;
 
 export interface Particle {
   x: number;
@@ -208,9 +229,10 @@ export type Random = () => number;
 
 const between = (random: Random, [min, max]: readonly [number, number]) => min + random() * (max - min);
 
-export function particleCount(style: SeasonStyle, width: number, height: number): number {
+/** How many particles fill a window; `scale` thins or thickens the layer (rain by its intensity). */
+export function particleCount(style: SeasonStyle, width: number, height: number, scale = 1): number {
   const count = Math.round(((width * height) / 100_000) * style.density);
-  return Math.min(style.maxCount, Math.max(style.minCount, count));
+  return Math.round(Math.min(style.maxCount, Math.max(style.minCount, count)) * scale);
 }
 
 /**
@@ -239,7 +261,14 @@ export function spawnParticle(
     color: colors[Math.floor(random() * colors.length)] ?? colors[0]!,
     opacity: between(random, style.opacity),
     fall,
-    sway: style.shape === "snowflake" ? between(random, [4, 14]) : style.shape === "fluff" ? between(random, [10, 28]) : between(random, [12, 36]),
+    sway:
+      style.shape === "rain"
+        ? 0
+        : style.shape === "snowflake"
+          ? between(random, [4, 14])
+          : style.shape === "fluff"
+            ? between(random, [10, 28])
+            : between(random, [12, 36]),
     swaySpeed: between(random, [0.4, 1.1]),
     rotation: random() * Math.PI * 2,
     spin: style.shape === "leaf" ? between(random, [-0.9, 0.9]) : 0,
@@ -266,6 +295,12 @@ export function stepParticle(particle: Particle, style: SeasonStyle, dt: number,
 
   particle.y += particle.fall * dt;
   particle.rotation += particle.spin * dt;
+  if (style.shape === "rain") {
+    // Slanted to the right; a drop that leaves at the right edge comes back at the left, so the left stays wet.
+    particle.x += particle.fall * RAIN_SLANT * dt;
+    if (particle.x > width + particle.size) particle.x -= width + particle.size * 2;
+    return particle.y < height + particle.size * 2;
+  }
   if (style.shape === "fluff") {
     // A breeze that slowly changes direction; fluff that drifts out at one side comes back at the other.
     particle.heading += (random() - 0.5) * 0.8 * dt;

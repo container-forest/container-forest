@@ -1,8 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useSyncExternalStore } from "react";
+import { rainQuery } from "@/api/queries";
 import {
   type Effect,
   type Particle,
   type SeasonStyle,
+  RAIN_SLANT,
   backdropSettingsSnapshot,
   effectStyles,
   particleCount,
@@ -31,7 +34,8 @@ function useReducedMotion() {
 }
 
 /**
- * Leaves, butterflies with poplar fluff, or snowflakes drifting behind the panel, by season. Purely decorative: the
+ * Leaves, butterflies with poplar fluff, or snowflakes drifting behind the panel, by season, and rain on top when it
+ * rains where the viewer is (see the Appearance card). Purely decorative: the
  * canvas lies under the page content, takes no clicks, is hidden from assistive technology, pauses in a hidden tab
  * and is not drawn at all when the system asks for reduced motion or the viewer turned it (or every effect) off.
  */
@@ -39,18 +43,26 @@ export function SeasonalBackdrop() {
   const settings = useBackdropSettings();
   const reducedMotion = useReducedMotion();
   const light = useTheme() === "light";
-  const shown = reducedMotion ? [] : shownEffects(settings, new Date());
+  // The weather is not asked for at all while rain is off or motion is reduced.
+  const { data: rain } = useQuery({ ...rainQuery, enabled: settings.rain && !reducedMotion });
+  const raining = rain?.raining ?? false;
+  const shown = reducedMotion ? [] : shownEffects(settings, new Date(), raining);
+  // Rain thickens in steps, so a small change in the weather does not restart the canvas.
+  const rainScale = raining ? Math.round((0.4 + 0.6 * (rain?.intensity ?? 0)) * 4) / 4 : 1;
 
-  // A string key: the canvas restarts only when the set of effects or the theme actually changes.
-  return shown.length > 0 ? <SeasonCanvas key={`${shown.join()}|${light}`} effects={shown} light={light} /> : null;
+  // A string key: the canvas restarts only when the effects, the theme or the rain's strength actually change.
+  return shown.length > 0 ? (
+    <SeasonCanvas key={`${shown.join()}|${light}|${rainScale}`} effects={shown} light={light} rainScale={rainScale} />
+  ) : null;
 }
 
 interface Layer {
   style: SeasonStyle;
+  scale: number;
   particles: Particle[];
 }
 
-function SeasonCanvas({ effects, light }: { effects: readonly Effect[]; light: boolean }) {
+function SeasonCanvas({ effects, light, rainScale }: { effects: readonly Effect[]; light: boolean; rainScale: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // The animation loop draws on the canvas outside React: nothing here is data loading.
@@ -60,7 +72,11 @@ function SeasonCanvas({ effects, light }: { effects: readonly Effect[]; light: b
     if (!canvas || !context) return;
 
     // One layer per effect, drawn in order: summer's fluff floats over its butterflies.
-    const layers: Layer[] = effects.map((effect) => ({ style: effectStyles[effect], particles: [] }));
+    const layers: Layer[] = effects.map((effect) => ({
+      style: effectStyles[effect],
+      scale: effect === "rain" ? rainScale : 1,
+      particles: [],
+    }));
     let width = 0;
     let height = 0;
 
@@ -72,7 +88,7 @@ function SeasonCanvas({ effects, light }: { effects: readonly Effect[]; light: b
       canvas.height = Math.round(height * ratio);
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       for (const layer of layers) {
-        const count = particleCount(layer.style, width, height);
+        const count = particleCount(layer.style, width, height, layer.scale);
         layer.particles = layer.particles.slice(0, count);
         while (layer.particles.length < count) layer.particles.push(spawnParticle(layer.style, width, height, Math.random, true, light));
       }
@@ -121,7 +137,7 @@ function SeasonCanvas({ effects, light }: { effects: readonly Effect[]; light: b
 function drawParticle(context: CanvasRenderingContext2D, particle: Particle, style: SeasonStyle) {
   context.save();
   context.globalAlpha = particle.opacity;
-  context.translate(particle.x + (style.shape === "butterfly" ? 0 : swayOffset(particle)), particle.y);
+  context.translate(particle.x + (style.shape === "butterfly" || style.shape === "rain" ? 0 : swayOffset(particle)), particle.y);
   context.fillStyle = particle.color;
   context.strokeStyle = particle.color;
 
@@ -137,6 +153,9 @@ function drawParticle(context: CanvasRenderingContext2D, particle: Particle, sty
       break;
     case "snowflake":
       drawSnowflake(context, particle);
+      break;
+    case "rain":
+      drawRain(context, particle);
       break;
   }
   context.restore();
@@ -209,4 +228,18 @@ function drawFluff(context: CanvasRenderingContext2D, { size, color, phase }: Pa
   context.beginPath();
   context.arc(0, 0, size * 2.6, 0, Math.PI * 2);
   context.fill();
+}
+
+function drawRain(context: CanvasRenderingContext2D, { size, color }: Particle) {
+  // A thin streak along the direction of fall, fading towards its tail.
+  const tail = context.createLinearGradient(0, 0, -size * RAIN_SLANT, -size);
+  tail.addColorStop(0, color);
+  tail.addColorStop(1, "rgba(255, 255, 255, 0)");
+  context.strokeStyle = tail;
+  context.lineWidth = 1.3;
+  context.lineCap = "round";
+  context.beginPath();
+  context.moveTo(0, 0);
+  context.lineTo(-size * RAIN_SLANT, -size);
+  context.stroke();
 }

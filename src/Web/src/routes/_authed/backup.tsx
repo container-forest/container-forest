@@ -32,7 +32,7 @@ function BackupScreen() {
   const time = (value: string | null | undefined) => (value ? formatDateTime(value, i18n.language) : t("backup.status.never"));
 
   return (
-    <div className="grid max-w-4xl gap-6">
+    <div className="mx-auto grid w-full max-w-4xl gap-6">
       <div>
         <h1 className="font-heading text-2xl font-semibold">{t("backup.title")}</h1>
         <p className="text-muted-foreground mt-1">{t("backup.description")}</p>

@@ -13,6 +13,7 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedAccountRouteImport } from './routes/_authed/account'
+import { Route as AuthedAppearanceRouteImport } from './routes/_authed/appearance'
 import { Route as AuthedAuditRouteImport } from './routes/_authed/audit'
 import { Route as AuthedBackupRouteImport } from './routes/_authed/backup'
 import { Route as AuthedContainersRouteImport } from './routes/_authed/containers'
@@ -55,6 +56,11 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
 const AuthedAccountRoute = AuthedAccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedAppearanceRoute = AuthedAppearanceRouteImport.update({
+  id: '/appearance',
+  path: '/appearance',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedAuditRoute = AuthedAuditRouteImport.update({
@@ -193,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/notifications': typeof AuthedNotificationsRouteRouteWithChildren
   '/account': typeof AuthedAccountRoute
+  '/appearance': typeof AuthedAppearanceRoute
   '/audit': typeof AuthedAuditRoute
   '/backup': typeof AuthedBackupRoute
   '/containers': typeof AuthedContainersRoute
@@ -220,6 +227,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/account': typeof AuthedAccountRoute
+  '/appearance': typeof AuthedAppearanceRoute
   '/audit': typeof AuthedAuditRoute
   '/backup': typeof AuthedBackupRoute
   '/containers': typeof AuthedContainersRoute
@@ -251,6 +259,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_authed/notifications': typeof AuthedNotificationsRouteRouteWithChildren
   '/_authed/account': typeof AuthedAccountRoute
+  '/_authed/appearance': typeof AuthedAppearanceRoute
   '/_authed/audit': typeof AuthedAuditRoute
   '/_authed/backup': typeof AuthedBackupRoute
   '/_authed/containers': typeof AuthedContainersRoute
@@ -283,6 +292,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/notifications'
     | '/account'
+    | '/appearance'
     | '/audit'
     | '/backup'
     | '/containers'
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/account'
+    | '/appearance'
     | '/audit'
     | '/backup'
     | '/containers'
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/_authed/notifications'
     | '/_authed/account'
+    | '/_authed/appearance'
     | '/_authed/audit'
     | '/_authed/backup'
     | '/_authed/containers'
@@ -399,6 +411,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AuthedAccountRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/appearance': {
+      id: '/_authed/appearance'
+      path: '/appearance'
+      fullPath: '/appearance'
+      preLoaderRoute: typeof AuthedAppearanceRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/audit': {
@@ -597,6 +616,7 @@ const AuthedNotificationsRouteRouteWithChildren =
 interface AuthedRouteChildren {
   AuthedNotificationsRouteRoute: typeof AuthedNotificationsRouteRouteWithChildren
   AuthedAccountRoute: typeof AuthedAccountRoute
+  AuthedAppearanceRoute: typeof AuthedAppearanceRoute
   AuthedAuditRoute: typeof AuthedAuditRoute
   AuthedBackupRoute: typeof AuthedBackupRoute
   AuthedContainersRoute: typeof AuthedContainersRoute
@@ -622,6 +642,7 @@ interface AuthedRouteChildren {
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedNotificationsRouteRoute: AuthedNotificationsRouteRouteWithChildren,
   AuthedAccountRoute: AuthedAccountRoute,
+  AuthedAppearanceRoute: AuthedAppearanceRoute,
   AuthedAuditRoute: AuthedAuditRoute,
   AuthedBackupRoute: AuthedBackupRoute,
   AuthedContainersRoute: AuthedContainersRoute,

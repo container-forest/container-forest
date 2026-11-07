@@ -14,13 +14,14 @@ import {
   KeyIcon,
   LayersIcon,
   LogOutIcon,
-  MessageCircleIcon,
   ServerIcon,
+  PaletteIcon,
   TokenIcon,
   SettingsIcon,
   UserIcon,
   UsersIcon,
 } from "@/components/icons";
+import { DiscordIcon } from "@/components/discord-icon";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LiveIndicator } from "@/components/live/live-indicator";
@@ -270,11 +271,14 @@ export function SidebarContent({ onNavigate = () => {} }: { onNavigate?: () => v
           <NavItem active={at("/account")} icon={UserIcon} label={me?.userName ?? t("layout.nav.account")}>
             {(props) => <Link to="/account" onClick={onNavigate} title={t("layout.nav.account")} {...props} />}
           </NavItem>
-          <NavItem active={at("/discord")} icon={MessageCircleIcon} label={t("layout.nav.discord")}>
+          <NavItem active={at("/discord")} icon={DiscordIcon} label={t("layout.nav.discord")}>
             {(props) => <Link to="/discord" onClick={onNavigate} {...props} />}
           </NavItem>
           <NavItem active={at("/tokens")} icon={TokenIcon} label={t("layout.nav.tokens")}>
             {(props) => <Link to="/tokens" onClick={onNavigate} {...props} />}
+          </NavItem>
+          <NavItem active={at("/appearance")} icon={PaletteIcon} label={t("layout.nav.appearance")}>
+            {(props) => <Link to="/appearance" onClick={onNavigate} {...props} />}
           </NavItem>
         </NavGroup>
         <div className="flex items-center justify-between gap-2 px-1">

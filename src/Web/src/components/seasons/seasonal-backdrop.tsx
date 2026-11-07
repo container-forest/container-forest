@@ -1,6 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { rainQuery } from "@/api/queries";
 import {
   type Effect,
   type Particle,
@@ -34,35 +32,26 @@ function useReducedMotion() {
 }
 
 /**
- * Leaves, butterflies with poplar fluff, or snowflakes drifting behind the panel, by season, and rain on top when it
- * rains where the viewer is (see the Appearance card). Purely decorative: the
- * canvas lies under the page content, takes no clicks, is hidden from assistive technology, pauses in a hidden tab
+ * Leaves, butterflies with poplar fluff, snowflakes or a downpour behind the panel, as chosen on the Appearance page.
+ * Purely decorative: the canvas lies under the page content, takes no clicks, is hidden from assistive technology, pauses in a hidden tab
  * and is not drawn at all when the system asks for reduced motion or the viewer turned it (or every effect) off.
  */
 export function SeasonalBackdrop() {
   const settings = useBackdropSettings();
   const reducedMotion = useReducedMotion();
   const light = useTheme() === "light";
-  // The weather is not asked for at all while rain is off or motion is reduced.
-  const { data: rain } = useQuery({ ...rainQuery, enabled: settings.rain && !reducedMotion });
-  const raining = rain?.raining ?? false;
-  const shown = reducedMotion ? [] : shownEffects(settings, new Date(), raining);
-  // Rain thickens in steps, so a small change in the weather does not restart the canvas.
-  const rainScale = raining ? Math.round((0.4 + 0.6 * (rain?.intensity ?? 0)) * 4) / 4 : 1;
+  const shown = reducedMotion ? [] : shownEffects(settings, new Date());
 
-  // A string key: the canvas restarts only when the effects, the theme or the rain's strength actually change.
-  return shown.length > 0 ? (
-    <SeasonCanvas key={`${shown.join()}|${light}|${rainScale}`} effects={shown} light={light} rainScale={rainScale} />
-  ) : null;
+  // A string key: the canvas restarts only when the effects or the theme actually change.
+  return shown.length > 0 ? <SeasonCanvas key={`${shown.join()}|${light}`} effects={shown} light={light} /> : null;
 }
 
 interface Layer {
   style: SeasonStyle;
-  scale: number;
   particles: Particle[];
 }
 
-function SeasonCanvas({ effects, light, rainScale }: { effects: readonly Effect[]; light: boolean; rainScale: number }) {
+function SeasonCanvas({ effects, light }: { effects: readonly Effect[]; light: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // The animation loop draws on the canvas outside React: nothing here is data loading.
@@ -72,11 +61,7 @@ function SeasonCanvas({ effects, light, rainScale }: { effects: readonly Effect[
     if (!canvas || !context) return;
 
     // One layer per effect, drawn in order: summer's fluff floats over its butterflies.
-    const layers: Layer[] = effects.map((effect) => ({
-      style: effectStyles[effect],
-      scale: effect === "rain" ? rainScale : 1,
-      particles: [],
-    }));
+    const layers: Layer[] = effects.map((effect) => ({ style: effectStyles[effect], particles: [] }));
     let width = 0;
     let height = 0;
 
@@ -88,7 +73,7 @@ function SeasonCanvas({ effects, light, rainScale }: { effects: readonly Effect[
       canvas.height = Math.round(height * ratio);
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       for (const layer of layers) {
-        const count = particleCount(layer.style, width, height, layer.scale);
+        const count = particleCount(layer.style, width, height);
         layer.particles = layer.particles.slice(0, count);
         while (layer.particles.length < count) layer.particles.push(spawnParticle(layer.style, width, height, Math.random, true, light));
       }
@@ -236,7 +221,8 @@ function drawRain(context: CanvasRenderingContext2D, { size, color }: Particle) 
   tail.addColorStop(0, color);
   tail.addColorStop(1, "rgba(255, 255, 255, 0)");
   context.strokeStyle = tail;
-  context.lineWidth = 1.3;
+  // Longer streaks are thicker too, so a downpour reads heavier than a drizzle.
+  context.lineWidth = Math.max(1.3, size / 22);
   context.lineCap = "round";
   context.beginPath();
   context.moveTo(0, 0);

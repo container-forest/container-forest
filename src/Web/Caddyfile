@@ -35,9 +35,8 @@
 	handle {
 		root * /srv
 		encode zstd gzip
-		# connect-src: the panel's own API and Open-Meteo, the weather behind the rain on the backdrop (rounded location).
 		header {
-			Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.open-meteo.com; frame-ancestors 'none'"
+			Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"
 			X-Content-Type-Options nosniff
 			Referrer-Policy same-origin
 			-Server

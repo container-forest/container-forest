@@ -12,10 +12,10 @@ function isSeasonChoice(value: string): value is SeasonChoice {
 }
 
 /**
- * The panel's colour theme and the seasonal backdrop: on or off, which season (by the calendar or one kept all year), and rain when it rains
- * where the viewer is. All on, by the calendar, unless the viewer changes it. Remembered in this browser.
+ * The seasonal backdrop: on or off, and which scene (by the calendar, one season kept all year, or a downpour).
+ * On, by the calendar, unless the viewer changes it. Remembered in this browser.
  */
-export function SeasonCard() {
+export function BackdropCard() {
   const { t } = useTranslation();
   const settings = useBackdropSettings();
   const current = t(`appearance.current.${seasonOf(new Date())}`);
@@ -28,8 +28,8 @@ export function SeasonCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("appearance.title")}</CardTitle>
-        <CardDescription>{t("appearance.description")}</CardDescription>
+        <CardTitle>{t("appearance.backdrop")}</CardTitle>
+        <CardDescription>{t("appearance.backdropDescription")}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
         <div className="flex items-center justify-between gap-4">
@@ -57,29 +57,24 @@ export function SeasonCard() {
           </Select>
         </div>
 
-        <div className="grid gap-1.5">
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="appearance-rain">{t("appearance.rain")}</Label>
-            <Switch id="appearance-rain" checked={settings.rain} onCheckedChange={(rain) => updateBackdropSettings({ rain })} />
-          </div>
-          <p className="text-muted-foreground text-sm">
-            {t("appearance.rainHint")}{" "}
-            <a href="https://open-meteo.com/" target="_blank" rel="noreferrer" className="underline underline-offset-2">
-              {t("appearance.rainSource")}
-            </a>
-          </p>
-        </div>
-
         <p className="text-muted-foreground text-sm">{t("appearance.reducedMotion")}</p>
+      </CardContent>
+    </Card>
+  );
+}
 
-        {/* Last: the theme mushrooms stand on a meadow along the bottom edge of the card. */}
-        <div className="grid gap-2">
-          <span id="appearance-palette" className="text-sm leading-none font-medium">
-            {t("appearance.palette")}
-          </span>
-          <p className="text-muted-foreground text-xs">{t("appearance.paletteCredit")}</p>
-          <PalettePicker />
-        </div>
+/** The colour theme: mushrooms on a meadow along the bottom edge of the card, one per palette. */
+export function PaletteCard() {
+  const { t } = useTranslation();
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle id="appearance-palette">{t("appearance.palette")}</CardTitle>
+        <CardDescription>{t("appearance.paletteCredit")}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <PalettePicker />
       </CardContent>
     </Card>
   );

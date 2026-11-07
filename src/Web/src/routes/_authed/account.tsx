@@ -9,7 +9,6 @@ import { ErrorText, FieldError, PasswordReasons } from "@/components/form-messag
 import { Loader2Icon } from "@/components/icons";
 import { PasskeysCard } from "@/components/passkeys/passkeys-card";
 import { InstallCard } from "@/components/pwa/install-card";
-import { SeasonCard } from "@/components/seasons/season-card";
 import { SigningKeysCard } from "@/components/signing-keys/signing-keys-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,7 +61,7 @@ function AccountScreen() {
   });
 
   return (
-    <div className="grid max-w-2xl gap-6">
+    <div className="mx-auto grid w-full max-w-2xl gap-6">
       <div>
         <h1 className="font-heading text-2xl font-semibold">{t("account.title")}</h1>
         <p className="text-muted-foreground mt-1">{t("account.description", { name: me.userName })}</p>
@@ -123,9 +122,6 @@ function AccountScreen() {
       <SigningKeysCard />
 
       <InstallCard />
-
-      {/* Last: the backdrop is the least important setting on the page. */}
-      <SeasonCard />
     </div>
   );
 }

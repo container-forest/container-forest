@@ -29,7 +29,7 @@ function CliDeviceScreen() {
   );
 
   return (
-    <div className="grid max-w-md gap-6">
+    <div className="mx-auto grid w-full max-w-md gap-6">
       <div>
         <h1 className="font-heading flex items-center gap-2 text-2xl font-semibold">
           <TerminalIcon className="size-7" />

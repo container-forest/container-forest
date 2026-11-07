@@ -9,7 +9,8 @@ import { useLoginMutation } from "@/api/auth";
 import { hasStatus, isUnauthorized } from "@/api/client";
 import { signInWithPasskey, usePasskeyLoginMutation } from "@/api/passkeys";
 import { meQuery, signInMethodsQuery } from "@/api/queries";
-import { KeyIcon, Loader2Icon, MessageCircleIcon } from "@/components/icons";
+import { DiscordIcon } from "@/components/discord-icon";
+import { KeyIcon, Loader2Icon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -201,7 +202,7 @@ function LoginScreen() {
               {offerDiscord && (
                 <Button asChild variant="outline" className="w-full">
                   <a href={discordHref}>
-                    <MessageCircleIcon data-icon="inline-start" />
+                    <DiscordIcon data-icon="inline-start" />
                     {t("login.discord.button")}
                   </a>
                 </Button>

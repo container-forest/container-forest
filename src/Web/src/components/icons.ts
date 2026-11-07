@@ -42,6 +42,7 @@ export { default as MoreHorizontalIcon } from "~icons/material-symbols/more-hori
 export { default as PencilIcon } from "~icons/material-symbols/edit-outline-rounded";
 export { default as PlayIcon } from "~icons/material-symbols/play-arrow-rounded";
 export { default as PlusIcon } from "~icons/material-symbols/add-rounded";
+export { default as PaletteIcon } from "~icons/material-symbols/palette-rounded";
 export { default as RefreshCwIcon } from "~icons/material-symbols/refresh-rounded";
 export { default as RocketIcon } from "~icons/material-symbols/rocket-launch-rounded";
 export { default as RotateCwIcon } from "~icons/material-symbols/restart-alt-rounded";

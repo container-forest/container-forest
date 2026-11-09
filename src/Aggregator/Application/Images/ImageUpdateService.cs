@@ -203,7 +203,16 @@ public sealed partial class ImageUpdateService(
         }
 
         var push = GitAccessResolver.ForPush(context.Connection, protector);
-        var (record, commit) = await CommitAndPushAsync(context, request, head, yaml, target, value, push, cancellationToken);
+        var pushed = await CommitAndPushAsync(context, request, head, yaml, target, value, push, cancellationToken);
+        if (pushed is not var (record, commit))
+        {
+            // Someone else's push in between already brought the tag: nothing is left to commit.
+            policy.RecordChecked(time.GetUtcNow(), target.Tag, warning?.Warning);
+            await PinIfAskedAsync(context, request, pin, target.Tag);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return new ImageUpdateResult(policy.Id, policy.Image, ImageUpdateOutcome.UpToDate, target.Tag, target.Tag);
+        }
+
         var deployment = await QueueAsync(stack, commit, record, cancellationToken);
         policy.RecordChecked(time.GetUtcNow(), target.Tag, warning?.Warning);
         await PinIfAskedAsync(context, request, pin, target.Tag);
@@ -214,7 +223,8 @@ public sealed partial class ImageUpdateService(
             $"{string.Join(", ", record.Changes.Select(c => c.Service))}: {current.Value} → {value}", commit, deployment?.Id);
     }
 
-    private async Task<(ImageUpdateRecord Record, CommitSha Commit)> CommitAndPushAsync(
+    /// <returns>Null when the branch, fetched again after a refused push, already has the tag.</returns>
+    private async Task<(ImageUpdateRecord Record, CommitSha Commit)?> CommitAndPushAsync(
         UpdateContext context,
         ImageUpdateRequest request,
         CommitSha head,
@@ -230,6 +240,10 @@ public sealed partial class ImageUpdateService(
         {
             await EnsureEndorsedAsync(context, head, cancellationToken);
             var rewrite = rewriter.Rewrite(yaml, policy, value);
+            if (rewrite.Changes.Count == 0)
+            {
+                return null;
+            }
             var reason = request.Source switch
             {
                 ImageUpdateSource.User => ImageUpdateReason.User,

@@ -55,10 +55,22 @@ internal sealed class ImageTagCache(AggregatorDbContext db) : IImageTagCache
         if (existing is null)
         {
             set.Add(entry);
-            return;
+        }
+        else
+        {
+            db.Entry(existing).CurrentValues.SetValues(entry);
         }
 
-        db.Entry(existing).CurrentValues.SetValues(entry);
+        // Saved at once and on its own: entries are shared by every policy of the image, and a check of another stack
+        // may write the same one at the same time. Losing that race only means the other check's values are kept.
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            db.Entry(existing ?? entry).State = EntityState.Detached;
+        }
     }
 }
 

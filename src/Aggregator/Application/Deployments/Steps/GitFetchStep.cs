@@ -50,7 +50,7 @@ public sealed class GitFetchStep(IGitSource git, ISecretProtector protector, Dep
             context.Warn($"{ex.Message} Using commit {pinned.Short} from the aggregator's cache.");
         }
 
-        context.Info($"Deploying the pinned commit {pinned.Short} again, not the head of {context.Stack.Branch}.");
+        context.Info($"Deploying the pinned commit {pinned.Short}, not whatever the head of {context.Stack.Branch} is now.");
         return pinned;
     }
 

@@ -30,7 +30,7 @@ public interface IImageTagCache
     /// <summary>The known tags of the image, by tag.</summary>
     Task<IReadOnlyDictionary<string, ImageTagCacheEntry>> ListAsync(ImageName image, CancellationToken cancellationToken);
 
-    /// <summary>Adds or replaces an entry; saved with the unit of work.</summary>
+    /// <summary>Adds or replaces an entry and saves it at once; losing a race with another check keeps its values.</summary>
     Task PutAsync(ImageTagCacheEntry entry, CancellationToken cancellationToken);
 }
 

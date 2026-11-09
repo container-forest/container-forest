@@ -15,6 +15,7 @@
 | Git-клони, підключення до git-серверів, репозиторії | [docs/design/git.md](docs/design/git.md) |
 | SOPS, age-ключі, git-фільтр, rehydrate | [docs/design/secrets.md](docs/design/secrets.md) |
 | Підписи комітів | [docs/design/signed-commits.md](docs/design/signed-commits.md) |
+| Оновлення образів самою ЦА: політики образів, хук образів, коміти оновлень | [docs/design/image-updates.md](docs/design/image-updates.md) |
 | Політика compose, адміністратор середовища | [docs/design/compose-policy.md](docs/design/compose-policy.md) |
 | Вхід, сесії, користувачі, API-токени, passkeys, Discord OAuth2 | [docs/design/auth.md](docs/design/auth.md) |
 | Журнал аудиту | [docs/design/audit.md](docs/design/audit.md) |

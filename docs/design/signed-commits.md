@@ -13,5 +13,6 @@
   5. Автоматичні тригери (`Deployment.IsAutomatic`): `ICommitInspector.DescendsFromAsync` від `DeployedCommit`, інакше `NotDescendant`.
   6. Rehydrate коміту, рівного `DeployedCommit`, — `AlreadyDeployed` без перевірки.
 - **Непідписаний коміт:** `DeployRequest.approveCommit` → `Deployment.ApprovedCommit`; результат — `ApprovedUnsigned` (причина зберігається) або `ApprovalOutdated`.
+- **Коміти оновлень образів** (ADR-0015): перевірка підпису винесена в `CommitEndorsementService`, який для непідписаного коміту чи коміту з невідомим ключем шукає `ImageUpdateRecord` і перевіряє ланцюжок до засвідченого кореня. Результат — `CommitEndorsement.ImageUpdate` або `EndorsementProblem.ImageUpdateMismatch`, деталі — в [image-updates.md](image-updates.md#засвідчення).
 - **Результат у деплої:** `Deployment.Endorsement`, `EndorsementProblem`, `SignedBy` + `SignerName` (без FK), `SigningKeyFingerprint`; у відповідях — `EndorsementResponse`.
 - **Тести:** зі справжнім `ssh-keygen` (`LibGit2SharpGitSourceTests`) без нього пропускаються, у CI (`CF_TEST_REQUIRE_SSH_KEYGEN=1`) падають; API-тести підміняють перевірку `StubCommits`.

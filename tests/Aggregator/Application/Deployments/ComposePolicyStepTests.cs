@@ -27,6 +27,8 @@ public class ComposePolicyStepTests
     private readonly FakeAgentChannel agent = new();
     private readonly InMemoryUsers users = new();
     private readonly InMemoryRoleAssignments roleAssignments = new();
+    private readonly InMemoryImageUpdateRecords updates = new();
+    private readonly InMemoryImagePolicies imagePolicies = new();
     private readonly InMemoryStacks stacks = new();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -199,7 +201,40 @@ public class ComposePolicyStepTests
         await Step().ExecuteAsync(context, Ct);
     }
 
-    private ComposePolicyStep Step() => new(agent, users, roleAssignments, stacks, new DeploymentOptions());
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Update_commit_keeps_the_exemption_only_when_an_administrator_set_its_policy(bool byAdministrator)
+    {
+        agent.Rendered = Rendered(PrivilegedModel);
+        var owner = User.Create("owner", Now);
+        users.Add(owner);
+        var context = Bundled(ComposePolicyMode.Enforce);
+        roleAssignments.Add(RoleAssignment.ForEnvironment(owner.Id, context.Environment.Id, Role.EnvironmentAdmin, Now));
+        var policy = Domain.Images.ImagePolicy.Create(
+            context.Stack.Id, Domain.Images.ImageName.Parse("app"), new Domain.Images.ImagePolicySettings(@"^v[0-9]+\z", Domain.Images.ImageTagOrder.ImageCreated, []),
+            owner.Id, byAdministrator, Now);
+        imagePolicies.Add(policy);
+        var record = Domain.Images.ImageUpdateRecord.Create(
+            ImageUpdateRecordId.New(), context.Stack.Id, policy.Id, Commit, CommitSha.Parse(new string('2', 40)), context.Stack.ComposePath, "v2", null,
+            [new Domain.Images.ImageChange("app", "app:v1", "app:v2")], Domain.Images.ImageUpdateReason.Policy, null, null, Now);
+        updates.Add(record);
+        context.Deployment.RecordImageUpdate(record.Id, (owner.Id, owner.UserName, "SHA256:x"));
+
+        var run = Step().ExecuteAsync(context, Ct);
+
+        if (byAdministrator)
+        {
+            await run;
+            Assert.Contains(Lines(context, DeploymentLogLevel.Info), l => l.Contains("endorsed by owner", StringComparison.Ordinal));
+        }
+        else
+        {
+            await Assert.ThrowsAsync<DeploymentFailedException>(() => run);
+        }
+    }
+
+    private ComposePolicyStep Step() => new(agent, users, roleAssignments, stacks, updates, imagePolicies, new DeploymentOptions());
 
     private static RenderedCompose Rendered(string model) =>
         new(model, StackDirectory, ["/opt/container-forest", "/run/container-forest"], []);

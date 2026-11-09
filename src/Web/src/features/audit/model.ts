@@ -56,6 +56,13 @@ export const auditActions = [
   "StackSourceChanged",
   "DeployHookCreated",
   "DeployHookRemoved",
+  "ImagePolicyAdded",
+  "ImagePolicyChanged",
+  "ImagePolicyRemoved",
+  "ImagePinned",
+  "ImageUnpinned",
+  "ImageHookCreated",
+  "ImageHookRemoved",
   "StackRestarted",
   "StackTakenDown",
   "DeploymentQueued",
@@ -66,6 +73,8 @@ export const auditActions = [
   "IdentityConfirmed",
   "SettingsChanged",
   "BackupRequested",
+  "GitPushCredentialChanged",
+  "AggregatorSigningKeyRotated",
 ] as const satisfies readonly AuditAction[];
 
 export function isKnownAction(action: string): action is (typeof auditActions)[number] {

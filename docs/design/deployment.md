@@ -7,6 +7,7 @@
 - **Кроки:** `IDeployStep` реєструються в `AddApplication` у порядку виконання: `GitFetchStep` (для закріпленого деплою — його коміт, а не голова гілки) → `VerifyCommitStep` → `SopsDecryptStep` → `ValidateComposeStep` → `BuildBundleStep` → `ResolveRegistryAuthStep` → `ComposePolicyStep` → `SendToAgentStep`. Новий етап — новий клас і рядок реєстрації, `DeployPipeline` не змінюється.
 - **Між кроками:** результати передаються через `DeployContext`. `DeploymentFailedException` — помилка, яку бачить користувач, решта винятків ховається за «Internal error» і йде в лог ЦА.
 - **Черга:** деплой лише ставиться в чергу (`IDeploymentQueue`, 202 Accepted), виконує його `DeploymentWorker` у власному DI-scope, до `Deployments:MaxConcurrentDeployments` паралельно.
+- **Закріплені деплої** (`Deployment.IsPinned`): rehydrate і оновлення образу (`QueueFromImageUpdate`, тригер `ImageUpdate`, ADR-0015) деплоять свій коміт, а не голову гілки; обидва, як і webhook та хук деплою, — автоматичні (`IsAutomatic`).
 - **Обмеження:** один незавершений деплой на стек (409). До офлайн-агента деплой не ставиться (503). Після рестарту ЦА незавершені деплої позначаються Failed, а не відновлюються.
 - **Лог:** рядки `DeploymentLogLine` у таблиці `DeploymentLogLines`, до 5000 рядків. Вивід compose з агента збирається під час кроку й копіюється в лог після нього: `Deployment` не потокобезпечний, а колбек прогресу викликається з циклу читання gRPC.
 

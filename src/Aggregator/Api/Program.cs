@@ -76,6 +76,7 @@ app.MapGitConnectionEndpoints();
 app.MapStackEndpoints();
 app.MapPolicyEndpoints();
 app.MapWebhookEndpoints();
+app.MapImageUpdateEndpoints();
 app.MapNotificationEndpoints();
 app.MapDiscordLinkEndpoints();
 // A signed-out session must not keep hearing updates on an open WebSocket. The panel's hub is for sessions, not API tokens.

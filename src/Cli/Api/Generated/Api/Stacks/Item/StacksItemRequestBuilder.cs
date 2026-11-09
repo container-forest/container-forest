@@ -4,6 +4,8 @@ using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.DeployHook;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.DeployOnPush;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Deployments;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Down;
+using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.ImageHook;
+using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.ImagePolicies;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.PolicyAllowances;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.PolicyUnrestricted;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.RequireImageDigests;
@@ -47,6 +49,16 @@ namespace ContainerForest.Cli.Api.Generated.Api.Stacks.Item
         public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Down.DownRequestBuilder Down
         {
             get => new global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Down.DownRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The imageHook property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.ImageHook.ImageHookRequestBuilder ImageHook
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.ImageHook.ImageHookRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The imagePolicies property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.ImagePolicies.ImagePoliciesRequestBuilder ImagePolicies
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.ImagePolicies.ImagePoliciesRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>The policyAllowances property</summary>
         public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.PolicyAllowances.PolicyAllowancesRequestBuilder PolicyAllowances

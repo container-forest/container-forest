@@ -55,6 +55,17 @@ public sealed class GitConnection : Entity<GitConnectionId>
 
     public bool HasAccessToken => ProtectedAccessToken is not null;
 
+    /// <summary>
+    /// Encrypted token the aggregator pushes image update commits with (ADR-0015); null when it may not write. Separate
+    /// from <see cref="ProtectedAccessToken"/>, which should stay read-only (ADR-0006).
+    /// </summary>
+    public string? ProtectedPushToken { get; private set; }
+
+    /// <summary>User name sent with the push token; null for <see cref="DefaultAccessUserName"/> or without a token.</summary>
+    public string? PushUserName { get; private set; }
+
+    public bool HasPushCredential => ProtectedPushToken is not null;
+
     /// <summary>Every environment, present and future, may deploy from the connection's repositories.</summary>
     public bool AllowsAllEnvironments { get; private set; }
 
@@ -87,10 +98,10 @@ public sealed class GitConnection : Entity<GitConnectionId>
         var prefix = GitUrl.Parse(urlPrefix, "URL prefix");
 
         // The token was issued for this server; another one must not receive it.
-        if (HasAccessToken && !string.Equals(prefix.Authority, UrlPrefix.Authority, StringComparison.OrdinalIgnoreCase))
+        if ((HasAccessToken || HasPushCredential) && !string.Equals(prefix.Authority, UrlPrefix.Authority, StringComparison.OrdinalIgnoreCase))
         {
             throw new DomainValidationException(
-                $"The access token was set for {UrlPrefix.Authority}; remove it before moving the connection to {prefix.Authority}.");
+                $"The tokens were set for {UrlPrefix.Authority}; remove them before moving the connection to {prefix.Authority}.");
         }
 
         if (repositoryUrls.FirstOrDefault(url => !GitUrl.Covers(prefix, url)) is { } outside)
@@ -130,6 +141,24 @@ public sealed class GitConnection : Entity<GitConnectionId>
     {
         ProtectedAccessToken = null;
         AccessUserName = null;
+    }
+
+    /// <param name="userName">Null or blank for <see cref="DefaultAccessUserName"/>.</param>
+    public void SetPushCredential(string? userName, string protectedPushToken)
+    {
+        if (string.IsNullOrWhiteSpace(protectedPushToken))
+        {
+            throw new DomainValidationException("Push token must not be empty; use RemovePushCredential to stop pushing.");
+        }
+
+        PushUserName = NormalizeAccessUserName(userName);
+        ProtectedPushToken = protectedPushToken;
+    }
+
+    public void RemovePushCredential()
+    {
+        ProtectedPushToken = null;
+        PushUserName = null;
     }
 
     /// <summary>Sets or replaces the webhook secret; deliveries signed with the previous one are rejected from now on.</summary>

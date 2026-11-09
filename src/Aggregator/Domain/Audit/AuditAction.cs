@@ -50,6 +50,13 @@ public enum AuditAction
     StackEndorsementChanged,
     StackPolicyAllowancesChanged,
     StackPolicyUnrestrictedChanged,
+    ImagePolicyAdded,
+    ImagePolicyChanged,
+    ImagePolicyRemoved,
+    ImagePinned,
+    ImageUnpinned,
+    ImageHookCreated,
+    ImageHookRemoved,
 
     // Deployments.
     DeploymentQueued,
@@ -66,6 +73,8 @@ public enum AuditAction
     IdentityConfirmed,
     SettingsChanged,
     BackupRequested,
+    GitPushCredentialChanged,
+    AggregatorSigningKeyRotated,
 }
 
 /// <summary>Groups of actions, for filtering the log.</summary>
@@ -110,11 +119,14 @@ public static class AuditActions
         AuditAction.StackCreated or AuditAction.StackRemoved or AuditAction.StackSourceChanged or AuditAction.DeployHookCreated
             or AuditAction.DeployHookRemoved or AuditAction.StackRestarted or AuditAction.StackTakenDown
             or AuditAction.StackEndorsementChanged or AuditAction.StackPolicyAllowancesChanged
-            or AuditAction.StackPolicyUnrestrictedChanged => AuditCategory.Stacks,
+            or AuditAction.StackPolicyUnrestrictedChanged or AuditAction.ImagePolicyAdded or AuditAction.ImagePolicyChanged
+            or AuditAction.ImagePolicyRemoved or AuditAction.ImagePinned or AuditAction.ImageUnpinned
+            or AuditAction.ImageHookCreated or AuditAction.ImageHookRemoved => AuditCategory.Stacks,
         AuditAction.DeploymentQueued => AuditCategory.Deployments,
         AuditAction.ContainerStarted or AuditAction.ContainerStopped or AuditAction.ContainerRestarted => AuditCategory.Containers,
         AuditAction.SecretsDecrypted => AuditCategory.Secrets,
-        AuditAction.IdentityConfirmed or AuditAction.SettingsChanged or AuditAction.BackupRequested => AuditCategory.System,
+        AuditAction.IdentityConfirmed or AuditAction.SettingsChanged or AuditAction.BackupRequested
+            or AuditAction.GitPushCredentialChanged or AuditAction.AggregatorSigningKeyRotated => AuditCategory.System,
         _ => throw new ArgumentOutOfRangeException(nameof(action), action, "Unknown audit action."),
     };
 }

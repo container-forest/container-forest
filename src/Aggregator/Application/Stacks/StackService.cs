@@ -25,6 +25,8 @@ namespace ContainerForest.Aggregator.Application.Stacks;
 /// <param name="PolicyAllowances">Exceptions to the environment's compose policy for this stack (ADR-0012).</param>
 /// <param name="CanAdministerEnvironment">Whether the current user may change the stack's allowances.</param>
 /// <param name="PolicyUnrestricted">The compose policy does not limit the stack (ADR-0012).</param>
+/// <param name="HasImageHook">CI can ask for the stack's image policies to be checked (ADR-0015).</param>
+/// <param name="ImageHookAllowsDowngrade">The image hook may ask for an older tag, which pins the image.</param>
 public sealed record StackSummary(
     StackId Id,
     EnvironmentId EnvironmentId,
@@ -46,7 +48,9 @@ public sealed record StackSummary(
     bool CanRemove,
     IReadOnlyList<string> PolicyAllowances,
     bool CanAdministerEnvironment,
-    bool PolicyUnrestricted = false);
+    bool PolicyUnrestricted = false,
+    bool HasImageHook = false,
+    bool ImageHookAllowsDowngrade = false);
 
 /// <summary>
 /// Stacks as the current user sees them; adding and removing stacks (Editor on the environment) and changing their
@@ -323,6 +327,51 @@ public sealed class StackService(
     }
 
     /// <summary>
+    /// Creates the stack's image hook (ADR-0015), or replaces its token. The token is returned once and only its hash is
+    /// kept. The same role as deploying: every call may commit and deploy a new tag within the stack's image policies.
+    /// </summary>
+    public Task<(StackSummary Stack, string Token)> CreateImageHookAsync(StackId stackId, bool allowDowngrade, CancellationToken cancellationToken)
+    {
+        var draft = new AuditDraft(AuditAction.ImageHookCreated) { Details = allowDowngrade ? "Downgrades allowed" : "No downgrades" };
+        return audit.RunAsync(draft, async () =>
+        {
+            var (actor, stack, environment, assignments) = await LoadDeployableAsync(stackId, cancellationToken);
+            draft.Target = new StackAuditTarget(stack.Id, stack.Name.Value, stack.EnvironmentId);
+            var token = SecretToken.Generate();
+            stack.SetImageHook(SecretToken.Hash(token), allowDowngrade);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return (Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken)), token);
+        }, cancellationToken);
+    }
+
+    /// <summary>Lets the image hook roll back (and pin) or stops it, keeping its token.</summary>
+    public Task<StackSummary> SetImageHookDowngradeAsync(StackId stackId, bool allowDowngrade, CancellationToken cancellationToken)
+    {
+        var draft = new AuditDraft(AuditAction.ImageHookCreated) { Details = allowDowngrade ? "Downgrades allowed" : "No downgrades" };
+        return audit.RunAsync(draft, async () =>
+        {
+            var (actor, stack, environment, assignments) = await LoadDeployableAsync(stackId, cancellationToken);
+            draft.Target = new StackAuditTarget(stack.Id, stack.Name.Value, stack.EnvironmentId);
+            stack.SetImageHookAllowsDowngrade(allowDowngrade);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+        }, cancellationToken);
+    }
+
+    public Task<StackSummary> RemoveImageHookAsync(StackId stackId, CancellationToken cancellationToken)
+    {
+        var draft = new AuditDraft(AuditAction.ImageHookRemoved);
+        return audit.RunAsync(draft, async () =>
+        {
+            var (actor, stack, environment, assignments) = await LoadDeployableAsync(stackId, cancellationToken);
+            draft.Target = new StackAuditTarget(stack.Id, stack.Name.Value, stack.EnvironmentId);
+            stack.RemoveImageHook();
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+        }, cancellationToken);
+    }
+
+    /// <summary>
     /// Removes the stack with its deployment history, the roles on it and the notification rules about it (the
     /// database cascades). Only a stack without containers of its own: one never deployed or taken down. Its files
     /// stay on the host, as after a down; a stack added later under the same name deploys over them.
@@ -396,7 +445,9 @@ public sealed class StackService(
         CanRemove(actor, environment, assignments) && !stack.IsSystem,
         stack.PolicyAllowances,
         EnvironmentAdministration.CanAdminister(actor, environment, assignments),
-        stack.PolicyUnrestricted);
+        stack.PolicyUnrestricted,
+        stack.HasImageHook,
+        stack.ImageHookAllowsDowngrade);
 
     /// <summary>
     /// The repository, if stacks of the environment may deploy from it (ADR-0006). One that may not is reported as

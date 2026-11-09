@@ -1,5 +1,3 @@
-using ContainerForest.Aggregator.Application.Access;
-using ContainerForest.Aggregator.Domain.Access;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Stacks;
 
@@ -7,16 +5,12 @@ namespace ContainerForest.Aggregator.Application.Deployments.Steps;
 
 /// <summary>
 /// For a stack that requires signed commits, lets the deployment go on only with content someone who may deploy the
-/// stack endorsed (ADR-0011): a commit signed with their signing key, within the key's environments, or the unsigned
-/// commit they approved by its SHA. Runs before <see cref="SopsDecryptStep"/>, so content nobody endorsed never gets
-/// the decrypted secrets. Automatic deployments also stay on the line of the deployed commit.
+/// stack endorsed (ADR-0011): a commit signed with their signing key, within the key's environments, the unsigned commit
+/// they approved by its SHA, or an update commit of the aggregator on such content (ADR-0015). Runs before
+/// <see cref="SopsDecryptStep"/>, so content nobody endorsed never gets the decrypted secrets. Automatic deployments
+/// also stay on the line of the deployed commit.
 /// </summary>
-public sealed class VerifyCommitStep(
-    ICommitInspector inspector,
-    ICommitSignatureVerifier verifier,
-    ISigningKeyRepository keys,
-    IUserRepository users,
-    IRoleAssignmentRepository roleAssignments) : IDeployStep
+public sealed class VerifyCommitStep(CommitEndorsementService endorsements) : IDeployStep
 {
     public string Name => "Verify commit signature";
 
@@ -39,8 +33,10 @@ public sealed class VerifyCommitStep(
             return;
         }
 
-        var (problem, detail) = await EvaluateAsync(context, commit, cancellationToken);
-        if (problem is null && !await DescendsFromDeployedAsync(context, commit, cancellationToken))
+        var operation = deployment.PullPolicy == ImagePullPolicy.Always ? StackOperation.RedeployWithPull : StackOperation.Redeploy;
+        var result = await endorsements.EvaluateAsync(context.Repository, context.Environment, stack, commit, operation, cancellationToken);
+        var (problem, detail) = (result.Problem, result.Detail);
+        if (problem is null && !await endorsements.DescendsFromDeployedAsync(context.Repository, stack, commit, cancellationToken))
         {
             if (deployment.IsAutomatic)
             {
@@ -59,6 +55,7 @@ public sealed class VerifyCommitStep(
 
         if (problem is null)
         {
+            Record(context, commit, result);
             return;
         }
 
@@ -83,68 +80,19 @@ public sealed class VerifyCommitStep(
         throw new DeploymentFailedException($"The stack requires signed commits: {detail}.{hint}");
     }
 
-    private async Task<(EndorsementProblem? Problem, string Detail)> EvaluateAsync(
-        DeployContext context, CommitSha commit, CancellationToken cancellationToken)
+    private static void Record(DeployContext context, CommitSha commit, CommitEndorsementResult result)
     {
-        var data = await inspector.ReadSignatureAsync(context.Repository, commit, cancellationToken);
-        if (data is null)
+        var signer = result.Signer;
+        if (result.Update is { } update)
         {
-            return (EndorsementProblem.Unsigned, $"commit {commit.Short} is not signed");
+            context.Deployment.RecordImageUpdate(update.Id, signer is null ? null : (signer.UserId, signer.UserName, signer.Fingerprint));
+        }
+        else
+        {
+            context.Deployment.RecordSigned(signer!.UserId, signer.UserName, signer.Fingerprint);
         }
 
-        if (!SshSignature.TryParse(data.Signature, out var signature))
-        {
-            return SshSignature.IsSshSignature(data.Signature)
-                ? (EndorsementProblem.UnsupportedSignature, $"commit {commit.Short} has an SSH signature with a key type that is not accepted")
-                : (EndorsementProblem.UnsupportedSignature, $"commit {commit.Short} is signed with GPG or X.509; only SSH signatures are checked");
-        }
-
-        if (signature.Namespace != SshSignature.GitNamespace)
-        {
-            return (EndorsementProblem.InvalidSignature, $"the signature of commit {commit.Short} was not made for git");
-        }
-
-        var fingerprint = signature.PublicKey.Fingerprint;
-        var key = await keys.FindByFingerprintAsync(fingerprint, cancellationToken);
-        if (key is null)
-        {
-            return (EndorsementProblem.UnknownKey, $"commit {commit.Short} is signed with key {fingerprint}, which no user has added");
-        }
-
-        // Cryptography first: a forged signature must not even get the key's owner named in the log.
-        if (!await verifier.VerifyAsync(key.ParsedKey, signature, data.SignedData, cancellationToken))
-        {
-            return (EndorsementProblem.InvalidSignature, $"the signature of commit {commit.Short} does not verify with key {fingerprint}");
-        }
-
-        var owner = await users.FindAsync(key.UserId, cancellationToken);
-        if (owner is not { IsActive: true })
-        {
-            return (EndorsementProblem.SignerMayNotDeploy, $"commit {commit.Short} is signed by a deactivated user's key '{key.Name}'");
-        }
-
-        var who = $"{owner.UserName}'s key '{key.Name}' ({fingerprint})";
-        if (!key.Scope.Reaches(context.Environment.Id))
-        {
-            return (EndorsementProblem.KeyOutsideScope, $"commit {commit.Short} is signed with {who}, which is limited to other environments");
-        }
-
-        var assignments = await roleAssignments.ListForUserAsync(owner.Id, cancellationToken);
-        var operation = context.Deployment.PullPolicy == ImagePullPolicy.Always ? StackOperation.RedeployWithPull : StackOperation.Redeploy;
-        if (!AccessPolicy.CanPerform(new Actor(owner, key.Scope), context.Environment, context.Stack, assignments, operation))
-        {
-            return (EndorsementProblem.SignerMayNotDeploy, $"commit {commit.Short} is signed with {who}, but {owner.UserName} may not deploy the stack");
-        }
-
-        context.Deployment.RecordSigned(owner.Id, owner.UserName, fingerprint);
-        key.RecordUse(context.Now);
-        var addedBy = key.AddedByAdministrator ? ", added by an administrator" : "";
-        context.Info($"Commit {commit.Short} is signed with {who}{addedBy}.");
-        return (null, "");
+        signer?.Key.RecordUse(context.Now);
+        context.Info(result.Update is null ? $"Commit {commit.Short} is {result.Detail}." : $"Endorsed: {result.Detail}.");
     }
-
-    private async Task<bool> DescendsFromDeployedAsync(DeployContext context, CommitSha commit, CancellationToken cancellationToken) =>
-        context.Stack.DeployedCommit is not { } deployed
-        || deployed == commit
-        || await inspector.DescendsFromAsync(context.Repository, commit, deployed, cancellationToken);
 }

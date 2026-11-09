@@ -38,6 +38,7 @@ public class GitConnectionServiceTests
             environments,
             protector,
             unitOfWork,
+            new FakeAuditTrail(),
             new FixedTime(Now));
         users.Add(admin);
         users.Add(alice);

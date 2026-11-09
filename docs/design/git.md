@@ -31,6 +31,8 @@
   - Змінити репозиторій і його webhook може адміністратор або той, хто має `Permission.Deploy` на кожному стеку репозиторію (`RepositoryResponse.canManage`).
   - Недоступне підключення чи репозиторій — 404.
 
+- **Токен запису** (ADR-0015): необов'язковий `GitConnection.ProtectedPushToken` (`SecretPurpose.GitPushToken`) і `PushUserName`, `PUT|DELETE /api/git-connections/{id}/push-credential`, лише адміністратори, в аудиті (`GitPushCredentialChanged`). Ним ЦА пушить коміти оновлень образів, токен читання для цього не береться ніколи (`GitAccessResolver`). Запис — `IGitWriter` у тому самому bare-клоні, що й fetch ([image-updates.md](image-updates.md#перевірка-й-коміт)).
+
 ## Fetch і захист токена
 
 - **Перевірка:** `GitFetchStep` перевіряє `IsUsableIn` до fetch і передає `GitAccess` (токен підключення з `Scope` = префікс; `IsTrustedHost` для репозиторіїв підключення).

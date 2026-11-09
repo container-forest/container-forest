@@ -6,6 +6,7 @@ import { environmentsQuery, gitConnectionsQuery } from "@/api/queries";
 import { ErrorText } from "@/components/form-messages";
 import { CreateConnectionDialog } from "@/components/git-connections/create-connection-dialog";
 import { EditConnectionDialog } from "@/components/git-connections/edit-connection-dialog";
+import { ImageUpdatesAdminCard } from "@/components/images/image-updates-admin-card";
 import { LockIcon, LockOpenIcon, WebhookIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -97,6 +98,8 @@ function GitConnectionsScreen() {
           </TableBody>
         </Table>
       )}
+
+      {me.isAdmin && <ImageUpdatesAdminCard />}
     </div>
   );
 }

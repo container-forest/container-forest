@@ -438,6 +438,9 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.Property<long?>("FinishedAt")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("ImageUpdateId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("PullPolicy")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -613,6 +616,213 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("RegistryCredentials", (string)null);
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Images.AggregatorSigningKey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProtectedPrivateKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PublicKey")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("RetiredAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Fingerprint")
+                        .IsUnique();
+
+                    b.ToTable("AggregatorSigningKeys", (string)null);
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Images.ImagePolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("AcceptRequests")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("FailureNotified")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Image")
+                        .IsRequired()
+                        .HasMaxLength(263)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("LastChangedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("LastChangedByAdministrator")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LastCheckedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LatestTag")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Order")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("PinDigest")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("PinnedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PinnedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PinnedTag")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Poll")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RegistryFailures")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Services")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("StackId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TagPattern")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Warning")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StackId", "Image")
+                        .IsUnique();
+
+                    b.ToTable("ImagePolicies", (string)null);
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Images.ImageTagCacheEntry", b =>
+                {
+                    b.Property<string>("Image")
+                        .HasMaxLength(263)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Tag")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("Created")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Digest")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("FetchedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Image", "Tag");
+
+                    b.ToTable("ImageTagCache", (string)null);
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Images.ImageUpdateRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Commit")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ComposePath")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Digest")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Parent")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("PolicyId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("RequestedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RequestedByName")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("StackId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Tag")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("changes")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("Changes");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StackId", "Commit")
+                        .IsUnique();
+
+                    b.ToTable("ImageUpdateRecords", (string)null);
                 });
 
             modelBuilder.Entity("ContainerForest.Aggregator.Domain.Notifications.Notification", b =>
@@ -794,7 +1004,13 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.Property<string>("ProtectedAccessToken")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ProtectedPushToken")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ProtectedWebhookSecret")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PushUserName")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("UrlPrefix")
@@ -912,6 +1128,12 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<Guid>("EnvironmentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("ImageHookAllowsDowngrade")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ImageHookTokenHash")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsSystem")
@@ -1325,6 +1547,24 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.HasOne("ContainerForest.Aggregator.Domain.Environments.DockerEnvironment", null)
                         .WithMany()
                         .HasForeignKey("EnvironmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Images.ImagePolicy", b =>
+                {
+                    b.HasOne("ContainerForest.Aggregator.Domain.Stacks.Stack", null)
+                        .WithMany()
+                        .HasForeignKey("StackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ContainerForest.Aggregator.Domain.Images.ImageUpdateRecord", b =>
+                {
+                    b.HasOne("ContainerForest.Aggregator.Domain.Stacks.Stack", null)
+                        .WithMany()
+                        .HasForeignKey("StackId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

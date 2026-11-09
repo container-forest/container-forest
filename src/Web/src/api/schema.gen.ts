@@ -132,6 +132,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/image-hooks/{stackId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReceiveImageHook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login": {
         parameters: {
             query?: never;
@@ -1076,6 +1092,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/git-connections/{id}/push-credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["SetGitConnectionPushCredential"];
+        post?: never;
+        delete: operations["RemoveGitConnectionPushCredential"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/git-connections/{id}/webhook": {
         parameters: {
             query?: never;
@@ -1300,6 +1332,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/stacks/{id}/image-hook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["UpdateStackImageHook"];
+        post: operations["CreateStackImageHook"];
+        delete: operations["RemoveStackImageHook"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/stacks/{id}/restart": {
         parameters: {
             query?: never;
@@ -1389,6 +1437,134 @@ export interface paths {
         };
         get: operations["GetComposePolicyReport"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stacks/{id}/image-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListImagePolicies"];
+        put?: never;
+        post: operations["AddImagePolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/image-policies/{policyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["ChangeImagePolicy"];
+        post?: never;
+        delete: operations["RemoveImagePolicy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/image-policies/{policyId}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CheckImagePolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/image-policies/{policyId}/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PinImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/image-policies/{policyId}/unpin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["UnpinImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/signing-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListAggregatorSigningKeys"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/signing-key/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RotateAggregatorSigningKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/image-updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetImageUpdateSettings"];
+        put: operations["UpdateImageUpdateSettings"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1531,6 +1707,16 @@ export interface components {
             /** Format: uuid */
             stackId: null | string;
         };
+        AggregatorSigningKeyResponse: {
+            /** Format: uuid */
+            id: string;
+            publicKey: string;
+            fingerprint: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            retiredAt: null | string;
+        };
         ApiTokenResponse: {
             /** Format: uuid */
             id: string;
@@ -1557,7 +1743,7 @@ export interface components {
             secrets: boolean;
         };
         /** @enum {unknown} */
-        AuditAction: "SignedIn" | "SignInFailed" | "SignedOut" | "PasswordChanged" | "DiscordLinked" | "DiscordUnlinked" | "UserCreated" | "UserRenamed" | "UserDeactivated" | "UserActivated" | "AdminGranted" | "AdminRevoked" | "PasswordReset" | "UserUnlocked" | "RoleGranted" | "RoleChanged" | "RoleRevoked" | "ApiTokenCreated" | "ApiTokenRevoked" | "SigningKeyAdded" | "SigningKeyChanged" | "SigningKeyRemoved" | "EnvironmentCreated" | "EnvironmentUpdated" | "ComposePolicyChanged" | "EnvironmentRemoved" | "EnrollmentTokenIssued" | "AgentRevoked" | "StackCreated" | "StackRemoved" | "StackSourceChanged" | "DeployHookCreated" | "DeployHookRemoved" | "StackRestarted" | "StackTakenDown" | "StackEndorsementChanged" | "StackPolicyAllowancesChanged" | "StackPolicyUnrestrictedChanged" | "DeploymentQueued" | "ContainerStarted" | "ContainerStopped" | "ContainerRestarted" | "SecretsDecrypted" | "IdentityConfirmed" | "SettingsChanged" | "BackupRequested";
+        AuditAction: "SignedIn" | "SignInFailed" | "SignedOut" | "PasswordChanged" | "DiscordLinked" | "DiscordUnlinked" | "UserCreated" | "UserRenamed" | "UserDeactivated" | "UserActivated" | "AdminGranted" | "AdminRevoked" | "PasswordReset" | "UserUnlocked" | "RoleGranted" | "RoleChanged" | "RoleRevoked" | "ApiTokenCreated" | "ApiTokenRevoked" | "SigningKeyAdded" | "SigningKeyChanged" | "SigningKeyRemoved" | "EnvironmentCreated" | "EnvironmentUpdated" | "ComposePolicyChanged" | "EnvironmentRemoved" | "EnrollmentTokenIssued" | "AgentRevoked" | "StackCreated" | "StackRemoved" | "StackSourceChanged" | "DeployHookCreated" | "DeployHookRemoved" | "StackRestarted" | "StackTakenDown" | "StackEndorsementChanged" | "StackPolicyAllowancesChanged" | "StackPolicyUnrestrictedChanged" | "ImagePolicyAdded" | "ImagePolicyChanged" | "ImagePolicyRemoved" | "ImagePinned" | "ImageUnpinned" | "ImageHookCreated" | "ImageHookRemoved" | "DeploymentQueued" | "ContainerStarted" | "ContainerStopped" | "ContainerRestarted" | "SecretsDecrypted" | "IdentityConfirmed" | "SettingsChanged" | "BackupRequested" | "GitPushCredentialChanged" | "AggregatorSigningKeyRotated";
         /** @enum {unknown} */
         AuditCategory: "Account" | "Users" | "Tokens" | "Environments" | "Stacks" | "Deployments" | "Containers" | "Secrets" | "System";
         /** @enum {unknown} */
@@ -1687,7 +1873,7 @@ export interface components {
             userName: null | string;
         };
         /** @enum {unknown} */
-        CommitEndorsement: "NotChecked" | "Signed" | "ApprovedUnsigned" | "AlreadyDeployed" | "Rejected";
+        CommitEndorsement: "NotChecked" | "Signed" | "ApprovedUnsigned" | "ImageUpdate" | "AlreadyDeployed" | "Rejected";
         /** @enum {unknown} */
         ComposePolicyMode: "Off" | "Audit" | "Enforce";
         ComposePolicyResponse: {
@@ -1751,6 +1937,18 @@ export interface components {
             accessToken: null | components["schemas"]["GitAccessTokenRequest"];
             allEnvironments: boolean;
             environmentIds: null | string[];
+        };
+        CreateImagePolicyRequest: {
+            image: string;
+            tagPattern: string;
+            order: components["schemas"]["ImageTagOrder"];
+            services: null | string[];
+            /** @default true */
+            poll: boolean;
+            /** @default true */
+            acceptRequests: boolean;
+            /** @default false */
+            pinDigest: boolean;
         };
         CreateNotificationChannelRequest: {
             name: string;
@@ -1841,7 +2039,7 @@ export interface components {
         /** @enum {unknown} */
         DeploymentStatus: "Queued" | "Running" | "Succeeded" | "Failed" | "Cancelled";
         /** @enum {unknown} */
-        DeploymentTrigger: "Manual" | "Webhook" | "Rehydrate" | "DeployHook";
+        DeploymentTrigger: "Manual" | "Webhook" | "Rehydrate" | "DeployHook" | "ImageUpdate";
         DeployOnPushRequest: {
             enabled: boolean;
         };
@@ -1861,13 +2059,15 @@ export interface components {
             linkedAt: null | string;
         };
         /** @enum {unknown} */
-        EndorsementProblem: "Unsigned" | "UnsupportedSignature" | "UnknownKey" | "InvalidSignature" | "KeyOutsideScope" | "SignerMayNotDeploy" | "NotDescendant" | "ApprovalOutdated" | null;
+        EndorsementProblem: "Unsigned" | "UnsupportedSignature" | "UnknownKey" | "InvalidSignature" | "KeyOutsideScope" | "SignerMayNotDeploy" | "NotDescendant" | "ApprovalOutdated" | "ImageUpdateMismatch" | null;
         EndorsementResponse: {
             status: components["schemas"]["CommitEndorsement"];
             problem: null | components["schemas"]["EndorsementProblem"];
             signedBy: null | string;
             keyFingerprint: null | string;
             approvedCommit: null | string;
+            /** Format: uuid */
+            imageUpdateId?: null | string;
         };
         EnrollmentTokenResponse: {
             enrollmentToken: string;
@@ -1929,6 +2129,9 @@ export interface components {
             repositoryCount: number | string;
             /** Format: date-time */
             createdAt: string;
+            /** @default false */
+            hasPushCredential: boolean;
+            pushUserName?: null | string;
         };
         GitConnectionWebhookSecretResponse: {
             connection: components["schemas"]["GitConnectionResponse"];
@@ -1952,8 +2155,101 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
         };
+        ImageChangeResponse: {
+            service: string;
+            from: string;
+            to: string;
+        };
+        ImageHookRequest: {
+            allowDowngrade: boolean;
+        };
+        ImageHookTokenResponse: {
+            stack: components["schemas"]["StackResponse"];
+            token: string;
+        };
+        ImagePolicyListResponse: {
+            policies: components["schemas"]["ImagePolicyResponse"][];
+            canChange: boolean;
+            recentUpdates: components["schemas"]["ImageUpdateRecordResponse"][];
+        };
+        ImagePolicyResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            stackId: string;
+            image: string;
+            tagPattern: string;
+            order: components["schemas"]["ImageTagOrder"];
+            services: string[];
+            poll: boolean;
+            acceptRequests: boolean;
+            pinDigest: boolean;
+            pinnedTag: null | string;
+            pinnedBy: null | string;
+            /** Format: date-time */
+            pinnedAt: null | string;
+            /** Format: date-time */
+            lastCheckedAt: null | string;
+            lastError: null | string;
+            warning: null | string;
+            latestTag: null | string;
+            lastChangedByAdministrator: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ImagePolicySettingsRequest: {
+            tagPattern: string;
+            order: components["schemas"]["ImageTagOrder"];
+            services: null | string[];
+            /** @default true */
+            poll: boolean;
+            /** @default true */
+            acceptRequests: boolean;
+            /** @default false */
+            pinDigest: boolean;
+        };
         /** @enum {unknown} */
         ImagePullPolicy: "Missing" | "Always";
+        /** @enum {unknown} */
+        ImageTagOrder: "ImageCreated" | "TagTimestamp";
+        /** @enum {unknown} */
+        ImageUpdateOutcome: "UpToDate" | "WouldUpdate" | "Updated" | "Pinned" | "Waiting" | "Failed";
+        /** @enum {unknown} */
+        ImageUpdateReason: "Policy" | "Hook" | "User";
+        ImageUpdateRecordResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            policyId: string;
+            commit: string;
+            parent: string;
+            tag: string;
+            digest: null | string;
+            changes: components["schemas"]["ImageChangeResponse"][];
+            reason: components["schemas"]["ImageUpdateReason"];
+            requestedBy: null | string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ImageUpdateResultResponse: {
+            /** Format: uuid */
+            policyId: string;
+            image: string;
+            outcome: components["schemas"]["ImageUpdateOutcome"];
+            currentTag: null | string;
+            targetTag: null | string;
+            detail: null | string;
+            commit: null | string;
+            /** Format: uuid */
+            deploymentId: null | string;
+        };
+        ImageUpdateSettingsResponse: {
+            pollingEnabled: boolean;
+            /** Format: int32 */
+            pollingIntervalMinutes: number | string;
+            pollingEnabledLocked: boolean;
+            pollingIntervalLocked: boolean;
+        };
         LoginRequest: {
             userName: string;
             password: string;
@@ -2034,6 +2330,9 @@ export interface components {
             createdAt: string;
             isBackedUp: boolean;
             transports: string[];
+        };
+        PinImageRequest: {
+            tag: string;
         };
         PolicyUnrestrictedRequest: {
             enabled: boolean;
@@ -2216,6 +2515,10 @@ export interface components {
             policyAllowances: string[];
             canAdministerEnvironment: boolean;
             policyUnrestricted: boolean;
+            /** @default false */
+            hasImageHook: boolean;
+            /** @default false */
+            imageHookAllowsDowngrade: boolean;
         };
         StartCliAuthorizationRequest: {
             clientName: string;
@@ -2251,6 +2554,11 @@ export interface components {
             urlPrefix: string;
             allEnvironments: boolean;
             environmentIds: null | string[];
+        };
+        UpdateImageUpdateSettingsRequest: {
+            pollingEnabled: boolean;
+            /** Format: int32 */
+            pollingIntervalMinutes: number | string;
         };
         UpdateNotificationChannelRequest: {
             name: string;
@@ -2698,6 +3006,73 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ReceiveImageHook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageUpdateResultResponse"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6863,6 +7238,117 @@ export interface operations {
             };
         };
     };
+    SetGitConnectionPushCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitAccessTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnectionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RemoveGitConnectionPushCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnectionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     CreateGitConnectionWebhookSecret: {
         parameters: {
             query?: never;
@@ -8041,6 +8527,179 @@ export interface operations {
             };
         };
     };
+    UpdateStackImageHook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImageHookRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateStackImageHook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImageHookRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageHookTokenResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RemoveStackImageHook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     RestartStack: {
         parameters: {
             query?: {
@@ -8531,6 +9190,616 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StackPolicyReportResponse"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListImagePolicies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImagePolicyListResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddImagePolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateImagePolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImagePolicyResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ChangeImagePolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImagePolicySettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImagePolicyResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RemoveImagePolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CheckImagePolicy: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: never;
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageUpdateResultResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    PinImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PinImageRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageUpdateResultResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UnpinImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImagePolicyResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListAggregatorSigningKeys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AggregatorSigningKeyResponse"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RotateAggregatorSigningKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AggregatorSigningKeyResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetImageUpdateSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageUpdateSettingsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateImageUpdateSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateImageUpdateSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageUpdateSettingsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Unauthorized */

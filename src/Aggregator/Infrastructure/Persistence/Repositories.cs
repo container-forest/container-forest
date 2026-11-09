@@ -183,6 +183,12 @@ internal sealed class DeploymentRepository(AggregatorDbContext db)
     public async Task<IReadOnlyList<Deployment>> ListUnfinishedAsync(CancellationToken cancellationToken) =>
         await Set.Where(d => Unfinished.Contains(d.Status)).ToListAsync(cancellationToken);
 
+    public Task<bool> WasApprovedAsync(StackId stackId, CommitSha commit, CancellationToken cancellationToken) =>
+        Set.AnyAsync(
+            d => d.StackId == stackId && d.Commit == commit && d.Endorsement == CommitEndorsement.ApprovedUnsigned
+                && d.Status == DeploymentStatus.Succeeded,
+            cancellationToken);
+
     // The projection leaves the log out of the query.
     public async Task<IReadOnlyList<DeploymentSummary>> ListByStackAsync(
         StackId stackId, int limit, CancellationToken cancellationToken) =>

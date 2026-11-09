@@ -63,6 +63,10 @@ public static class DependencyInjection
         services.AddScoped<IGitRepositoryRepository, GitRepositoryRepository>();
         services.AddScoped<IGitConnectionRepository, GitConnectionRepository>();
         services.AddScoped<IDeploymentRepository, DeploymentRepository>();
+        services.AddScoped<Application.Images.IImagePolicyRepository, ImagePolicyRepository>();
+        services.AddScoped<Application.Images.IImageUpdateRecordRepository, ImageUpdateRecordRepository>();
+        services.AddScoped<Application.Images.IImageTagCache, ImageTagCache>();
+        services.AddScoped<Application.Images.IAggregatorSigningKeyRepository, AggregatorSigningKeyRepository>();
         services.AddScoped<IRegistryCredentialRepository, RegistryCredentialRepository>();
         services.AddScoped<IAgeKeyRepository, AgeKeyRepository>();
         services.AddScoped<IComposePolicyRepository, ComposePolicyRepository>();
@@ -114,6 +118,7 @@ public static class DependencyInjection
             services.AddHostedService<DeploymentWorker>();
             services.AddHostedService<AuditRetention>();
             services.AddHostedService<BackupScheduler>();
+            services.AddHostedService<Images.ImageUpdateScheduler>();
         }
 
         services.AddOptions<AgentGatewayOptions>()
@@ -153,6 +158,16 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.AddSingleton<ICommitSignatureVerifier, SshKeygenSignatureVerifier>();
         services.AddSingleton<IComposeParser, YamlComposeParser>();
+        services.AddOptions<Application.Images.ImageUpdateOptions>()
+            .Bind(configuration.GetSection(Application.Images.ImageUpdateOptions.SectionName))
+            .Validate(o => o.IsValid(), "ImageUpdates limits must be positive, and the author's name and email valid.")
+            .ValidateOnStart();
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<Application.Images.ImageUpdateOptions>>().Value);
+        services.AddSingleton<Application.Images.IComposeImageRewriter, Images.YamlComposeImageRewriter>();
+        services.AddSingleton<Application.Images.IGitWriter>(sp => sp.GetRequiredService<LibGit2SharpGitSource>());
+        services.AddSingleton<Application.Images.ICommitSigner, Images.SshKeygenCommitSigner>();
+        services.AddSingleton<Application.Images.ISshKeyGenerator, Images.SshKeygenKeyGenerator>();
+        services.AddSingleton<Application.Images.IRegistryClient, Images.OciRegistryClient>();
         services.AddOptions<SopsOptions>()
             .Bind(configuration.GetSection(SopsOptions.SectionName))
             .Validate(o => o.IsValid(), "Sops paths must be set and Sops:Timeout must be positive.")

@@ -22,6 +22,9 @@ public enum DeploymentTrigger
 
     /// <summary>CI called the stack's deploy hook after pushing an image: the branch head is deployed with fresh images.</summary>
     DeployHook,
+
+    /// <summary>The aggregator committed a new image tag (ADR-0015) and deploys exactly that commit.</summary>
+    ImageUpdate,
 }
 
 /// <summary>Whether someone who may deploy the stack endorsed the deployed content (ADR-0011).</summary>
@@ -35,6 +38,12 @@ public enum CommitEndorsement
 
     /// <summary>Not endorsed by a signature; deployed because a user who may deploy it approved this exact commit.</summary>
     ApprovedUnsigned,
+
+    /// <summary>
+    /// An update commit of the aggregator (ADR-0015) on top of endorsed content: its record matches and it changes only
+    /// the recorded images. <see cref="Deployment.SignedBy"/> is the signer of the content under the updates, if signed.
+    /// </summary>
+    ImageUpdate,
 
     /// <summary>Rehydration of the commit already running: nothing new is deployed, so it is not checked again.</summary>
     AlreadyDeployed,
@@ -68,6 +77,9 @@ public enum EndorsementProblem
 
     /// <summary>An unsigned commit was approved, but the branch has moved on to another commit since.</summary>
     ApprovalOutdated,
+
+    /// <summary>An update commit whose record does not match: other files or values changed, or its parent is not endorsed.</summary>
+    ImageUpdateMismatch,
 }
 
 public enum DeploymentLogLevel
@@ -160,6 +172,9 @@ public sealed class Deployment : Entity<DeploymentId>
 
     public DateTimeOffset QueuedAt { get; private init; }
 
+    /// <summary>The image update that endorsed the commit, or that queued an <see cref="DeploymentTrigger.ImageUpdate"/>.</summary>
+    public ImageUpdateRecordId? ImageUpdateId { get; private set; }
+
     public DateTimeOffset? StartedAt { get; private set; }
 
     public DateTimeOffset? FinishedAt { get; private set; }
@@ -203,8 +218,19 @@ public sealed class Deployment : Entity<DeploymentId>
             Commit = commit,
         };
 
+    /// <summary>
+    /// Deploys the update commit the aggregator has just pushed (ADR-0015), not whatever the git server calls the head by
+    /// the time the deployment runs. Images are pulled when missing: the tag is new, so the image is.
+    /// </summary>
+    public static Deployment QueueFromImageUpdate(StackId stackId, CommitSha commit, ImageUpdateRecordId recordId, DateTimeOffset now) =>
+        new(DeploymentId.New(), stackId, DeploymentTrigger.ImageUpdate, requestedBy: null, ImagePullPolicy.Missing, now)
+        {
+            Commit = commit,
+            ImageUpdateId = recordId,
+        };
+
     /// <summary>True when the deployment must use <see cref="Commit"/> instead of the branch head.</summary>
-    public bool IsPinned => Trigger == DeploymentTrigger.Rehydrate;
+    public bool IsPinned => Trigger is DeploymentTrigger.Rehydrate or DeploymentTrigger.ImageUpdate;
 
     public void Start(DateTimeOffset now)
     {
@@ -224,7 +250,7 @@ public sealed class Deployment : Entity<DeploymentId>
     }
 
     /// <summary>True for deployments nobody started by hand: they must not move a stack off the line of its deployed commit.</summary>
-    public bool IsAutomatic => Trigger is DeploymentTrigger.Webhook or DeploymentTrigger.DeployHook;
+    public bool IsAutomatic => Trigger is DeploymentTrigger.Webhook or DeploymentTrigger.DeployHook or DeploymentTrigger.ImageUpdate;
 
     public void RecordSigned(UserId signer, string signerName, string keyFingerprint)
     {
@@ -234,6 +260,19 @@ public sealed class Deployment : Entity<DeploymentId>
         SignedBy = signer;
         SignerName = signerName;
         SigningKeyFingerprint = keyFingerprint;
+    }
+
+    /// <summary>The commit is an update commit of the aggregator on endorsed content (ADR-0015).</summary>
+    /// <param name="signer">Who signed the content under the updates; null when it was approved by its SHA instead.</param>
+    public void RecordImageUpdate(ImageUpdateRecordId recordId, (UserId Id, string Name, string Fingerprint)? signer)
+    {
+        EnsureStatus(DeploymentStatus.Running);
+        Endorsement = CommitEndorsement.ImageUpdate;
+        EndorsementProblem = null;
+        ImageUpdateId = recordId;
+        SignedBy = signer?.Id;
+        SignerName = signer?.Name;
+        SigningKeyFingerprint = signer?.Fingerprint;
     }
 
     /// <summary>The commit is not endorsed by a signature for <paramref name="problem"/>, but it is the approved one.</summary>

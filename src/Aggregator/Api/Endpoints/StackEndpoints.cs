@@ -170,6 +170,29 @@ internal static class StackEndpoints
                     ToResponse(await service.RemoveDeployHookAsync(StackId.From(id), ct)))
             .WithName("RemoveStackDeployHook");
 
+        api.MapPost(
+                "/stacks/{id:guid}/image-hook",
+                async (Guid id, ImageHookRequest request, StackService service, CancellationToken ct) =>
+                {
+                    var (stack, token) = await service.CreateImageHookAsync(StackId.From(id), request.AllowDowngrade, ct);
+                    return new ImageHookTokenResponse(ToResponse(stack), token);
+                })
+            .WithName("CreateStackImageHook")
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        api.MapPut(
+                "/stacks/{id:guid}/image-hook",
+                async (Guid id, ImageHookRequest request, StackService service, CancellationToken ct) =>
+                    ToResponse(await service.SetImageHookDowngradeAsync(StackId.From(id), request.AllowDowngrade, ct)))
+            .WithName("UpdateStackImageHook")
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        api.MapDelete(
+                "/stacks/{id:guid}/image-hook",
+                async (Guid id, StackService service, CancellationToken ct) =>
+                    ToResponse(await service.RemoveImageHookAsync(StackId.From(id), ct)))
+            .WithName("RemoveStackImageHook");
+
         api.MapStackAction("restart", "RestartStack", StackAction.Restart);
         api.MapStackAction("down", "DownStack", StackAction.Down);
 
@@ -255,7 +278,9 @@ internal static class StackEndpoints
         s.CanRemove,
         s.PolicyAllowances,
         s.CanAdministerEnvironment,
-        s.PolicyUnrestricted);
+        s.PolicyUnrestricted,
+        s.HasImageHook,
+        s.ImageHookAllowsDowngrade);
 
     private static DeploymentDetailsResponse ToDetails(Deployment d) => new(
         d.Id.Value,
@@ -269,5 +294,6 @@ internal static class StackEndpoints
         d.FinishedAt,
         d.Error,
         d.Log.Select(l => new DeploymentLogLineResponse(l.At, l.Level, l.Text)).ToList(),
-        new EndorsementResponse(d.Endorsement, d.EndorsementProblem, d.SignerName, d.SigningKeyFingerprint, d.ApprovedCommit?.Value));
+        new EndorsementResponse(d.Endorsement, d.EndorsementProblem, d.SignerName, d.SigningKeyFingerprint, d.ApprovedCommit?.Value,
+            d.ImageUpdateId?.Value));
 }

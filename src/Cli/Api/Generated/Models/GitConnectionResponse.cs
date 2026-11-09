@@ -36,6 +36,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #endif
         /// <summary>The hasAccessToken property</summary>
         public bool? HasAccessToken { get; set; }
+        /// <summary>The hasPushCredential property</summary>
+        public bool? HasPushCredential { get; set; }
         /// <summary>The hasWebhook property</summary>
         public bool? HasWebhook { get; set; }
         /// <summary>The id property</summary>
@@ -47,6 +49,14 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #nullable restore
 #else
         public string Name { get; set; }
+#endif
+        /// <summary>The pushUserName property</summary>
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
+#nullable enable
+        public string? PushUserName { get; set; }
+#nullable restore
+#else
+        public string PushUserName { get; set; }
 #endif
         /// <summary>The repositoryCount property</summary>
         public int? RepositoryCount { get; set; }
@@ -64,6 +74,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
         public GitConnectionResponse()
         {
             AdditionalData = new Dictionary<string, object>();
+            HasPushCredential = false;
         }
         /// <summary>
         /// Creates a new instance of the appropriate class based on discriminator value
@@ -88,9 +99,11 @@ namespace ContainerForest.Cli.Api.Generated.Models
                 { "createdAt", n => { CreatedAt = n.GetDateTimeOffsetValue(); } },
                 { "environmentIds", n => { EnvironmentIds = n.GetCollectionOfPrimitiveValues<Guid?>()?.AsList(); } },
                 { "hasAccessToken", n => { HasAccessToken = n.GetBoolValue(); } },
+                { "hasPushCredential", n => { HasPushCredential = n.GetBoolValue(); } },
                 { "hasWebhook", n => { HasWebhook = n.GetBoolValue(); } },
                 { "id", n => { Id = n.GetGuidValue(); } },
                 { "name", n => { Name = n.GetStringValue(); } },
+                { "pushUserName", n => { PushUserName = n.GetStringValue(); } },
                 { "repositoryCount", n => { RepositoryCount = n.GetIntValue(); } },
                 { "urlPrefix", n => { UrlPrefix = n.GetStringValue(); } },
             };
@@ -107,9 +120,11 @@ namespace ContainerForest.Cli.Api.Generated.Models
             writer.WriteDateTimeOffsetValue("createdAt", CreatedAt);
             writer.WriteCollectionOfPrimitiveValues<Guid?>("environmentIds", EnvironmentIds);
             writer.WriteBoolValue("hasAccessToken", HasAccessToken);
+            writer.WriteBoolValue("hasPushCredential", HasPushCredential);
             writer.WriteBoolValue("hasWebhook", HasWebhook);
             writer.WriteGuidValue("id", Id);
             writer.WriteStringValue("name", Name);
+            writer.WriteStringValue("pushUserName", PushUserName);
             writer.WriteIntValue("repositoryCount", RepositoryCount);
             writer.WriteStringValue("urlPrefix", UrlPrefix);
             writer.WriteAdditionalData(AdditionalData);

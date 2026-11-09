@@ -20,6 +20,10 @@ namespace ContainerForest.Cli.Api.Generated.Models
         #pragma warning disable CS1591
         ApprovedUnsigned,
         #pragma warning restore CS1591
+        [EnumMember(Value = "ImageUpdate")]
+        #pragma warning disable CS1591
+        ImageUpdate,
+        #pragma warning restore CS1591
         [EnumMember(Value = "AlreadyDeployed")]
         #pragma warning disable CS1591
         AlreadyDeployed,

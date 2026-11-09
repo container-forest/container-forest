@@ -83,6 +83,17 @@ public sealed class Stack : Entity<StackId>
     public bool HasDeployHook => DeployHookTokenHash is not null;
 
     /// <summary>
+    /// SHA-256 of the image hook token (ADR-0015): CI presents it to have the aggregator check the stack's image policies
+    /// now or ask for an exact tag. Null when the stack has no image hook.
+    /// </summary>
+    public string? ImageHookTokenHash { get; private set; }
+
+    public bool HasImageHook => ImageHookTokenHash is not null;
+
+    /// <summary>The image hook may ask for a tag older than the deployed one, which pins the image there.</summary>
+    public bool ImageHookAllowsDowngrade { get; private set; }
+
+    /// <summary>
     /// Deploy only content someone who may deploy the stack endorsed: a commit signed with their signing key, or one
     /// they approved by its SHA (ADR-0011). Off by default; then the branch head is deployed as it is.
     /// </summary>
@@ -204,6 +215,40 @@ public sealed class Stack : Entity<StackId>
     }
 
     public void RemoveDeployHook() => DeployHookTokenHash = null;
+
+    /// <summary>Sets the image hook to a new token, given as its hash; the previous token stops working.</summary>
+    /// <exception cref="DomainConflictException">A system stack, which the pipeline does not deploy.</exception>
+    public void SetImageHook(string tokenHash, bool allowDowngrade)
+    {
+        EnsureDeployable(enabled: true, "have an image hook");
+        if (tokenHash.Length != 64 || !tokenHash.All(char.IsAsciiHexDigitLower))
+        {
+            throw new DomainValidationException("An image hook is stored as the token's SHA-256 in lowercase hex.");
+        }
+
+        ImageHookTokenHash = tokenHash;
+        ImageHookAllowsDowngrade = allowDowngrade;
+    }
+
+    public void SetImageHookAllowsDowngrade(bool allowDowngrade)
+    {
+        if (!HasImageHook)
+        {
+            throw new DomainConflictException($"Stack '{Name}' has no image hook.");
+        }
+
+        ImageHookAllowsDowngrade = allowDowngrade;
+    }
+
+    public void RemoveImageHook()
+    {
+        ImageHookTokenHash = null;
+        ImageHookAllowsDowngrade = false;
+    }
+
+    /// <summary>True when <paramref name="token"/> is the image hook's token; compared in constant time.</summary>
+    public bool AcceptsImageHook(string token) =>
+        ImageHookTokenHash is { } hash && SecretToken.Matches(token, hash);
 
     /// <summary>True when <paramref name="token"/> is the deploy hook's token; compared in constant time.</summary>
     public bool AcceptsDeployHook(string token) =>

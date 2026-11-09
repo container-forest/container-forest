@@ -24,6 +24,8 @@ export const notificationEventKinds = [
   "BackupFailed",
   "SettingsChanged",
   "AccountSecurityChanged",
+  "ImageUpdateFailed",
+  "ImagePinned",
 ] as const;
 
 export type NotificationEventKind = (typeof notificationEventKinds)[number];

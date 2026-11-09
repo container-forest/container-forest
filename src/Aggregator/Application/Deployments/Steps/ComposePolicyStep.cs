@@ -21,6 +21,8 @@ public sealed class ComposePolicyStep(
     IUserRepository users,
     IRoleAssignmentRepository roleAssignments,
     IStackRepository stacks,
+    Images.IImageUpdateRecordRepository updates,
+    Images.IImagePolicyRepository imagePolicies,
     DeploymentOptions options) : IDeployStep
 {
     public string Name => "Check compose policy";
@@ -153,6 +155,7 @@ public sealed class ComposePolicyStep(
         {
             CommitEndorsement.Signed => deployment.SignedBy,
             CommitEndorsement.ApprovedUnsigned => deployment.RequestedBy,
+            CommitEndorsement.ImageUpdate when await AdministratorsSetTheImagePoliciesAsync(context, cancellationToken) => deployment.SignedBy,
             _ => null,
         };
         if (endorser is not { } id || await users.FindAsync(id, cancellationToken) is not { IsActive: true } user)
@@ -162,6 +165,32 @@ public sealed class ComposePolicyStep(
 
         var assignments = await roleAssignments.ListForUserAsync(user.Id, cancellationToken);
         return EnvironmentAdministration.CanAdminister(user, context.Environment, assignments) ? user.UserName : null;
+    }
+
+    /// <summary>
+    /// Update commits keep the exemption of the content under them only when every image policy that made them was last
+    /// changed by an administrator (ADR-0015, item 7): an administrator allowed that content, not whatever image an
+    /// Editor's policy puts into it. A policy removed since gives no exemption.
+    /// </summary>
+    private async Task<bool> AdministratorsSetTheImagePoliciesAsync(DeployContext context, CancellationToken cancellationToken)
+    {
+        var commit = context.Deployment.Commit;
+        for (var step = 0; step < CommitEndorsementService.MaxUpdateChain && commit is not null; step++)
+        {
+            if (await updates.FindByCommitAsync(context.Stack.Id, commit, cancellationToken) is not { } record)
+            {
+                return step > 0;
+            }
+
+            if (await imagePolicies.FindAsync(record.PolicyId, cancellationToken) is not { LastChangedByAdministrator: true })
+            {
+                return false;
+            }
+
+            commit = record.Parent;
+        }
+
+        return false;
     }
 
     /// <summary>

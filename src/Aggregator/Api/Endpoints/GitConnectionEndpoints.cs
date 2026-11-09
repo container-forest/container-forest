@@ -72,6 +72,21 @@ internal static class GitConnectionEndpoints
             .WithName("RemoveGitConnectionAccessToken")
             .ProducesProblem(StatusCodes.Status404NotFound);
 
+        connections.MapPut(
+                "/{id:guid}/push-credential",
+                async (Guid id, GitAccessTokenRequest request, GitConnectionService service, CancellationToken ct) =>
+                    ToResponse(await service.SetPushCredentialAsync(GitConnectionId.From(id), ToAccessToken(request)!, ct)))
+            .WithName("SetGitConnectionPushCredential")
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        connections.MapDelete(
+                "/{id:guid}/push-credential",
+                async (Guid id, GitConnectionService service, CancellationToken ct) =>
+                    ToResponse(await service.RemovePushCredentialAsync(GitConnectionId.From(id), ct)))
+            .WithName("RemoveGitConnectionPushCredential")
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
         connections.MapPost(
                 "/{id:guid}/webhook",
                 async (Guid id, GitConnectionService service, CancellationToken ct) =>
@@ -102,7 +117,9 @@ internal static class GitConnectionEndpoints
         summary.EnvironmentIds.Select(id => id.Value).Order().ToList(),
         summary.Connection.HasWebhook,
         summary.RepositoryCount,
-        summary.Connection.CreatedAt);
+        summary.Connection.CreatedAt,
+        summary.Connection.HasPushCredential,
+        summary.Connection.PushUserName);
 
     private static GitAccessToken? ToAccessToken(GitAccessTokenRequest? request) =>
         request is null ? null : new GitAccessToken(request.UserName, request.Token ?? "");

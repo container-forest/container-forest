@@ -46,6 +46,7 @@ internal sealed class StackShowCommand() : StackCommand("show", "Show a stack: i
             ("Deploy on push", CliOutput.YesNo(s.DeployOnPush)),
             ("Restart on file change", CliOutput.YesNo(s.RestartOnFileChange)),
             ("Deploy hook", CliOutput.YesNo(s.HasDeployHook)),
+            ("Image hook", s.HasImageHook == true ? (s.ImageHookAllowsDowngrade == true ? "yes, may roll back" : "yes") : "no"),
             ("Require signed commits", CliOutput.YesNo(s.RequireSignedCommits)),
             ("Require image digests", CliOutput.YesNo(s.RequireImageDigests)),
             ("System stack", CliOutput.YesNo(s.IsSystem)),

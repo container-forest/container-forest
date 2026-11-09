@@ -1,4 +1,6 @@
 using ContainerForest.Aggregator.Application.Access;
+using ContainerForest.Aggregator.Application.Audit;
+using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Domain.Common;
@@ -51,6 +53,7 @@ public sealed class GitConnectionService(
     IEnvironmentRepository environments,
     ISecretProtector protector,
     IUnitOfWork unitOfWork,
+    IAuditTrail audit,
     TimeProvider time)
 {
     /// <summary>In name order: all of them for administrators, those allowed in an editor's environments for editors.</summary>
@@ -137,6 +140,34 @@ public sealed class GitConnectionService(
         ChangeAsync(id, connection => connection.RemoveAccessToken(), cancellationToken);
 
     /// <summary>
+    /// Sets the token the aggregator pushes image update commits with (ADR-0015). Recorded in the audit log: it lets the
+    /// aggregator write to the connection's repositories. Best a service user that may write only to deployment repositories.
+    /// </summary>
+    public Task<GitConnectionSummary> SetPushCredentialAsync(
+        GitConnectionId id, GitAccessToken pushToken, CancellationToken cancellationToken) =>
+        AuditedPushAsync(id, "Push token set", connection =>
+        {
+            ValidateToken(pushToken.Token);
+            connection.SetPushCredential(pushToken.UserName, protector.Protect(SecretPurpose.GitPushToken, pushToken.Token));
+        }, cancellationToken);
+
+    /// <summary>Forgets the push token; image updates of the connection's repositories stop.</summary>
+    public Task<GitConnectionSummary> RemovePushCredentialAsync(GitConnectionId id, CancellationToken cancellationToken) =>
+        AuditedPushAsync(id, "Push token removed", connection => connection.RemovePushCredential(), cancellationToken);
+
+    private Task<GitConnectionSummary> AuditedPushAsync(
+        GitConnectionId id, string details, Action<GitConnection> change, CancellationToken cancellationToken)
+    {
+        var draft = new AuditDraft(AuditAction.GitPushCredentialChanged, new SettingsAuditTarget("GitConnection")) { Details = details };
+        return audit.RunAsync(draft, async () =>
+        {
+            var summary = await ChangeAsync(id, change, cancellationToken);
+            draft.Target = new SettingsAuditTarget($"GitConnection:{summary.Connection.Name}");
+            return summary;
+        }, cancellationToken);
+    }
+
+    /// <summary>
     /// Generates a new secret for an organization-wide webhook, replacing the previous one. Returned only here, to paste
     /// into the git server's webhook settings.
     /// </summary>
@@ -179,15 +210,18 @@ public sealed class GitConnectionService(
 
     private void SetAccessToken(GitConnection connection, GitAccessToken accessToken)
     {
+        ValidateToken(accessToken.Token);
+        connection.SetAccessToken(accessToken.UserName, protector.Protect(SecretPurpose.GitAccessToken, accessToken.Token));
+    }
+
+    private static void ValidateToken(string token)
+    {
         // A token is sent in an HTTP header: whitespace would be part of it, and is always a copy-paste mistake.
-        var token = accessToken.Token;
         if (token.Length is 0 or > GitAccessToken.MaxTokenLength || token.Any(c => char.IsWhiteSpace(c) || char.IsControl(c)))
         {
             throw new DomainValidationException(
                 $"Access token must be 1-{GitAccessToken.MaxTokenLength} characters without spaces.");
         }
-
-        connection.SetAccessToken(accessToken.UserName, protector.Protect(SecretPurpose.GitAccessToken, token));
     }
 
     private async Task EnsureNameIsFreeAsync(GitConnection connection, CancellationToken cancellationToken)

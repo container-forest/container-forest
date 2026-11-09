@@ -30,6 +30,8 @@ import {
   SquareIcon,
   Trash2Icon,
 } from "@/components/icons";
+import { ImageHookCard } from "@/components/images/image-hook-card";
+import { ImagePoliciesCard } from "@/components/images/image-policies-card";
 import { DeployHookCard } from "@/components/stacks/deploy-hook-card";
 import { PolicyAllowancesCard } from "@/components/stacks/policy-allowances-card";
 import { DeploymentStatusBadge } from "@/components/stacks/deployment-status-badge";
@@ -105,6 +107,8 @@ function StackScreen() {
       {stack.canDeploy && !stack.isSystem && <DeployOnPushCard stack={stack} />}
       {stack.canDeploy && !stack.isSystem && <RestartOnFileChangeCard stack={stack} />}
       {stack.canDeploy && !stack.isSystem && <DeployHookCard stack={stack} />}
+      {!stack.isSystem && <ImagePoliciesCard stack={stack} />}
+      {stack.canDeploy && !stack.isSystem && <ImageHookCard stack={stack} />}
       <RecentDeploymentsCard stack={stack} />
       {stack.canRemove && <RemoveStackCard stack={stack} />}
     </div>

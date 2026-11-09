@@ -4,6 +4,7 @@ using ContainerForest.Aggregator.Application.Audit;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Images;
 using ContainerForest.Aggregator.Application.Policies;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
@@ -14,6 +15,7 @@ using ContainerForest.Aggregator.Domain.Audit;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
+using ContainerForest.Aggregator.Domain.Images;
 using ContainerForest.Aggregator.Domain.Repositories;
 using ContainerForest.Aggregator.Domain.Stacks;
 
@@ -220,6 +222,10 @@ internal sealed class InMemoryDeployments : InMemoryRepository<Deployment, Deplo
 
     public Task<IReadOnlyList<Deployment>> ListUnfinishedAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<Deployment>>(Items.Where(d => !d.IsFinished).ToList());
+
+    public Task<bool> WasApprovedAsync(StackId stackId, CommitSha commit, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.Any(d => d.StackId == stackId && d.Commit == commit
+            && d.Endorsement == CommitEndorsement.ApprovedUnsigned && d.Status == DeploymentStatus.Succeeded));
 
     public Task<IReadOnlyList<DeploymentSummary>> ListByStackAsync(StackId stackId, int limit, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<DeploymentSummary>>(Items
@@ -483,4 +489,53 @@ internal sealed class FakeAuditTrail : IAuditTrail
         Entries.Add((action, outcome, target, details));
         return Task.CompletedTask;
     }
+}
+
+internal sealed class InMemoryImageUpdateRecords
+    : InMemoryRepository<ImageUpdateRecord, ImageUpdateRecordId>, IImageUpdateRecordRepository
+{
+    public Task<ImageUpdateRecord?> FindByCommitAsync(StackId stackId, CommitSha commit, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.SingleOrDefault(r => r.StackId == stackId && r.Commit == commit));
+
+    public Task<IReadOnlyList<ImageUpdateRecord>> ListByStackAsync(StackId stackId, int limit, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ImageUpdateRecord>>(
+            Items.Where(r => r.StackId == stackId).OrderByDescending(r => r.CreatedAt).Take(limit).ToList());
+}
+
+/// <summary>
+/// Applies image changes as plain text replacements, one per change: enough to check the endorsement of update commits
+/// without YAML, which the infrastructure tests cover.
+/// </summary>
+internal sealed class TextImageRewriter : IComposeImageRewriter
+{
+    public IReadOnlyList<ComposeImageSlot> Find(string yaml, ImagePolicy policy) =>
+        throw new NotSupportedException();
+
+    public ComposeRewrite Rewrite(string yaml, ImagePolicy policy, string value) =>
+        throw new NotSupportedException();
+
+    public string? Apply(string yaml, IReadOnlyList<ImageChange> changes)
+    {
+        foreach (var change in changes)
+        {
+            var at = yaml.IndexOf("image: " + change.From + "\n", StringComparison.Ordinal);
+            if (at < 0)
+            {
+                return null;
+            }
+
+            yaml = yaml[..at] + "image: " + change.To + "\n" + yaml[(at + 7 + change.From.Length + 1)..];
+        }
+
+        return yaml;
+    }
+}
+
+internal sealed class InMemoryImagePolicies : InMemoryRepository<ImagePolicy, ImagePolicyId>, IImagePolicyRepository
+{
+    public Task<IReadOnlyList<ImagePolicy>> ListByStackAsync(StackId stackId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ImagePolicy>>(Items.Where(p => p.StackId == stackId).OrderBy(p => p.Image.Value, StringComparer.Ordinal).ToList());
+
+    public Task<IReadOnlyList<ImagePolicy>> ListPolledAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ImagePolicy>>(Items.Where(p => p.Poll && !p.IsPinned).ToList());
 }

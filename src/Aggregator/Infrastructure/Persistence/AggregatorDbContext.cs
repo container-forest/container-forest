@@ -6,6 +6,7 @@ using ContainerForest.Aggregator.Domain.Backups;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Deployments;
 using ContainerForest.Aggregator.Domain.Environments;
+using ContainerForest.Aggregator.Domain.Images;
 using ContainerForest.Aggregator.Domain.Notifications;
 using ContainerForest.Aggregator.Domain.Policies;
 using ContainerForest.Aggregator.Domain.Repositories;
@@ -82,6 +83,14 @@ public sealed class AggregatorDbContext : IdentityUserContext<AccountUser, Guid>
 
     public DbSet<BackupRun> BackupRuns => Set<BackupRun>();
 
+    public DbSet<ImagePolicy> ImagePolicies => Set<ImagePolicy>();
+
+    public DbSet<ImageUpdateRecord> ImageUpdateRecords => Set<ImageUpdateRecord>();
+
+    public DbSet<ImageTagCacheEntry> ImageTagCache => Set<ImageTagCacheEntry>();
+
+    public DbSet<AggregatorSigningKey> AggregatorSigningKeys => Set<AggregatorSigningKey>();
+
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         var changes = LiveChanges.Collect(ChangeTracker);
@@ -120,6 +129,9 @@ public sealed class AggregatorDbContext : IdentityUserContext<AccountUser, Guid>
         configurationBuilder.AddStronglyTypedId<AuditEntryId>();
         configurationBuilder.AddStronglyTypedId<StoredSettingId>();
         configurationBuilder.AddStronglyTypedId<BackupRunId>();
+        configurationBuilder.AddStronglyTypedId<ImagePolicyId>();
+        configurationBuilder.AddStronglyTypedId<ImageUpdateRecordId>();
+        configurationBuilder.AddStronglyTypedId<AggregatorSigningKeyId>();
 
         // SQLite has no DateTimeOffset type: stored as text it cannot be compared or ordered in queries.
         configurationBuilder.Properties<DateTimeOffset>().HaveConversion<DateTimeOffsetToBinaryConverter>();

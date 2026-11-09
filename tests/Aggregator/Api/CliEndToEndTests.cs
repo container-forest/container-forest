@@ -215,7 +215,7 @@ public sealed class CliEndToEndTests : IDisposable
         Assert.Equal(0, repository.ExitCode);
         Assert.Contains("https://git.example.com/app.git", repositories.Output);
         Assert.Equal(0, rule.ExitCode);
-        Assert.Equal(10, Assert.Single(JsonDocument.Parse(rules.Output).RootElement.EnumerateArray()).GetProperty("events").GetArrayLength());
+        Assert.Equal(12, Assert.Single(JsonDocument.Parse(rules.Output).RootElement.EnumerateArray()).GetProperty("events").GetArrayLength());
     }
 
     [Fact]

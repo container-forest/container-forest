@@ -54,6 +54,26 @@ export const signingKeysQuery = queryOptions({
   queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/signing-keys", { signal })),
 });
 
+/** The stack's image policies (ADR-0015), whether the user may change them, and the latest update commits. */
+export const imagePoliciesQuery = (stackId: string) =>
+  queryOptions({
+    queryKey: ["stacks", stackId, "image-policies"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/stacks/{id}/image-policies", { params: { path: { id: stackId } }, signal })),
+  });
+
+/** The aggregator's own signing keys for update commits, newest first. Administrators only. */
+export const aggregatorSigningKeysQuery = queryOptions({
+  queryKey: ["system", "signing-key"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/system/signing-key", { signal })),
+});
+
+/** Polling of registries for image updates. Administrators only. */
+export const imageUpdateSettingsQuery = queryOptions({
+  queryKey: ["settings", "image-updates"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/settings/image-updates", { signal })),
+});
+
 /** Another user's signing keys. Administrators only. */
 export const userSigningKeysQuery = (userId: string) =>
   queryOptions({

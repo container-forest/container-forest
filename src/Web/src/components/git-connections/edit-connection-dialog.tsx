@@ -36,6 +36,7 @@ import {
   toConnectionDetailsRequest,
 } from "@/features/git-connections/model";
 import { describeError } from "@/features/stacks/model";
+import { PushTokenSection } from "@/components/images/push-token-section";
 import { AccessTokenFields } from "./access-token-fields";
 import { ConnectionFields } from "./connection-fields";
 
@@ -193,6 +194,8 @@ export function EditConnectionDialog({ connection }: { connection: GitConnection
             )}
           </div>
         </section>
+
+        <PushTokenSection connection={connection} />
 
         <WebhookSection
           name={connection.name}

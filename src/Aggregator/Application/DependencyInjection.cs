@@ -88,6 +88,15 @@ public static class DependencyInjection
         services.AddScoped<PushWebhookService>();
         services.AddScoped<DeployHookService>();
         services.AddScoped<IDeploymentObserver, PushFollowUpObserver>();
+
+        services.AddScoped<CommitEndorsementService>();
+        services.AddSingleton<Images.ImageUpdateLocks>();
+        services.AddScoped<Images.AggregatorSigningKeyService>();
+        services.AddScoped<Images.ImageUpdateService>();
+        services.AddScoped<Images.ImagePolicyService>();
+        services.AddScoped<Images.ImageHookService>();
+        services.AddScoped<Images.ImageUpdateSettingsService>();
+        services.AddSingleton<Images.ImageUpdatePoller>();
         return services;
     }
 }

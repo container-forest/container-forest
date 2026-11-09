@@ -310,6 +310,9 @@ enum NotificationKind {
   NOTIFICATION_KIND_BACKUP_FAILED = 8;
   NOTIFICATION_KIND_SETTINGS_CHANGED = 9;
   NOTIFICATION_KIND_ACCOUNT_SECURITY_CHANGED = 10;
+  // Image updates of the aggregator (ADR-0015); stack events with stack_id set.
+  NOTIFICATION_KIND_IMAGE_UPDATE_FAILED = 11;
+  NOTIFICATION_KIND_IMAGE_PINNED = 12;
 }
 
 enum NotificationSeverity {

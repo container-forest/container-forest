@@ -22,6 +22,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
 #else
         public string ApprovedCommit { get; set; }
 #endif
+        /// <summary>The imageUpdateId property</summary>
+        public Guid? ImageUpdateId { get; set; }
         /// <summary>The keyFingerprint property</summary>
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
 #nullable enable
@@ -68,6 +70,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             return new Dictionary<string, Action<IParseNode>>
             {
                 { "approvedCommit", n => { ApprovedCommit = n.GetStringValue(); } },
+                { "imageUpdateId", n => { ImageUpdateId = n.GetGuidValue(); } },
                 { "keyFingerprint", n => { KeyFingerprint = n.GetStringValue(); } },
                 { "problem", n => { Problem = n.GetEnumValue<global::ContainerForest.Cli.Api.Generated.Models.EndorsementProblem>(); } },
                 { "signedBy", n => { SignedBy = n.GetStringValue(); } },
@@ -82,6 +85,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
         {
             if(ReferenceEquals(writer, null)) throw new ArgumentNullException(nameof(writer));
             writer.WriteStringValue("approvedCommit", ApprovedCommit);
+            writer.WriteGuidValue("imageUpdateId", ImageUpdateId);
             writer.WriteStringValue("keyFingerprint", KeyFingerprint);
             writer.WriteEnumValue<global::ContainerForest.Cli.Api.Generated.Models.EndorsementProblem>("problem", Problem);
             writer.WriteStringValue("signedBy", SignedBy);

@@ -1,5 +1,5 @@
 {
-  "descriptionHash": "8111A605A95D0FCCBF18D9F007DCF3B55606B3DD10CD6D26F4752B5DE2EEB37FD384466E37FE504D86C15136BB582114F8CBD1E257A4E5F9B7A383E4CE27BF03",
+  "descriptionHash": "9D6BD0FA06268786A0BDC78266F8C9C3E81E6076C88D6C6F6EB0F64ECA87592927E5E6F8F3CFFFF84D5DECE91B538E9BCEFAF52338B2C6B649677915A9BBF327",
   "descriptionLocation": "../../../Aggregator/Api/openapi/ContainerForest.Aggregator.Api.json",
   "lockFileVersion": "1.0.0",
   "kiotaVersion": "1.35.0",
@@ -32,6 +32,7 @@
   "excludePatterns": [
     "/api/webhooks/**",
     "/api/deploy-hooks/**",
+    "/api/image-hooks/**",
     "/api/auth/**",
     "/api/audit",
     "/api/settings/**",

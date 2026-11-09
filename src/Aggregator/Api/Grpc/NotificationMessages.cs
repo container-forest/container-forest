@@ -68,6 +68,8 @@ internal static class NotificationMessages
         NotificationEventKinds.BackupFailed => NotificationKind.BackupFailed,
         NotificationEventKinds.SettingsChanged => NotificationKind.SettingsChanged,
         NotificationEventKinds.AccountSecurityChanged => NotificationKind.AccountSecurityChanged,
+        NotificationEventKinds.ImageUpdateFailed => NotificationKind.ImageUpdateFailed,
+        NotificationEventKinds.ImagePinned => NotificationKind.ImagePinned,
         _ => NotificationKind.Unspecified,
     };
 

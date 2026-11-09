@@ -1,5 +1,4 @@
 using ContainerForest.Aggregator.Application.Common;
-using ContainerForest.Aggregator.Domain.Repositories;
 using ContainerForest.Aggregator.Domain.Stacks;
 
 namespace ContainerForest.Aggregator.Application.Deployments.Steps;
@@ -69,31 +68,5 @@ public sealed class GitFetchStep(IGitSource git, ISecretProtector protector, Dep
         }
     }
 
-    private GitAccess Access(DeployContext context)
-    {
-        if (context.Connection is not { } connection)
-        {
-            return GitAccess.Public;
-        }
-
-        if (connection.ProtectedAccessToken is null)
-        {
-            return new GitAccess(null, IsTrustedHost: true);
-        }
-
-        try
-        {
-            return new GitAccess(
-                new GitCredentials(
-                    connection.AccessUserName ?? GitConnection.DefaultAccessUserName,
-                    protector.Unprotect(SecretPurpose.GitAccessToken, connection.ProtectedAccessToken),
-                    connection.UrlPrefix),
-                IsTrustedHost: true);
-        }
-        catch (SecretUnreadableException)
-        {
-            throw new DeploymentFailedException(
-                $"The stored access token of connection '{connection.Name}' cannot be decrypted; set it again.");
-        }
-    }
+    private GitAccess Access(DeployContext context) => GitAccessResolver.ForFetch(context.Connection, protector);
 }

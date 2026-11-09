@@ -32,6 +32,8 @@ public class VerifyCommitStepTests
     private readonly InMemorySigningKeys keys = new();
     private readonly InMemoryUsers users = new();
     private readonly InMemoryRoleAssignments roles = new();
+    private readonly InMemoryImageUpdateRecords updates = new();
+    private readonly InMemoryDeployments deployments = new();
     private readonly User alice = User.Create("alice", Now);
 
     public VerifyCommitStepTests() => users.Add(alice);
@@ -232,7 +234,114 @@ public class VerifyCommitStepTests
         Assert.Equal(0, inspector.SignatureReads);
     }
 
-    private VerifyCommitStep Step() => new(inspector, verifier, keys, users, roles);
+    private static readonly CommitSha Root = CommitSha.Parse("2222222222222222222222222222222222222222");
+    private static readonly CommitSha Middle = CommitSha.Parse("3333333333333333333333333333333333333333");
+    private const string Before = "services:\n  bot:\n    image: app:a1\n";
+    private const string After = "services:\n  bot:\n    image: app:b2\n";
+
+    [Fact]
+    public async Task Update_commit_on_a_signed_commit_is_endorsed_by_its_record()
+    {
+        var context = Running();
+        AddKey(context, Role.Editor);
+        var record = Update(context, Commit, Root, Before, After);
+
+        await Step().ExecuteAsync(context, Ct);
+
+        Assert.Equal(CommitEndorsement.ImageUpdate, context.Deployment.Endorsement);
+        Assert.Equal(record.Id, context.Deployment.ImageUpdateId);
+        Assert.Equal("alice", context.Deployment.SignerName);
+        Assert.Contains(Lines(context, DeploymentLogLevel.Info), l => l.Contains("image update on 2222222", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Chain_of_updates_is_endorsed_by_the_signed_commit_under_it()
+    {
+        var context = Running();
+        AddKey(context, Role.Editor);
+        Update(context, Middle, Root, Before, After);
+        Update(context, Commit, Middle, After, After.Replace("b2", "c3", StringComparison.Ordinal), from: "app:b2", to: "app:c3");
+
+        await Step().ExecuteAsync(context, Ct);
+
+        Assert.Equal(CommitEndorsement.ImageUpdate, context.Deployment.Endorsement);
+        Assert.Equal("alice", context.Deployment.SignerName);
+    }
+
+    [Fact]
+    public async Task Update_commit_that_changes_another_file_is_rejected()
+    {
+        var context = Running();
+        AddKey(context, Role.Editor);
+        Update(context, Commit, Root, Before, After, extraPath: "init.sh");
+
+        var error = await Assert.ThrowsAsync<DeploymentFailedException>(() => Step().ExecuteAsync(context, Ct));
+
+        Assert.Equal(EndorsementProblem.ImageUpdateMismatch, context.Deployment.EndorsementProblem);
+        Assert.Contains("changes more than the image values", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Update_commit_with_other_values_than_recorded_is_rejected()
+    {
+        var context = Running();
+        AddKey(context, Role.Editor);
+        Update(context, Commit, Root, Before, After + "    privileged: true\n");
+
+        var error = await Assert.ThrowsAsync<DeploymentFailedException>(() => Step().ExecuteAsync(context, Ct));
+
+        Assert.Contains("beyond the recorded image values", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Update_commit_on_unendorsed_content_is_rejected()
+    {
+        var context = Running();
+        Update(context, Commit, Root, Before, After);
+        inspector.Signatures[Root] = null;
+
+        var error = await Assert.ThrowsAsync<DeploymentFailedException>(() => Step().ExecuteAsync(context, Ct));
+
+        Assert.Equal(EndorsementProblem.ImageUpdateMismatch, context.Deployment.EndorsementProblem);
+        Assert.Contains("content under it is not endorsed", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Update_commit_on_content_approved_by_its_sha_is_endorsed()
+    {
+        var context = Running();
+        Update(context, Commit, Root, Before, After);
+        inspector.Signatures[Root] = null;
+        var approved = Deployment.QueueManual(context.Stack.Id, alice.Id, ImagePullPolicy.Missing, Now.AddHours(-1), Root);
+        approved.Start(Now.AddHours(-1));
+        approved.ResolveCommit(Root);
+        approved.RecordApprovedUnsigned(EndorsementProblem.Unsigned);
+        approved.Succeed(Now.AddHours(-1));
+        deployments.Add(approved);
+
+        await Step().ExecuteAsync(context, Ct);
+
+        Assert.Equal(CommitEndorsement.ImageUpdate, context.Deployment.Endorsement);
+        Assert.Null(context.Deployment.SignedBy);
+    }
+
+    private Domain.Images.ImageUpdateRecord Update(
+        DeployContext context, CommitSha commit, CommitSha parent, string before, string after,
+        string from = "app:a1", string to = "app:b2", string? extraPath = null)
+    {
+        inspector.Signatures[commit] = null;
+        var path = context.Stack.ComposePath;
+        inspector.Diffs[commit] = new CommitDiff(
+            parent, extraPath is null ? [path.Value] : [path.Value, extraPath], Encoding.UTF8.GetBytes(before), Encoding.UTF8.GetBytes(after));
+        var record = Domain.Images.ImageUpdateRecord.Create(
+            ImageUpdateRecordId.New(), context.Stack.Id, ImagePolicyId.New(), commit, parent, path, "b2", null,
+            [new Domain.Images.ImageChange("bot", from, to)], Domain.Images.ImageUpdateReason.Policy, null, null, Now);
+        updates.Add(record);
+        return record;
+    }
+
+    private VerifyCommitStep Step() =>
+        new(new CommitEndorsementService(inspector, verifier, keys, users, roles, updates, deployments, new TextImageRewriter()));
 
     private SigningKey AddKey(DeployContext context, Role role, IReadOnlyCollection<EnvironmentId>? environments = null)
     {
@@ -285,11 +394,19 @@ public class VerifyCommitStepTests
         public Task<CommitSignatureData?> ReadSignatureAsync(GitRepository repository, CommitSha commit, CancellationToken cancellationToken)
         {
             SignatureReads++;
-            return Task.FromResult(Signature);
+            return Task.FromResult(Signatures.TryGetValue(commit, out var own) ? own : Signature);
         }
 
         public Task<bool> DescendsFromAsync(GitRepository repository, CommitSha commit, CommitSha ancestor, CancellationToken cancellationToken) =>
             Task.FromResult(Descends);
+
+        /// <summary>Signatures by commit; a commit not listed has <see cref="Signature"/>.</summary>
+        public Dictionary<CommitSha, CommitSignatureData?> Signatures { get; } = [];
+
+        public Dictionary<CommitSha, CommitDiff> Diffs { get; } = [];
+
+        public Task<CommitDiff?> DiffAsync(GitRepository repository, CommitSha commit, string path, CancellationToken cancellationToken) =>
+            Task.FromResult(Diffs.GetValueOrDefault(commit));
     }
 
     private sealed class FakeSignatureVerifier : ICommitSignatureVerifier

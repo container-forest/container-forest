@@ -111,6 +111,9 @@ public interface IDeploymentRepository : IRepository<Deployment, DeploymentId>
     /// <summary>Queued and running deployments of all stacks, e.g. those interrupted by a restart.</summary>
     Task<IReadOnlyList<Deployment>> ListUnfinishedAsync(CancellationToken cancellationToken);
 
+    /// <summary>True when a deployment of the stack ran the commit as approved unsigned by its SHA (ADR-0011).</summary>
+    Task<bool> WasApprovedAsync(StackId stackId, CommitSha commit, CancellationToken cancellationToken);
+
     /// <summary>Newest first, without logs.</summary>
     Task<IReadOnlyList<DeploymentSummary>> ListByStackAsync(StackId stackId, int limit, CancellationToken cancellationToken);
 }
@@ -169,7 +172,19 @@ public interface ICommitInspector
     /// ancestor is not in the clone, e.g. after the stack was pointed at another repository.
     /// </summary>
     Task<bool> DescendsFromAsync(GitRepository repository, CommitSha commit, CommitSha ancestor, CancellationToken cancellationToken);
+
+    /// <summary>The paths a commit changes against its only parent, and one file at both (ADR-0015).</summary>
+    /// <param name="path">The file to read, '/'-separated from the repository root.</param>
+    /// <returns>Null when the commit is not in the clone or does not have exactly one parent.</returns>
+    Task<CommitDiff?> DiffAsync(GitRepository repository, CommitSha commit, string path, CancellationToken cancellationToken);
 }
+
+/// <param name="Parent">The commit's only parent.</param>
+/// <param name="ChangedPaths">Every path that differs from the parent, files only, '/'-separated.</param>
+/// <param name="Before">The file at the parent; null when absent.</param>
+/// <param name="After">The file at the commit; null when absent.</param>
+/// <param name="ModeChanged">The file's mode differs between the two.</param>
+public sealed record CommitDiff(CommitSha Parent, IReadOnlyList<string> ChangedPaths, byte[]? Before, byte[]? After, bool ModeChanged = false);
 
 /// <summary>Checks an SSH signature cryptographically. Implemented with <c>ssh-keygen -Y verify</c>.</summary>
 public interface ICommitSignatureVerifier

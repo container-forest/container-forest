@@ -137,3 +137,24 @@ public readonly record struct BackupRunId(Guid Value) : IStronglyTypedId<BackupR
     public static BackupRunId From(Guid value) => new(value);
     public override string ToString() => Value.ToString();
 }
+
+public readonly record struct ImagePolicyId(Guid Value) : IStronglyTypedId<ImagePolicyId>
+{
+    public static ImagePolicyId New() => new(Guid.CreateVersion7());
+    public static ImagePolicyId From(Guid value) => new(value);
+    public override string ToString() => Value.ToString();
+}
+
+public readonly record struct ImageUpdateRecordId(Guid Value) : IStronglyTypedId<ImageUpdateRecordId>
+{
+    public static ImageUpdateRecordId New() => new(Guid.CreateVersion7());
+    public static ImageUpdateRecordId From(Guid value) => new(value);
+    public override string ToString() => Value.ToString();
+}
+
+public readonly record struct AggregatorSigningKeyId(Guid Value) : IStronglyTypedId<AggregatorSigningKeyId>
+{
+    public static AggregatorSigningKeyId New() => new(Guid.CreateVersion7());
+    public static AggregatorSigningKeyId From(Guid value) => new(value);
+    public override string ToString() => Value.ToString();
+}

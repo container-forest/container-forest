@@ -41,6 +41,8 @@ public enum NotificationKind
     BackupFailed,
     SettingsChanged,
     AccountSecurityChanged,
+    ImageUpdateFailed,
+    ImagePinned,
 }
 
 public enum NotificationSeverity

@@ -14,6 +14,9 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 //   POST   /api/git-connections/{id}/webhook       -> GitConnectionWebhookSecretResponse; administrators; for an
 //                                                     organization-wide webhook; a new secret, the old one stops working
 //   DELETE /api/git-connections/{id}/webhook       -> GitConnectionResponse; administrators
+//   PUT    /api/git-connections/{id}/push-credential -> GitConnectionResponse; administrators; the token the aggregator
+//                                                     pushes image update commits with (ADR-0015); audited
+//   DELETE /api/git-connections/{id}/push-credential -> GitConnectionResponse; administrators; image updates stop
 //
 // The token is write-only: responses only say whether one is set. The webhook secret is shown once. The git server
 // sends deliveries to POST /api/webhooks/connections/{connectionId} (WebhookContracts).
@@ -35,7 +38,9 @@ public sealed record GitConnectionResponse(
     IReadOnlyList<Guid> EnvironmentIds,
     bool HasWebhook,
     int RepositoryCount,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    bool HasPushCredential = false,
+    string? PushUserName = null);
 
 /// <param name="AccessToken">Null for anonymous access.</param>
 /// <param name="EnvironmentIds">Ignored when <paramref name="AllEnvironments"/>.</param>

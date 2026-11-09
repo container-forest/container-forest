@@ -5,6 +5,7 @@ using ContainerForest.Cli.Api.Generated.Api.Cli;
 using ContainerForest.Cli.Api.Generated.Api.Deployments;
 using ContainerForest.Cli.Api.Generated.Api.Environments;
 using ContainerForest.Cli.Api.Generated.Api.GitConnections;
+using ContainerForest.Cli.Api.Generated.Api.ImagePolicies;
 using ContainerForest.Cli.Api.Generated.Api.Me;
 using ContainerForest.Cli.Api.Generated.Api.NotificationChannels;
 using ContainerForest.Cli.Api.Generated.Api.NotificationRules;
@@ -12,6 +13,7 @@ using ContainerForest.Cli.Api.Generated.Api.Notifications;
 using ContainerForest.Cli.Api.Generated.Api.Repositories;
 using ContainerForest.Cli.Api.Generated.Api.Sops;
 using ContainerForest.Cli.Api.Generated.Api.Stacks;
+using ContainerForest.Cli.Api.Generated.Api.System;
 using ContainerForest.Cli.Api.Generated.Api.Users;
 using Microsoft.Kiota.Abstractions.Extensions;
 using Microsoft.Kiota.Abstractions;
@@ -52,6 +54,11 @@ namespace ContainerForest.Cli.Api.Generated.Api
         {
             get => new global::ContainerForest.Cli.Api.Generated.Api.GitConnections.GitConnectionsRequestBuilder(PathParameters, RequestAdapter);
         }
+        /// <summary>The imagePolicies property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.ImagePolicies.ImagePoliciesRequestBuilder ImagePolicies
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.ImagePolicies.ImagePoliciesRequestBuilder(PathParameters, RequestAdapter);
+        }
         /// <summary>The me property</summary>
         public global::ContainerForest.Cli.Api.Generated.Api.Me.MeRequestBuilder Me
         {
@@ -86,6 +93,11 @@ namespace ContainerForest.Cli.Api.Generated.Api
         public global::ContainerForest.Cli.Api.Generated.Api.Stacks.StacksRequestBuilder Stacks
         {
             get => new global::ContainerForest.Cli.Api.Generated.Api.Stacks.StacksRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The system property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.System.SystemRequestBuilder System
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.System.SystemRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>The users property</summary>
         public global::ContainerForest.Cli.Api.Generated.Api.Users.UsersRequestBuilder Users

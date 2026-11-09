@@ -109,6 +109,8 @@ public static class NotificationEmbed
         NotificationKind.BackupFailed => "🗄️ Backup failed",
         NotificationKind.SettingsChanged => "⚙️ Settings changed",
         NotificationKind.AccountSecurityChanged => "🔐 Account security changed",
+        NotificationKind.ImageUpdateFailed => "🧩 Image update failed",
+        NotificationKind.ImagePinned => "📌 Image pinned",
         _ => "Notification",
     };
 

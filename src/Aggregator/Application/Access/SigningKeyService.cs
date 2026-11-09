@@ -27,6 +27,7 @@ public sealed record SigningKeySummary(SigningKey Key, string? AddedByAdministra
 public sealed class SigningKeyService(
     CurrentActor currentActor,
     ISigningKeyRepository keys,
+    Images.IAggregatorSigningKeyRepository aggregatorKeys,
     IUserRepository users,
     ApiTokenService tokens,
     IUnitOfWork unitOfWork,
@@ -142,6 +143,14 @@ public sealed class SigningKeyService(
             {
                 // Said the same way whoever has it: whose key it is does not leak.
                 throw new DomainConflictException($"The key {key.Fingerprint} is already added.");
+            }
+
+            // The aggregator's own key signs update commits but never endorses them (ADR-0015): trusting it must not be
+            // possible even by accident.
+            if (await aggregatorKeys.ExistsAsync(key.Fingerprint, cancellationToken))
+            {
+                throw new DomainValidationException(
+                    $"The key {key.Fingerprint} is the aggregator's own signing key; it cannot endorse commits.");
             }
 
             keys.Add(key);

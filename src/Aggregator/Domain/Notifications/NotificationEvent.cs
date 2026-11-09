@@ -34,8 +34,17 @@ public enum NotificationEventKinds
     /// </summary>
     AccountSecurityChanged = 1 << 9,
 
+    /// <summary>
+    /// An image policy stopped working (ADR-0015): the push was refused, the compose file no longer has the image, the
+    /// tags cannot be ordered, the branch head is not endorsed, or the registry could not be read three times in a row.
+    /// </summary>
+    ImageUpdateFailed = 1 << 10,
+
+    /// <summary>A user or the image hook pinned an image, or unpinned it: automatic updates of it stop or resume.</summary>
+    ImagePinned = 1 << 11,
+
     All = DeploymentSucceeded | DeploymentFailed | ContainerDied | ContainerUnhealthy | AgentOffline | AgentOnline
-        | ContainerHealthy | BackupFailed | SettingsChanged | AccountSecurityChanged,
+        | ContainerHealthy | BackupFailed | SettingsChanged | AccountSecurityChanged | ImageUpdateFailed | ImagePinned,
 }
 
 public enum NotificationSeverity
@@ -64,7 +73,8 @@ public sealed record NotificationEvent(
         NotificationEventKinds.DeploymentFailed or NotificationEventKinds.ContainerDied or NotificationEventKinds.AgentOffline
             or NotificationEventKinds.BackupFailed => NotificationSeverity.Error,
         NotificationEventKinds.ContainerUnhealthy or NotificationEventKinds.SettingsChanged
-            or NotificationEventKinds.AccountSecurityChanged => NotificationSeverity.Warning,
+            or NotificationEventKinds.AccountSecurityChanged or NotificationEventKinds.ImageUpdateFailed
+            or NotificationEventKinds.ImagePinned => NotificationSeverity.Warning,
         _ => NotificationSeverity.Info,
     };
 

@@ -54,8 +54,12 @@ namespace ContainerForest.Cli.Api.Generated.Models
         public Guid? EnvironmentId { get; set; }
         /// <summary>The hasDeployHook property</summary>
         public bool? HasDeployHook { get; set; }
+        /// <summary>The hasImageHook property</summary>
+        public bool? HasImageHook { get; set; }
         /// <summary>The id property</summary>
         public Guid? Id { get; set; }
+        /// <summary>The imageHookAllowsDowngrade property</summary>
+        public bool? ImageHookAllowsDowngrade { get; set; }
         /// <summary>The isSystem property</summary>
         public bool? IsSystem { get; set; }
         /// <summary>The name property</summary>
@@ -98,6 +102,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
         public StackResponse()
         {
             AdditionalData = new Dictionary<string, object>();
+            HasImageHook = false;
+            ImageHookAllowsDowngrade = false;
         }
         /// <summary>
         /// Creates a new instance of the appropriate class based on discriminator value
@@ -128,7 +134,9 @@ namespace ContainerForest.Cli.Api.Generated.Models
                 { "deployedCommit", n => { DeployedCommit = n.GetStringValue(); } },
                 { "environmentId", n => { EnvironmentId = n.GetGuidValue(); } },
                 { "hasDeployHook", n => { HasDeployHook = n.GetBoolValue(); } },
+                { "hasImageHook", n => { HasImageHook = n.GetBoolValue(); } },
                 { "id", n => { Id = n.GetGuidValue(); } },
+                { "imageHookAllowsDowngrade", n => { ImageHookAllowsDowngrade = n.GetBoolValue(); } },
                 { "isSystem", n => { IsSystem = n.GetBoolValue(); } },
                 { "name", n => { Name = n.GetStringValue(); } },
                 { "policyAllowances", n => { PolicyAllowances = n.GetCollectionOfPrimitiveValues<string>()?.AsList(); } },
@@ -158,7 +166,9 @@ namespace ContainerForest.Cli.Api.Generated.Models
             writer.WriteBoolValue("deployOnPush", DeployOnPush);
             writer.WriteGuidValue("environmentId", EnvironmentId);
             writer.WriteBoolValue("hasDeployHook", HasDeployHook);
+            writer.WriteBoolValue("hasImageHook", HasImageHook);
             writer.WriteGuidValue("id", Id);
+            writer.WriteBoolValue("imageHookAllowsDowngrade", ImageHookAllowsDowngrade);
             writer.WriteBoolValue("isSystem", IsSystem);
             writer.WriteStringValue("name", Name);
             writer.WriteCollectionOfPrimitiveValues<string>("policyAllowances", PolicyAllowances);

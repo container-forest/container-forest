@@ -19,7 +19,7 @@ internal sealed class ProblemDetailsExceptionHandler(IProblemDetailsService prob
             DomainValidationException => (StatusCodes.Status400BadRequest, "Invalid request"),
             PasswordRejectedException => (StatusCodes.Status400BadRequest, "Password rejected"),
             DomainConflictException => (StatusCodes.Status409Conflict, "Conflict"),
-            NotFoundException => (StatusCodes.Status404NotFound, "Not found"),
+            NotFoundException or Application.Images.ImageHookNotFoundException => (StatusCodes.Status404NotFound, "Not found"),
             UnauthenticatedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
             AccessDeniedException => (StatusCodes.Status403Forbidden, "Forbidden"),
             IdentityConfirmationRequiredException => (StatusCodes.Status403Forbidden, "Confirmation required"),

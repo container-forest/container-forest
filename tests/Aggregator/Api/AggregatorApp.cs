@@ -250,6 +250,13 @@ internal sealed class StubCommits : ICommitInspector, ICommitSignatureVerifier
 
     public Task<bool> VerifyAsync(SshPublicKey key, SshSignature signature, byte[] signedData, CancellationToken cancellationToken) =>
         Task.FromResult(key.Fingerprint == signature.PublicKey.Fingerprint);
+
+    /// <summary>What update commits change, by commit; set by <see cref="StubGitWriter"/>.</summary>
+    public System.Collections.Concurrent.ConcurrentDictionary<string, CommitDiff> Diffs { get; } = new();
+
+    public Task<CommitDiff?> DiffAsync(
+        Domain.Repositories.GitRepository repository, Domain.Stacks.CommitSha commit, string path, CancellationToken cancellationToken) =>
+        Task.FromResult(Diffs.GetValueOrDefault(commit.Value));
 }
 
 /// <summary>

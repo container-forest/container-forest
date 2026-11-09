@@ -53,7 +53,7 @@ public class NotificationRuleTests
 
     [Theory]
     [InlineData(NotificationEventKinds.None)]
-    [InlineData((NotificationEventKinds)(1 << 10))]
+    [InlineData((NotificationEventKinds)(1 << 12))]
     public void Rule_needs_known_kinds(NotificationEventKinds events) =>
         Assert.Throws<DomainValidationException>(() => NotificationRule.ForEverything(channel, events, Now));
 

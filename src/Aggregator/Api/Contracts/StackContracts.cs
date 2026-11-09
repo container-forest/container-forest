@@ -26,6 +26,10 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 //   POST /api/stacks/{id}/deploy-hook            -> DeployHookTokenResponse; Editor on the stack; 409 for a system stack;
 //                                                  a new token, the old one stops working
 //   DELETE /api/stacks/{id}/deploy-hook          -> StackResponse; Editor on the stack; calls are no longer accepted
+//   POST /api/stacks/{id}/image-hook             -> ImageHookTokenResponse; Editor on the stack; 409 for a system stack;
+//                                                  a new token for the image hook (ADR-0015), the old one stops working
+//   PUT  /api/stacks/{id}/image-hook             -> StackResponse; Editor on the stack; whether the hook may roll back
+//   DELETE /api/stacks/{id}/image-hook           -> StackResponse; Editor on the stack; calls are no longer accepted
 //   POST /api/stacks/{id}/restart                -> StackCommandResponse; Operator; ?timeoutSeconds=0..300, default 10
 //   POST /api/stacks/{id}/down                   -> StackCommandResponse; Editor; ?timeoutSeconds=0..300, default 10
 //   GET  /api/stacks/{id}/deployments            -> DeploymentResponse[] (newest first, at most 50)
@@ -108,6 +112,8 @@ public sealed record ChangeStackSourceRequest(Guid RepositoryId, string Branch, 
 /// <param name="PolicyAllowances">The stack's own exceptions to the environment's compose policy, e.g. "docker-socket" (ADR-0012).</param>
 /// <param name="CanAdministerEnvironment">Whether the user may change the stack's allowances; for hiding buttons only.</param>
 /// <param name="PolicyUnrestricted">The compose policy does not limit the stack: its Editors are root on the host (ADR-0012).</param>
+/// <param name="HasImageHook">CI can ask for the stack's image policies to be checked now (ADR-0015).</param>
+/// <param name="ImageHookAllowsDowngrade">The image hook may ask for an older tag, which pins the image there.</param>
 public sealed record StackResponse(
     Guid Id,
     Guid EnvironmentId,
@@ -129,7 +135,18 @@ public sealed record StackResponse(
     bool CanRemove,
     IReadOnlyList<string> PolicyAllowances,
     bool CanAdministerEnvironment,
-    bool PolicyUnrestricted);
+    bool PolicyUnrestricted,
+    bool HasImageHook = false,
+    bool ImageHookAllowsDowngrade = false);
+
+/// <param name="AllowDowngrade">The hook may ask for a tag older than the deployed one; the image is then pinned there.</param>
+public sealed record ImageHookRequest(bool AllowDowngrade);
+
+/// <param name="Token">The image hook's token, shown only here: the aggregator keeps its hash.</param>
+public sealed record ImageHookTokenResponse(StackResponse Stack, string Token)
+{
+    public override string ToString() => $"{nameof(ImageHookTokenResponse)} {{ Stack = {Stack} }}";
+}
 
 public sealed record PolicyUnrestrictedRequest(bool Enabled);
 
@@ -153,12 +170,14 @@ public sealed record DeployRequest(bool Pull, string? ApproveCommit = null);
 /// <param name="SignedBy">The name of the user whose key signed the commit, as it was then.</param>
 /// <param name="KeyFingerprint">"SHA256:…" of that key.</param>
 /// <param name="ApprovedCommit">The unsigned commit the user who started the deployment approved.</param>
+/// <param name="ImageUpdateId">The aggregator's image update that endorsed the commit or queued the deployment (ADR-0015).</param>
 public sealed record EndorsementResponse(
     CommitEndorsement Status,
     EndorsementProblem? Problem,
     string? SignedBy,
     string? KeyFingerprint,
-    string? ApprovedCommit);
+    string? ApprovedCommit,
+    Guid? ImageUpdateId = null);
 
 public sealed record DeploymentResponse(
     Guid Id,

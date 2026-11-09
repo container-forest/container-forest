@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text;
 using ContainerForest.Aggregator.Application.Deployments;
+using ContainerForest.Aggregator.Application.Images;
 using ContainerForest.Aggregator.Application.Secrets;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Domain.Stacks;
@@ -40,9 +41,12 @@ public sealed class GitOptions
 /// the commit's tree directly: there is no working copy, so nothing from the repository is ever checked out on disk.
 /// </summary>
 internal sealed partial class LibGit2SharpGitSource(
-    IOptions<GitOptions> options, GitHostGuard hostGuard, ILogger<LibGit2SharpGitSource> logger) : IGitSource, ICommitInspector
+    IOptions<GitOptions> options, GitHostGuard hostGuard, ILogger<LibGit2SharpGitSource> logger) : IGitSource, ICommitInspector, IGitWriter
 {
     private const string RemoteName = "origin";
+
+    /// <summary>Where an update commit waits for its push: libgit2 pushes references, not bare commits.</summary>
+    private const string PushRef = "refs/forest/image-update";
 
     // LibGit2Sharp must not write to one repository from two threads.
     private readonly ConcurrentDictionary<string, SemaphoreSlim> locks = new();
@@ -70,6 +74,149 @@ internal sealed partial class LibGit2SharpGitSource(
     public Task<bool> DescendsFromAsync(
         GitRepository repository, CommitSha commit, CommitSha ancestor, CancellationToken cancellationToken) =>
         DescendsFromAsync(repository.Id.ToString(), commit, ancestor, cancellationToken);
+
+    public Task<CommitDiff?> DiffAsync(GitRepository repository, CommitSha commit, string path, CancellationToken cancellationToken) =>
+        DiffAsync(repository.Id.ToString(), commit, path, cancellationToken);
+
+    public Task<CommitSha> CreateCommitAsync(
+        GitRepository repository, GitFileCommit commit, Func<byte[], Task<string>> sign, CancellationToken cancellationToken) =>
+        CreateCommitAsync(repository.Id.ToString(), commit, sign, cancellationToken);
+
+    public Task PushAsync(GitRepository repository, GitAccess access, CommitSha commit, BranchName branch, CancellationToken cancellationToken) =>
+        PushAsync(repository.Id.ToString(), access.Credentials, commit, branch, cancellationToken);
+
+    /// <param name="cacheKey">Name of the bare clone's directory, as for <see cref="FetchAsync(string, string, GitCredentials?, BranchName, CancellationToken, bool)"/>.</param>
+    internal Task<CommitDiff?> DiffAsync(string cacheKey, CommitSha sha, string path, CancellationToken cancellationToken) =>
+        WithLockAsync(cacheKey, () =>
+        {
+            if (!Repository.IsValid(CachePath(cacheKey)))
+            {
+                return null;
+            }
+
+            using var repository = new Repository(CachePath(cacheKey));
+            if (repository.Lookup<Commit>(sha.Value) is not { } commit || commit.Parents.Count() != 1)
+            {
+                return (CommitDiff?)null;
+            }
+
+            var parent = commit.Parents.Single();
+            var changes = repository.Diff.Compare<TreeChanges>(parent.Tree, commit.Tree);
+            var paths = changes.SelectMany(c => new[] { c.Path, c.OldPath })
+                .Select(p => p.Replace('\\', '/'))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            var before = parent.Tree[path];
+            var after = commit.Tree[path];
+            return new CommitDiff(
+                CommitSha.Parse(parent.Sha),
+                paths,
+                Content(before),
+                Content(after),
+                ModeChanged: before is not null && after is not null && before.Mode != after.Mode);
+        }, cancellationToken);
+
+    private static byte[]? Content(TreeEntry? entry)
+    {
+        if (entry?.Target is not Blob blob || entry.Mode == Mode.SymbolicLink)
+        {
+            return null;
+        }
+
+        using var stream = blob.GetContentStream();
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        return buffer.ToArray();
+    }
+
+    /// <summary>
+    /// Creates a commit that replaces one file of its parent, signed: the commit object is built first, signed outside
+    /// the lock (ssh-keygen may take a moment), and written with its signature. Nothing is pushed or checked out.
+    /// </summary>
+    internal async Task<CommitSha> CreateCommitAsync(
+        string cacheKey, GitFileCommit file, Func<byte[], Task<string>> sign, CancellationToken cancellationToken)
+    {
+        var buffer = await WithLockAsync(cacheKey, () =>
+        {
+            using var repository = OpenFetched(cacheKey, file.Parent, out var parent);
+            if (parent.Tree[file.Path] is not { TargetType: TreeEntryTargetType.Blob } existing || existing.Mode == Mode.SymbolicLink)
+            {
+                throw new DeploymentFailedException($"'{file.Path}' is not a file at commit {file.Parent.Short}.");
+            }
+
+            var blob = repository.ObjectDatabase.CreateBlob(new MemoryStream(file.Content));
+            var definition = TreeDefinition.From(parent.Tree);
+            definition.Add(file.Path, blob, existing.Mode);
+            var tree = repository.ObjectDatabase.CreateTree(definition);
+            var who = new Signature(file.AuthorName, file.AuthorEmail, file.When);
+            return Commit.CreateBuffer(who, who, file.Message, tree, [parent], prettifyMessage: false, commentChar: null);
+        }, cancellationToken);
+
+        var signature = await sign(Encoding.UTF8.GetBytes(buffer));
+        return await WithLockAsync(cacheKey, () =>
+        {
+            using var repository = new Repository(CachePath(cacheKey));
+            var id = repository.ObjectDatabase.CreateCommitWithSignature(buffer, signature);
+            return CommitSha.Parse(id.Sha);
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Pushes the commit to the branch without force, so a branch that moved on refuses it, and moves the clone's
+    /// tracking branch to it: the deployment then finds it as fetched.
+    /// </summary>
+    internal Task PushAsync(string cacheKey, GitCredentials? credentials, CommitSha sha, BranchName branch, CancellationToken cancellationToken) =>
+        WithLockAsync(cacheKey, () =>
+        {
+            using var repository = OpenFetched(cacheKey, sha, out var commit);
+            var remote = repository.Network.Remotes[RemoteName]
+                ?? throw new DeploymentFailedException("The repository has not been fetched yet.");
+            string? refused = null;
+            repository.Refs.Add(PushRef, commit.Id, allowOverwrite: true);
+            try
+            {
+                repository.Network.Push(
+                    remote,
+                    $"{PushRef}:refs/heads/{branch}",
+                    new PushOptions
+                    {
+                        CredentialsProvider = credentials is null ? null : (requestUrl, _, _) => CredentialsFor(requestUrl, credentials),
+                        OnPushStatusError = error => refused = error.Message,
+                    });
+            }
+            catch (NonFastForwardException ex)
+            {
+                throw new GitPushRejectedException(ex.Message);
+            }
+            catch (LibGit2SharpException ex)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                LogPushFailed(remote.Url, ex.Message);
+                throw IsMoved(ex.Message)
+                    ? new GitPushRejectedException(ex.Message)
+                    : new DeploymentFailedException($"Pushing to {remote.Url} failed: {ex.Message}");
+            }
+            finally
+            {
+                repository.Refs.Remove(PushRef);
+            }
+
+            if (refused is not null)
+            {
+                LogPushFailed(remote.Url, refused);
+                throw IsMoved(refused)
+                    ? new GitPushRejectedException(refused)
+                    : new DeploymentFailedException($"The git server refused the push to {branch}: {refused}. Check that the push token may write to the branch.");
+            }
+
+            repository.Refs.Add($"refs/remotes/{RemoteName}/{branch}", commit.Id, allowOverwrite: true);
+            return true;
+        }, cancellationToken);
+
+    private static bool IsMoved(string message) =>
+        message.Contains("fast-forward", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("fetch first", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("stale", StringComparison.OrdinalIgnoreCase);
 
     /// <param name="cacheKey">Name of the bare clone's directory, as for <see cref="FetchAsync(string, string, GitCredentials?, BranchName, CancellationToken, bool)"/>.</param>
     internal Task<CommitSignatureData?> ReadSignatureAsync(string cacheKey, CommitSha sha, CancellationToken cancellationToken) =>
@@ -296,6 +443,9 @@ internal sealed partial class LibGit2SharpGitSource(
 
         Directory.Delete(path, recursive: true);
     }
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "Pushing to {Url} failed: {Reason}")]
+    private partial void LogPushFailed(string url, string reason);
 
     [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "Fetching {Url} failed: {Reason}")]
     private partial void LogFetchFailed(string url, string reason);

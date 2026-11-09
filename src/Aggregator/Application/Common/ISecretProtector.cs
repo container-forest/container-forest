@@ -9,6 +9,8 @@ public enum SecretPurpose
     WebhookSecret,
     StoredSetting,
     IdentityConfirmation,
+    GitPushToken,
+    AggregatorSigningKey,
 }
 
 /// <summary>Encrypts secrets the aggregator keeps in its database, such as registry passwords.</summary>

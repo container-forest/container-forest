@@ -13,7 +13,13 @@ on:
       - Directory.Packages.props
       - global.json
       - .github/workflows/cli.yml
+  # By hand: every platform; with a tag, the binaries are attached to that existing release (e.g. to redo a failed one).
   workflow_dispatch:
+    inputs:
+      tag:
+        description: An existing release tag to attach the binaries to, e.g. v0.8.0; empty to only build.
+        type: string
+        required: false
   workflow_call:
     inputs:
       tag:
@@ -89,8 +95,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Only the CLI's: called from workflow Release, the run also holds the images' build records (*.dockerbuild).
       - uses: actions/download-artifact@v4
         with:
+          pattern: forest-*
           path: dist
           merge-multiple: true
 

@@ -61,6 +61,60 @@ internal sealed class GrpcAgentChannel(AgentRegistry registry, IOptions<AgentGat
             WaitFor(stopTimeout),
             cancellationToken));
 
+    public Task RemoveContainerAsync(EnvironmentId environmentId, string containerId, CancellationToken cancellationToken) =>
+        ChangeContainersAsync(environmentId, () => SendAsync(
+            environmentId,
+            new ControllerMessage { RemoveContainer = new RemoveContainer { ContainerId = containerId } },
+            options.Value.CommandTimeout,
+            cancellationToken));
+
+    public async Task<IReadOnlyList<UnmanagedStackSnapshot>> ListUnmanagedStacksAsync(
+        EnvironmentId environmentId, CancellationToken cancellationToken)
+    {
+        var result = await SendAsync(
+            environmentId, new ControllerMessage { ListUnmanagedStacks = new ListUnmanagedStacks() }, options.Value.CommandTimeout, cancellationToken);
+        if (result.PayloadCase != CommandResult.PayloadOneofCase.UnmanagedStacks)
+        {
+            throw new AgentCommandFailedException(environmentId, AgentErrorKind.Unsupported, "This agent version has no unmanaged stacks.");
+        }
+
+        return result.UnmanagedStacks.Items
+            .Select(s => new UnmanagedStackSnapshot(s.Name, s.Directory, [.. s.ConfigFiles], s.System, s.HasContainers))
+            .ToList();
+    }
+
+    public Task ControlUnmanagedStackAsync(
+        EnvironmentId environmentId,
+        StackName stackName,
+        UnmanagedStackAction action,
+        TimeSpan stopTimeout,
+        IReadOnlyList<RegistryLogin> registryLogins,
+        Action<string> onProgress,
+        CancellationToken cancellationToken)
+    {
+        var command = new ControlUnmanagedStack
+        {
+            StackName = stackName.Value,
+            Operation = action switch
+            {
+                UnmanagedStackAction.Up => UnmanagedStackOperation.Up,
+                UnmanagedStackAction.Pull => UnmanagedStackOperation.Pull,
+                UnmanagedStackAction.Restart => UnmanagedStackOperation.Restart,
+                UnmanagedStackAction.Down => UnmanagedStackOperation.Down,
+                _ => throw new ArgumentOutOfRangeException(nameof(action), action, null),
+            },
+            TimeoutSeconds = Seconds(stopTimeout),
+        };
+        command.RegistryAuths.AddRange(registryLogins.Select(l => new RegistryAuth { Server = l.Server, Username = l.Username, Password = l.Password }));
+
+        return ChangeContainersAsync(environmentId, () => SendAsync(
+            environmentId,
+            new ControllerMessage { ControlUnmanagedStack = command },
+            options.Value.StackCommandTimeout,
+            cancellationToken,
+            onProgress));
+    }
+
     public Task DeployStackAsync(
         EnvironmentId environmentId,
         StackBundle bundle,

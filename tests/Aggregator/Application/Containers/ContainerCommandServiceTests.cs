@@ -228,6 +228,50 @@ public class ContainerCommandServiceTests
             service.ExecuteAsync(environment.Id, "c1", ContainerAction.Stop, TimeSpan.FromHours(1), Ct));
     }
 
+    [Fact]
+    public async Task Editor_removes_a_stopped_container()
+    {
+        Grant(Role.Editor);
+        AddContainer("c1", "old-1", ContainerState.Exited);
+
+        await Run(ContainerAction.Remove, "c1");
+
+        Assert.Equal(["list", "remove c1"], agent.Calls);
+        Assert.Equal(AuditAction.ContainerRemoved, Assert.Single(audit.Entries).Action);
+    }
+
+    [Fact]
+    public async Task Operator_may_not_remove_a_container()
+    {
+        Grant(Role.Operator);
+        AddContainer("c1", "old-1", ContainerState.Exited);
+
+        await Assert.ThrowsAsync<AccessDeniedException>(() => Run(ContainerAction.Remove, "c1"));
+        Assert.DoesNotContain("remove c1", agent.Calls);
+    }
+
+    [Theory]
+    [InlineData(ContainerState.Running)]
+    [InlineData(ContainerState.Restarting)]
+    [InlineData(ContainerState.Paused)]
+    public async Task A_running_container_is_not_removed(ContainerState state)
+    {
+        Grant(Role.Editor);
+        AddContainer("c1", "web-1", state);
+
+        await Assert.ThrowsAsync<DomainConflictException>(() => Run(ContainerAction.Remove, "c1"));
+        Assert.DoesNotContain("remove c1", agent.Calls);
+    }
+
+    [Fact]
+    public async Task A_system_container_is_not_removed()
+    {
+        Grant(Role.Editor);
+        AddContainer("c1", "agent", ContainerState.Exited, isSystem: true);
+
+        await Assert.ThrowsAsync<DomainConflictException>(() => Run(ContainerAction.Remove, "c1"));
+    }
+
     private Task Run(ContainerAction action, string containerId) =>
         service.ExecuteAsync(environment.Id, containerId, action, stopTimeout: null, Ct);
 

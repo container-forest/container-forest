@@ -1,5 +1,7 @@
 using ContainerForest.Aggregator.Api.Contracts;
 using ContainerForest.Aggregator.Application.Access;
+using ContainerForest.Aggregator.Application.Agents;
+using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Registries;
@@ -41,7 +43,8 @@ internal static class EnvironmentEndpoints
                         v.Container.StatusText,
                         v.Container.CreatedAt,
                         v.CanControl,
-                        v.IsSystem))
+                        v.IsSystem,
+                        v.CanRemove && !v.IsSystem))
                     .ToList())
             .WithName("ListContainers")
             .ProducesProblem(StatusCodes.Status404NotFound)
@@ -63,6 +66,22 @@ internal static class EnvironmentEndpoints
         group.MapContainerAction("start", "StartContainer", ContainerAction.Start, hasStopTimeout: false);
         group.MapContainerAction("stop", "StopContainer", ContainerAction.Stop, hasStopTimeout: true);
         group.MapContainerAction("restart", "RestartContainer", ContainerAction.Restart, hasStopTimeout: true);
+        group.MapContainerAction("remove", "RemoveContainer", ContainerAction.Remove, hasStopTimeout: false);
+
+        group.MapGet("/{id:guid}/unmanaged-stacks", async (Guid id, UnmanagedStackService service, CancellationToken ct) =>
+                (await service.ListAsync(EnvironmentId.From(id), ct))
+                    .OrderBy(v => v.Stack.Name, StringComparer.Ordinal)
+                    .Select(v => new UnmanagedStackResponse(
+                        v.Stack.Name, v.Stack.Directory, v.Stack.ConfigFiles, v.Stack.IsSystem, v.Stack.HasContainers, v.CanRestart, v.CanDeploy))
+                    .ToList())
+            .WithName("ListUnmanagedStacks")
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .WithAgentProblems();
+
+        group.MapUnmanagedStackAction("up", "UpUnmanagedStack", UnmanagedStackAction.Up, hasStopTimeout: false);
+        group.MapUnmanagedStackAction("pull", "PullUnmanagedStack", UnmanagedStackAction.Pull, hasStopTimeout: false);
+        group.MapUnmanagedStackAction("restart", "RestartUnmanagedStack", UnmanagedStackAction.Restart, hasStopTimeout: true);
+        group.MapUnmanagedStackAction("down", "DownUnmanagedStack", UnmanagedStackAction.Down, hasStopTimeout: true);
 
         return app;
     }
@@ -88,6 +107,32 @@ internal static class EnvironmentEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithAgentProblems();
+    }
+
+    private static void MapUnmanagedStackAction(
+        this RouteGroupBuilder group, string verb, string name, UnmanagedStackAction action, bool hasStopTimeout)
+    {
+        var route = $"/{{id:guid}}/unmanaged-stacks/{{stackName}}/{verb}";
+        var endpoint = hasStopTimeout
+            ? group.MapPost(route, (Guid id, string stackName, int? timeoutSeconds, UnmanagedStackService service, CancellationToken ct) =>
+                RunUnmanagedAsync(service, id, stackName, action, timeoutSeconds, ct))
+            : group.MapPost(route, (Guid id, string stackName, UnmanagedStackService service, CancellationToken ct) =>
+                RunUnmanagedAsync(service, id, stackName, action, timeoutSeconds: null, ct));
+
+        endpoint
+            .WithName(name)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithAgentProblems();
+    }
+
+    private static async Task<StackCommandResponse> RunUnmanagedAsync(
+        UnmanagedStackService service, Guid id, string stackName, UnmanagedStackAction action, int? timeoutSeconds, CancellationToken ct)
+    {
+        var stopTimeout = timeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null;
+        var result = await service.ExecuteAsync(EnvironmentId.From(id), stackName, action, stopTimeout, ct);
+        return new StackCommandResponse(result.Succeeded, result.Error, result.Output);
     }
 
     private static async Task<IResult> RunAsync(

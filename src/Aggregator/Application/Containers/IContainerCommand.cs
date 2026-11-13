@@ -29,4 +29,5 @@ public enum ContainerAction
     Start,
     Stop,
     Restart,
+    Remove,
 }

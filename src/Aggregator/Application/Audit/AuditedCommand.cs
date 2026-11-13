@@ -26,6 +26,7 @@ public sealed class AuditedCommand(IContainerCommand inner, AuditAction action, 
         ContainerAction.Start => AuditAction.ContainerStarted,
         ContainerAction.Stop => AuditAction.ContainerStopped,
         ContainerAction.Restart => AuditAction.ContainerRestarted,
+        ContainerAction.Remove => AuditAction.ContainerRemoved,
         _ => throw new ArgumentOutOfRangeException(nameof(action), action, "Unknown container action."),
     };
 }

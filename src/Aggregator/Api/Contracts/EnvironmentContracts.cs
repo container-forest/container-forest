@@ -10,7 +10,18 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 //   POST /api/environments/{id}/containers/{container}/start     -> 204
 //   POST /api/environments/{id}/containers/{container}/stop      -> 204; ?timeoutSeconds=0..300, default 10
 //   POST /api/environments/{id}/containers/{container}/restart   -> 204; ?timeoutSeconds=0..300, default 10
+//   POST /api/environments/{id}/containers/{container}/remove    -> 204; Editor; stopped containers only, volumes stay
 //   GET  /api/environments/{id}/containers/{container}/logs      -> ContainerLogsResponse; ?tail=1..5000 (default 200), ?since=<ISO 8601>
+//
+// Unmanaged stacks (ADR-0016): compose projects the host's administrator runs by hand in the agent's
+// unmanaged stack roots. They have no stack record: every permission is the role on the whole environment.
+//   GET  /api/environments/{id}/unmanaged-stacks                 -> UnmanagedStackResponse[] (name order); asks the agent;
+//                                                                 empty without a role on the whole environment
+//   POST /api/environments/{id}/unmanaged-stacks/{name}/up       -> StackCommandResponse; Editor; docker compose up -d
+//   POST /api/environments/{id}/unmanaged-stacks/{name}/pull     -> StackCommandResponse; Editor; docker compose pull
+//   POST /api/environments/{id}/unmanaged-stacks/{name}/restart  -> StackCommandResponse; Operator; ?timeoutSeconds=0..300, default 10
+//   POST /api/environments/{id}/unmanaged-stacks/{name}/down     -> StackCommandResponse; Editor; ?timeoutSeconds=0..300, default 10
+// A stack that runs a part of container-forest itself (isSystem) refuses every operation (409).
 //
 // {container} is a full id, an exact name or a unique id prefix, as in the docker CLI.
 // An environment the user may not see is 404, the same as a missing one. Actions return once the agent has
@@ -58,6 +69,7 @@ public sealed record EnvironmentResponse(
 /// <param name="StatusText">Docker's human-readable status, e.g. "Up 3 minutes (healthy)".</param>
 /// <param name="CanControl">Whether the user may start, stop and restart it; for hiding buttons only, every action is checked again.</param>
 /// <param name="IsSystem">A part of container-forest itself (the aggregator, the panel, an agent): it can only be started.</param>
+/// <param name="CanRemove">Whether the user may remove it once it is stopped; for hiding buttons only.</param>
 public sealed record ContainerResponse(
     string Id,
     string Name,
@@ -68,7 +80,24 @@ public sealed record ContainerResponse(
     string StatusText,
     DateTimeOffset? CreatedAt,
     bool CanControl,
-    bool IsSystem);
+    bool IsSystem,
+    bool CanRemove);
+
+/// <param name="Name">The compose project name; its containers carry it as their stackName.</param>
+/// <param name="Directory">The project directory on the host.</param>
+/// <param name="ConfigFiles">The compose files on the host.</param>
+/// <param name="IsSystem">Runs a part of container-forest itself: no operation is allowed.</param>
+/// <param name="HasContainers">False for a directory with a compose file and no containers, e.g. after down.</param>
+/// <param name="CanRestart">The user may restart it; for hiding buttons only.</param>
+/// <param name="CanDeploy">The user may bring it up, pull and take it down; for hiding buttons only.</param>
+public sealed record UnmanagedStackResponse(
+    string Name,
+    string Directory,
+    IReadOnlyList<string> ConfigFiles,
+    bool IsSystem,
+    bool HasContainers,
+    bool CanRestart,
+    bool CanDeploy);
 
 /// <param name="Lines">Oldest first.</param>
 public sealed record ContainerLogsResponse(IReadOnlyList<ContainerLogLineResponse> Lines);

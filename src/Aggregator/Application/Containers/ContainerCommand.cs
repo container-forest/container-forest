@@ -12,7 +12,7 @@ public abstract class ContainerCommand(IAgentChannel agents) : IContainerCommand
 {
     public abstract string Name { get; }
 
-    public Permission RequiredPermission => Permission.ControlContainers;
+    public virtual Permission RequiredPermission => Permission.ControlContainers;
 
     /// <summary>
     /// Whether the action may run on a container of a system stack. Stopping or restarting the aggregator
@@ -116,4 +116,24 @@ public sealed class RestartContainerCommand(IAgentChannel agents, TimeSpan stopT
     protected override Task SendAsync(
         IAgentChannel agents, EnvironmentId environmentId, string containerId, CancellationToken cancellationToken) =>
         agents.RestartContainerAsync(environmentId, containerId, StopTimeout, cancellationToken);
+}
+
+/// <summary>
+/// docker rm of a stopped container, without force and keeping volumes. Needs the Deploy permission, like down:
+/// a removed container's configuration is gone, and only compose up or a deployment brings it back.
+/// </summary>
+public sealed class RemoveContainerCommand(IAgentChannel agents) : ContainerCommand(agents)
+{
+    public override string Name => "remove";
+
+    public override Permission RequiredPermission => Permission.Deploy;
+
+    public static bool IsRemovableIn(ContainerState state) =>
+        state is ContainerState.Created or ContainerState.Exited or ContainerState.Dead;
+
+    protected override bool IsAllowedIn(ContainerState state) => IsRemovableIn(state);
+
+    protected override Task SendAsync(
+        IAgentChannel agents, EnvironmentId environmentId, string containerId, CancellationToken cancellationToken) =>
+        agents.RemoveContainerAsync(environmentId, containerId, cancellationToken);
 }

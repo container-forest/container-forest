@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using ContainerForest.Aggregator.Api.Access;
 using ContainerForest.Aggregator.Application.Access;
+using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Application.Deployments;
@@ -39,6 +40,7 @@ public sealed class BotGatewayService(
     ContainerLogService containerLogs,
     StackService stacks,
     StackCommandService stackCommands,
+    UnmanagedStackService unmanagedStacks,
     DeploymentService deployments,
     NotificationDeliveryService notificationDelivery,
     NotificationFeed notificationFeed,
@@ -94,6 +96,7 @@ public sealed class BotGatewayService(
             ServiceName = v.Container.ServiceName ?? "",
             StatusText = v.Container.StatusText,
             CanControl = v.CanControl,
+            CanRemove = v.CanRemove && !v.IsSystem,
         }));
         return response;
     }
@@ -106,7 +109,8 @@ public sealed class BotGatewayService(
             BotContainerAction.Start => ContainerAction.Start,
             BotContainerAction.Stop => ContainerAction.Stop,
             BotContainerAction.Restart => ContainerAction.Restart,
-            _ => throw new DomainValidationException("Action must be start, stop or restart."),
+            BotContainerAction.Remove => ContainerAction.Remove,
+            _ => throw new DomainValidationException("Action must be start, stop, restart or remove."),
         };
         var stopTimeout = request.HasTimeoutSeconds ? TimeSpan.FromSeconds(request.TimeoutSeconds) : (TimeSpan?)null;
 
@@ -138,7 +142,8 @@ public sealed class BotGatewayService(
     public override async Task<ListStacksResponse> ListStacks(ListStacksRequest request, ServerCallContext context)
     {
         await ActAsAsync(request.DiscordUserId, context);
-        var visible = await stacks.ListVisibleAsync(ParseEnvironmentId(request.EnvironmentId), context.CancellationToken);
+        var environmentId = ParseEnvironmentId(request.EnvironmentId);
+        var visible = await stacks.ListVisibleAsync(environmentId, context.CancellationToken);
 
         var response = new ListStacksResponse();
         response.Stacks.AddRange(visible.Select(s => new BotStack
@@ -153,22 +158,65 @@ public sealed class BotGatewayService(
             CanTakeDown = s.CanDeploy && !s.IsSystem,
             CanDeploy = s.CanDeploy && !s.IsSystem,
         }));
+
+        // Best effort: managed stacks are listed from the database even while the agent is offline.
+        try
+        {
+            var unmanaged = await unmanagedStacks.ListAsync(environmentId, context.CancellationToken);
+            response.Stacks.AddRange(unmanaged.Select(u => new BotStack
+            {
+                Name = u.Stack.Name,
+                IsSystem = u.Stack.IsSystem,
+                Unmanaged = true,
+                CanRestart = u.CanRestart,
+                CanTakeDown = u.CanDeploy,
+                CanUp = u.CanDeploy,
+                CanPull = u.CanDeploy,
+            }));
+        }
+        catch (AgentException)
+        {
+        }
+
         return response;
     }
 
     public override async Task<ControlStackResponse> ControlStack(ControlStackRequest request, ServerCallContext context)
     {
         await ActAsAsync(request.DiscordUserId, context);
-        var action = request.Action switch
-        {
-            BotStackAction.Restart => StackAction.Restart,
-            BotStackAction.Down => StackAction.Down,
-            _ => throw new DomainValidationException("Action must be restart or down."),
-        };
+        var environmentId = ParseEnvironmentId(request.EnvironmentId);
         var stopTimeout = request.HasTimeoutSeconds ? TimeSpan.FromSeconds(request.TimeoutSeconds) : (TimeSpan?)null;
+        var name = request.Stack.Trim();
 
-        var result = await stackCommands.ExecuteAsync(
-            ParseEnvironmentId(request.EnvironmentId), request.Stack, action, stopTimeout, context.CancellationToken);
+        // A managed stack the user sees goes through its own service; any other name is looked up among the
+        // unmanaged stacks, which never include a managed stack's name, so an invisible managed stack stays NOT_FOUND.
+        var managed = (await stacks.ListVisibleAsync(environmentId, context.CancellationToken)).Any(s => s.Name.Value == name);
+        StackCommandResult result;
+        if (managed)
+        {
+            var action = request.Action switch
+            {
+                BotStackAction.Restart => StackAction.Restart,
+                BotStackAction.Down => StackAction.Down,
+                BotStackAction.Up or BotStackAction.Pull => throw new DomainConflictException(
+                    $"Stack '{name}' is managed: deploy it instead of bringing it up or pulling."),
+                _ => throw new DomainValidationException("Action must be restart, down, up or pull."),
+            };
+            result = await stackCommands.ExecuteAsync(environmentId, name, action, stopTimeout, context.CancellationToken);
+        }
+        else
+        {
+            var action = request.Action switch
+            {
+                BotStackAction.Restart => UnmanagedStackAction.Restart,
+                BotStackAction.Down => UnmanagedStackAction.Down,
+                BotStackAction.Up => UnmanagedStackAction.Up,
+                BotStackAction.Pull => UnmanagedStackAction.Pull,
+                _ => throw new DomainValidationException("Action must be restart, down, up or pull."),
+            };
+            result = await unmanagedStacks.ExecuteAsync(environmentId, name, action, stopTimeout, context.CancellationToken);
+        }
+
         return new ControlStackResponse { Error = result.Error ?? "", Output = { result.Output } };
     }
 

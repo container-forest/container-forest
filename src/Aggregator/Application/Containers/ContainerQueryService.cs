@@ -13,10 +13,11 @@ namespace ContainerForest.Aggregator.Application.Containers;
 /// <param name="CanControl">
 /// Whether the user may start, stop and restart it. Only for hiding buttons: every action is checked again.
 /// </param>
+/// <param name="CanRemove">Whether the user may remove it once it is stopped (Deploy); for hiding buttons only.</param>
 /// <param name="IsSystem">
 /// A part of container-forest itself: labelled so, or in a system stack. Only starting it is allowed.
 /// </param>
-public sealed record VisibleContainer(ContainerSnapshot Container, bool CanControl, bool IsSystem);
+public sealed record VisibleContainer(ContainerSnapshot Container, bool CanControl, bool IsSystem, bool CanRemove = false);
 
 /// <summary>Containers of an environment, limited to what the current user may see.</summary>
 public sealed class ContainerQueryService(
@@ -55,7 +56,8 @@ public sealed class ContainerQueryService(
                 visible.Add(new VisibleContainer(
                     container,
                     Can(user, environment, stack, assignments, Permission.ControlContainers),
-                    container.IsSystem || stack is { IsSystem: true }));
+                    container.IsSystem || stack is { IsSystem: true },
+                    Can(user, environment, stack, assignments, Permission.Deploy)));
             }
         }
 

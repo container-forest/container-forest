@@ -6,6 +6,7 @@ import { ApiError } from "./api/client";
 import { setUpApp } from "./features/pwa/model";
 import { setUpTheme } from "./features/theme/model";
 import "./i18n";
+import { createRobustBrowserHistory } from "./lib/browser-history";
 import { routeTree } from "./routeTree.gen";
 import "./styles.css";
 
@@ -22,6 +23,8 @@ const queryClient = new QueryClient({
 
 const router = createRouter({
   routeTree,
+  // Survives extensions that patch the History API; see createRobustBrowserHistory.
+  history: createRobustBrowserHistory(),
   context: { queryClient },
   defaultPreload: "intent",
   // Query decides what is fresh; the router always asks it.

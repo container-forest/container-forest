@@ -975,10 +975,10 @@ const uk = {
       actions: "Дії",
     },
     actions: {
-      up: "Підняти (compose up)",
-      pull: "Підтягнути образи (compose pull)",
+      up: "Підняти",
+      pull: "Підтягнути образи",
       restart: "Перезапустити",
-      down: "Зупинити (compose down)",
+      down: "Зупинити",
     },
     confirm: {
       restartTitle: "Перезапустити стек {{name}}?",

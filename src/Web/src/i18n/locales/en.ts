@@ -973,10 +973,10 @@ const en: Translation = {
       actions: "Actions",
     },
     actions: {
-      up: "Bring up (compose up)",
-      pull: "Pull images (compose pull)",
+      up: "Bring up",
+      pull: "Pull images",
       restart: "Restart",
-      down: "Take down (compose down)",
+      down: "Take down",
     },
     confirm: {
       restartTitle: "Restart stack {{name}}?",

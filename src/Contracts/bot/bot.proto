@@ -134,6 +134,7 @@ message Container {
   string service_name = 6;
   string status_text = 7;  // Docker's human-readable status, e.g. "Up 3 minutes (healthy)"
   bool can_control = 8;    // the user may start, stop and restart it; use it to hide buttons, nothing more
+  bool can_remove = 9;     // the user may remove it once it is stopped (Editor); for hiding buttons only
 }
 
 // Same values as agent.ContainerState; kept separate so the bot does not depend on the agent protocol.
@@ -167,6 +168,8 @@ enum ContainerAction {
   CONTAINER_ACTION_START = 1;
   CONTAINER_ACTION_STOP = 2;
   CONTAINER_ACTION_RESTART = 3;
+  // docker rm of a stopped container, volumes stay: Editor. A running one is FAILED_PRECONDITION.
+  CONTAINER_ACTION_REMOVE = 4;
 }
 
 message GetContainerLogsRequest {
@@ -210,11 +213,18 @@ message Stack {
   bool can_restart = 6;
   bool can_take_down = 7;
   bool can_deploy = 8;  // redeploy, with or without pull: Editor
+  // A compose project the host's administrator runs by hand (ADR-0016): id is empty, can_deploy is false, and
+  // ControlStack takes STACK_ACTION_UP and STACK_ACTION_PULL for it. Roles are those on the whole environment.
+  // Listed only while the agent is online.
+  bool unmanaged = 9;
+  bool can_up = 10;    // unmanaged only: docker compose up -d, Editor
+  bool can_pull = 11;  // unmanaged only: docker compose pull, Editor
 }
 
 // stack is the stack's name in the environment.
 // Unknown or invisible stack: NOT_FOUND; a system stack or one with a deployment in progress: FAILED_PRECONDITION;
-// a stack the agent has never deployed: NOT_FOUND.
+// a stack the agent has never deployed: NOT_FOUND. A name that is not a managed stack is looked up among the
+// environment's unmanaged stacks.
 message ControlStackRequest {
   uint64 discord_user_id = 1;
   string environment_id = 2;
@@ -236,6 +246,8 @@ enum StackAction {
   STACK_ACTION_UNSPECIFIED = 0;
   STACK_ACTION_RESTART = 1;  // docker compose restart: Operator
   STACK_ACTION_DOWN = 2;     // docker compose down, volumes stay: Editor
+  STACK_ACTION_UP = 3;       // unmanaged stacks only (FAILED_PRECONDITION for a managed one): docker compose up -d, Editor
+  STACK_ACTION_PULL = 4;     // unmanaged stacks only: docker compose pull, Editor
 }
 
 // stack is the stack's name in the environment, as for ControlStack.

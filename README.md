@@ -113,3 +113,7 @@ flowchart TB
 ## Команда
 
 [Петренко Богдан](https://github.com/lepterion), [Бояр Володимир](https://github.com/volodaboyar1-star), [Синенко Дмитро](https://github.com/Dmyt-S), [Денисенко Любов](https://github.com/denysenkoliubov) (ІПС-22). Ролі й розподіл відповідальності — у [docs/project-overview.md](docs/project-overview.md#команда).
+
+## Ліцензія
+
+[Apache License 2.0](LICENSE). Сторонні компоненти в образах і бінарниках CLI перелічено в [NOTICE](NOTICE).

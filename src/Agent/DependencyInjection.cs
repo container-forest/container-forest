@@ -18,7 +18,7 @@ public static class DependencyInjection
             .Validate(
                 o => o.IsValid(),
                 "CF_AGENT__CONTROLLERURL must be an absolute http(s) URL, the data, stacks and secrets directories absolute paths, " +
-                "the docker executable set and the compose timeout and heartbeat interval positive.")
+                "unmanaged stack roots absolute and outside the agent's own directories, the docker executable set and the compose timeout and heartbeat interval positive.")
             .ValidateOnStart();
 
         services.AddSingleton(TimeProvider.System);
@@ -32,6 +32,7 @@ public static class DependencyInjection
         services.AddSingleton<IAgentCommandHandler, StopContainerHandler>();
         services.AddSingleton<IAgentCommandHandler, RestartContainerHandler>();
         services.AddSingleton<IAgentCommandHandler, StreamContainerLogsHandler>();
+        services.AddSingleton<IAgentCommandHandler, RemoveContainerHandler>();
 
         services.AddSingleton<StackLocks>();
         services.AddSingleton<IStackFileStore, StackFileStore>();
@@ -42,6 +43,9 @@ public static class DependencyInjection
         services.AddSingleton<IAgentCommandHandler, RenderStackHandler>();
         services.AddSingleton<IAgentCommandHandler, RestartStackHandler>();
         services.AddSingleton<IAgentCommandHandler, DownStackHandler>();
+        services.AddSingleton<UnmanagedStackFinder>();
+        services.AddSingleton<IAgentCommandHandler, ListUnmanagedStacksHandler>();
+        services.AddSingleton<IAgentCommandHandler, ControlUnmanagedStackHandler>();
         services.AddSingleton<CommandDispatcher>();
 
         services.AddSingleton<CredentialStore>();

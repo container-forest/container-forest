@@ -27,6 +27,14 @@ internal sealed class FakeDockerGateway : IDockerGateway
     public Task<IReadOnlyList<ContainerInfo>> ListContainersAsync(CancellationToken cancellationToken) =>
         Run<IReadOnlyList<ContainerInfo>>("list", Containers);
 
+    public List<ComposeContainer> ComposeContainers { get; } = [];
+
+    public Task<IReadOnlyList<ComposeContainer>> ListComposeContainersAsync(CancellationToken cancellationToken) =>
+        Run<IReadOnlyList<ComposeContainer>>("list compose", ComposeContainers);
+
+    public Task RemoveContainerAsync(string containerId, CancellationToken cancellationToken) =>
+        Run($"remove {containerId}", true);
+
     public Task<ContainerInfo?> FindContainerAsync(string containerId, CancellationToken cancellationToken) =>
         Run($"find {containerId}", Containers.FirstOrDefault(c => c.Id == containerId));
 

@@ -1,4 +1,5 @@
 using System.Globalization;
+using ContainerForest.Agent.Stacks;
 using ContainerForest.Contracts.Agent;
 
 namespace ContainerForest.Agent.Compose;
@@ -98,6 +99,29 @@ public sealed class ComposeInvocation
             "docker compose down",
             [.. Global, "-p", stackName, "down", "--timeout", Seconds(stopTimeout)],
             workingDirectory,
+            NoEnvironment);
+
+    /// <summary>
+    /// docker compose up -d or pull for an unmanaged stack (ADR-0016), with the project directory, compose files and
+    /// env files the host's administrator used, so compose reads them as it did for them. Runs in the project directory.
+    /// </summary>
+    public static ComposeInvocation UnmanagedUp(UnmanagedStackLocation stack) =>
+        Unmanaged("docker compose up", stack, ["up", "-d"]);
+
+    /// <inheritdoc cref="UnmanagedUp"/>
+    public static ComposeInvocation UnmanagedPull(UnmanagedStackLocation stack) =>
+        Unmanaged("docker compose pull", stack, ["pull"]);
+
+    private static ComposeInvocation Unmanaged(string operation, UnmanagedStackLocation stack, IEnumerable<string> command) =>
+        new(
+            operation,
+            [
+                .. Global, "-p", stack.Name, "--project-directory", stack.Directory,
+                .. stack.ConfigFiles.SelectMany(f => new[] { "-f", f }),
+                .. stack.EnvFiles.SelectMany(f => new[] { "--env-file", f }),
+                .. command,
+            ],
+            stack.Directory,
             NoEnvironment);
 
     private static IEnumerable<string> EnvFile(string? envFile) => envFile is null ? [] : ["--env-file", envFile];

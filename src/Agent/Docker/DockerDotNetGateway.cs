@@ -50,6 +50,26 @@ public sealed class DockerDotNetGateway : IDockerGateway, IDisposable
             },
             cancellationToken);
 
+    public Task<IReadOnlyList<ComposeContainer>> ListComposeContainersAsync(CancellationToken cancellationToken) =>
+        CallAsync<IReadOnlyList<ComposeContainer>>(
+            null,
+            RequestTimeout,
+            async ct =>
+            {
+                var containers = await client.Containers.ListContainersAsync(
+                    new ContainersListParameters
+                    {
+                        All = true,
+                        Filters = new Dictionary<string, IDictionary<string, bool>>
+                        {
+                            ["label"] = new Dictionary<string, bool> { [ContainerInfoMapper.ProjectLabel] = true },
+                        },
+                    },
+                    ct);
+                return containers.Select(ContainerInfoMapper.ToComposeContainer).OfType<ComposeContainer>().ToList();
+            },
+            cancellationToken);
+
     public Task<ContainerInfo?> FindContainerAsync(string containerId, CancellationToken cancellationToken) =>
         CallAsync(
             null,
@@ -145,6 +165,18 @@ public sealed class DockerDotNetGateway : IDockerGateway, IDisposable
             {
                 await client.Containers.RestartContainerAsync(
                     containerId, new ContainerRestartParameters { WaitBeforeKillSeconds = Seconds(stopTimeout) }, ct);
+                return true;
+            },
+            cancellationToken);
+
+    public Task RemoveContainerAsync(string containerId, CancellationToken cancellationToken) =>
+        CallAsync(
+            containerId,
+            RequestTimeout,
+            async ct =>
+            {
+                await client.Containers.RemoveContainerAsync(
+                    containerId, new ContainerRemoveParameters { Force = false, RemoveVolumes = false }, ct);
                 return true;
             },
             cancellationToken);

@@ -34,6 +34,14 @@ public sealed class AgentOptions
     /// </summary>
     public string? HostRoot { get; set; }
 
+    /// <summary>
+    /// Directories with compose projects the host's administrator runs by hand, e.g. /srv/docker: the panel can then
+    /// pull, up, restart and take them down as unmanaged stacks (ADR-0016). Each must be mounted into the agent's
+    /// container at the same path as on the host, read-only is enough, because compose resolves the projects' relative
+    /// paths there. Empty (the default) turns unmanaged stacks off. They must not overlap the agent's own directories.
+    /// </summary>
+    public List<string> UnmanagedStackRoots { get; set; } = [];
+
     /// <summary>The docker CLI with the compose plugin; a name is looked up in PATH.</summary>
     public string DockerExecutable { get; set; } = "docker";
 
@@ -50,13 +58,44 @@ public sealed class AgentOptions
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "container-forest")
             : "/opt/container-forest";
 
-    internal bool IsValid() =>
+    /// <summary>The unmanaged stack roots as full paths without a trailing separator.</summary>
+    public IReadOnlyList<string> NormalizedUnmanagedStackRoots =>
+        UnmanagedStackRoots.Select(r => Path.TrimEndingDirectorySeparator(Path.GetFullPath(r))).Distinct().ToList();
+
+    // An absolute path that neither contains nor lies in a directory the agent writes itself: a stack the agent
+    // deploys must never be taken for an unmanaged one, and the agent's credentials must stay out of compose's reach.
+    private bool IsValidUnmanagedRoot(string root)
+    {
+        if (string.IsNullOrWhiteSpace(root) || !Path.IsPathFullyQualified(root))
+        {
+            return false;
+        }
+
+        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        string[] own = [DataDirectory, StacksRoot, SecretsDirectory];
+        return own.Where(d => Path.IsPathFullyQualified(d))
+            .Select(d => Path.TrimEndingDirectorySeparator(Path.GetFullPath(d)))
+            .All(d => !PathContains(full, d) && !PathContains(d, full));
+    }
+
+    /// <summary>Whether <paramref name="path"/> is <paramref name="directory"/> or lies in it, compared by whole segments.</summary>
+    public static bool PathContains(string directory, string path)
+    {
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var root = Path.TrimEndingDirectorySeparator(directory);
+        return path.Equals(root, comparison)
+            || path.StartsWith(root + Path.DirectorySeparatorChar, comparison)
+            || (root.EndsWith(Path.DirectorySeparatorChar) && path.StartsWith(root, comparison));
+    }
+
+    public bool IsValid() =>
         ControllerUrl is { IsAbsoluteUri: true } url
         && (url.Scheme == Uri.UriSchemeHttp || url.Scheme == Uri.UriSchemeHttps)
         && !string.IsNullOrWhiteSpace(DataDirectory)
         && Path.IsPathFullyQualified(StacksRoot)
         && (OperatingSystem.IsWindows() || Path.IsPathFullyQualified(SecretsDirectory))
         && (HostRoot is null || Path.IsPathFullyQualified(HostRoot))
+        && UnmanagedStackRoots.All(IsValidUnmanagedRoot)
         && !string.IsNullOrWhiteSpace(DockerExecutable)
         && ComposeTimeout > TimeSpan.Zero
         && HeartbeatInterval > TimeSpan.Zero;

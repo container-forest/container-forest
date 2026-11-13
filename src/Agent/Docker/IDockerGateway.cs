@@ -14,6 +14,9 @@ public interface IDockerGateway
     /// <summary>All containers, including stopped ones.</summary>
     Task<IReadOnlyList<ContainerInfo>> ListContainersAsync(CancellationToken cancellationToken);
 
+    /// <summary>All containers created by docker compose, with the labels that tell where their project lives.</summary>
+    Task<IReadOnlyList<ComposeContainer>> ListComposeContainersAsync(CancellationToken cancellationToken);
+
     /// <summary>One container by its full id, including a stopped one; null when it does not exist.</summary>
     Task<ContainerInfo?> FindContainerAsync(string containerId, CancellationToken cancellationToken);
 
@@ -32,6 +35,9 @@ public interface IDockerGateway
 
     Task RestartContainerAsync(string containerId, TimeSpan stopTimeout, CancellationToken cancellationToken);
 
+    /// <summary>docker rm without force, keeping volumes: Docker refuses a running container.</summary>
+    Task RemoveContainerAsync(string containerId, CancellationToken cancellationToken);
+
     /// <summary>Reads the container's log once, without following it, and passes each line to <paramref name="onLine"/> in order.</summary>
     /// <param name="tailLines">How many of the last lines; 0 for all.</param>
     /// <param name="since">Only lines written at or after this moment; null for no lower bound.</param>
@@ -47,3 +53,10 @@ public interface IDockerGateway
 /// <param name="Action">Docker's action, e.g. "start", "die", "health_status: unhealthy".</param>
 /// <param name="ExitCode">The exit code a "die" event carries; null for other actions.</param>
 public sealed record DockerContainerEvent(string ContainerId, string Action, DateTimeOffset At, int? ExitCode = null);
+
+/// <summary>A container of a compose project and where compose ran that project from, by the container's labels.</summary>
+/// <param name="WorkingDirectory">The project directory, absolute; empty when the label is missing.</param>
+/// <param name="ConfigFiles">The compose files, absolute, in the order compose read them.</param>
+/// <param name="EnvFiles">The files given with --env-file; empty when compose used the project directory's .env.</param>
+public sealed record ComposeContainer(
+    ContainerInfo Info, string WorkingDirectory, IReadOnlyList<string> ConfigFiles, IReadOnlyList<string> EnvFiles);

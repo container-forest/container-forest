@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.0](https://github.com/lepterion/container-forest/compare/v0.8.0...v0.9.0) (2026-11-13)
+
+
+### Features
+
+* **web:** filter the stacks list by type, state and text ([bfdfac9](https://github.com/lepterion/container-forest/commit/bfdfac92fdb607e189d8a218f837bacb96aebd43))
+* **web:** give unmanaged stacks a page of their own ([5c5b676](https://github.com/lepterion/container-forest/commit/5c5b6762e7b115b5772ef8c1f9c3ab30091e5b69))
+* **web:** give unmanaged stacks a page of their own ([5ef3abf](https://github.com/lepterion/container-forest/commit/5ef3abf7417e96bbb5aae875c7da9e80d39084d3))
+
+
+### Bug Fixes
+
+* **web:** drop the compose command from unmanaged stack action labels ([ad04f37](https://github.com/lepterion/container-forest/commit/ad04f3728ebdb7b55ddf30378784e1e56ba30a77))
+* **web:** keep the URL in step when an extension patches the History API ([b9649e5](https://github.com/lepterion/container-forest/commit/b9649e5132ab42d0ae52fc14d0017d5c32dd157f))
+* **web:** keep the URL in step when an extension patches the History API ([c93dfe5](https://github.com/lepterion/container-forest/commit/c93dfe54eb6a72e9c25d0823b2ab26d501f882d2))
+
 ## [0.8.0](https://github.com/lepterion/container-forest/compare/v0.7.0...v0.8.0) (2026-11-13)
 
 

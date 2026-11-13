@@ -1,0 +1,59 @@
+name: Release
+
+# One version for the whole system (CONTRIBUTING.md, "Релізи"). release-please keeps a release
+# pull request open with the next version and CHANGELOG.md, computed from Conventional Commits on main. Merging
+# that pull request tags vX.Y.Z, creates the GitHub release, publishes the images as X.Y.Z, X.Y and "latest" and
+# attaches the CLI binaries to the release.
+#
+# Tags and releases made with GITHUB_TOKEN start no other workflow, so the images and the CLI are built here,
+# through their workflows as reusable ones, instead of on the tag.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      created: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  images:
+    name: Images
+    needs: release-please
+    if: needs.release-please.outputs.created == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/images.yml
+    with:
+      version: ${{ needs.release-please.outputs.version }}
+
+  cli:
+    name: CLI
+    needs: release-please
+    if: needs.release-please.outputs.created == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/cli.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag }}

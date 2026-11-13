@@ -267,7 +267,7 @@ CLI `forest` автентифікується API-токеном (ADR-0007) і �
 
 `forest login --secrets` просить токен, що може розшифровувати секрети для git-фільтра (ADR-0010); галочку на сторінці підтвердження людина лишає або знімає сама.
 
-Бінарники CLI для Linux, macOS і Windows публікуються в GitHub Releases за тегом `cli-v<версія>`. Токен CLI зберігає в контексті (`$XDG_CONFIG_HOME/container-forest/config.json`, лише для власника) або бере з `--token`, `--token-file`, `CF_TOKEN`. `forest logout` відкликає його на сервері. Права ті самі, що в панелі, з обмеженнями токена; токенами, паролем і прив'язкою Discord CLI не керує.
+Бінарники CLI для Linux, macOS і Windows додаються до GitHub Release кожної версії системи (`vX.Y.Z`; до 0.8.0 — тег `cli-v<версія>`). Токен CLI зберігає в контексті (`$XDG_CONFIG_HOME/container-forest/config.json`, лише для власника) або бере з `--token`, `--token-file`, `CF_TOKEN`. `forest logout` відкликає його на сервері. Права ті самі, що в панелі, з обмеженнями токена; токенами, паролем і прив'язкою Discord CLI не керує.
 
 ## Секрети в git (SOPS)
 

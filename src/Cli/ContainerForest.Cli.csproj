@@ -4,7 +4,6 @@
     <OutputType>Exe</OutputType>
     <AssemblyName>forest</AssemblyName>
     <RootNamespace>ContainerForest.Cli</RootNamespace>
-    <Version>0.1.0</Version>
     <!-- One binary without a runtime: dotnet publish -r linux-x64 (ADR-0008). -->
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>

@@ -24,8 +24,11 @@ ContainerForest.slnx
 .editorconfig                    стиль коду (конвенції .NET для C#)
 .github/workflows/ci.yml         CI: збірка й тести на кожен PR
 .github/workflows/docs.yml       сайт документації (DocFX) → GitHub Pages
-.github/workflows/images.yml     Docker-образи: збірка на PR, публікація в GHCR з main
-.github/workflows/cli.yml        CLI forest: AOT-збірка на PR, бінарники й реліз за тегом cli-v*
+.github/workflows/images.yml     Docker-образи: збірка на PR, публікація в GHCR з main (тег main) і з релізу (X.Y.Z, latest)
+.github/workflows/cli.yml        CLI forest: AOT-збірка на PR, бінарники для релізу
+.github/workflows/release.yml    релізи: release PR від release-please, тег vX.Y.Z, образи й CLI
+release-please-config.json       налаштування релізів; .release-please-manifest.json — поточна версія
+CHANGELOG.md, version.txt        історія змін і версія; пише release-please, руками не правити
 docfx.json, toc.yml, index.md    конфігурація сайту документації
 scripts/install-sops.sh          sops і age-keygen для образу ЦА й CI (версії й контрольні суми)
 scripts/generate-cli-client.sh   клієнт API для CLI (Kiota) з OpenAPI-документа ЦА
@@ -219,7 +222,7 @@ CLAUDE.md, src/*/CLAUDE.md       інструкції для Claude Code: спі
 6. CLI `forest` (ADR-0008): `dotnet run --project src/Cli -- login http://localhost:5173`. Адреса — панелі (dev-сервер Vite з кроку 5): CLI відкриває в браузері її сторінку підтвердження, а API Vite проксює на ЦА. Конфігурацію з токеном CLI пише в `$XDG_CONFIG_HOME/container-forest/config.json`; для окремої тестової конфігурації задайте `XDG_CONFIG_HOME`. Без браузера: `--device` (код вводиться на `/cli/device`) або токен з екрана «API-токени»: `CF_URL=http://localhost:5173 CF_TOKEN=cf_pat_… dotnet run --project src/Cli -- env list`.
    - Змінили API ЦА — після збірки `src/Aggregator/Api` перегенеруйте клієнт: `dotnet tool restore && scripts/generate-cli-client.sh`, згенеровані файли закомітьте (CI перевіряє).
    - Один бінарник без рантайму (NativeAOT, потрібен clang): `dotnet publish src/Cli -r linux-x64 -c Release -o out` → `out/forest`.
-   - Реліз: `git tag cli-v0.2.0 && git push origin cli-v0.2.0` — workflow `CLI` збирає бінарники для linux x64/arm64, macOS arm64 і Windows x64 і публікує їх у GitHub Releases разом із `SHA256SUMS`.
+   - Реліз — спільний для всієї системи, див. [Релізи](#релізи): бінарники для linux x64/arm64, macOS arm64 і Windows x64 разом із `SHA256SUMS` додаються до GitHub Release `vX.Y.Z`.
 
 Тести: `dotnet test --solution ContainerForest.slnx`. Тести зі справжніми `sops` і `age-keygen` без них у `PATH` пропускаються (у CI — обов'язкові, `CF_TEST_REQUIRE_SOPS=1`), так само тести підписів зі справжнім `ssh-keygen` (`CF_TEST_REQUIRE_SSH_KEYGEN=1`) і тести рендерингу агента зі справжнім `docker compose` (`CF_TEST_REQUIRE_DOCKER_COMPOSE=1`; демона Docker вони не потребують). Інтеграційні тести в `tests/Aggregator/Api` піднімають ЦА в пам'яті й підключаються до нього як агент. Тести в `tests/DiscordBot` піднімають у пам'яті gRPC-сервер `BotGateway` із заготовленими відповідями.
 
@@ -268,6 +271,17 @@ dotnet ef migrations add <Name> --project src/Aggregator/Infrastructure --output
 ```
 
 ⚠️ Для розробки використовуйте локальний Docker або тестовий сервер, **не продакшн-інфраструктуру**.
+
+## Релізи
+
+Одна версія на всю систему: ЦА, панель, агент, бот і CLI мають однаковий номер `X.Y.Z` за [semver](https://semver.org/lang/uk/). Так за номером видно, що з чим сумісне: агент 0.9.x працює з ЦА 0.9.x. Протокол змінюється лише сумісно, тож старіший агент чи бот працює й з новішою ЦА.
+
+- **Версію рахує release-please** (GitHub Action `googleapis/release-please-action`, workflow `Release`) з Conventional Commits у `main`. Поки версія 0.x: `feat` підвищує minor, `fix` і `perf` — patch, несумісна зміна (`feat!:` чи `BREAKING CHANGE:` у тілі) — теж minor. `docs`, `ci`, `chore`, `test`, `refactor` версії не змінюють і в changelog не потрапляють. 1.0.0 — остаточна версія навчального проєкту.
+- **Release PR.** Після кожного пушу в `main` release-please відкриває або оновлює PR `chore(main): release X.Y.Z` з `CHANGELOG.md`, `version.txt` і `<Version>` у `Directory.Build.props`. Реліз відбувається, коли цей PR змерджено. Тоді створюються тег `vX.Y.Z` і GitHub Release, а той самий workflow публікує образи й додає бінарники CLI. Цей PR створює `GITHUB_TOKEN`, тому CI на ньому не запускається; змінює він лише версію й changelog.
+- **Теги образів.** `ghcr.io/lepterion/container-forest-<назва>:X.Y.Z`, `:X.Y` і `:latest` — лише з релізу, тож `latest` завжди означає останній реліз. Кожен пуш у `main` публікує `:main` і `:<sha>` для перевірки до релізу.
+- **Оновлення.** Не обов'язково оновлювати все на кожен реліз: у changelog видно, які компоненти змінилися (`feat(web)`, `fix(agent)`), а оновлювати варто лише їх. Щоб лишитися на конкретному релізі, закріпіть у compose `:X.Y.Z` замість `:latest`.
+- **Збірка поза релізом** має версію останнього релізу з `Directory.Build.props`; точний коміт видно в `InformationalVersion` (`0.8.0+<sha>`).
+- **Історія.** До 0.8.0 версію мав лише CLI (теги `cli-v0.1.0`…`cli-v0.7.0`); спільна нумерація продовжує її.
 
 ## CI
 

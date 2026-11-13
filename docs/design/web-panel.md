@@ -24,10 +24,10 @@
 
 ## Контейнери й логи
 
-- Спільні компоненти: `ContainerTable` (екран контейнерів і картка на сторінці стеку), `StackQuickActions` (той самий порядок іконок, що й у контейнерів).
+- Спільні компоненти: `ContainerTable` (екран контейнерів і `StackContainersCard` на сторінках керованого й некерованого стеку), `StackQuickActions` (той самий порядок іконок, що й у контейнерів).
 - `/containers`: без `environment` або з невидимим середовищем `beforeLoad` перенаправляє на перше, зберігаючи фільтри. Опитування лишається і з live-з'єднанням, бо агенти старших версій подій не надсилають (`pollingInterval`). Доступність кнопок повторює правила `ContainerCommand` ЦА. Повідомлення про результат зберігаються як ключ перекладу, щоб перемикання мови їх перекладало.
 - Видалення контейнера — п'ята кнопка `ContainerTable`, лише з `canRemove` і для зупиненого контейнера. Його підтвердження без тайм-ауту зупинки (`takesStopTimeout`).
-- Некеровані стеки (ADR-0016) — розділ під таблицею на `/stacks`, `UnmanagedStacksSection`; деталі — [unmanaged-stacks.md](unmanaged-stacks.md#панель).
+- Некеровані стеки (ADR-0016) — розділ під таблицею на `/stacks`, `UnmanagedStacksSection`, і сторінка стеку `/stacks/unmanaged/$environmentId/$stackName`; деталі — [unmanaged-stacks.md](unmanaged-stacks.md#панель).
 - Логи (`/containers/$environmentId/$containerId/logs`, файл `containers_.…logs.tsx`: `_` виводить його з-під маршруту `/containers`):
   - Контейнер у шляху — за ім'ям, а не id, щоб посилання переживало перестворення контейнера compose.
   - `containerLogsQuery` перший раз бере хвіст (`tail`), а кожен refetch — лише рядки з `since` = найпізніший час серед завантажених, і дописує їх (`mergeLines`). Інший `tail` — інший ключ і нове завантаження.

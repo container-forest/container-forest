@@ -12,7 +12,7 @@ export interface UnmanagedStackActionVariables {
 
 /**
  * Runs docker compose for an unmanaged stack; resolves with its output once compose has finished. A failed compose
- * run is a result with an error, not a rejection. The stacks and containers are reloaded either way.
+ * run is a result with an error, not a rejection. The stacks, containers and audit log are reloaded either way.
  */
 export function useUnmanagedStackActionMutation(environmentId: string) {
   const queryClient = useQueryClient();
@@ -39,6 +39,8 @@ export function useUnmanagedStackActionMutation(environmentId: string) {
       Promise.all([
         queryClient.invalidateQueries({ queryKey: unmanagedStacksQuery(environmentId).queryKey, exact: true }),
         queryClient.invalidateQueries({ queryKey: containersQuery(environmentId).queryKey, exact: true }),
+        // The stack's page shows its history from the audit log.
+        queryClient.invalidateQueries({ queryKey: ["audit"] }),
       ]),
   });
 }

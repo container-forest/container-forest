@@ -21,8 +21,9 @@ import {
   needsUnmanagedConfirmation,
   shortConfigFiles,
   unmanagedStackActions,
+  unmanagedStackLink,
 } from "@/features/unmanaged-stacks/model";
-import { rowActionsClass } from "@/lib/row-link";
+import { rowActionsClass, rowClass, rowLinkClass } from "@/lib/row-link";
 import { cn } from "@/lib/utils";
 
 /** The last action's outcome, with what compose printed. Keys, not text, so it follows a language switch. */
@@ -34,9 +35,9 @@ type Outcome =
 const icons = { up: PlayIcon, pull: DownloadIcon, restart: RotateCwIcon, down: SquareIcon } as const;
 
 /**
- * Compose projects the host's administrator runs by hand (ADR-0016), under the managed stacks. Their containers
- * are on the containers screen; here are the compose operations on the whole project. Shown only to users with a
- * role on the whole environment, and only when its agent finds such projects.
+ * Compose projects the host's administrator runs by hand (ADR-0016), under the managed stacks. A row opens the
+ * stack's page; its buttons are quick compose operations on the whole project. Shown only to users with a role on
+ * the whole environment, and only when its agent finds such projects.
  */
 export function UnmanagedStacksSection({ environment }: { environment: Environment }) {
   const { t } = useTranslation();
@@ -94,14 +95,9 @@ export function UnmanagedStacksSection({ environment }: { environment: Environme
             </TableHeader>
             <TableBody>
               {stacks.data.map((stack) => (
-                <TableRow key={stack.name}>
-                  <TableCell className="whitespace-normal">
-                    {/* Its containers carry the project name as their stack, so the filter shows exactly them. */}
-                    <Link
-                      to="/containers"
-                      search={{ environment: environment.id, stack: stack.name }}
-                      className="font-medium hover:underline"
-                    >
+                <TableRow key={stack.name} className={rowClass}>
+                  <TableCell className="whitespace-nowrap">
+                    <Link {...unmanagedStackLink(environment.id, stack.name)} className={cn("font-medium", rowLinkClass)}>
                       {stack.name}
                     </Link>
                     {stack.isSystem && (
@@ -111,7 +107,7 @@ export function UnmanagedStacksSection({ environment }: { environment: Environme
                     )}
                     <div className="text-muted-foreground font-mono text-xs break-all md:hidden">{stack.directory}</div>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
+                  <TableCell className="hidden whitespace-normal md:table-cell">
                     <div className="font-mono text-xs break-all">{stack.directory}</div>
                     <div className="text-muted-foreground font-mono text-xs">{shortConfigFiles(stack).join(", ")}</div>
                   </TableCell>

@@ -17,6 +17,8 @@
 3. `AuthorizedCommand` перевіряє право на стеку, а для контейнерів поза керованими стеками — на середовищі.
 4. `ContainerCommand` перевіряє стан і надсилає команду.
 
+**Видалення** (`RemoveContainerCommand`, `POST .../containers/{c}/remove`) — `docker rm` без force і без томів, лише зупиненого контейнера (created, exited, dead), з правом Deploy (Editor) на стеку чи середовищі. Інші стани — 409. Деталі — [некеровані стеки](unmanaged-stacks.md).
+
 **Системні контейнери можна лише запускати:** stop/restart обірвали б з'єднання, яким іде команда. Це контейнери системних стеків і контейнери з міткою `com.container-forest.system: "true"` (ЦА, Caddy панелі, агент у `deploy/*.yaml`). Останні розгортають вручну, запису `Stack` для них немає, тож мітка — єдиний спосіб їх упізнати.
 
 - Агент передає мітку в `ContainerInfo.system` (`ContainerInfoMapper.SystemLabel`), ЦА — у `ContainerSnapshot.IsSystem`.

@@ -363,6 +363,8 @@ services:
       - /:/host:ro,rslave   # для політики compose (ADR-0012): перевірка символьних посилань у шляхах bind-mount'ів
 ```
 
+Некеровані стеки (ADR-0016): щоб панель могла робити pull, up, restart і down compose-проєктів, які адміністратор хоста запускає вручну, їхній корінь задається в `CF_AGENT__UNMANAGEDSTACKROOTS__0` (`__1`, …) і монтується за тим самим шляхом: `- /srv/docker:/srv/docker:ro`. Без цього функція вимкнена. Деталі — [unmanaged-stacks.md](design/unmanaged-stacks.md).
+
 ## Розгортання Discord-бота
 
 Бот — окремий контейнер без стану: лише вихідні з'єднання з Discord і з gRPC-портом ЦА, без томів і вхідних портів. Приклад — [`deploy/discord-bot/compose.yaml`](../deploy/discord-bot/compose.yaml): образ `container-forest-discord-bot` працює від непривілейованого користувача, з файловою системою лише для читання, без capabilities.

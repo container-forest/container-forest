@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useContainerActionMutation } from "@/api/containers";
-import { Loader2Icon, PlayIcon, RotateCwIcon, SquareIcon } from "@/components/icons";
+import { Loader2Icon, PlayIcon, RotateCwIcon, SquareIcon, Trash2Icon } from "@/components/icons";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -28,6 +28,7 @@ import {
   needsConfirmation,
   parseStopTimeout,
   stateFilterOf,
+  takesStopTimeout,
 } from "@/features/containers/model";
 import { rowActionsClass, rowClass, rowLinkClass } from "@/lib/row-link";
 import { cn } from "@/lib/utils";
@@ -42,7 +43,7 @@ interface Notice {
 
 interface PendingAction {
   container: Container;
-  action: "stop" | "restart";
+  action: "stop" | "restart" | "remove";
 }
 
 /**
@@ -143,7 +144,7 @@ export function ContainerTable({
   );
 }
 
-const actionIcons = { start: PlayIcon, stop: SquareIcon, restart: RotateCwIcon } as const;
+const actionIcons = { start: PlayIcon, stop: SquareIcon, restart: RotateCwIcon, remove: Trash2Icon } as const;
 
 function ContainerRow({
   environmentId,
@@ -213,7 +214,7 @@ function ContainerRow({
       <TableCell className={cn("text-right", rowActionsClass)}>
         {container.canControl ? (
           <div className="flex items-center justify-end gap-1">
-            {(["start", "stop", "restart"] as const).map((kind) => {
+            {(container.canRemove ? (["start", "stop", "restart", "remove"] as const) : (["start", "stop", "restart"] as const)).map((kind) => {
               const Icon = actionIcons[kind];
               const label = t(`containers.actions.${kind}`);
               return (
@@ -239,7 +240,7 @@ function ContainerRow({
   );
 }
 
-/** Confirms a stop or restart and asks how long Docker may wait for a clean exit. */
+/** Confirms a stop, restart or removal; stop and restart also ask how long Docker may wait for a clean exit. */
 function StopDialog({
   pending,
   onCancel,
@@ -247,11 +248,12 @@ function StopDialog({
 }: {
   pending: PendingAction | undefined;
   onCancel: () => void;
-  onConfirm: (timeoutSeconds: number) => void;
+  onConfirm: (timeoutSeconds: number | undefined) => void;
 }) {
   const { t } = useTranslation();
   const [timeout, setTimeoutText] = useState(String(DEFAULT_STOP_TIMEOUT));
-  const seconds = parseStopTimeout(timeout);
+  const withTimeout = pending !== undefined && takesStopTimeout(pending.action);
+  const seconds = withTimeout ? parseStopTimeout(timeout) : 0;
 
   return (
     <AlertDialog
@@ -271,7 +273,7 @@ function StopDialog({
               event.preventDefault();
               if (seconds !== null) {
                 setTimeoutText(String(DEFAULT_STOP_TIMEOUT));
-                onConfirm(seconds);
+                onConfirm(withTimeout ? seconds : undefined);
               }
             }}
           >
@@ -279,6 +281,7 @@ function StopDialog({
               <AlertDialogTitle>{t(`containers.confirm.${pending.action}Title`, { name: pending.container.name })}</AlertDialogTitle>
               <AlertDialogDescription>{t(`containers.confirm.${pending.action}Description`)}</AlertDialogDescription>
             </AlertDialogHeader>
+            {withTimeout && (
             <div className="grid gap-1.5">
               <Label htmlFor="stop-timeout">{t("containers.confirm.timeout")}</Label>
               <Input
@@ -296,9 +299,10 @@ function StopDialog({
                   : t("containers.confirm.timeoutHint", { max: MAX_STOP_TIMEOUT })}
               </p>
             </div>
+            )}
             <AlertDialogFooter>
               <AlertDialogCancel type="button">{t("containers.confirm.cancel")}</AlertDialogCancel>
-              <Button type="submit" variant={pending.action === "stop" ? "destructive" : "default"} disabled={seconds === null}>
+              <Button type="submit" variant={pending.action === "restart" ? "default" : "destructive"} disabled={seconds === null}>
                 {t(`containers.actions.${pending.action}`)}
               </Button>
             </AlertDialogFooter>

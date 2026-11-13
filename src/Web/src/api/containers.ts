@@ -12,7 +12,7 @@ export interface ContainerActionVariables {
 }
 
 /**
- * Starts, stops or restarts a container; resolves once the agent has done it. The list is reloaded either way:
+ * Starts, stops, restarts or removes a container; resolves once the agent has done it. The list is reloaded either way:
  * after a failure (e.g. the container changed state meanwhile) the shown state may be stale too.
  */
 export function useContainerActionMutation(environmentId: string) {
@@ -36,6 +36,8 @@ export function useContainerActionMutation(environmentId: string) {
               params: { path, query: { timeoutSeconds } },
             }),
           );
+        case "remove":
+          return unwrap(await api.POST("/api/environments/{id}/containers/{containerId}/remove", { params: { path } }));
       }
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: containersQuery(environmentId).queryKey }),

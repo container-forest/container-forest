@@ -9,7 +9,7 @@ export type Container = components["schemas"]["ContainerResponse"];
 export type ContainerState = components["schemas"]["ContainerState"];
 export type Environment = components["schemas"]["EnvironmentResponse"];
 
-export type ContainerAction = "start" | "stop" | "restart";
+export type ContainerAction = "start" | "stop" | "restart" | "remove";
 
 /** Filter values for the stack select: every container, or only those outside compose. */
 export const ALL_STACKS = "all";
@@ -93,7 +93,8 @@ export function stackOptions(containers: readonly Container[]): { stacks: string
  * An unknown state is left to Docker. Hiding a button is cosmetic: the aggregator checks every action.
  */
 export function isActionAvailable(action: ContainerAction, container: Container): boolean {
-  if (!container.canControl) {
+  // Removing takes the Editor role, like taking a stack down; the rest Operator.
+  if (action === "remove" ? !container.canRemove : !container.canControl) {
     return false;
   }
 
@@ -115,12 +116,19 @@ export function isActionAvailable(action: ContainerAction, container: Container)
       return state === "Running" || state === "Restarting" || state === "Paused";
     case "restart":
       return state !== "Removing" && state !== "Dead";
+    case "remove":
+      return state === "Created" || state === "Exited" || state === "Dead";
   }
 }
 
-/** Stopping and restarting interrupt the service, so they are confirmed and take a stop timeout; starting does not. */
-export function needsConfirmation(action: ContainerAction): action is "stop" | "restart" {
+/** Stopping, restarting and removing are confirmed; starting is not. */
+export function needsConfirmation(action: ContainerAction): action is "stop" | "restart" | "remove" {
   return action !== "start";
+}
+
+/** Only actions that stop a process ask how long Docker may wait for it. */
+export function takesStopTimeout(action: ContainerAction): action is "stop" | "restart" {
+  return action === "stop" || action === "restart";
 }
 
 /** The typed stop timeout, or null when it is not a whole number of seconds the aggregator accepts. */

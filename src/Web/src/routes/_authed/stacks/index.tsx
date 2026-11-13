@@ -7,6 +7,7 @@ import { isEditorRole } from "@/api/users";
 import { ErrorText } from "@/components/form-messages";
 import { Loader2Icon, RefreshCwIcon } from "@/components/icons";
 import { CreateStackDialog } from "@/components/stacks/create-stack-dialog";
+import { UnmanagedStacksSection } from "@/components/stacks/unmanaged-stacks-section";
 import { type StackQuickResult, StackQuickActions } from "@/components/stacks/stack-quick-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,7 +57,10 @@ function StacksScreen() {
       {environment === undefined ? (
         <p className="text-muted-foreground">{t("stacks.noEnvironments")}</p>
       ) : (
-        <EnvironmentStacks key={environment.id} environment={environment} />
+        <div key={environment.id} className="grid gap-8">
+          <EnvironmentStacks environment={environment} />
+          <UnmanagedStacksSection environment={environment} />
+        </div>
       )}
     </div>
   );

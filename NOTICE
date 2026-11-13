@@ -1,0 +1,25 @@
+container-forest
+Copyright 2026 The container-forest Authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+The authors are listed in the git history of https://github.com/lepterion/container-forest.
+
+Third-party components
+----------------------
+
+The source code depends on NuGet and npm packages under their own licenses
+(MIT, Apache-2.0, BSD, ISC, MPL-2.0 and others); see Directory.Packages.props
+and src/Web/package-lock.json. The published Docker images and CLI binaries
+include, under their own licenses:
+
+- .NET runtime and ASP.NET Core (MIT), Microsoft Corporation
+- sops (MPL-2.0), https://github.com/getsops/sops
+  Source: https://github.com/getsops/sops/tree/v3.13.3
+- age and age-keygen (BSD-3-Clause), https://github.com/FiloSottile/age
+- Docker CLI and Docker Compose plugin (Apache-2.0), Docker, Inc.,
+  in the agent image
+- Caddy (Apache-2.0), https://github.com/caddyserver/caddy, in the web image
+- libgit2 (GPL-2.0 with linking exception), via LibGit2Sharp
+- JetBrains Mono and Manrope fonts (SIL Open Font License 1.1)
+- Material Symbols icons (Apache-2.0), Google
+- Debian and Alpine base image packages, under their respective licenses

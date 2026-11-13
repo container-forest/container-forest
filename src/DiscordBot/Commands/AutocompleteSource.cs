@@ -68,13 +68,13 @@ public sealed class AutocompleteSource(IForestClient forest, ILogger<Autocomplet
     }
 
     /// <summary>
-    /// Deployed stacks the user may run the action on. Hiding the rest is cosmetic; the aggregator decides.
+    /// Deployed and unmanaged stacks the user may run the action on. Hiding the rest is cosmetic; the aggregator decides.
     /// Stack names are at most 63 characters, so the name is always the value.
     /// </summary>
     public static IReadOnlyList<Suggestion> SuggestStacks(IReadOnlyList<ForestStack> stacks, StackAction? action, string? input) =>
     [
         .. stacks
-            .Where(s => s.DeployedCommit is not null && Allows(action, s) && Matches(s.Name, input))
+            .Where(s => (s.DeployedCommit is not null || s.IsUnmanaged) && Allows(action, s) && Matches(s.Name, input))
             .OrderBy(s => s.Name, StringComparer.Ordinal)
             .Take(MaxSuggestions)
             .Select(s => new Suggestion(s.Name, s.Name)),
@@ -84,6 +84,8 @@ public sealed class AutocompleteSource(IForestClient forest, ILogger<Autocomplet
     {
         StackAction.Restart => stack.CanRestart,
         StackAction.Down => stack.CanTakeDown,
+        StackAction.Up => stack.CanUp,
+        StackAction.Pull => stack.CanPull,
         _ => stack.CanRestart || stack.CanTakeDown,
     };
 
@@ -104,7 +106,7 @@ public sealed class AutocompleteSource(IForestClient forest, ILogger<Autocomplet
         IReadOnlyList<ForestContainer> containers, ContainerAction? action, string? input) =>
     [
         .. containers
-            .Where(c => c.CanControl && Fits(action, c.State) && (Matches(c.Name, input) || IsIdPrefix(c.Id, input)))
+            .Where(c => (action == ContainerAction.Remove ? c.CanRemove : c.CanControl) && Fits(action, c.State) && (Matches(c.Name, input) || IsIdPrefix(c.Id, input)))
             .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
             .Take(MaxSuggestions)
             .Select(c => new Suggestion(
@@ -117,6 +119,7 @@ public sealed class AutocompleteSource(IForestClient forest, ILogger<Autocomplet
     {
         ContainerAction.Start => state is not (ContainerState.Running or ContainerState.Restarting),
         ContainerAction.Stop => state is ContainerState.Running or ContainerState.Restarting or ContainerState.Paused,
+        ContainerAction.Remove => state is ContainerState.Created or ContainerState.Exited or ContainerState.Dead,
         _ => true,
     };
 

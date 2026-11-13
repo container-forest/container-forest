@@ -19,6 +19,9 @@ services:
       # Where the host's root is mounted below: the agent checks bind-mount sources for symbolic links there
       # before deploying a stack under a compose policy (ADR-0012).
       CF_AGENT__HOSTROOT: /host
+      # Unmanaged stacks (ADR-0016): compose projects you run by hand, e.g. in /srv/docker, which the panel may then
+      # pull, bring up, restart and take down. Uncomment together with the matching volume below.
+      # CF_AGENT__UNMANAGEDSTACKROOTS__0: /srv/docker
     # The same paths on the host and in the container: compose runs through the host's daemon,
     # which resolves the stacks' bind mounts on the host. The agent opens no ports.
     volumes:
@@ -28,3 +31,5 @@ services:
       # Read-only, and adds nothing: with docker.sock the agent is root on the host anyway. rslave shows disks
       # mounted on the host after the agent started.
       - /:/host:ro,rslave
+      # The same path as on the host: compose resolves the projects' relative paths there. Read-only is enough.
+      # - /srv/docker:/srv/docker:ro

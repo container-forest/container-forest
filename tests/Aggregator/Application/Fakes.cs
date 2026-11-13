@@ -359,6 +359,42 @@ internal sealed class FakeAgentChannel : IAgentChannel
         EnvironmentId environmentId, StackName stackName, TimeSpan stopTimeout, Action<string> onProgress, CancellationToken cancellationToken) =>
         RunStackCommand($"down-stack {stackName}", environmentId, stopTimeout, onProgress, cancellationToken);
 
+    public Task RemoveContainerAsync(EnvironmentId environmentId, string containerId, CancellationToken cancellationToken)
+    {
+        Calls.Add($"remove {containerId}");
+        return Task.CompletedTask;
+    }
+
+    /// <summary>What <see cref="ListUnmanagedStacksAsync"/> answers.</summary>
+    public List<UnmanagedStackSnapshot> UnmanagedStacks { get; } = [];
+
+    /// <summary>The registry logins the last unmanaged stack command got.</summary>
+    public IReadOnlyList<RegistryLogin>? LastRegistryLogins { get; private set; }
+
+    public Task<IReadOnlyList<UnmanagedStackSnapshot>> ListUnmanagedStacksAsync(EnvironmentId environmentId, CancellationToken cancellationToken)
+    {
+        if (!Online)
+        {
+            throw new AgentOfflineException(environmentId);
+        }
+
+        Calls.Add("list-unmanaged");
+        return Task.FromResult<IReadOnlyList<UnmanagedStackSnapshot>>(UnmanagedStacks.ToList());
+    }
+
+    public Task ControlUnmanagedStackAsync(
+        EnvironmentId environmentId,
+        StackName stackName,
+        UnmanagedStackAction action,
+        TimeSpan stopTimeout,
+        IReadOnlyList<RegistryLogin> registryLogins,
+        Action<string> onProgress,
+        CancellationToken cancellationToken)
+    {
+        LastRegistryLogins = registryLogins;
+        return RunStackCommand($"unmanaged-{action.ToString().ToLowerInvariant()} {stackName}", environmentId, stopTimeout, onProgress, cancellationToken);
+    }
+
     /// <summary>Lines the agent returns for any container's log.</summary>
     public List<ContainerLogLine> LogLines { get; } = [];
 

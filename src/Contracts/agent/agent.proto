@@ -51,6 +51,9 @@ message ControllerMessage {
     StreamContainerLogs stream_container_logs = 17;
     CancelRequest       cancel_request        = 18;
     RenderStack         render_stack          = 19;
+    ListUnmanagedStacks   list_unmanaged_stacks   = 20;
+    ControlUnmanagedStack control_unmanaged_stack = 21;
+    RemoveContainer       remove_container        = 22;
   }
 }
 
@@ -129,6 +132,7 @@ message CommandResult {
   oneof payload {
     ContainerList containers = 10;
     RenderedStack rendered_stack = 11;
+    UnmanagedStackList unmanaged_stacks = 12;
   }
 }
 
@@ -168,6 +172,11 @@ message RestartContainer {
 message StopContainer {
   string container_id = 1;
   int32 timeout_seconds = 2;
+}
+
+// docker rm without force and without the container's anonymous volumes: Docker refuses a running container.
+message RemoveContainer {
+  string container_id = 1;
 }
 
 // Covers both redeploy (PULL_POLICY_MISSING) and redeploy with pull (PULL_POLICY_ALWAYS).
@@ -293,4 +302,48 @@ enum LogStream {
 // ends with a CommandResult carrying ERROR_CODE_CANCELLED. Unknown ids are ignored.
 message CancelRequest {
   string target_request_id = 1;
+}
+
+// Unmanaged stacks (ADR-0016) are compose projects that the host's administrator runs by hand, outside
+// container-forest, in the directories the agent is configured to look in (Agent:UnmanagedStackRoots). The agent
+// finds them itself: by the compose labels of existing containers and by compose files in those directories. The
+// aggregator names a stack only by its project name, never by a path, so it cannot make the agent read compose
+// files anywhere else. Stacks the agent deploys itself are never unmanaged. An agent without unmanaged stack roots
+// answers with an empty list.
+message ListUnmanagedStacks {}
+
+message UnmanagedStackList {
+  repeated UnmanagedStack items = 1;
+}
+
+// name is the compose project name. directory is the project directory on the host; config_files are the compose
+// files compose reads, as absolute host paths. system: one of its containers is labelled com.container-forest.system,
+// so the aggregator refuses every operation on it, as for system containers.
+// has_containers: the project has containers, running or not; false for a directory with a compose file only.
+message UnmanagedStack {
+  string name = 1;
+  string directory = 2;
+  repeated string config_files = 3;
+  bool system = 4;
+  bool has_containers = 5;
+}
+
+// Runs docker compose for an unmanaged stack the agent finds itself (see ListUnmanagedStacks), with the files,
+// project directory and env files compose used for it: a stack that is not found is ERROR_CODE_NOT_FOUND.
+// Compose output comes as CommandProgress. registry_auths are used for pulling, as in DeployStack.
+message ControlUnmanagedStack {
+  string stack_name = 1;
+  UnmanagedStackOperation operation = 2;
+  // For RESTART and DOWN: seconds Docker waits for each container before killing it.
+  int32 timeout_seconds = 3;
+  repeated RegistryAuth registry_auths = 4;
+}
+
+// Must be set; UNMANAGED_STACK_OPERATION_UNSPECIFIED is ERROR_CODE_INVALID_ARGUMENT.
+enum UnmanagedStackOperation {
+  UNMANAGED_STACK_OPERATION_UNSPECIFIED = 0;
+  UNMANAGED_STACK_OPERATION_UP = 1;       // docker compose up -d
+  UNMANAGED_STACK_OPERATION_PULL = 2;     // docker compose pull
+  UNMANAGED_STACK_OPERATION_RESTART = 3;  // docker compose restart
+  UNMANAGED_STACK_OPERATION_DOWN = 4;     // docker compose down; volumes stay
 }

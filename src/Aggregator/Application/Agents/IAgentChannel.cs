@@ -33,6 +33,26 @@ public interface IAgentChannel
     Task RestartContainerAsync(
         EnvironmentId environmentId, string containerId, TimeSpan stopTimeout, CancellationToken cancellationToken);
 
+    /// <summary>docker rm without force: Docker refuses a running container; volumes stay.</summary>
+    Task RemoveContainerAsync(EnvironmentId environmentId, string containerId, CancellationToken cancellationToken);
+
+    /// <summary>Compose projects the host's administrator runs by hand in the agent's unmanaged stack roots (ADR-0016).</summary>
+    /// <exception cref="AgentCommandFailedException">With <see cref="AgentErrorKind.Unsupported"/> for an agent too old for them.</exception>
+    Task<IReadOnlyList<UnmanagedStackSnapshot>> ListUnmanagedStacksAsync(EnvironmentId environmentId, CancellationToken cancellationToken);
+
+    /// <summary>Runs docker compose up, pull, restart or down for an unmanaged stack; returns when compose has finished.</summary>
+    /// <param name="stopTimeout">For restart and down: how long Docker waits for each container's process.</param>
+    /// <param name="registryLogins">For pulling images, as in <see cref="StackBundle.RegistryLogins"/>.</param>
+    /// <param name="onProgress">Receives each line of compose output, as in <see cref="DeployStackAsync"/>.</param>
+    Task ControlUnmanagedStackAsync(
+        EnvironmentId environmentId,
+        StackName stackName,
+        UnmanagedStackAction action,
+        TimeSpan stopTimeout,
+        IReadOnlyList<RegistryLogin> registryLogins,
+        Action<string> onProgress,
+        CancellationToken cancellationToken);
+
     /// <summary>Writes the stack files on the host and runs docker compose up; returns when compose has finished.</summary>
     /// <param name="onProgress">
     /// Receives each line of compose output as it arrives. Called from the connection's receive loop:
@@ -134,6 +154,30 @@ public sealed record ContainerSnapshot(
     string StatusText,
     DateTimeOffset? CreatedAt,
     bool IsSystem = false);
+
+/// <summary>A compose project the host's administrator runs by hand, as the agent finds it (ADR-0016); not stored.</summary>
+/// <param name="Name">The compose project name; containers carry it as their stack name.</param>
+/// <param name="Directory">The project directory on the host.</param>
+/// <param name="ConfigFiles">Absolute host paths of its compose files.</param>
+/// <param name="IsSystem">One of its containers is a part of container-forest itself: no operation is allowed.</param>
+/// <param name="HasContainers">False for a directory with a compose file and no containers, e.g. after down.</param>
+public sealed record UnmanagedStackSnapshot(
+    string Name, string Directory, IReadOnlyList<string> ConfigFiles, bool IsSystem, bool HasContainers);
+
+public enum UnmanagedStackAction
+{
+    /// <summary>docker compose up -d.</summary>
+    Up,
+
+    /// <summary>docker compose pull.</summary>
+    Pull,
+
+    /// <summary>docker compose restart.</summary>
+    Restart,
+
+    /// <summary>docker compose down; volumes stay.</summary>
+    Down,
+}
 
 public enum ContainerState
 {

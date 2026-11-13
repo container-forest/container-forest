@@ -47,6 +47,12 @@ public sealed class StackNotFoundException(string stackName)
     public string StackName { get; } = stackName;
 }
 
+public sealed class UnmanagedStackNotFoundException(string stackName)
+    : AgentCommandException(ErrorCode.NotFound, $"Unmanaged stack '{stackName}' was not found on this host.")
+{
+    public string StackName { get; } = stackName;
+}
+
 public sealed class StackBusyException(string stackName)
     : AgentCommandException(ErrorCode.Busy, $"Another operation on stack '{stackName}' is running; try again when it has finished.")
 {

@@ -24,7 +24,11 @@ export function invalidationsFor(event: LiveEvent): Invalidation[] {
     case "EnvironmentsChanged":
       return [{ queryKey: ["environments"], exact: true }];
     case "ContainersChanged":
-      return [{ queryKey: ["environments", event.environmentId, "containers"], exact: true }];
+      // An unmanaged stack's containers coming or going changes whether it has any (ADR-0016).
+      return [
+        { queryKey: ["environments", event.environmentId, "containers"], exact: true },
+        { queryKey: ["environments", event.environmentId, "unmanaged-stacks"], exact: true },
+      ];
     case "StackChanged":
       return [
         { queryKey: ["environments", event.environmentId, "stacks"], exact: true },

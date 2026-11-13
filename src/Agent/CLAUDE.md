@@ -28,6 +28,7 @@
 - Одна операція на стек за раз (`StackLocks`): друга отримує `ERROR_CODE_BUSY`, а не чекає в черзі. `RestartStack` і `DownStack` для стеку без каталогу — `ERROR_CODE_NOT_FOUND` (compose для неіснуючого проєкту мовчки повертає 0).
 - У пакеті `DeployStack` compose-файл стеку завжди називається `compose.yaml` і лежить у корені каталогу стеку, хоч як би він звався в репозиторії (`StackBundle.ComposeFileName`). Агент передає його через `-f compose.yaml`, тож інші compose-файли в каталозі (зокрема `compose.override.yaml`) не підмішуються.
 - `RestartStack` і `DownStack` виконувати як `docker compose -p <stack> restart|down --timeout <N>` **без `-f`**, з робочим каталогом `StacksDirectory`, а не каталогом стеку. Так compose не читає файл і не вимагає env-змінних, яких на диску немає; з `-f` або без `-p` у каталозі стеку команда падає на обов'язкових змінних `${VAR:?}` (перевірено на Compose 5.5.1). Env лишається в конфігурації контейнерів.
+- Некеровані стеки (ADR-0016, [опис](../../docs/design/unmanaged-stacks.md)) агент знаходить сам у `Agent:UnmanagedStackRoots` (`UnmanagedStackFinder`), а ЦА називає їх лише іменем. Шлях від ЦА агент для них ніколи не приймає. Up і pull запускаються з `-p`, `--project-directory`, `-f` і `--env-file` з міток контейнерів, restart і down — так само, як для керованих стеків.
 
 ## Файли стеку й секрети
 

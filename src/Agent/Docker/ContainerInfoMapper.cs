@@ -9,6 +9,10 @@ public static class ContainerInfoMapper
     public const string ProjectLabel = "com.docker.compose.project";
     public const string ServiceLabel = "com.docker.compose.service";
 
+    public const string WorkingDirectoryLabel = "com.docker.compose.project.working_dir";
+    public const string ConfigFilesLabel = "com.docker.compose.project.config_files";
+    public const string EnvFilesLabel = "com.docker.compose.project.environment_file";
+
     /// <summary>Set to "true" in deploy/*.yaml on the containers of container-forest itself.</summary>
     public const string SystemLabel = "com.container-forest.system";
 
@@ -24,6 +28,26 @@ public static class ContainerInfoMapper
         CreatedUnixMs = ToUnixMilliseconds(container.Created),
         System = IsTrue(Label(container.Labels, SystemLabel)),
     };
+
+    /// <returns>Null for a container compose did not create.</returns>
+    public static ComposeContainer? ToComposeContainer(ContainerListResponse container)
+    {
+        var info = ToContainerInfo(container);
+        if (info.StackName.Length == 0)
+        {
+            return null;
+        }
+
+        return new ComposeContainer(
+            info,
+            Label(container.Labels, WorkingDirectoryLabel),
+            SplitList(Label(container.Labels, ConfigFilesLabel)),
+            SplitList(Label(container.Labels, EnvFilesLabel)));
+    }
+
+    // Compose joins several paths with ','.
+    private static IReadOnlyList<string> SplitList(string value) =>
+        value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     public static ContainerState ToState(string? state) => state?.ToLowerInvariant() switch
     {

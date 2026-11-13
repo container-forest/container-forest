@@ -346,6 +346,17 @@ internal sealed class FakeAgent : IAsyncDisposable
 
     public Task SendAsync(AgentMessage message) => call.RequestStream.WriteAsync(message);
 
+    /// <summary>Receives the next command, which must be ListUnmanagedStacks, and answers it with <paramref name="stacks"/>.</summary>
+    public async Task AnswerUnmanagedStacksAsync(params UnmanagedStack[] stacks)
+    {
+        var command = await ReceiveAsync();
+        Assert.Equal(ControllerMessage.BodyOneofCase.ListUnmanagedStacks, command.BodyCase);
+        await SendAsync(new AgentMessage
+        {
+            Result = new CommandResult { RequestId = command.RequestId, UnmanagedStacks = new UnmanagedStackList { Items = { stacks } } },
+        });
+    }
+
     public ValueTask DisposeAsync()
     {
         call.Dispose();

@@ -242,6 +242,14 @@ export const stacksQuery = (environmentId: string) =>
       unwrap(await api.GET("/api/environments/{id}/stacks", { params: { path: { id: environmentId } }, signal })),
   });
 
+/** Compose projects run by hand on the environment's host (ADR-0016); asks the agent. */
+export const unmanagedStacksQuery = (environmentId: string) =>
+  queryOptions({
+    queryKey: ["environments", environmentId, "unmanaged-stacks"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/environments/{id}/unmanaged-stacks", { params: { path: { id: environmentId } }, signal })),
+  });
+
 /** One stack with what the user may do with it. */
 export const stackQuery = (id: string) =>
   queryOptions({

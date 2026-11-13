@@ -56,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<SopsSecretsService>();
         services.AddScoped<StackService>();
         services.AddScoped<StackCommandService>();
+        services.AddScoped<UnmanagedStackService>();
         services.AddScoped<DeploymentService>();
         services.AddScoped<DeploymentRunner>();
         services.AddScoped<SecretRehydrationService>();

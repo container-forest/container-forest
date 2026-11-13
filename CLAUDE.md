@@ -21,6 +21,7 @@
 | Журнал аудиту | [docs/design/audit.md](docs/design/audit.md) |
 | Налаштування системи, підтвердження особи, бекап і відновлення ЦА | [docs/design/backup.md](docs/design/backup.md) |
 | Середовища, дії з контейнерами, логи, події контейнерів | [docs/design/containers.md](docs/design/containers.md) |
+| Некеровані стеки (compose-проєкти, запущені вручну на хості) | [docs/design/unmanaged-stacks.md](docs/design/unmanaged-stacks.md) |
 | SignalR і live-оновлення | [docs/design/live-updates.md](docs/design/live-updates.md) |
 | Сповіщення | [docs/design/notifications.md](docs/design/notifications.md) |
 | Шлюз бота, токен бота, `/dashboard` | [docs/design/discord-bot.md](docs/design/discord-bot.md) |

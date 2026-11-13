@@ -58,6 +58,12 @@ public enum AuditAction
     ImageHookCreated,
     ImageHookRemoved,
 
+    // Unmanaged stacks (ADR-0016): compose projects run by hand on a host, without a stack record.
+    UnmanagedStackStarted,
+    UnmanagedStackPulled,
+    UnmanagedStackRestarted,
+    UnmanagedStackTakenDown,
+
     // Deployments.
     DeploymentQueued,
 
@@ -65,6 +71,7 @@ public enum AuditAction
     ContainerStarted,
     ContainerStopped,
     ContainerRestarted,
+    ContainerRemoved,
 
     // Secrets.
     SecretsDecrypted,
@@ -121,9 +128,12 @@ public static class AuditActions
             or AuditAction.StackEndorsementChanged or AuditAction.StackPolicyAllowancesChanged
             or AuditAction.StackPolicyUnrestrictedChanged or AuditAction.ImagePolicyAdded or AuditAction.ImagePolicyChanged
             or AuditAction.ImagePolicyRemoved or AuditAction.ImagePinned or AuditAction.ImageUnpinned
-            or AuditAction.ImageHookCreated or AuditAction.ImageHookRemoved => AuditCategory.Stacks,
+            or AuditAction.ImageHookCreated or AuditAction.ImageHookRemoved or AuditAction.UnmanagedStackStarted
+            or AuditAction.UnmanagedStackPulled or AuditAction.UnmanagedStackRestarted
+            or AuditAction.UnmanagedStackTakenDown => AuditCategory.Stacks,
         AuditAction.DeploymentQueued => AuditCategory.Deployments,
-        AuditAction.ContainerStarted or AuditAction.ContainerStopped or AuditAction.ContainerRestarted => AuditCategory.Containers,
+        AuditAction.ContainerStarted or AuditAction.ContainerStopped or AuditAction.ContainerRestarted
+            or AuditAction.ContainerRemoved => AuditCategory.Containers,
         AuditAction.SecretsDecrypted => AuditCategory.Secrets,
         AuditAction.IdentityConfirmed or AuditAction.SettingsChanged or AuditAction.BackupRequested
             or AuditAction.GitPushCredentialChanged or AuditAction.AggregatorSigningKeyRotated => AuditCategory.System,

@@ -60,6 +60,7 @@ public sealed class ContainerCommandService(
             ContainerAction.Start => new StartContainerCommand(agents),
             ContainerAction.Stop => new StopContainerCommand(agents, timeout),
             ContainerAction.Restart => new RestartContainerCommand(agents, timeout),
+            ContainerAction.Remove => new RemoveContainerCommand(agents),
             _ => throw new DomainValidationException($"Unknown container action {action}."),
         };
     }

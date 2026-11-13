@@ -97,6 +97,18 @@ public sealed class RestartContainerCommand(
     protected override string Done => "Restarted";
 }
 
+/// <summary>/remove: docker rm of a stopped container; the aggregator refuses a running one.</summary>
+public sealed class RemoveContainerCommand(
+    IForestClient forest, EnvironmentResolver environments, ILogger<RemoveContainerCommand> logger)
+    : ContainerActionCommand(forest, environments, logger)
+{
+    public override ContainerAction Action => ContainerAction.Remove;
+
+    protected override string Done => "Removed";
+
+    protected override int? StopTimeout(ContainerActionArgs args) => null;
+}
+
 /// <summary>The end of a container's log, for the "Logs" button under a notification: as much as fits in one message.</summary>
 /// <remarks>
 /// Logs can hold secrets the application printed itself; the aggregator lets anyone with ViewLogs read them, as in the

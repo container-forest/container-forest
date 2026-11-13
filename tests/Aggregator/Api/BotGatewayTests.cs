@@ -159,8 +159,7 @@ public class BotGatewayTests
         await CreateStackAsync(app, agent, "web");
         var environmentId = agent.EnvironmentId.ToString();
 
-        var stacks = await app.BotGateway.ListStacksAsync(
-            new ListStacksRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId }, BotHeaders(), cancellationToken: Ct);
+        var stacks = await ListStacksAsync(app, agent, environmentId);
         var stack = Assert.Single(stacks.Stacks);
         Assert.Equal(("web", false, "", true, true), (stack.Name, stack.IsSystem, stack.DeployedCommit, stack.CanRestart, stack.CanTakeDown));
 
@@ -199,14 +198,15 @@ public class BotGatewayTests
         await CreateStackAsync(app, agent, "web");
         var environmentId = agent.EnvironmentId.ToString();
 
-        var stacks = await app.BotGateway.ListStacksAsync(
-            new ListStacksRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId }, BotHeaders(), cancellationToken: Ct);
+        var stacks = await ListStacksAsync(app, agent, environmentId);
         var stack = Assert.Single(stacks.Stacks);
         Assert.False(stack.CanRestart);
         Assert.False(stack.CanTakeDown);
 
         Assert.Equal(StatusCode.PermissionDenied, (await ControlStackFailsAsync(app, environmentId, "web", StackAction.Down)).StatusCode);
-        Assert.Equal(StatusCode.NotFound, (await ControlStackFailsAsync(app, environmentId, "nope", StackAction.Restart)).StatusCode);
+        var unknown = ControlStackFailsAsync(app, environmentId, "nope", StackAction.Restart);
+        await agent.AnswerUnmanagedStacksAsync();
+        Assert.Equal(StatusCode.NotFound, (await unknown).StatusCode);
         Assert.Equal(StatusCode.NotFound, (await ControlStackFailsAsync(app, environmentId, "Not a name!", StackAction.Restart)).StatusCode);
         Assert.Equal(StatusCode.InvalidArgument, (await ControlStackFailsAsync(app, environmentId, "web", StackAction.Unspecified)).StatusCode);
     }
@@ -224,8 +224,7 @@ public class BotGatewayTests
             []);
         var environmentId = agent.EnvironmentId.ToString();
 
-        var stacks = await app.BotGateway.ListStacksAsync(
-            new ListStacksRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId }, BotHeaders(), cancellationToken: Ct);
+        var stacks = await ListStacksAsync(app, agent, environmentId);
         Assert.True(Assert.Single(stacks.Stacks).CanDeploy);
 
         var queued = await app.BotGateway.DeployStackAsync(
@@ -265,8 +264,7 @@ public class BotGatewayTests
         await CreateStackAsync(app, agent, "web");
         var environmentId = agent.EnvironmentId.ToString();
 
-        var stacks = await app.BotGateway.ListStacksAsync(
-            new ListStacksRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId }, BotHeaders(), cancellationToken: Ct);
+        var stacks = await ListStacksAsync(app, agent, environmentId);
         Assert.False(Assert.Single(stacks.Stacks).CanDeploy);
 
         Assert.Equal(StatusCode.PermissionDenied, (await DeployStackFailsAsync(app, environmentId, "web")).StatusCode);
@@ -286,6 +284,64 @@ public class BotGatewayTests
             new GetDeploymentRequest { DiscordUserId = AliceDiscordId, DeploymentId = deploymentId },
             BotHeaders(),
             cancellationToken: Ct).ResponseAsync);
+
+    /// <summary>ListStacks, with the agent answering that the host has no unmanaged stacks.</summary>
+    private static async Task<ListStacksResponse> ListStacksAsync(AggregatorApp app, FakeAgent agent, string environmentId)
+    {
+        var call = app.BotGateway.ListStacksAsync(
+            new ListStacksRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId }, BotHeaders(), cancellationToken: Ct);
+        await agent.AnswerUnmanagedStacksAsync();
+        return await call;
+    }
+
+    [Fact]
+    public async Task Unmanaged_stacks_are_listed_and_controlled_by_name()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        await LinkAsync(app, AggregatorApp.AdminUserName, AliceDiscordId);
+        var environmentId = agent.EnvironmentId.ToString();
+
+        var list = app.BotGateway.ListStacksAsync(
+            new ListStacksRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId }, BotHeaders(), cancellationToken: Ct);
+        await agent.AnswerUnmanagedStacksAsync(new UnmanagedStack { Name = "caddy", Directory = "/srv/docker/caddy", HasContainers = true });
+        var stack = Assert.Single((await list).Stacks);
+        Assert.Equal(("caddy", true, "", true, true, false), (stack.Name, stack.Unmanaged, stack.Id, stack.CanUp, stack.CanPull, stack.CanDeploy));
+
+        var up = app.BotGateway.ControlStackAsync(
+            new ControlStackRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId, Stack = "caddy", Action = StackAction.Up },
+            BotHeaders(),
+            cancellationToken: Ct);
+        await agent.AnswerUnmanagedStacksAsync(new UnmanagedStack { Name = "caddy", Directory = "/srv/docker/caddy", HasContainers = true });
+        var command = await agent.ReceiveAsync();
+        Assert.Equal(ControllerMessage.BodyOneofCase.ControlUnmanagedStack, command.BodyCase);
+        Assert.Equal(("caddy", UnmanagedStackOperation.Up), (command.ControlUnmanagedStack.StackName, command.ControlUnmanagedStack.Operation));
+        await agent.SendAsync(new AgentMessage { Progress = new CommandProgress { RequestId = command.RequestId, Line = "Container caddy Started" } });
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
+
+        var response = await up;
+        Assert.Equal("", response.Error);
+        Assert.Equal(["Container caddy Started"], response.Output);
+    }
+
+    [Fact]
+    public async Task Stacks_are_listed_without_unmanaged_ones_when_the_agent_is_too_old_for_them()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        await LinkAsync(app, AggregatorApp.AdminUserName, AliceDiscordId);
+        await CreateStackAsync(app, agent, "web");
+
+        var list = app.BotGateway.ListStacksAsync(
+            new ListStacksRequest { DiscordUserId = AliceDiscordId, EnvironmentId = agent.EnvironmentId.ToString() }, BotHeaders(), cancellationToken: Ct);
+        var command = await agent.ReceiveAsync();
+        await agent.SendAsync(new AgentMessage
+        {
+            Result = new CommandResult { RequestId = command.RequestId, Error = new CommandError { Code = ErrorCode.Unsupported, Message = "old" } },
+        });
+
+        Assert.Equal("web", Assert.Single((await list).Stacks).Name);
+    }
 
     private static Task<RpcException> ControlStackFailsAsync(AggregatorApp app, string environmentId, string stack, StackAction action) =>
         Assert.ThrowsAsync<RpcException>(() => app.BotGateway.ControlStackAsync(

@@ -55,3 +55,12 @@ public sealed class RestartContainerHandler(IDockerGateway docker, ILogger<Resta
     protected override Task RunAsync(string containerId, RestartContainer command, CancellationToken cancellationToken) =>
         Docker.RestartContainerAsync(containerId, ToStopTimeout(command.TimeoutSeconds), cancellationToken);
 }
+
+public sealed class RemoveContainerHandler(IDockerGateway docker, ILogger<RemoveContainerHandler> logger)
+    : ContainerActionHandler<RemoveContainer>(docker, logger)
+{
+    protected override string ContainerIdOf(RemoveContainer command) => command.ContainerId;
+
+    protected override Task RunAsync(string containerId, RemoveContainer command, CancellationToken cancellationToken) =>
+        Docker.RemoveContainerAsync(containerId, cancellationToken);
+}

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { hasStatus } from "@/api/client";
-import { containersQuery, deploymentsQuery, environmentsQuery, repositoriesQuery, stackQuery } from "@/api/queries";
+import { containersQuery, deploymentsQuery, repositoriesQuery, stackQuery } from "@/api/queries";
 import {
   useChangeStackSourceMutation,
   useDeployStackMutation,
@@ -18,7 +18,6 @@ import {
   useStackActionMutation,
 } from "@/api/stacks";
 import { ConfirmAction } from "@/components/confirm-action";
-import { ContainerTable } from "@/components/containers/container-table";
 import { ErrorText, FieldError } from "@/components/form-messages";
 import {
   ArrowLeftIcon,
@@ -34,6 +33,7 @@ import { ImageHookCard } from "@/components/images/image-hook-card";
 import { ImagePoliciesCard } from "@/components/images/image-policies-card";
 import { DeployHookCard } from "@/components/stacks/deploy-hook-card";
 import { PolicyAllowancesCard } from "@/components/stacks/policy-allowances-card";
+import { StackContainersCard } from "@/components/stacks/stack-containers-card";
 import { DeploymentStatusBadge } from "@/components/stacks/deployment-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -98,7 +98,7 @@ function StackScreen() {
       </div>
 
       <ActionsCard stack={stack} />
-      <StackContainersCard stack={stack} />
+      <StackContainersCard environmentId={stack.environmentId} stackName={stack.name} emptyText={t("stack.containers.empty")} />
       <SourceCard key={`${stack.repositoryId}/${stack.branch}/${stack.composePath}`} stack={stack} />
       {stack.canDeploy && !stack.isSystem && <EndorsementCard stack={stack} />}
       {!stack.isSystem && (stack.canAdministerEnvironment || stack.policyAllowances.length > 0 || stack.policyUnrestricted) && (
@@ -236,55 +236,6 @@ function ActionsCard({ stack }: { stack: Stack }) {
           )}
           {result && <CommandOutput action={result.action} result={result.result} />}
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-/** How often the containers are reloaded without live updates, and with them (agents too old to send events). */
-const CONTAINERS_REFRESH_MS = 15_000;
-const CONTAINERS_REFRESH_WHILE_LIVE_MS = 60_000;
-
-/**
- * The stack's containers as its environment's agent reports them, with the same quick actions and links as on the
- * containers screen. Compose labels say which stack a container belongs to.
- */
-function StackContainersCard({ stack }: { stack: Stack }) {
-  const { t } = useTranslation();
-  const live = useLiveStatus();
-  const environments = useQuery(environmentsQuery);
-  const online = environments.data?.find((e) => e.id === stack.environmentId)?.isOnline ?? false;
-  const containers = useQuery({
-    ...containersQuery(stack.environmentId),
-    // An offline agent answers 503 every time; there is nothing to load until it reconnects.
-    enabled: online,
-    refetchInterval: pollingInterval(live, CONTAINERS_REFRESH_MS, CONTAINERS_REFRESH_WHILE_LIVE_MS),
-  });
-  const own = (containers.data ?? []).filter((c) => c.stackName === stack.name);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("stack.containers.title")}</CardTitle>
-        <CardDescription>{t("stack.containers.description")}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {!online ? (
-          <p role="status" className="text-muted-foreground text-sm">
-            {t("stack.containers.agentOffline")}
-          </p>
-        ) : containers.isPending ? (
-          <p className="text-muted-foreground flex items-center gap-2 text-sm">
-            <Loader2Icon className="animate-spin" />
-            {t("stack.containers.loading")}
-          </p>
-        ) : containers.isError && own.length === 0 ? (
-          <ErrorText>{t("stack.containers.loadFailed")}</ErrorText>
-        ) : own.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t("stack.containers.empty")}</p>
-        ) : (
-          <ContainerTable environmentId={stack.environmentId} containers={own} showStack={false} />
-        )}
       </CardContent>
     </Card>
   );

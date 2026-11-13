@@ -928,6 +928,35 @@ const en: Translation = {
       failed: "Could not get a code.",
     },
   },
+  unmanagedStack: {
+    badge: "unmanaged",
+    subtitle: "A compose project on the host of {{environment}}: it is run by hand, not from git.",
+    loading: "Loading the stack…",
+    notFound:
+      "Unmanaged stack not found: its directory was removed or moved out of the agent's roots, it became a managed stack, or you have no role on the whole environment.",
+    agentOffline: "The environment's agent is offline: unmanaged stacks are visible only while it is connected.",
+    actionsDescription:
+      "Docker Compose on the host with the stack's files. Pull only downloads images; bring the stack up for its containers to use them.",
+    nothingToStop: "There are no containers, so there is nothing to restart or stop. The stack can be brought up from its compose file.",
+    noContainers: "No containers: the stack was taken down (compose down) or has not been brought up yet.",
+    files: {
+      title: "Files",
+      description: "The files are changed on the host, not from the panel. After changing the compose file, bring the stack up for it to take effect.",
+      directory: "Project directory",
+      composeFiles: "Compose files",
+      foundBy: "Found",
+      byLabels: "by its containers' labels: the files are those it was last brought up with",
+      byDirectory: "in its directory: there are no containers, the name is the one compose would give",
+    },
+    history: {
+      title: "Recent actions",
+      description: "Who brought the stack up, restarted or stopped it through container-forest, and when. Changes made on the host by hand are not here.",
+      loading: "Loading the log…",
+      loadFailed: "Could not load the audit log.",
+      empty: "Nothing has been done with this stack through container-forest yet.",
+      all: "The whole audit log",
+    },
+  },
   unmanagedStacks: {
     title: "Unmanaged stacks",
     description:
@@ -936,6 +965,7 @@ const en: Translation = {
     systemHint: "A part of container-forest itself runs here: actions on this stack are off, so the connection to the host is not cut.",
     hasContainers: "has containers",
     noContainers: "no containers",
+    empty: "There are no unmanaged stacks on the host: the agent has no roots, or there are no compose projects in them.",
     output: "Docker Compose output",
     columns: {
       name: "Name",
@@ -944,10 +974,10 @@ const en: Translation = {
       actions: "Actions",
     },
     actions: {
-      up: "Bring up (compose up)",
-      pull: "Pull images (compose pull)",
+      up: "Bring up",
+      pull: "Pull images",
       restart: "Restart",
-      down: "Take down (compose down)",
+      down: "Take down",
     },
     confirm: {
       restartTitle: "Restart stack {{name}}?",
@@ -973,6 +1003,16 @@ const en: Translation = {
     loadFailed: "Could not load the stacks.",
     loadEnvironmentsFailed: "Could not load the environments.",
     empty: "Environment {{name}} has no stacks yet.",
+    filters: {
+      kind: "Type",
+      kinds: { all: "All", managed: "Managed", unmanaged: "Unmanaged" },
+      state: "State",
+      states: { all: "Any", running: "Running", notRunning: "Not running" },
+      search: "Search",
+      searchPlaceholder: "Name, repository, branch, file or directory",
+      reset: "Reset filters",
+      noMatch: "No stack matches the filters.",
+    },
     refresh: "Refresh",
     system: "system",
     repositoryGone: "repository removed",

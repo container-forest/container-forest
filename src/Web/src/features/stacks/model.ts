@@ -19,12 +19,60 @@ export type StackAction = "restart" | "down";
 /** While a deployment is unfinished its screen asks again this often; there is no live channel yet. */
 export const DEPLOYMENT_POLL_MS = 2_000;
 
-/** The stacks screen's URL: which environment is open. */
+/** Which stacks the list shows: those deployed from git (managed), those run by hand on the host (ADR-0016), or both. */
+export const stackKindFilters = ["all", "managed", "unmanaged"] as const;
+export type StackKindFilter = (typeof stackKindFilters)[number];
+
+/** Running means deployed for a managed stack and having containers for an unmanaged one. */
+export const stackStateFilters = ["all", "running", "notRunning"] as const;
+export type StackStateFilter = (typeof stackStateFilters)[number];
+
+/** The stacks screen's URL: which environment is open, and the list's filters, so a link shows the same view. */
 export const stacksSearchSchema = z.object({
   environment: z.string().optional().catch(undefined),
+  kind: z.enum(stackKindFilters).optional().catch(undefined),
+  state: z.enum(stackStateFilters).optional().catch(undefined),
+  q: z.string().optional().catch(undefined),
 });
 
 export type StacksSearch = z.infer<typeof stacksSearchSchema>;
+
+/** Whether any of the list's filters narrows it; the environment does not count. */
+export function isStacksFiltered(search: StacksSearch): boolean {
+  return (search.kind ?? "all") !== "all" || (search.state ?? "all") !== "all" || !!search.q?.trim();
+}
+
+/** Whether the managed or the unmanaged part of the list is shown at all. */
+export function showsKind(search: StacksSearch, kind: Exclude<StackKindFilter, "all">): boolean {
+  return (search.kind ?? "all") === "all" || search.kind === kind;
+}
+
+function matchesState(search: StacksSearch, running: boolean): boolean {
+  const state = search.state ?? "all";
+  return state === "all" || (state === "running") === running;
+}
+
+function matchesText(search: StacksSearch, ...fields: (string | null | undefined)[]): boolean {
+  const text = search.q?.trim().toLowerCase() ?? "";
+  return text === "" || fields.some((field) => field?.toLowerCase().includes(text));
+}
+
+/** Managed stacks by state and by name, repository, branch or compose file. */
+export function filterStacks(stacks: readonly Stack[], search: StacksSearch): Stack[] {
+  return stacks.filter(
+    (s) =>
+      matchesState(search, s.deployedCommit !== null) &&
+      matchesText(search, s.name, s.repositoryName, s.branch, s.composePath),
+  );
+}
+
+/** Unmanaged stacks by state and by name, directory or compose file. */
+export function filterUnmanagedStacks<T extends { name: string; directory: string; configFiles: readonly string[]; hasContainers: boolean }>(
+  stacks: readonly T[],
+  search: StacksSearch,
+): T[] {
+  return stacks.filter((s) => matchesState(search, s.hasContainers) && matchesText(search, s.name, s.directory, ...s.configFiles));
+}
 
 // The aggregator's rules (StackName, StackFilePath) catch typos before sending; it checks everything again and
 // has the last word. Branch names have too many git rules to copy: here only "one word", the rest is its 400.

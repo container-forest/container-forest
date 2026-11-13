@@ -160,6 +160,7 @@ export type TargetLink =
   | { to: "/users/$userId"; params: { userId: string } }
   | { to: "/environments/$environmentId"; params: { environmentId: string } }
   | { to: "/stacks/$stackId"; params: { stackId: string } }
+  | { to: "/stacks/unmanaged/$environmentId/$stackName"; params: { environmentId: string; stackName: string } }
   | { to: "/containers/$environmentId/$containerId/logs"; params: { environmentId: string; containerId: string } };
 
 export function targetLink(entry: AuditEntry): TargetLink | undefined {
@@ -171,7 +172,14 @@ export function targetLink(entry: AuditEntry): TargetLink | undefined {
     case "Environment":
       return entry.environmentId ? { to: "/environments/$environmentId", params: { environmentId: entry.environmentId } } : undefined;
     case "Stack":
-      return entry.stackId ? { to: "/stacks/$stackId", params: { stackId: entry.stackId } } : undefined;
+      if (entry.stackId) {
+        return { to: "/stacks/$stackId", params: { stackId: entry.stackId } };
+      }
+
+      // An unmanaged stack (ADR-0016) has no id; the compose project name on its environment is its address.
+      return entry.environmentId && entry.targetName && entry.action.startsWith("UnmanagedStack")
+        ? { to: "/stacks/unmanaged/$environmentId/$stackName", params: { environmentId: entry.environmentId, stackName: entry.targetName } }
+        : undefined;
     case "Container":
       return entry.environmentId && entry.targetName
         ? { to: "/containers/$environmentId/$containerId/logs", params: { environmentId: entry.environmentId, containerId: entry.targetName } }

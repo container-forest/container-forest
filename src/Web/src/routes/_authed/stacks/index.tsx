@@ -1,19 +1,34 @@
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useIsFetching, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { environmentsQuery, stacksQuery } from "@/api/queries";
+import { environmentsQuery, stacksQuery, unmanagedStacksQuery } from "@/api/queries";
 import { isEditorRole } from "@/api/users";
 import { ErrorText } from "@/components/form-messages";
-import { Loader2Icon, RefreshCwIcon } from "@/components/icons";
+import { FilterXIcon, Loader2Icon, RefreshCwIcon, SearchIcon } from "@/components/icons";
 import { CreateStackDialog } from "@/components/stacks/create-stack-dialog";
 import { UnmanagedStacksSection } from "@/components/stacks/unmanaged-stacks-section";
 import { type StackQuickResult, StackQuickActions } from "@/components/stacks/stack-quick-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Environment } from "@/features/containers/model";
-import { describeError, shortCommit, stacksSearchSchema } from "@/features/stacks/model";
+import {
+  type StackKindFilter,
+  type StackStateFilter,
+  type StacksSearch,
+  describeError,
+  filterStacks,
+  isStacksFiltered,
+  shortCommit,
+  showsKind,
+  stackKindFilters,
+  stackStateFilters,
+  stacksSearchSchema,
+} from "@/features/stacks/model";
 import { formatDateTime } from "@/lib/format";
 import { rowActionsClass, rowClass, rowLinkClass } from "@/lib/row-link";
 import { cn } from "@/lib/utils";
@@ -22,23 +37,36 @@ export const Route = createFileRoute("/_authed/stacks/")({
   validateSearch: stacksSearchSchema,
   beforeLoad: async ({ context, search }) => {
     const environments = await context.queryClient.ensureQueryData(environmentsQuery);
-    // No environment in the URL, or one the user cannot see (any more): open the first one.
+    // No environment in the URL, or one the user cannot see (any more): open the first one, keeping the filters.
     const first = environments[0];
     if (first !== undefined && !environments.some((e) => e.id === search.environment)) {
-      throw redirect({ to: "/stacks", search: { environment: first.id }, replace: true });
+      throw redirect({ to: "/stacks", search: { ...search, environment: first.id }, replace: true });
     }
   },
   component: StacksScreen,
   errorComponent: StacksLoadError,
 });
 
-/** The stacks of one environment: source, deployed commit, and "new stack" for editors of the environment. */
+/**
+ * The stacks of one environment: source, deployed commit, and "new stack" for editors of the environment; below
+ * them the unmanaged ones. Filters in the URL narrow both lists.
+ */
 function StacksScreen() {
   const { t } = useTranslation();
   const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { me } = Route.useRouteContext();
   const { data: environments } = useSuspenseQuery(environmentsQuery);
   const environment = environments.find((e) => e.id === search.environment);
+
+  const setSearch = (patch: Partial<StacksSearch>) => {
+    // Navigating to the same search would only re-run the loader.
+    if (Object.entries(patch).every(([key, value]) => search[key as keyof StacksSearch] === value)) {
+      return;
+    }
+
+    void navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true });
+  };
 
   return (
     <div className="grid gap-6">
@@ -58,15 +86,110 @@ function StacksScreen() {
         <p className="text-muted-foreground">{t("stacks.noEnvironments")}</p>
       ) : (
         <div key={environment.id} className="grid gap-8">
-          <EnvironmentStacks environment={environment} />
-          <UnmanagedStacksSection environment={environment} />
+          <StackFilters environment={environment} search={search} setSearch={setSearch} />
+          {showsKind(search, "managed") && <EnvironmentStacks environment={environment} search={search} />}
+          {showsKind(search, "unmanaged") && <UnmanagedStacksSection environment={environment} search={search} />}
         </div>
       )}
     </div>
   );
 }
 
-function EnvironmentStacks({ environment }: { environment: Environment }) {
+/** Type, state and text, as on the containers screen; reloading here reloads both lists. */
+function StackFilters({
+  environment,
+  search,
+  setSearch,
+}: {
+  environment: Environment;
+  search: StacksSearch;
+  setSearch: (patch: Partial<StacksSearch>) => void;
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const managedKey = stacksQuery(environment.id).queryKey;
+  const unmanagedKey = unmanagedStacksQuery(environment.id).queryKey;
+  const fetching = useIsFetching({ queryKey: managedKey, exact: true }) + useIsFetching({ queryKey: unmanagedKey, exact: true }) > 0;
+
+  const refresh = () =>
+    void Promise.all([
+      queryClient.refetchQueries({ queryKey: managedKey, exact: true }),
+      queryClient.refetchQueries({ queryKey: unmanagedKey, exact: true }),
+    ]);
+
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="grid gap-1.5">
+        <Label htmlFor="stack-kind-filter">{t("stacks.filters.kind")}</Label>
+        <Select
+          value={search.kind ?? "all"}
+          onValueChange={(kind) => kind !== "" && setSearch({ kind: kind === "all" ? undefined : (kind as StackKindFilter) })}
+        >
+          <SelectTrigger id="stack-kind-filter" className="min-w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {stackKindFilters.map((kind) => (
+              <SelectItem key={kind} value={kind}>
+                {t(`stacks.filters.kinds.${kind}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="stack-state-filter">{t("stacks.filters.state")}</Label>
+        <Select
+          value={search.state ?? "all"}
+          onValueChange={(state) => state !== "" && setSearch({ state: state === "all" ? undefined : (state as StackStateFilter) })}
+        >
+          <SelectTrigger id="stack-state-filter" className="min-w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {stackStateFilters.map((state) => (
+              <SelectItem key={state} value={state}>
+                {t(`stacks.filters.states.${state}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid min-w-64 flex-1 gap-1.5">
+        <Label htmlFor="stack-search">{t("stacks.filters.search")}</Label>
+        <div className="relative">
+          <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+          <Input
+            id="stack-search"
+            type="search"
+            className="pl-8"
+            placeholder={t("stacks.filters.searchPlaceholder")}
+            value={search.q ?? ""}
+            onChange={(event) => setSearch({ q: event.target.value === "" ? undefined : event.target.value })}
+          />
+        </div>
+      </div>
+
+      <Button
+        variant="ghost"
+        disabled={!isStacksFiltered(search)}
+        onClick={() => setSearch({ kind: undefined, state: undefined, q: undefined })}
+      >
+        <FilterXIcon data-icon="inline-start" />
+        {t("stacks.filters.reset")}
+      </Button>
+
+      <Button variant="outline" disabled={fetching} onClick={refresh}>
+        {fetching ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : <RefreshCwIcon data-icon="inline-start" />}
+        {t("stacks.refresh")}
+      </Button>
+    </div>
+  );
+}
+
+function EnvironmentStacks({ environment, search }: { environment: Environment; search: StacksSearch }) {
   const { t, i18n } = useTranslation();
   const stacks = useQuery(stacksQuery(environment.id));
   const [result, setResult] = useState<StackQuickResult>();
@@ -93,6 +216,11 @@ function EnvironmentStacks({ environment }: { environment: Environment }) {
     return <p className="text-muted-foreground">{t("stacks.empty", { name: environment.name })}</p>;
   }
 
+  const shown = filterStacks(stacks.data, search);
+  if (shown.length === 0) {
+    return <p className="text-muted-foreground">{t("stacks.filters.noMatch")}</p>;
+  }
+
   return (
     <div className="grid gap-3">
       <QuickResult result={result} />
@@ -109,7 +237,7 @@ function EnvironmentStacks({ environment }: { environment: Environment }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {stacks.data.map((stack) => (
+          {shown.map((stack) => (
             <TableRow key={stack.id} className={rowClass}>
               <TableCell className="whitespace-normal">
                 <Link to="/stacks/$stackId" params={{ stackId: stack.id }} className={cn("font-medium", rowLinkClass)}>
@@ -148,12 +276,6 @@ function EnvironmentStacks({ environment }: { environment: Environment }) {
           ))}
         </TableBody>
       </Table>
-      <div>
-        <Button variant="outline" size="sm" disabled={stacks.isFetching} onClick={() => void stacks.refetch()}>
-          {stacks.isFetching ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : <RefreshCwIcon data-icon="inline-start" />}
-          {t("stacks.refresh")}
-        </Button>
-      </div>
     </div>
   );
 }

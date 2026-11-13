@@ -9,6 +9,7 @@ public sealed record ForestEnvironment(string Id, string Name, bool Online);
 /// <param name="StackName">Null for a container outside compose.</param>
 /// <param name="StatusText">Docker's human-readable status, e.g. "Up 3 minutes (healthy)".</param>
 /// <param name="CanControl">The user may start, stop and restart it. Use it to hide buttons, nothing more.</param>
+/// <param name="CanRemove">The user may remove it once it is stopped. Use it to hide choices, nothing more.</param>
 public sealed record ForestContainer(
     string Id,
     string Name,
@@ -17,7 +18,8 @@ public sealed record ForestContainer(
     string? StackName,
     string? ServiceName,
     string StatusText,
-    bool CanControl);
+    bool CanControl,
+    bool CanRemove = false);
 
 /// <summary>Docker's container states; <see cref="Unknown"/> for a value this bot does not know.</summary>
 public enum ContainerState
@@ -37,6 +39,7 @@ public enum ContainerAction
     Start,
     Stop,
     Restart,
+    Remove,
 }
 
 /// <param name="Name">The compose project name; unique in the environment, and what the bot passes back.</param>
@@ -44,6 +47,9 @@ public enum ContainerAction
 /// <param name="CanRestart">The user may restart it. Use it to hide choices, nothing more.</param>
 /// <param name="CanTakeDown">The user may take it down. Use it to hide choices, nothing more.</param>
 /// <param name="CanDeploy">The user may redeploy it. Use it to hide choices, nothing more.</param>
+/// <param name="IsUnmanaged">A compose project run by hand on the host (ADR-0016): no id, no deployments; up and pull instead.</param>
+/// <param name="CanUp">Unmanaged only: the user may bring it up.</param>
+/// <param name="CanPull">Unmanaged only: the user may pull its images.</param>
 public sealed record ForestStack(
     string Id,
     string Name,
@@ -52,12 +58,21 @@ public sealed record ForestStack(
     DateTimeOffset? DeployedAt,
     bool CanRestart,
     bool CanTakeDown,
-    bool CanDeploy = false);
+    bool CanDeploy = false,
+    bool IsUnmanaged = false,
+    bool CanUp = false,
+    bool CanPull = false);
 
 public enum StackAction
 {
     Restart,
     Down,
+
+    /// <summary>Unmanaged stacks only: docker compose up -d.</summary>
+    Up,
+
+    /// <summary>Unmanaged stacks only: docker compose pull.</summary>
+    Pull,
 }
 
 /// <summary>What docker compose did with a stack.</summary>

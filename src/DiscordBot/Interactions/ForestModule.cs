@@ -13,9 +13,12 @@ public sealed class ForestModule(
     StartContainerCommand start,
     StopContainerCommand stop,
     RestartContainerCommand restart,
+    RemoveContainerCommand remove,
     StacksCommand stacks,
     RestartStackCommand restartStack,
     DownStackCommand downStack,
+    UpStackCommand upStack,
+    PullStackCommand pullStack,
     LinkCommand link,
     IHostApplicationLifetime lifetime) : InteractionModuleBase<SocketInteractionContext>
 {
@@ -54,6 +57,12 @@ public sealed class ForestModule(
         [Summary("timeout", TimeoutDescription), MinValue(0), MaxValue(300)] int? timeout = null) =>
         restart.ExecuteAsync(Current, new ContainerActionArgs(environment, container, timeout), lifetime.ApplicationStopping);
 
+    [SlashCommand("remove", "Remove a stopped container; its volumes stay")]
+    public Task RemoveAsync(
+        [Summary("environment", EnvironmentDescription), Autocomplete(typeof(EnvironmentAutocompleteHandler))] string environment,
+        [Summary("container", ContainerDescription), Autocomplete(typeof(ContainerAutocompleteHandler))] string container) =>
+        remove.ExecuteAsync(Current, new ContainerActionArgs(environment, container), lifetime.ApplicationStopping);
+
     [SlashCommand("stacks", "Stacks of an environment")]
     public Task StacksAsync(
         [Summary("environment", EnvironmentDescription), Autocomplete(typeof(EnvironmentAutocompleteHandler))] string environment) =>
@@ -72,6 +81,18 @@ public sealed class ForestModule(
         [Summary("stack", StackDescription), Autocomplete(typeof(StackAutocompleteHandler))] string stack,
         [Summary("timeout", StackTimeoutDescription), MinValue(0), MaxValue(300)] int? timeout = null) =>
         downStack.ExecuteAsync(Current, new StackActionArgs(environment, stack, timeout), lifetime.ApplicationStopping);
+
+    [SlashCommand("stack-up", "Bring up an unmanaged stack (docker compose up -d)")]
+    public Task UpStackAsync(
+        [Summary("environment", EnvironmentDescription), Autocomplete(typeof(EnvironmentAutocompleteHandler))] string environment,
+        [Summary("stack", StackDescription), Autocomplete(typeof(StackAutocompleteHandler))] string stack) =>
+        upStack.ExecuteAsync(Current, new StackActionArgs(environment, stack), lifetime.ApplicationStopping);
+
+    [SlashCommand("stack-pull", "Pull the images of an unmanaged stack (docker compose pull); /stack-up then uses them")]
+    public Task PullStackAsync(
+        [Summary("environment", EnvironmentDescription), Autocomplete(typeof(EnvironmentAutocompleteHandler))] string environment,
+        [Summary("stack", StackDescription), Autocomplete(typeof(StackAutocompleteHandler))] string stack) =>
+        pullStack.ExecuteAsync(Current, new StackActionArgs(environment, stack), lifetime.ApplicationStopping);
 
     [SlashCommand("link", "Link your Discord account with a one-time code from the container-forest panel")]
     public Task LinkAsync([Summary("code", "The code shown in the panel")] string code) =>

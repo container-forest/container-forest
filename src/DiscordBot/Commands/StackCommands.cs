@@ -28,7 +28,7 @@ public sealed record StackActionArgs(string Environment, string Stack, int? Time
 public sealed record StackActionOutcome(ForestEnvironment Environment, ForestStackResult Result);
 
 /// <summary>
-/// /stack-restart, /stack-down. The aggregator decides whether the user may do it and whether the stack allows it;
+/// /stack-restart, /stack-down, and for unmanaged stacks /stack-up and /stack-pull. The aggregator decides whether the user may do it and whether the stack allows it;
 /// the bot reports its answer together with what compose printed, which matters most when compose failed.
 /// </summary>
 public abstract class StackActionCommand(IForestClient forest, EnvironmentResolver environments, ILogger logger)
@@ -78,4 +78,26 @@ public sealed class DownStackCommand(IForestClient forest, EnvironmentResolver e
     public override StackAction Action => StackAction.Down;
 
     protected override string Done => "Took down";
+}
+
+/// <summary>/stack-up: docker compose up -d of an unmanaged stack (ADR-0016); managed stacks are deployed instead.</summary>
+public sealed class UpStackCommand(IForestClient forest, EnvironmentResolver environments, ILogger<UpStackCommand> logger)
+    : StackActionCommand(forest, environments, logger)
+{
+    public override string Name => "stack-up";
+
+    public override StackAction Action => StackAction.Up;
+
+    protected override string Done => "Brought up";
+}
+
+/// <summary>/stack-pull: docker compose pull of an unmanaged stack (ADR-0016); run /stack-up afterwards to use the images.</summary>
+public sealed class PullStackCommand(IForestClient forest, EnvironmentResolver environments, ILogger<PullStackCommand> logger)
+    : StackActionCommand(forest, environments, logger)
+{
+    public override string Name => "stack-pull";
+
+    public override StackAction Action => StackAction.Pull;
+
+    protected override string Done => "Pulled images of";
 }

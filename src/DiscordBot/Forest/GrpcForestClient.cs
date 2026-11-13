@@ -123,6 +123,8 @@ public sealed class GrpcForestClient(
             {
                 StackAction.Restart => Proto.StackAction.Restart,
                 StackAction.Down => Proto.StackAction.Down,
+                StackAction.Up => Proto.StackAction.Up,
+                StackAction.Pull => Proto.StackAction.Pull,
                 _ => throw new ArgumentOutOfRangeException(nameof(action), action, null),
             },
         };
@@ -211,7 +213,8 @@ public sealed class GrpcForestClient(
         c.StackName is "" ? null : c.StackName,
         c.ServiceName is "" ? null : c.ServiceName,
         c.StatusText,
-        c.CanControl);
+        c.CanControl,
+        c.CanRemove);
 
     private static ForestStack ToStack(Proto.Stack s) => new(
         s.Id,
@@ -221,7 +224,10 @@ public sealed class GrpcForestClient(
         s.DeployedUnixMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(s.DeployedUnixMs) : null,
         s.CanRestart,
         s.CanTakeDown,
-        s.CanDeploy);
+        s.CanDeploy,
+        s.Unmanaged,
+        s.CanUp,
+        s.CanPull);
 
     private static ContainerState ToState(Proto.ContainerState state) => state switch
     {
@@ -240,6 +246,7 @@ public sealed class GrpcForestClient(
         ContainerAction.Start => Proto.ContainerAction.Start,
         ContainerAction.Stop => Proto.ContainerAction.Stop,
         ContainerAction.Restart => Proto.ContainerAction.Restart,
+        ContainerAction.Remove => Proto.ContainerAction.Remove,
         _ => throw new ArgumentOutOfRangeException(nameof(action), action, null),
     };
 }

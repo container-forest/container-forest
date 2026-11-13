@@ -55,6 +55,19 @@ public static class ReplyFormatter
 
     public static string StackLine(ForestStack stack)
     {
+        if (stack.IsUnmanaged)
+        {
+            string[] allowed =
+            [
+                .. stack.CanUp ? ["up"] : Array.Empty<string>(),
+                .. stack.CanPull ? ["pull"] : Array.Empty<string>(),
+                .. stack.CanRestart ? ["restart"] : Array.Empty<string>(),
+                .. stack.CanTakeDown ? ["down"] : Array.Empty<string>(),
+            ];
+            var what = stack.IsSystem ? "system stack" : allowed.Length == 0 ? "view only" : string.Join(", ", allowed);
+            return $"🔧 {Markdown.Code(stack.Name)} — unmanaged · {what}";
+        }
+
         var deployed = stack.DeployedCommit is { } commit
             ? $"deployed {Markdown.Code(commit[..Math.Min(12, commit.Length)])}"
             : "not deployed";

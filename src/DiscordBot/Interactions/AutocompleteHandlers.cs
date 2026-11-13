@@ -30,6 +30,7 @@ public sealed class ContainerAutocompleteHandler(AutocompleteSource source) : Au
             "start" => ContainerAction.Start,
             "stop" => ContainerAction.Stop,
             "restart" => ContainerAction.Restart,
+            "remove" => ContainerAction.Remove,
             _ => null,
         };
 
@@ -51,6 +52,8 @@ public sealed class StackAutocompleteHandler(AutocompleteSource source) : Autoco
         {
             "stack-restart" => StackAction.Restart,
             "stack-down" => StackAction.Down,
+            "stack-up" => StackAction.Up,
+            "stack-pull" => StackAction.Pull,
             _ => null,
         };
 

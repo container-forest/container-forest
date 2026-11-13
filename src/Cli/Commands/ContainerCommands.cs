@@ -42,7 +42,7 @@ internal sealed class ContainerListCommand() : EnvironmentCommand("list", "List 
     }
 }
 
-/// <summary><c>forest container start|stop|restart NAME</c>.</summary>
+/// <summary><c>forest container start|stop|restart|remove NAME</c>; remove needs <c>--yes</c>.</summary>
 internal sealed class ContainerControlCommand(ContainerAction action, string description)
     : EnvironmentCommand(action.ToString().ToLowerInvariant(), description)
 {
@@ -53,24 +53,37 @@ internal sealed class ContainerControlCommand(ContainerAction action, string des
         Description = "Seconds to wait for the container to stop before killing it (0-300; 0 kills at once).",
     };
 
+    private readonly Option<bool> yes = Confirmation.Option();
+
     protected override void Configure(Command command)
     {
         base.Configure(command);
         command.Add(container);
-        if (action != ContainerAction.Start)
+        if (action is ContainerAction.Stop or ContainerAction.Restart)
         {
             command.Add(timeout);
+        }
+
+        if (action == ContainerAction.Remove)
+        {
+            command.Add(yes);
         }
     }
 
     protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment)
     {
         var name = context.Value(container);
+        if (action == ContainerAction.Remove)
+        {
+            Confirmation.Require(context, yes, $"remove the container {name}");
+        }
+
         await context.Api.ControlContainerAsync(environment.Id!.Value, name, action, context.Value(timeout), context.CancellationToken);
         context.Output.Done(action switch
         {
             ContainerAction.Start => $"Started {name}.",
             ContainerAction.Stop => $"Stopped {name}.",
+            ContainerAction.Remove => $"Removed {name}.",
             _ => $"Restarted {name}.",
         });
         return ExitCodes.Ok;
@@ -127,5 +140,100 @@ internal sealed class ContainerLogsCommand() : EnvironmentCommand("logs", "Show 
         }
 
         await context.Output.Out.FlushAsync(context.CancellationToken);
+    }
+}
+
+/// <summary><c>forest unmanaged list</c>: compose projects run by hand on the host (ADR-0016).</summary>
+internal sealed class UnmanagedListCommand() : EnvironmentCommand("list", "List the compose projects run by hand on the environment's host.")
+{
+    protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment)
+    {
+        var stacks = await context.Api.ListUnmanagedStacksAsync(environment.Id!.Value, context.CancellationToken);
+        await context.Output.ListAsync(
+            stacks,
+            items =>
+            {
+                var table = new Table("NAME", "STATE", "DIRECTORY", "ACTIONS");
+                foreach (var s in items)
+                {
+                    var actions = s.IsSystem == true ? "system"
+                        : s.CanDeploy == true ? "up, pull, restart, down"
+                        : s.CanRestart == true ? "restart"
+                        : "view only";
+                    table.AddRow(s.Name, s.HasContainers == true ? "containers" : "no containers", s.Directory, actions);
+                }
+
+                return table;
+            },
+            "No unmanaged stacks: the agent has no unmanaged stack roots, or none has a compose project.");
+        return ExitCodes.Ok;
+    }
+}
+
+/// <summary><c>forest unmanaged up|pull|restart|down NAME</c>; down needs <c>--yes</c>.</summary>
+internal sealed class UnmanagedControlCommand(UnmanagedStackAction action, string description)
+    : EnvironmentCommand(action.ToString().ToLowerInvariant(), description)
+{
+    private readonly Argument<string> stack = new("stack") { Description = "The compose project name." };
+    private readonly Option<int?> timeout = new("--timeout", "-t") { Description = "Seconds each container gets to stop (0-300, default 10)." };
+    private readonly Option<bool> yes = Confirmation.Option();
+
+    protected override void Configure(Command command)
+    {
+        base.Configure(command);
+        command.Add(stack);
+        if (action is UnmanagedStackAction.Restart or UnmanagedStackAction.Down)
+        {
+            command.Add(timeout);
+        }
+
+        if (action == UnmanagedStackAction.Down)
+        {
+            command.Add(yes);
+        }
+    }
+
+    protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment)
+    {
+        var name = context.Value(stack);
+        if (action == UnmanagedStackAction.Down)
+        {
+            Confirmation.Require(context, yes, $"stop and remove the containers of {name}");
+        }
+
+        context.Output.Note(action switch
+        {
+            UnmanagedStackAction.Up => $"Bringing {name} up…",
+            UnmanagedStackAction.Pull => $"Pulling the images of {name}…",
+            UnmanagedStackAction.Restart => $"Restarting {name}…",
+            _ => $"Taking {name} down…",
+        });
+        var result = await context.Api.ControlUnmanagedStackAsync(
+            environment.Id!.Value, name, action, context.Value(timeout), context.CancellationToken);
+        if (context.Output.IsJson)
+        {
+            await context.Output.ItemAsync(result, _ => []);
+        }
+        else
+        {
+            foreach (var line in result.Output ?? [])
+            {
+                await context.Output.Out.WriteLineAsync(line);
+            }
+        }
+
+        if (result.Succeeded != true)
+        {
+            throw new CliException(result.Error ?? "Compose failed.");
+        }
+
+        context.Output.Done(action switch
+        {
+            UnmanagedStackAction.Up => $"{name} is up.",
+            UnmanagedStackAction.Pull => $"Pulled the images of {name}; 'forest unmanaged up {name}' uses them.",
+            UnmanagedStackAction.Restart => $"{name} restarted.",
+            _ => $"{name} is down.",
+        });
+        return ExitCodes.Ok;
     }
 }

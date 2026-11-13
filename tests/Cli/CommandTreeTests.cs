@@ -15,6 +15,12 @@ public class CommandTreeTests
     [InlineData("stack deploy web --pull")]
     [InlineData("stack down web -e r2 --yes -t 30")]
     [InlineData("container logs web-app-1 -f --tail 50")]
+    [InlineData("container remove old-1 -e r2 --yes")]
+    [InlineData("unmanaged list -e r2")]
+    [InlineData("unmanaged up caddy -e r2")]
+    [InlineData("unmanaged pull caddy")]
+    [InlineData("unmanaged restart caddy -t 5")]
+    [InlineData("unmanaged down caddy --yes -t 0")]
     [InlineData("env registry set ghcr.io -u me")]
     [InlineData("login forest.example.com --device")]
     [InlineData("deployment logs 01a11fb3-4e54-7703-afb3-13230a32e6e9 -f")]
@@ -45,6 +51,9 @@ public class CommandTreeTests
     [InlineData("user role grant alice -e r2 --role Root")]
     [InlineData("user set-admin alice maybe")]
     [InlineData("secrets remove")]
+    [InlineData("unmanaged up")]
+    [InlineData("unmanaged pull caddy -t 5")]
+    [InlineData("container remove old-1 -t 5")]
     [InlineData("secrets rule add")]
     public void Wrong_command_lines_are_refused(string commandLine) => Assert.NotEmpty(Root.Parse(commandLine).Errors);
 

@@ -8,6 +8,7 @@ using ContainerForest.Cli.Api.Generated.Api.Environments.Item.RegistryCredential
 using ContainerForest.Cli.Api.Generated.Api.Environments.Item.RevokeAgent;
 using ContainerForest.Cli.Api.Generated.Api.Environments.Item.RoleAssignments;
 using ContainerForest.Cli.Api.Generated.Api.Environments.Item.Stacks;
+using ContainerForest.Cli.Api.Generated.Api.Environments.Item.UnmanagedStacks;
 using ContainerForest.Cli.Api.Generated.Models;
 using Microsoft.Kiota.Abstractions.Extensions;
 using Microsoft.Kiota.Abstractions.Serialization;
@@ -64,6 +65,11 @@ namespace ContainerForest.Cli.Api.Generated.Api.Environments.Item
         public global::ContainerForest.Cli.Api.Generated.Api.Environments.Item.Stacks.StacksRequestBuilder Stacks
         {
             get => new global::ContainerForest.Cli.Api.Generated.Api.Environments.Item.Stacks.StacksRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The unmanagedStacks property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.Environments.Item.UnmanagedStacks.UnmanagedStacksRequestBuilder UnmanagedStacks
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.Environments.Item.UnmanagedStacks.UnmanagedStacksRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>
         /// Instantiates a new <see cref="global::ContainerForest.Cli.Api.Generated.Api.Environments.Item.EnvironmentsItemRequestBuilder"/> and sets the default values.

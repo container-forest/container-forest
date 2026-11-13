@@ -16,6 +16,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
         public IDictionary<string, object> AdditionalData { get; set; }
         /// <summary>The canControl property</summary>
         public bool? CanControl { get; set; }
+        /// <summary>The canRemove property</summary>
+        public bool? CanRemove { get; set; }
         /// <summary>The createdAt property</summary>
         public DateTimeOffset? CreatedAt { get; set; }
         /// <summary>The id property</summary>
@@ -96,6 +98,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             return new Dictionary<string, Action<IParseNode>>
             {
                 { "canControl", n => { CanControl = n.GetBoolValue(); } },
+                { "canRemove", n => { CanRemove = n.GetBoolValue(); } },
                 { "createdAt", n => { CreatedAt = n.GetDateTimeOffsetValue(); } },
                 { "id", n => { Id = n.GetStringValue(); } },
                 { "image", n => { Image = n.GetStringValue(); } },
@@ -115,6 +118,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
         {
             if(ReferenceEquals(writer, null)) throw new ArgumentNullException(nameof(writer));
             writer.WriteBoolValue("canControl", CanControl);
+            writer.WriteBoolValue("canRemove", CanRemove);
             writer.WriteDateTimeOffsetValue("createdAt", CreatedAt);
             writer.WriteStringValue("id", Id);
             writer.WriteStringValue("image", Image);

@@ -1,74 +1,74 @@
-# ADR-0010. Git-фільтр для секретів SOPS
+# ADR-0010. A git filter for SOPS secrets
 
-- Статус: прийнято
-- Дата: 2026-10-10
+- Status: accepted
+- Date: 2026-10-10
 
-## Контекст
+## Context
 
-Секрети стеку лежать у репозиторії зашифрованими SOPS для age-ключа середовища, а ЦА розшифровує їх під час деплою. Приватні ключі середовищ є лише в ЦА (інваріант 1). Тому людині, яка редагує секрет, потрібен власний age-ключ у `.sops.yaml` і локальний `sops`: розшифрувати, змінити, зашифрувати, закомітити. На практиці це означає особисті ключі, що розповзаються по ноутбуках, ручні кроки, які легко пропустити (і закомітити відкритий текст), і `sops updatekeys` після кожної зміни команди.
+A stack's secrets live in the repository encrypted with SOPS to the environment's age key, and the aggregator decrypts them during a deployment. The environments' private keys exist only in the aggregator (invariant 1). So a person editing a secret needs their own age key in `.sops.yaml` and a local `sops`: decrypt, change, encrypt, commit. In practice that means personal keys spreading across laptops, manual steps that are easy to skip (and commit plain text), and `sops updatekeys` after every change in the team.
 
-Розглянуті варіанти:
+Options considered:
 
-1. **ЦА як git-сервер («managed repo»)**: push і pull ідуть через ЦА, а він шифрує й розшифровує на льоту. Відкинуто: git адресує вміст хешами, тож кожен користувач бачив би інший коміт того самого дерева; ЦА довелося б бути повноцінним git-сервером (протоколи, права на гілки, LFS, хуки), і репозиторій перестав би жити там, де команда вже працює (GitHub, Gitea, GitLab).
-2. **Окремий ключ на кожен стек.** Відкинуто поки що: межа ізоляції — хост. Editor стеку може змонтувати в контейнер будь-що з хоста, зокрема каталоги й tmpfs інших стеків, тож окремий ключ нічого не захищає, доки compose-файли не обмежені політикою (privileged, `cap_add`, bind-mount поза каталогом стеку, `docker.sock`, `env_file` поза стеком). Повернутися до цього можна разом із такою політикою в `ValidateComposeStep`.
-3. **Клієнтський git-фільтр** (обрано): git сам викликає фільтр на checkout (smudge) і на add (clean). Фільтр просить ЦА розшифрувати файл ключами середовищ, де людина має право, і зашифрувати його для правил `.sops.yaml`. У репозиторії лишаються звичайні файли sops, а git-сервер може бути будь-яким.
+1. **The aggregator as a git server ("managed repo")**: push and pull go through the aggregator, which encrypts and decrypts on the fly. Rejected: git addresses content by hash, so every user would see a different commit of the same tree; the aggregator would have to be a full git server (protocols, branch permissions, LFS, hooks), and the repository would no longer live where the team already works (GitHub, Gitea, GitLab).
+2. **A separate key per stack.** Rejected for now: the isolation boundary is the host. A stack's Editor can mount anything from the host into a container, including other stacks' directories and tmpfs, so a separate key protects nothing until compose files are restricted by a policy (privileged, `cap_add`, bind mounts outside the stack directory, `docker.sock`, `env_file` outside the stack). This can be revisited together with such a policy in `ValidateComposeStep`.
+3. **A client-side git filter** (chosen): git itself calls the filter on checkout (smudge) and on add (clean). The filter asks the aggregator to decrypt a file with the keys of environments where the person has the right, and to encrypt it for the rules of `.sops.yaml`. The repository keeps ordinary sops files, and the git server can be anything.
 
-## Рішення
+## Decision
 
-1. **Формат не змінюється.** У git — стандартні файли sops; їх розшифровує й деплой (`SopsDecryptStep`), і `sops decrypt` з будь-яким ключем-отримувачем. Фільтр — надбудова над наявною роботою з SOPS, а не заміна: ручний `sops` з власним ключем працює далі, а репозиторій не прив'язаний до container-forest.
+1. **The format doesn't change.** Git holds standard sops files; both the deployment (`SopsDecryptStep`) and `sops decrypt` with any recipient key decrypt them. The filter is a layer on top of the existing SOPS workflow, not a replacement: manual `sops` with your own key keeps working, and the repository isn't tied to container-forest.
 
-2. **Які файли.** `.gitattributes` позначає їх `filter=forest diff=forest`. `forest git setup` записує в локальний конфіг клону:
-   - `filter.forest.process = forest git filter-process` — один процес на команду git, протокол pkt-line («Long Running Filter Process» у gitattributes(5)), можливості clean і smudge;
-   - `filter.forest.required = true` — помилка фільтра зупиняє git, а не пропускає файл;
-   - `diff.forest.textconv = forest git textconv` з `cachetextconv = false` — `git diff` показує відкритий текст.
+2. **Which files.** `.gitattributes` marks them `filter=forest diff=forest`. `forest git setup` writes to the clone's local config:
+   - `filter.forest.process = forest git filter-process`: one process per git command, the pkt-line protocol ("Long Running Filter Process" in gitattributes(5)), with the clean and smudge capabilities;
+   - `filter.forest.required = true`: a filter error stops git rather than skipping the file;
+   - `diff.forest.textconv = forest git textconv` with `cachetextconv = false`: `git diff` shows plain text.
 
-   Невідомий git'у драйвер фільтра він мовчки ігнорує, тож клон без `forest git setup` бачить і комітить файли як є.
+   Git silently ignores a filter driver it doesn't know, so a clone without `forest git setup` sees and commits the files as they are.
 
-3. **Smudge** (checkout): зашифрований файл розшифровується через ЦА (`POST /api/sops/decrypt`). Якщо прав немає, ЦА недоступний або вхід не виконано, файл лишається зашифрованим, причина пишеться в stderr один раз, а checkout продовжується. Людина без доступу отримує робочий клон, просто без відкритих секретів.
+3. **Smudge** (checkout): an encrypted file is decrypted through the aggregator (`POST /api/sops/decrypt`). Without permission, with the aggregator unreachable or without a sign-in, the file stays encrypted, the reason goes to stderr once, and the checkout continues. A person without access gets a working clone, just without plain-text secrets.
 
-4. **Clean** (add, status, diff): відкритий текст шифрується через ЦА (`POST /api/sops/encrypt` з `.sops.yaml` клону). Уже зашифрований файл проходить без змін. Будь-яка помилка — помилка git: відкритий текст не потрапляє в git.
-   - sops щоразу шифрує з новим ключем даних, тож без пам'яті кожен `git status` бачив би кожен секрет зміненим. Кеш `.git/forest/cache.json` пам'ятає для кожного шляху шифротекст і HMAC-SHA256 відкритого тексту з випадковим ключем клону (`.git/forest/key`, лише власник). Незмінений текст повертає той самий шифротекст. Відкритого тексту в кеші немає.
+4. **Clean** (add, status, diff): plain text is encrypted through the aggregator (`POST /api/sops/encrypt` with the clone's `.sops.yaml`). An already encrypted file passes unchanged. Any error is a git error: plain text never reaches git.
+   - sops encrypts with a new data key every time, so without memory every `git status` would see every secret as changed. The cache `.git/forest/cache.json` remembers, per path, the ciphertext and an HMAC-SHA256 of the plain text with a random per-clone key (`.git/forest/key`, owner only). Unchanged text gets the same ciphertext back. The cache holds no plain text.
 
-5. **Права на розшифрування.** ЦА пробує лише ключі середовищ, де актор — Editor (середовища або хоча б одного його стеку, `AccessPolicy.EditorEnvironments`). Адміністратор без обмежень токена може розшифрувати все.
-   - Отримувачі з метаданих файла — лише підказка, які ключі пробувати: їх пише будь-хто, тож вони не розширюють доступ.
-   - Прив'язки репозиторію до середовища немає: усе, що клієнт каже про файл, крім самого шифротексту, неперевірне. Обмеження криптографічне: файл, зашифрований лише для prod, розшифрує тільки ключ prod.
-   - Це не ширше за наявні права: Editor середовища або стеку може задеплоїти цей файл і прочитати його на хості, бо фактично має root.
-   - Файл, жоден отримувач якого не є ключем середовища, — 422; файл чужих середовищ — 403.
+5. **Decryption permissions.** The aggregator tries only the keys of environments where the actor is an Editor (of the environment or at least one of its stacks, `AccessPolicy.EditorEnvironments`). An administrator without token restrictions can decrypt everything.
+   - The recipients from the file's metadata are only a hint about which keys to try: anyone can write them, so they don't widen access.
+   - There's no binding of a repository to an environment: everything the client says about a file, except the ciphertext itself, is unverifiable. The restriction is cryptographic: a file encrypted only for prod is decrypted only by prod's key.
+   - This is no wider than existing rights: an Editor of an environment or a stack can deploy this file and read it on the host, since they're effectively root.
+   - A file none of whose recipients is an environment key is a 422; a file of other people's environments is a 403.
 
-6. **Прапорець `secrets` на API-токені** (доповнення до ADR-0007). Токени живуть у файлах і CI, тож розшифровувати може лише токен, створений із цим правом (`ApiToken.CanDecryptSecrets`, claim `cf:secrets`, `AccessScope.CanDecryptSecrets`). Сесія в панелі може завжди.
-   - Типово прапорець вимкнено. Токен лише для читання прапорця мати не може (400).
-   - Вмикається галочкою «Розшифрування секретів» у діалозі нового токена й на сторінці підтвердження входу CLI. `forest login --secrets` лише ставить галочку заздалегідь, вирішує людина.
-   - Обмеження токена середовищами діє як завжди: токен для staging не розшифрує файл prod, навіть якщо власник — Editor prod.
+6. **The `secrets` flag on an API token** (an addition to ADR-0007). Tokens live in files and CI, so only a token created with this right can decrypt (`ApiToken.CanDecryptSecrets`, claim `cf:secrets`, `AccessScope.CanDecryptSecrets`). A panel session always can.
+   - The flag is off by default. A read-only token can't have it (400).
+   - It's turned on with the *Decrypt secrets* checkbox in the new token dialog and on the CLI sign-in confirmation page. `forest login --secrets` only pre-checks the box; the person decides.
+   - The token's environment restriction applies as always: a token for staging won't decrypt a prod file, even if its owner is a prod Editor.
 
-7. **Шифрування на ЦА.** Приватний ключ для шифрування не потрібен, тож шифрувати може будь-який актор, крім токена лише для читання.
-   - ЦА сам обирає перше правило `.sops.yaml`, чий `path_regex` збігається зі шляхом від кореня репозиторію (RE2 sops ≈ неретроспективний движок .NET, лінійний час).
-   - Потім ЦА запускає `sops` з конфігом, складеним лише з age-отримувачів і параметрів «що шифрувати» цього правила. Правило з KMS, Vault, PGP чи `key_groups` відхиляється (400): інакше репозиторій змусив би ЦА звертатися до сервісів, які він назве (SSRF), або запускати gpg. Такі файли шифрує локальний `sops`.
+7. **Encryption in the aggregator.** Encrypting needs no private key, so any actor except a read-only token can encrypt.
+   - The aggregator itself picks the first `.sops.yaml` rule whose `path_regex` matches the path from the repository root (sops's RE2 ≈ .NET's non-backtracking engine, linear time).
+   - Then the aggregator runs `sops` with a config built only from that rule's age recipients and "what to encrypt" parameters. A rule with KMS, Vault, PGP or `key_groups` is rejected (400): otherwise a repository could make the aggregator contact services it names (SSRF) or run gpg. A local `sops` encrypts such files.
 
-8. **Локальний sops** (`forest git setup --local-sops`, `forest.localSops = true`). Smudge спершу пробує `sops` з ключами людини (`SOPS_AGE_KEY_FILE` тощо), потім ЦА; clean шифрує локальним `sops` за `.sops.yaml` клону. Так фільтр працює без ЦА, наприклад для відновлення резервним ключем.
+8. **A local sops** (`forest git setup --local-sops`, `forest.localSops = true`). Smudge first tries `sops` with the person's keys (`SOPS_AGE_KEY_FILE`, etc.), then the aggregator; clean encrypts with a local `sops` by the clone's `.sops.yaml`. That way the filter works without the aggregator, for example to recover with a backup key.
 
-9. **Захист від відкритого тексту в git** — три рубежі:
-   - pre-commit хук від `forest git setup` (`forest secrets check --staged`);
-   - `forest secrets check` у CI;
-   - деплой: `SopsDecryptStep` відмовляє, якщо файл під `filter=forest` (за `.gitattributes` каталогу стеку й каталогів вище) не зашифрований. Задеплоїти такий файл означало б приховати витік; секрет уже в історії й має бути змінений.
+9. **Keeping plain text out of git** has three lines of defence:
+   - the pre-commit hook from `forest git setup` (`forest secrets check --staged`);
+   - `forest secrets check` in CI;
+   - the deployment: `SopsDecryptStep` refuses if a file under `filter=forest` (by the `.gitattributes` of the stack directory and the directories above it) isn't encrypted. Deploying such a file would hide a leak; the secret is already in the history and must be changed.
 
-10. **Команди CLI:**
-    - `forest secrets init` — `.sops.yaml` з ключами середовищ (`--env`, `--rule <префікс>=<середовище>`, `--recovery age1…`) і `.gitattributes`;
-    - `adopt` — наявні sops-файли під фільтр, `.sops.yaml` не змінюється;
-    - `add` — нові файли під фільтр;
-    - `status` — що розшифровано, для яких середовищ, попередження про файли кількох середовищ;
-    - `check` — перевірка для хука й CI;
-    - `updatekeys` — повторне шифрування за поточним `.sops.yaml`;
-    - `remove` — файл з-під фільтра: типово в git лишається sops-файлом, а в клоні знову стає шифротекстом (далі — ручний `sops`); з `--plain --yes` розшифрований текст іде в наступний коміт, для файла, що виявився не секретом. Зашифровані версії лишаються в історії. Файл, який покриває шаблон, отримує рядок `-filter -diff`;
-    - `rule list | add <префікс>=<середовище> | remove <префікс>` — правила `.sops.yaml` без перезапису файла. Нове правило стає перед першим, з яким перекривається (sops бере перше, що підходить), і отримує ключі, які є в кожному правилі й не належать жодному середовищу (резервні ключі `init --recovery`). CLI редагує `.sops.yaml` як рядки, без YAML-бібліотеки (NativeAOT): незмінені правила лишаються як були, незрозумілу форму команди відмовляються змінювати;
-    - `forest git setup` — увімкнути фільтр у клоні;
-    - `forest git teardown` — вимкнути: конфіг фільтра, свій хук і кеш клону видаляються, розшифровані файли знову стають шифротекстом; незакомічені зміни в них — відмова. `.gitattributes` і `.sops.yaml` лишаються: вони належать репозиторію.
+10. **CLI commands:**
+    - `forest secrets init`: `.sops.yaml` with the environments' keys (`--env`, `--rule <prefix>=<environment>`, `--recovery age1…`) and `.gitattributes`;
+    - `adopt`: existing sops files under the filter, without changing `.sops.yaml`;
+    - `add`: new files under the filter;
+    - `status`: what's decrypted, for which environments, warnings about files of several environments;
+    - `check`: the check for the hook and CI;
+    - `updatekeys`: re-encrypting by the current `.sops.yaml`;
+    - `remove`: a file out from under the filter: by default it stays a sops file in git and becomes ciphertext in the clone again (manual `sops` from then on); with `--plain --yes` the decrypted text goes into the next commit, for a file that turned out not to be a secret. Encrypted versions stay in the history. A file covered by a pattern gets a `-filter -diff` line;
+    - `rule list | add <prefix>=<environment> | remove <prefix>`: `.sops.yaml` rules without rewriting the file. A new rule goes before the first one it overlaps (sops takes the first match) and gets the keys present in every rule that belong to no environment (the `init --recovery` backup keys). The CLI edits `.sops.yaml` as lines, without a YAML library (NativeAOT): unchanged rules stay as they were, and the commands refuse to change a shape they don't understand;
+    - `forest git setup`: turn the filter on in a clone;
+    - `forest git teardown`: turn it off: the filter config, its hook and the clone's cache are removed, and decrypted files become ciphertext again; uncommitted changes in them mean a refusal. `.gitattributes` and `.sops.yaml` stay: they belong to the repository.
 
-## Наслідки
+## Consequences
 
-- **Відкритий текст у робочих копіях.** Секрети лежать відкритим текстом у робочих копіях Editor'ів: свідомий компроміс заради зручності, як і будь-який `sops decrypt` у терміналі. Робоча копія має бути на машині, якій довіряють. Токен із правом розшифрування — для робочої машини, не для CI.
-- **Зміна ролей.** Зняття ролі закриває доступ до нових розшифрувань, але не до того, що вже лежить у клонах: після зміни команди секрети середовища треба змінити.
-- **Залежність від ЦА.** Без `--recovery` або власного ключа файли розшифровує лише ЦА: втрата тому з даними ЦА (key ring) означає втрату секретів. `forest secrets init` про це попереджає.
-- **Окремі правила для середовищ.** Файл, зашифрований для кількох середовищ, читає Editor будь-якого з них. `forest secrets init --rule` дає окреме правило на кожне середовище, а `forest secrets status` попереджає про такі файли.
-- **Editor стеку.** Editor стеку може розшифрувати секрети всього середовища, а не лише свого стеку: він і так фактично root на хості (див. «Права доступу» в `architecture.md`).
-- **Аудит.** ЦА логує, хто який шлях розшифрував, без вмісту. Ендпоінти мають ліміт запитів на користувача, щоб викрадений токен не став швидким сервісом розшифрування. *Оновлення (жовтень 2026):* розшифрування записується й у журнал аудиту, разом із відмовленими спробами.
-- **Закінчення рядків.** *Оновлення (жовтень 2026):* git перетворює закінчення рядків перед smudge, тож на Windows із `core.autocrlf` шифротекст доходив до sops із CRLF і не розшифровувався (`parsing time "…Z\x0d"`), а `forest git setup` ховав причину за підказкою про права. Тепер правила `.gitattributes` пишуться з `eol=lf`, `forest secrets fix-eol` дописує його в старі правила й прибирає CRLF із git і клону, `setup` показує причину від фільтра, `secrets check` відхиляє шифротекст із CRLF, а ЦА називає CRLF у помилці. Відкритий dotenv та INI фільтр шифрує без CR: інакше значення на хості отримало б `\r`. Нормалізувати шифротекст у ЦА відмовились: файл, який розшифровує ЦА, але не `sops` людини, гірший за явну помилку.
+- **Plain text in working copies.** Secrets sit in plain text in Editors' working copies: a deliberate trade-off for convenience, like any `sops decrypt` in a terminal. The working copy must be on a trusted machine. A token allowed to decrypt is for a workstation, not for CI.
+- **Role changes.** Removing a role closes access to new decryptions, but not to what's already in clones: after people change, change the environment's secrets.
+- **Dependence on the aggregator.** Without `--recovery` or your own key, only the aggregator decrypts the files: losing its data volume (the key ring) means losing the secrets. `forest secrets init` warns about this.
+- **Separate rules per environment.** A file encrypted for several environments can be read by an Editor of any of them. `forest secrets init --rule` gives each environment its own rule, and `forest secrets status` warns about such files.
+- **A stack's Editor.** A stack's Editor can decrypt the whole environment's secrets, not just their stack's: they're effectively root on the host anyway (see "Permissions" in `architecture.md`).
+- **Audit.** The aggregator logs who decrypted which path, without content. The endpoints are rate-limited per user, so a stolen token can't become a fast decryption service. *Update (October 2026):* decryption is also recorded in the audit log, together with denied attempts.
+- **Line endings.** *Update (October 2026):* git converts line endings before smudge, so on Windows with `core.autocrlf` ciphertext reached sops with CRLF and didn't decrypt (`parsing time "…Z\x0d"`), while `forest git setup` hid the reason behind a hint about permissions. Now `.gitattributes` rules are written with `eol=lf`, `forest secrets fix-eol` adds it to old rules and removes CRLF from git and the clone, `setup` shows the reason from the filter, `secrets check` rejects ciphertext with CRLF, and the aggregator names CRLF in the error. The filter encrypts plain dotenv and INI without CR: otherwise a value on the host would get a `\r`. Normalising ciphertext in the aggregator was rejected: a file the aggregator decrypts but a person's `sops` doesn't is worse than an explicit error.

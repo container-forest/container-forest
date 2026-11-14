@@ -1,72 +1,72 @@
-# ADR-0011. Засвідчення вмісту стеку підписами комітів
+# ADR-0011. Endorsing stack content with commit signatures
 
-- Статус: прийнято
-- Дата: 2026-11-03
-- Змінено: [ADR-0015](0015-image-updates.md) — коміт оновлення образу ЦА засвідчує його запис поверх засвідченого вмісту, а не ключ.
+- Status: accepted
+- Date: 2026-11-03
+- Changed: [ADR-0015](0015-image-updates.md): the aggregator's image update commit is endorsed by its record on top of endorsed content, not by a key.
 
-## Контекст
+## Context
 
-Права ЦА вирішують, **хто запускає** деплой, але не **що** деплоїться: вміст — це голова гілки на git-сервері. Тому фактично root на хостах стеку має кожен, хто може змінити гілку:
+The aggregator's permissions decide **who starts** a deployment, but not **what** is deployed: the content is the branch head on the git server. So effectively everyone who can change the branch is root on the stack's hosts:
 
-- будь-хто з правом push у репозиторій, навіть без облікового запису в container-forest. З `DeployOnPush` push і є деплоєм, без нього достатньо дочекатися ручного;
-- адміністратор git-сервера або зламаний git-сервер: він переписує гілку і, знаючи секрет webhook, сам запускає деплой;
-- будь-хто з викраденим клоном із правом запису або токеном CI.
+- anyone with push access to the repository, even without an account in container-forest. With `DeployOnPush` a push is a deployment; without it, waiting for a manual one is enough;
+- the git server's administrator, or a compromised git server: it rewrites the branch and, knowing the webhook secret, starts a deployment itself;
+- anyone with a stolen clone with write access, or a CI token.
 
-Це обходить і ADR-0010: розшифровувати секрети середовища може лише його Editor, але той, хто може зробити push, додає в compose сервіс із `env_file: .env`, що відправляє вміст назовні, а ЦА сама розшифрує файл під час деплою. **Право push майже дорівнює доступу до відкритих секретів середовища.**
+This also gets around ADR-0010: only an environment's Editor can decrypt its secrets, but someone who can push adds a service with `env_file: .env` to compose that sends the content out, and the aggregator decrypts the file itself during the deployment. **Push access almost equals access to the environment's plain-text secrets.**
 
-У продакшні команди це не теорія: Gitea і раннер CI працюють на хості, якому довіряють менше, ніж ЦА. Зламаний менш довірений хост зараз керує довіренішими.
+In real deployments this isn't theoretical: the git server and the CI runner often run on a host trusted less than the aggregator. A compromised less trusted host then controls more trusted ones.
 
-Розглянуті варіанти:
+Options considered:
 
-1. **Підтверджувати кожен деплой у панелі.** Закриває проблему, але вбиває деплой після push і хук CI, тобто GitOps як такий.
-2. **Покладатися на git-сервер**: захист гілок, «Verified» у Gitea чи GitHub. Git-сервер лишається в довіреній базі, а саме його злам ми й хочемо пережити.
-3. **Підписи GPG.** Окрема інфраструктура ключів, складна перевірка, мало хто з команди має GPG-ключ.
-4. **Підписи SSH комітів, які перевіряє ЦА ключами користувачів** (обрано). Git підтримує їх з 2.34 (`gpg.format=ssh`), ключі в людей уже є, перевірку робить `ssh-keygen -Y verify`.
-5. **Підписи образів (cosign).** Доповнення, а не заміна: захищає образ, але не compose-файл і секрети. Відкладено.
+1. **Approving every deployment in the panel.** Closes the problem, but kills deploy on push and the CI hook, i.e. GitOps as such.
+2. **Relying on the git server**: branch protection, *Verified* in Gitea or GitHub. The git server stays in the trusted base, and surviving its compromise is exactly what we want.
+3. **GPG signatures.** A separate key infrastructure, complicated verification, and few people have a GPG key.
+4. **SSH commit signatures verified by the aggregator with users' keys** (chosen). Git supports them since 2.34 (`gpg.format=ssh`), people already have keys, and `ssh-keygen -Y verify` does the verification.
+5. **Image signatures (cosign).** An addition, not a replacement: it protects the image, but not the compose file and secrets. Deferred.
 
-## Рішення
+## Decision
 
-1. **Ключі підпису** (`SigningKey`, таблиці `SigningKeys`, `SigningKeyEnvironments`) — публічні ключі SSH користувачів: `ssh-ed25519`, `ecdsa-sha2-nistp256/384/521`, апаратні `sk-ssh-ed25519@openssh.com` і `sk-ecdsa-sha2-nistp256@openssh.com`, `ssh-rsa` від 2048 біт. Ключ однозначно визначає відбиток SHA256: один ключ не може належати двом користувачам. До 20 ключів на користувача. Зберігається лише публічна частина (інваріант 8 не зачіпається).
+1. **Signing keys** (`SigningKey`, tables `SigningKeys`, `SigningKeyEnvironments`) are users' public SSH keys: `ssh-ed25519`, `ecdsa-sha2-nistp256/384/521`, the hardware `sk-ssh-ed25519@openssh.com` and `sk-ecdsa-sha2-nistp256@openssh.com`, and `ssh-rsa` of at least 2048 bits. A key uniquely determines a SHA256 fingerprint: one key can't belong to two users. Up to 20 keys per user. Only the public part is stored (invariant 8 isn't affected).
 
-2. **Обмежена довіра до ключа.** Ключ має область дії: усі середовища (типово, для людей) або перелік. Область лише звужує права власника, як обмеження API-токена (ADR-0007): ключ засвідчує деплой стеку, якщо `AccessPolicy` дозволяє деплой актору «власник ключа з областю ключа». Обмеженість — окремий прапорець, тож ключ, у якого каскад забрав усі середовища, не засвідчує нічого, а не все. Ключ на менш довіреній машині (раннер CI, робочий ноутбук) обмежують середовищами того самого рівня довіри.
+2. **Limited trust in a key.** A key has a scope: all environments (the default, for people) or a list. The scope only narrows its owner's rights, like an API token's restrictions (ADR-0007): a key endorses a stack's deployment if `AccessPolicy` allows the deployment for the actor "the key's owner with the key's scope". Being restricted is a separate flag, so a key whose environments were all removed by the cascade endorses nothing rather than everything. Restrict a key on a less trusted machine (a CI runner, a work laptop) to environments of the same level of trust.
 
-3. **Хто керує ключами.** Власні ключі додає, змінює й видаляє лише сесія в панелі (`GetSignedInUserAsync`), не API-токен: інакше токен лише для читання додав би ключ і отримав би право деплою через push. Адміністратор бачить і видаляє ключі будь-кого і може додати ключ іншому користувачу: службовому `ci` без сесії. На такому ключі записано, хто його додав, і панель показує це поруч із підписом, щоб адміністратор не міг непомітно підписувати від чужого імені. Усі зміни ключів — у журналі аудиту.
+3. **Who manages keys.** Only a panel session adds, changes and deletes your own keys (`GetSignedInUserAsync`), not an API token: otherwise a read-only token could add a key and gain the right to deploy through a push. An administrator sees and deletes anyone's keys and can add a key for another user: a `ci` service user without a session. Such a key records who added it, and the panel shows that next to the signature, so an administrator can't quietly sign in someone else's name. Every key change is in the audit log.
 
-4. **Опції стеку**, обидві типово вимкнені, вмикає й вимикає Editor стеку, зміни — в аудиті:
-   - `RequireSignedCommits` — деплоїти лише засвідчений вміст;
-   - `RequireImageDigests` — кожен образ із digest (`@sha256:…`): підпис покриває `image: app:1.4`, а не те, що за тегом у registry, і той, хто може пушити образи, інакше обходить підпис. Образ зі змінними (`${TAG}`) і сервіс з `extends` без власного `image` у цьому режимі відхиляються: перевірити їх до підстановки неможливо.
+4. **Stack options**, both off by default, turned on and off by the stack's Editor, audited:
+   - `RequireSignedCommits`: deploy only endorsed content;
+   - `RequireImageDigests`: every image with a digest (`@sha256:…`): a signature covers `image: app:1.4`, not what's behind the tag in the registry, and whoever can push images could otherwise get around the signature. An image with variables (`${TAG}`) and a service with `extends` without its own `image` are rejected in this mode: they can't be checked before substitution.
 
-5. **Що засвідчує підпис.** Коміт посилається на дерево, тож підпис голови гілки покриває весь стан репозиторію, включно з непідписаними комітами під нею: той, хто підписав, засвідчує все, як рев'юер своїм merge.
+5. **What a signature endorses.** A commit refers to a tree, so the branch head's signature covers the repository's whole state, including unsigned commits under it: whoever signed endorses everything, as a reviewer does with their merge.
 
-6. **Перевірка** — крок `VerifyCommitStep` одразу після `GitFetchStep` і **до `SopsDecryptStep`**: непідписаний вміст не отримує відкритих секретів. Коміт адресується хешем, тож перевірене й прочитане — те саме. Порядок:
-   1. підпис з коміту (`Commit.ExtractSignature` LibGit2Sharp); немає — «не підписано», не SSH — «непідтримуваний підпис»;
-   2. ЦА розбирає SSHSIG, бере з нього публічний ключ і шукає `SigningKey` за відбитком; немає — «невідомий ключ»;
-   3. `ssh-keygen -Y verify -n git` з `allowed_signers` лише з цим ключем; не пройшла — «недійсний підпис». Криптографія перевіряється до прав, щоб підроблений підпис не міг назватися чужим ім'ям навіть у повідомленні;
-   4. власник активний і має право деплою на стеку з областю ключа; ключ поза областю — «ключ не охоплює середовище», немає права — «власник не може деплоїти стек». Права перевіряються на момент деплою, а не підпису: дата коміту під контролем автора, SSH-підпис не має довіреного часу. Забрана роль чи видалений ключ діють одразу, і для старих комітів теж.
+6. **Verification** is the `VerifyCommitStep` right after `GitFetchStep` and **before `SopsDecryptStep`**: unsigned content never gets plain-text secrets. A commit is addressed by hash, so what's verified and what's read are the same. The order:
+   1. the signature from the commit (LibGit2Sharp's `Commit.ExtractSignature`); none means "unsigned", a non-SSH one "unsupported signature";
+   2. the aggregator parses the SSHSIG, takes the public key from it and looks up a `SigningKey` by fingerprint; none means "unknown key";
+   3. `ssh-keygen -Y verify -n git` with an `allowed_signers` holding only this key; a failure means "invalid signature". The cryptography is checked before permissions, so a forged signature can't claim someone else's name even in a message;
+   4. the owner is active and has the deploy permission on the stack within the key's scope; a key outside its scope means "the key doesn't cover the environment", no permission means "the owner may not deploy the stack". Permissions are checked at deployment time, not signing time: the commit's date is under the author's control, and an SSH signature has no trusted time. A removed role or a deleted key takes effect at once, for old commits too.
 
-7. **Тригери.**
+7. **Triggers.**
 
-   | Тригер | Що вимагається |
+   | Trigger | What's required |
    |---|---|
-   | Webhook, хук деплою | засвідчений коміт, і він нащадок `DeployedCommit` (або той самий) |
-   | Вручну (панель, CLI, бот) | засвідчений коміт; не нащадок — лише попередження в лозі |
-   | Вручну з підтвердженням | непідписаний коміт деплоїться, якщо це саме той SHA, який людина з правом деплою підтвердила (`approveCommit`); інакше — помилка |
-   | Rehydrate | коміт дорівнює `DeployedCommit`: вміст уже працює, підпис не перевіряється |
+   | Webhook, deploy hook | an endorsed commit that descends from `DeployedCommit` (or is the same) |
+   | Manual (panel, CLI, bot) | an endorsed commit; not descending is only a warning in the log |
+   | Manual with approval | an unsigned commit deploys if it's exactly the SHA a person allowed to deploy approved (`approveCommit`); otherwise an error |
+   | Rehydrate | the commit equals `DeployedCommit`: the content is already running, the signature isn't checked |
 
-   - **Нащадок `DeployedCommit`.** Без цього force-push на старий підписаний коміт відкотив би стек на версію зі старою вразливістю: підпис чинний, а волі того, хто підписав, на відкат не було. Свідомий відкат — ручний деплой.
-   - **Підтвердження закріплене на SHA.** Підтвердження «задеплой голову» без коміту можна обійти: «Alice, задеплой, будь ласка» одразу після свого push. Тому панель пропонує підтвердити той коміт, на якому деплой зупинився, і деплой із підтвердженням падає, якщо гілка тим часом пішла далі. Бот підтверджувати не вміє: Discord не показує, що саме в коміті.
-   - **Rehydrate без перевірки**, бо після перезавантаження хоста інакше стек лежав би, якщо в автора підпису тим часом забрали роль. Нового вмісту rehydrate не деплоїть.
+   - **Descending from `DeployedCommit`.** Without it, a force push to an old signed commit would roll the stack back to a version with an old vulnerability: the signature is valid, but the signer never meant a rollback. A deliberate rollback is a manual deployment.
+   - **Approval is pinned to a SHA.** Approving "deploy the head" without a commit can be gamed: "Alice, please deploy" right after your own push. So the panel offers to approve the commit the deployment stopped at, and a deployment with approval fails if the branch has moved on meanwhile. The bot can't approve: Discord doesn't show what's in the commit.
+   - **Rehydrate without verification**, because otherwise after a host reboot a stack would stay down if its signer had lost their role in the meantime. Rehydrate deploys no new content.
 
-8. **Результат у деплої**: статус засвідчення (не перевірялося, підписано, підтверджено вручну, уже розгорнутий, відхилено), хто підписав (id та ім'я на той момент), відбиток ключа, причина відмови. Webhook-деплой, у якого раніше не було користувача, тепер має в історії того, хто засвідчив вміст. Відмова не розкриває секретів: вона стається до розшифрування.
+8. **The result in a deployment**: the endorsement status (not checked, signed, approved by hand, already deployed, rejected), who signed (id and name at the time), the key's fingerprint, the reason for a refusal. A webhook deployment, which used to have no user, now shows in the history who endorsed the content. A refusal reveals no secrets: it happens before decryption.
 
-9. **Інструмент** — `ssh-keygen` з `openssh-client` в образі ЦА (`Signatures:SshKeygenPath`, `Signatures:Timeout`), запуск без shell з очищеним оточенням, як `sops` (`CliProcess`). Перевірка SSHSIG у самому .NET відкинута: у BCL немає Ed25519, а власна криптографія — це код, який довелося б тестувати самим.
+9. **The tool** is `ssh-keygen` from `openssh-client` in the aggregator's image (`Signatures:SshKeygenPath`, `Signatures:Timeout`), run without a shell and with a cleared environment, like `sops` (`CliProcess`). Verifying SSHSIG in .NET itself was rejected: the BCL has no Ed25519, and our own cryptography is code we'd have to test ourselves.
 
-## Наслідки
+## Consequences
 
-- **Merge у веб-інтерфейсі** Gitea чи GitHub підписує ключ платформи, якого ЦА не знає: такий коміт не деплоїться автоматично, лише підтвердженням у панелі. Додавати ключ git-сервера як довірений не можна: так він повернувся б у довірену базу. Процес для засвідчених стеків — локальний `git merge -S` (або fast-forward на коміт, який підписав автор із правом деплою) або підтвердження в панелі.
-- **CI на менш довіреному хості** (наш випадок): службовий користувач `ci` з роллю Editor лише на стеках менш довірених середовищ і ключем, обмеженим ними. Для довірених середовищ — `RequireSignedCommits` і `RequireImageDigests`, оновлення образу приходить як PR із новим digest, який людина зливає підписом. Хук деплою там не потрібен: з digest він нічого не змінить, а його токен лежить на менш довіреному хості.
-- **Зміна джерела стеку** (інший репозиторій чи гілка) робить новий коміт не нащадком розгорнутого: автоматичні деплої зупиняються до першого ручного.
-- **Чого підпис не закриває**: зламаний ЦА; зловмисний Editor стеку (він і так root, межу тут дасть політика compose); вразливості розбору packfile в libgit2, бо fetch відбувається до перевірки; образи з рухомими тегами, якщо не ввімкнено `RequireImageDigests`.
-- Секрет webhook на git-сервері перестає бути важливим для засвідчених стеків: зламаний git-сервер може лише запускати деплої вже засвідченого вмісту.
-- Для агента, бота й `.proto` нічого не змінюється.
-- Не входить у рішення й лишається на потім: безпекові сповіщення (новий ключ, відмова перевірки), декларативне розміщення стеків у репозиторії (може спиратися на ті самі ключі), підписи образів, GPG і X.509.
+- **A merge in the web interface** of Gitea or GitHub is signed with the platform's key, which the aggregator doesn't know: such a commit isn't deployed automatically, only by approval in the panel. Adding the git server's key as trusted isn't allowed: that would put it back into the trusted base. The process for endorsed stacks is a local `git merge -S` (or a fast-forward to a commit signed by an author allowed to deploy), or approval in the panel.
+- **CI on a less trusted host** (a common setup): a `ci` service user with the Editor role only on stacks of less trusted environments and a key restricted to them. For trusted environments, `RequireSignedCommits` and `RequireImageDigests`; an image update arrives as a PR with a new digest that a person merges with a signature. The deploy hook isn't needed there: with digests it changes nothing, and its token sits on the less trusted host.
+- **Changing a stack's source** (another repository or branch) makes the new commit not a descendant of the deployed one: automatic deployments stop until the first manual one.
+- **What signatures don't cover**: a compromised aggregator; a malicious stack Editor (they're root anyway; the compose policy provides that boundary); vulnerabilities in libgit2's packfile parsing, since the fetch happens before verification; images with moving tags unless `RequireImageDigests` is on.
+- The webhook secret on the git server stops mattering for endorsed stacks: a compromised git server can only start deployments of already endorsed content.
+- Nothing changes for the agent, the bot or `.proto`.
+- Not part of this decision and left for later: security notifications (a new key, a failed verification), declaring stack placement in the repository (it could build on the same keys), image signatures, GPG and X.509.

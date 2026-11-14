@@ -4,7 +4,7 @@ How container-forest relates to other self-hosted Docker managers, as of autumn 
 
 | | Portainer CE 2.x | Dockge 1.5 | Komodo 2.x | Arcane | **container-forest** |
 |---|---|---|---|---|---|
-| Development | frozen, fixes only | slow, active forks | active | active | active, pre-1.0 |
+| Development | frozen, fixes only | slow, active forks | active | active | active |
 | Several servers | yes | yes (agents) | yes | yes (agents) | yes |
 | Agent opens the connection | Edge mode only | — | yes | yes (Edge) | yes, the only mode |
 | Deploy from git | yes | no | yes | partly | yes: public and private repos, on push, from CI |

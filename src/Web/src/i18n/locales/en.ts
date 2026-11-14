@@ -1,6 +1,8 @@
-import type { Translation } from "./uk";
-
-const en: Translation = {
+/**
+ * English texts: the source of keys. Every other language must have exactly these keys (see uk.ts), and
+ * t() accepts only them, so a typo or a missing translation fails the typecheck.
+ */
+const en = {
   app: {
     offline: {
       title: "No connection",
@@ -1975,5 +1977,7 @@ const en: Translation = {
     },
   },
 };
+
+export type Translation = typeof en;
 
 export default en;

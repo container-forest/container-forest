@@ -5,7 +5,7 @@ import { type Language, languages } from "@/i18n";
 /** Switches the panel between the supported languages; the choice is remembered in this browser. */
 export function LanguageSwitcher() {
   const { t, i18n } = useTranslation();
-  const current = (i18n.resolvedLanguage ?? "uk") as Language;
+  const current = (i18n.resolvedLanguage ?? "en") as Language;
   const next = languages[(languages.indexOf(current) + 1) % languages.length]!;
 
   return (

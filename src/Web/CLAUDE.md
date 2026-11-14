@@ -27,7 +27,7 @@ Paths below are relative to `src/Web`. Individual screens are described in [docs
 
 ## Text, forms, permissions
 
-- User-visible text goes only through `t()` (`react-i18next`), with keys in `src/i18n/locales/uk.ts` (the source of keys) and `en.ts` (the same `Translation` type): a missing translation or an unknown key breaks typecheck. Zod schema messages are translation keys (`"…" satisfies MessageKey`), translated at render time. Language: the one saved in `localStorage` (`cf-language`) → the browser's language → Ukrainian. The aggregator's error texts (`detail` in problem details, `CommandError.message`) stay in English; the panel shows its own translation for known cases by status or code. The bot is English only for now; Discord passes the user's language (`UserLocale`), so the bot can be translated later.
+- User-visible text goes only through `t()` (`react-i18next`), with keys in `src/i18n/locales/en.ts` (the source of keys) and `uk.ts` (the same `Translation` type): a missing translation or an unknown key breaks typecheck. Zod schema messages are translation keys (`"…" satisfies MessageKey`), translated at render time. Language: the one saved in `localStorage` (`cf-language`) → the browser's language → English. The aggregator's error texts (`detail` in problem details, `CommandError.message`) stay in English; the panel shows its own translation for known cases by status or code. The bot is English only for now; Discord passes the user's language (`UserLocale`), so the bot can be translated later.
 - Forms are React Hook Form + Zod. Global UI state is `useState`/Context; Zustand only when really needed. No Redux.
 - Hiding buttons by permissions is cosmetic only; the real check happens on the aggregator.
 

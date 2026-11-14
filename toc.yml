@@ -1,5 +1,9 @@
-- name: Огляд
-  href: docs/project-overview.md
+- name: Встановлення
+  href: docs/installation.md
+- name: Порівняння з аналогами
+  href: docs/comparison.md
+- name: Ключові залежності
+  href: docs/dependencies.md
 - name: Архітектура
   href: docs/architecture.md
 - name: Підпис комітів і git по SSH
@@ -50,47 +54,15 @@
     href: docs/adr/0003-secrets-at-rest.md
   - name: 0004 Каталог стеку на місці
     href: docs/adr/0004-stack-directory-in-place.md
-- name: Команда
+- name: Розробка
   items:
-  - name: Правила роботи
+  - name: Як зробити внесок
     href: CONTRIBUTING.md
-  - name: Облік лабораторних
-    href: CONTRIBUTIONS.md
-  - name: Вимоги курсу
-    href: docs/course-requirements.md
+  - name: Локальний запуск, CI, релізи
+    href: docs/development.md
   - name: Стан реалізації
     href: docs/project-status.md
   - name: Інструкції для Claude Code
     href: CLAUDE.md
-  - name: Використання ШІ
-    href: docs/ai-usage.md
-- name: Ретроспективи
-  items:
-  - name: Перелік
-    href: docs/retro/README.md
-  - name: ASP.NET Core Identity
-    href: docs/retro/aspnet-identity.md
-  - name: Discord.Net
-    href: docs/retro/discord-net.md
-  - name: Docker.DotNet
-    href: docs/retro/docker-dotnet.md
-  - name: EF Core
-    href: docs/retro/ef-core.md
-  - name: gRPC
-    href: docs/retro/grpc.md
-  - name: i18next
-    href: docs/retro/i18next.md
-  - name: LibGit2Sharp
-    href: docs/retro/libgit2sharp.md
-  - name: React Hook Form
-    href: docs/retro/react-hook-form.md
-  - name: TanStack Query
-    href: docs/retro/tanstack-query.md
-  - name: TanStack Router
-    href: docs/retro/tanstack-router.md
-  - name: YamlDotNet
-    href: docs/retro/yamldotnet.md
-  - name: Zod
-    href: docs/retro/zod.md
 - name: API
   href: api/

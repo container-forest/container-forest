@@ -1,4 +1,4 @@
-// Documentation checks that DocFX does not do. Run: npm ci && node check-docs.mjs (see CONTRIBUTING.md, "CI").
+// Documentation checks that DocFX does not do. Run: npm ci && node check-docs.mjs (see docs/development.md, "CI").
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

@@ -39,3 +39,11 @@
 ## Пастки
 
 - Розробка на Windows: Docker.DotNet підключається через named pipe поточного Docker-контексту (`npipe://./pipe/dockerDesktopLinuxEngine` у Docker Desktop). Якщо Docker вимкнено, підключення чекає 10 с і завершується `TimeoutException`; `/proc/.../boot_id` немає, тому boot_id — час старту системи (`UptimeBootIdProvider`).
+
+## Library notes
+
+Why each library was chosen: [docs/dependencies.md](../../docs/dependencies.md).
+
+- **Docker.DotNet.** Starting a running container or stopping a stopped one returns 304, which the library reports as `false`: for the agent that's success. `DockerApiException.Message` includes internal text and the raw body: show only the `message` field from `ResponseBody`. Docker being unreachable surfaces as `TimeoutException` (Windows named pipe), `HttpRequestException` or `SocketException`; all map to `ERROR_CODE_DOCKER_UNAVAILABLE`. `ContainerListResponse.Created` is a `DateTime`: force its `Kind` to UTC before converting to Unix milliseconds.
+- **Logs.** `GetContainerLogsAsync` in the fork inspects the container itself to learn `Config.Tty` (the original package took a `tty` parameter), so it costs an extra request and "no such container" comes from the inspect.
+- **gRPC.** `AgentCommandHandler<TCommand>` finds its `oneof` case through the protobuf descriptor by type, relying on `BodyOneofCase` values matching field numbers. Every command runs as its own task so a slow stop doesn't hold up heartbeats. Besides heartbeats, the channel sends HTTP/2 keepalive pings (`SocketsHttpHandler.KeepAlivePingDelay`) to notice a dead connection while writes still fit in buffers.

@@ -1,6 +1,6 @@
 # Журнал аудиту
 
-Зона Денисенко Л. В. Код: `Domain/Audit`, `Application/Audit`, `Api/Contracts/AuditContracts.cs` (відносно `src/Aggregator`), `src/features/audit/model.ts` (відносно `src/Web`).
+Код: `Domain/Audit`, `Application/Audit`, `Api/Contracts/AuditContracts.cs` (відносно `src/Aggregator`), `src/features/audit/model.ts` (відносно `src/Web`).
 
 ## Запис
 

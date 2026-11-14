@@ -1,6 +1,6 @@
 name: Release
 
-# One version for the whole system (CONTRIBUTING.md, "Релізи"). release-please keeps a release
+# One version for the whole system (docs/development.md, "Releases"). release-please keeps a release
 # pull request open with the next version and CHANGELOG.md, computed from Conventional Commits on main. Merging
 # that pull request tags vX.Y.Z, creates the GitHub release, publishes the images as X.Y.Z, X.Y and "latest" and
 # attaches the CLI binaries to the release.

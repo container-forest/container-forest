@@ -10,7 +10,7 @@ const DOCS = [
   /^CONTRIBUTING\.md$/,
   /^src\/[^/]+\/CLAUDE\.md$/,
   /^docs\/design\/.+\.md$/,
-  /^docs\/(architecture|project-status|security-invariants)\.md$/,
+  /^docs\/(architecture|development|project-status|security-invariants)\.md$/,
 ];
 // Binary and generated files, whose names would hide one removed from the real source, and this tool itself.
 const NOT_CORPUS =

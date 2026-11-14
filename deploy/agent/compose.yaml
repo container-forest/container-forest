@@ -1,4 +1,4 @@
-# The agent of container-forest, one per host (environment). See docs/architecture.md, "Розгортання агента".
+# The agent of container-forest, one per host (environment). See docs/installation.md.
 #
 # Settings come from an .env file next to this one, which is never committed and is readable by root only:
 #   CF_DOMAIN=forest.example.com   the aggregator's public name (deploy/aggregator)

@@ -1,4 +1,4 @@
-# Discord bot of container-forest. See docs/architecture.md, "Розгортання Discord-бота".
+# Discord bot of container-forest. See docs/installation.md.
 #
 # The two tokens come from an .env file next to this one, which is never committed:
 #   DISCORD_TOKEN=...       the bot token of the Discord application (Developer Portal -> Bot)

@@ -1,3 +1,5 @@
+- name: Встановлення
+  href: docs/installation.md
 - name: Порівняння з аналогами
   href: docs/comparison.md
 - name: Ключові залежності

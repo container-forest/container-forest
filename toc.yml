@@ -1,68 +1,102 @@
-- name: Встановлення
+- name: Installation
   href: docs/installation.md
-- name: Порівняння з аналогами
+- name: Comparison with similar tools
   href: docs/comparison.md
-- name: Ключові залежності
+- name: Key dependencies
   href: docs/dependencies.md
-- name: Архітектура
+- name: Architecture
   href: docs/architecture.md
-- name: Підпис комітів і git по SSH
+- name: Commit signing and git over SSH
   href: docs/signing-commits.md
-- name: Безпека
-  href: docs/security-invariants.md
-- name: Опис підсистем
+- name: Security
   items:
-  - name: Перелік
+  - name: Security invariants
+    href: docs/security-invariants.md
+  - name: Security policy
+    href: SECURITY.md
+- name: Subsystems
+  items:
+  - name: Overview
     href: docs/design/README.md
-  - name: Рішення та їх обґрунтування
+  - name: Decisions and their reasoning
     href: docs/design/decisions.md
-  - name: Деплой стеку
+  - name: Stack deployment
     href: docs/design/deployment.md
-  - name: Webhook і хук деплою
+  - name: Webhooks and deploy hooks
     href: docs/design/deployment-triggers.md
-  - name: Git і підключення до git-серверів
+  - name: Git and git connections
     href: docs/design/git.md
-  - name: "Секрети: SOPS, git-фільтр, rehydrate"
+  - name: "Secrets: SOPS, the git filter, rehydrate"
     href: docs/design/secrets.md
-  - name: Підписи комітів
+  - name: Signed commits
     href: docs/design/signed-commits.md
-  - name: Політика compose й адміністратор середовища
+  - name: Image updates
+    href: docs/design/image-updates.md
+  - name: Compose policy and environment administrators
     href: docs/design/compose-policy.md
-  - name: Автентифікація, користувачі, токени
+  - name: Authentication, users, tokens
     href: docs/design/auth.md
-  - name: Журнал аудиту
+  - name: Audit log
     href: docs/design/audit.md
-  - name: Середовища, контейнери й логи
+  - name: Settings and backup
+    href: docs/design/backup.md
+  - name: Environments, containers and logs
     href: docs/design/containers.md
-  - name: Live-оновлення
+  - name: Unmanaged stacks
+    href: docs/design/unmanaged-stacks.md
+  - name: Live updates
     href: docs/design/live-updates.md
-  - name: Сповіщення
+  - name: Notifications
     href: docs/design/notifications.md
-  - name: "Discord-бот: шлюз і меню"
+  - name: "Discord bot: gateway and menu"
     href: docs/design/discord-bot.md
-  - name: Екрани панелі
+  - name: Panel screens
     href: docs/design/web-panel.md
 - name: ADR
   items:
-  - name: Перелік
+  - name: Overview
     href: docs/adr/README.md
-  - name: 0001 Структура рішення
+  - name: 0001 Solution structure
     href: docs/adr/0001-solution-structure.md
-  - name: 0002 Розташування контрактів
+  - name: 0002 Contracts layout
     href: docs/adr/0002-proto-contracts-layout.md
-  - name: 0003 Секрети в БД
+  - name: 0003 Secrets at rest
     href: docs/adr/0003-secrets-at-rest.md
-  - name: 0004 Каталог стеку на місці
+  - name: 0004 Stack directory in place
     href: docs/adr/0004-stack-directory-in-place.md
-- name: Розробка
+  - name: 0005 Caddy entry point
+    href: docs/adr/0005-caddy-entry-point.md
+  - name: 0006 Git connections
+    href: docs/adr/0006-git-connections.md
+  - name: 0007 API tokens
+    href: docs/adr/0007-api-tokens.md
+  - name: 0008 CLI
+    href: docs/adr/0008-cli.md
+  - name: 0009 Passwordless sign-in
+    href: docs/adr/0009-passwordless-sign-in.md
+  - name: 0010 Git secrets filter
+    href: docs/adr/0010-git-secrets-filter.md
+  - name: 0011 Signed commits
+    href: docs/adr/0011-signed-commits.md
+  - name: 0012 Stack isolation
+    href: docs/adr/0012-stack-isolation.md
+  - name: 0013 System settings
+    href: docs/adr/0013-system-settings.md
+  - name: 0014 Aggregator backup
+    href: docs/adr/0014-aggregator-backup.md
+  - name: 0015 Image updates
+    href: docs/adr/0015-image-updates.md
+  - name: 0016 Unmanaged stacks
+    href: docs/adr/0016-unmanaged-stacks.md
+- name: Development
   items:
-  - name: Як зробити внесок
+  - name: Contributing
     href: CONTRIBUTING.md
-  - name: Локальний запуск, CI, релізи
+  - name: Local setup, CI, releases
     href: docs/development.md
-  - name: Стан реалізації
+  - name: Implementation status
     href: docs/project-status.md
-  - name: Інструкції для Claude Code
+  - name: Instructions for Claude Code
     href: CLAUDE.md
 - name: API
   href: api/

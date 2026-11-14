@@ -1,42 +1,42 @@
-# ADR-0007. Персональні API-токени й scope актора
+# ADR-0007. Personal API tokens and the actor's scope
 
-- Статус: прийнято
-- Дата: 2026-10-09
+- Status: accepted
+- Date: 2026-10-09
 
-## Контекст
+## Context
 
-Панель і бот автентифікують людину: cookie сесії або Discord-акаунт, прив'язаний до користувача. Для CLI, скриптів і CI потрібні облікові дані, які живуть у файлі чи змінній середовища, а не в браузері. Такі облікові дані частіше витікають (історія shell, логи CI, чужий ноутбук), тому їхні права мають бути вужчими за права людини, а не дорівнювати їм.
+The panel and the bot authenticate a person: a session cookie, or a Discord account linked to a user. The CLI, scripts and CI need credentials that live in a file or an environment variable, not in a browser. Such credentials leak more often (shell history, CI logs, someone else's laptop), so their rights should be narrower than the person's, not equal to them.
 
-Розглянуті варіанти:
+Options considered:
 
-1. **Токен = користувач.** Найпростіше: токен має рівно права свого користувача. Токен адміністратора для CI одного стеку тоді керує всією системою.
-2. **Окремі сервісні облікові записи з власними ролями.** Гнучко, але дублює модель користувачів: ролі, деактивація, хто власник. Для маленької команди зайве.
-3. **Токен із власними обмеженнями поверх ролей користувача** (обрано): лише читання, перелік середовищ, строк дії. Обмеження лише забирають права, ніколи не додають.
+1. **A token = the user.** The simplest: a token has exactly its user's rights. An administrator's token for one stack's CI then controls the whole system.
+2. **Separate service accounts with their own roles.** Flexible, but it duplicates the user model: roles, deactivation, who the owner is. Too much for a small team.
+3. **A token with its own restrictions on top of the user's roles** (chosen): read-only, a list of environments, an expiry. Restrictions only take rights away, never add them.
 
-Окреме питання — де перевіряти обмеження. Фільтр на рівні HTTP (середовище з маршруту) не покриває списків (`GET /api/environments`, репозиторії, підключення) і публічних середовищ, які видно всім. Права перевіряються в одному місці (`AccessPolicy`, інваріант 4), тож обмеження токена мають бути там само.
+A separate question is where to check the restrictions. An HTTP-level filter (the environment from the route) doesn't cover lists (`GET /api/environments`, repositories, connections) or public environments visible to everyone. Permissions are checked in one place (`AccessPolicy`, invariant 4), so token restrictions belong there too.
 
-## Рішення
+## Decision
 
-1. **Токен** (`ApiToken`, таблиці `ApiTokens`, `ApiTokenEnvironments`) належить користувачу: назва, `IsReadOnly`, `IsRestricted` з переліком середовищ, `ExpiresAt` (або без строку — свідомий вибір), `LastUsedAt` (не частіше разу на хвилину). Формат — `cf_pat_` + 32 випадкові байти base64url; префікс розпізнають сканери секретів. Зберігається лише SHA-256 (інваріант 8) і перші символи як підказка в списку. Ліміт — 50 токенів на користувача.
+1. **A token** (`ApiToken`, tables `ApiTokens`, `ApiTokenEnvironments`) belongs to a user: a name, `IsReadOnly`, `IsRestricted` with a list of environments, `ExpiresAt` (or no expiry, a deliberate choice), `LastUsedAt` (at most once a minute). The format is `cf_pat_` + 32 random bytes in base64url; secret scanners recognise the prefix. Only the SHA-256 is stored (invariant 8), plus the first characters as a hint in the list. The limit is 50 tokens per user.
 
-2. **Актор замість користувача.** `CurrentActor.GetAsync` повертає `Actor(User, AccessScope)`; `AccessPolicy` приймає `Actor`. `AccessScope.Full` — сесія в панелі чи бот, обмеження токена — решта. Правила:
-   - середовище поза переліком для токена не існує, навіть публічне (`CanSee` — false, ролі немає);
-   - обмежений токен не має прав адміністратора (`Actor.IsAdmin` — false, `GetAdministratorAsync` відмовляє); токен адміністратора в своїх середовищах — Editor;
-   - лише читання дозволяє тільки `Permission.View` і `ViewLogs`;
-   - деактивований користувач — 403 з будь-яким токеном, як і з сесією.
+2. **An actor instead of a user.** `CurrentActor.GetAsync` returns an `Actor(User, AccessScope)`; `AccessPolicy` takes an `Actor`. `AccessScope.Full` is a panel session or the bot; the rest are token restrictions. The rules:
+   - an environment not on the list doesn't exist for the token, even a public one (`CanSee` is false, there's no role);
+   - a restricted token has no administrator rights (`Actor.IsAdmin` is false, `GetAdministratorAsync` refuses); an administrator's token is an Editor in its environments;
+   - read-only allows only `Permission.View` and `ViewLogs`;
+   - a deactivated user gets a 403 with any token, as with a session.
 
-   Середовище, видалене пізніше, зникає з переліку каскадом. Тому обмеженість — окремий прапорець: токен, у якого не лишилося середовищ, не бачить нічого, а не все.
+   An environment deleted later disappears from the list through the cascade. That's why being restricted is a separate flag: a token with no environments left sees nothing, not everything.
 
-3. **Лише читання — ще й на рівні HTTP.** Адміністративні сервіси перевіряють `GetAdministratorAsync`, а не `Permission`, тож `ReadOnlyTokens` відхиляє будь-який не-GET запит токена лише для читання (403) до ендпоінта. Виняток — `DELETE /api/me/tokens/current` (`AllowReadOnlyTokens`): токен може відкликати себе.
+3. **Read-only at the HTTP level too.** Administrative services check `GetAdministratorAsync`, not a `Permission`, so `ReadOnlyTokens` rejects any non-GET request with a read-only token (403) before the endpoint. The exception is `DELETE /api/me/tokens/current` (`AllowReadOnlyTokens`): a token may revoke itself.
 
-4. **Токен не розширює себе.** Токенами, паролем і прив'язкою Discord керує лише сесія (`CurrentActor.GetSignedInUserAsync`): інакше обмежений токен створив би необмежений або прив'язав би Discord, через який бот діє з усіма правами користувача. Live-хаб панелі — лише для сесій (політика `Session`).
+4. **A token can't widen itself.** Only a session manages tokens, the password and Discord linking (`CurrentActor.GetSignedInUserAsync`): otherwise a restricted token could create an unrestricted one, or link a Discord account through which the bot acts with all the user's rights. The panel's live hub is for sessions only (the `Session` policy).
 
-5. **Автентифікація.** Схема `ApiToken` читає `Authorization: Bearer cf_pat_…` і кладе обмеження в claims, звідки їх бере `ClaimsCurrentUser`. Схема за замовчуванням — policy-схема: є Bearer — токен, інакше (у Development) `X-Dev-User`, інакше cookie. Bearer іншої форми (токен хука деплою) схема пропускає без помилки: його перевіряє свій ендпоінт. Невідомий, відкликаний і прострочений токен — однаковий 401. Ні токен, ні його хеш не логуються.
+5. **Authentication.** The `ApiToken` scheme reads `Authorization: Bearer cf_pat_…` and puts the restrictions into claims, where `ClaimsCurrentUser` picks them up. The default scheme is a policy scheme: a Bearer means a token, otherwise (in Development) `X-Dev-User`, otherwise the cookie. A Bearer of another shape (the deploy hook's token) is skipped without an error: its own endpoint checks it. An unknown, revoked or expired token gets the same 401. Neither the token nor its hash is logged.
 
-6. **Хто керує.** Свої токени користувач створює, бачить і відкликає на екрані «API-токени» (`/api/me/tokens`); токен показується один раз. Адміністратор бачить і відкликає токени будь-кого (`/api/users/{id}/tokens`), але не створює їх від чужого імені.
+6. **Who manages them.** A user creates, sees and revokes their own tokens on the *API tokens* screen (`/api/me/tokens`); a token is shown once. An administrator sees and revokes anyone's tokens (`/api/users/{id}/tokens`) but doesn't create them in someone else's name.
 
-## Наслідки
+## Consequences
 
-- Кожна перевірка прав отримує актора, а не користувача; код, що бере користувача з `CurrentActor`, автоматично враховує обмеження токена. Неявне перетворення `User → Actor` дає повний scope: так перевірки працюють для бота й у тестах.
-- CLI (наступний крок) автентифікується токеном; отримувати його через браузер вона буде окремим потоком авторизації, який теж створює токен від імені сесії.
-- Ротація — новий токен і відкликання старого; автоматичної ротації немає.
+- Every permission check gets an actor rather than a user; code that takes the user from `CurrentActor` automatically respects token restrictions. The implicit `User → Actor` conversion gives a full scope: that's how checks work for the bot and in tests.
+- The CLI (the next step) authenticates with a token; getting one through the browser is a separate authorization flow that also creates the token on behalf of a session.
+- Rotation is a new token and revoking the old one; there's no automatic rotation.

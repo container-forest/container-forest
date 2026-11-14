@@ -1,72 +1,72 @@
-# ADR-0006. Підключення до git-серверів: облікові дані й область середовищ на підключенні, а не на репозиторії
+# ADR-0006. Git connections: credentials and the environment scope belong to the connection, not the repository
 
-- Статус: прийнято
-- Дата: 2026-10-03
-- Змінено: [ADR-0015](0015-image-updates.md) — на підключенні з'явився необов'язковий токен запису для комітів оновлень образів.
+- Status: accepted
+- Date: 2026-10-03
+- Changed: [ADR-0015](0015-image-updates.md) added an optional write token on the connection for image update commits.
 
-## Контекст
+## Context
 
-До цього рішення репозиторій був спільним ресурсом усієї системи. Додавав його й задавав токен доступу лише адміністратор, а обрати репозиторій для свого стеку міг Editor будь-якого середовища чи стеку. Звідси дві проблеми:
+Before this decision a repository was a resource shared by the whole system. Only an administrator added it and set its access token, and an Editor of any environment or stack could pick a repository for their stack. That caused two problems:
 
-1. **Витік між середовищами.** Editor середовища A міг прив'язати свій стек до приватного репозиторію, який адміністратор додав для середовища B. ЦА витягав його токеном адміністратора й розгортав на хості A, де Editor має root і читає все. SOPS-файли B не розшифровувалися (ключі в кожного середовища свої), але решта вмісту — конфіги, адреси, незашифровані `.env` — витікала.
-2. **Кожен новий репозиторій — через адміністратора.** Розробник із роллю Editor на середовищі своєї програми не міг сам її підключити.
+1. **Leaks between environments.** An Editor of environment A could bind their stack to a private repository an administrator had added for environment B. The aggregator fetched it with the administrator's token and deployed it on host A, where the Editor is root and reads everything. B's SOPS files weren't decrypted (each environment has its own keys), but the rest of the content leaked: configs, addresses, unencrypted `.env` files.
+2. **Every new repository went through an administrator.** A developer with the Editor role on their application's environment couldn't connect it themselves.
 
-До того ж токен був прив'язаний до хоста репозиторію, а не до самого репозиторію: зміна URL у межах хоста лишала токен, тож той, хто міг змінити URL, міг прочитати ним інші репозиторії.
+The token was also tied to the repository's host rather than to the repository itself: changing the URL within the host kept the token, so whoever could change the URL could read other repositories with it.
 
-Розглянуті варіанти:
+Options considered:
 
-1. **Перелік середовищ на репозиторії, токен — на репозиторії, зміна URL скидає токен.** Закриває витік, але кожен новий репозиторій вимагає нового токена. У Gitea (наш прод) токена на один репозиторій немає взагалі: токен належить користувачу й має scope на всі репозиторії, які той бачить. Вимагати токен щоразу означало б вставляти той самий токен знову без жодного виграшу в безпеці.
-2. **Підключення до git-сервера** (обрано): облікові дані, префікс URL і перелік середовищ — на підключенні, яке налаштовує адміністратор. Репозиторії під підключенням додають Editor без токенів.
-3. **Перелік репозиторіїв через API git-сервера** (GitHub, Gitea, GitLab), щоб розробник обирав зі списку, а не вводив URL. Зручно, але API в кожного провайдера своє; відкладено, рішення 2 цьому не заважає.
+1. **A list of environments on the repository, the token on the repository, changing the URL resets the token.** Closes the leak, but every new repository needs a new token. Gitea has no per-repository tokens at all: a token belongs to a user and is scoped to every repository that user sees. Requiring a token every time would mean pasting the same token again with no security gain.
+2. **A git connection** (chosen): credentials, a URL prefix and a list of environments on a connection an administrator sets up. Editors add repositories under the connection without tokens.
+3. **Listing repositories through the git server's API** (GitHub, Gitea, GitLab), so a developer picks from a list instead of typing a URL. Convenient, but every provider's API is different; deferred, and option 2 doesn't get in its way.
 
-## Рішення
+## Decision
 
-1. **Підключення** (`GitConnection`, таблиця `GitConnections`) — це:
-   - назва;
-   - **префікс URL**: `https://gitea.example.com/team-a/` (організація), `https://gitea.example.com/` (увесь сервер) або URL одного репозиторію;
-   - необов'язкові **облікові дані**: ім'я користувача й токен, зашифрований Data Protection (`SecretPurpose.GitAccessToken`, ADR-0003), ніколи не повертається;
-   - **середовища**, у яких підключення дозволене (таблиця `GitConnectionEnvironments`), або позначка «усі середовища»;
-   - необов'язковий **секрет webhook** для доставок від організації (п. 7).
+1. **A connection** (`GitConnection`, table `GitConnections`) has:
+   - a name;
+   - a **URL prefix**: `https://gitea.example.com/team-a/` (an organisation), `https://gitea.example.com/` (a whole server) or one repository's URL;
+   - optional **credentials**: a user name and a token encrypted with Data Protection (`SecretPurpose.GitAccessToken`, ADR-0003), never returned;
+   - the **environments** where the connection is allowed (table `GitConnectionEnvironments`), or "all environments";
+   - an optional **webhook secret** for deliveries from an organisation (point 7).
 
-   Підключення створює, змінює й видаляє лише адміністратор. Підключення без токена теж має сенс: воно обмежує середовища й позначає хост довіреним (п. 6).
+   Only an administrator creates, changes and deletes connections. A connection without a token makes sense too: it limits environments and marks the host as trusted (point 6).
 
-2. **Репозиторій** має URL і необов'язкове підключення; URL лежить під префіксом підключення. Токена на репозиторії більше немає. Префікс порівнюється за сегментами шляху без урахування регістру (як у Gitea й GitHub) і з відкиданням `.git` у кінці: `team-a/` не покриває `team-ab/`. URL репозиторію й префікс — лише `https://`, без облікових даних, query, fragment і закодованих `/` чи `\` у шляху.
+2. **A repository** has a URL and an optional connection; the URL lies under the connection's prefix. Repositories no longer have tokens. The prefix is compared by path segments, case-insensitively (as Gitea and GitHub do) and ignoring a trailing `.git`: `team-a/` doesn't cover `team-ab/`. Repository URLs and prefixes are `https://` only, with no credentials, query, fragment or encoded `/` or `\` in the path.
 
-3. **Де репозиторій можна використовувати.** Репозиторій без підключення (публічний) — у будь-якому середовищі. Репозиторій із підключенням — лише в середовищах, де дозволене підключення. Перевірка стоїть у трьох місцях:
-   - створення стеку й зміна його джерела (`StackService`): недоступний репозиторій — 404, як неіснуючий;
-   - `GitFetchStep` перед fetch: для стеку, створеного раніше, ніж середовище прибрали з підключення, деплой падає з поясненням, і токен до git-сервера не йде; так само для webhook і rehydrate;
-   - webhook: такий стек отримує результат `NotAllowed`.
+3. **Where a repository can be used.** A repository without a connection (public) can be used in any environment. One with a connection only in environments where the connection is allowed. The check is in three places:
+   - creating a stack and changing its source (`StackService`): an unavailable repository is a 404, like a nonexistent one;
+   - `GitFetchStep` before the fetch: for a stack created before its environment was removed from the connection, the deployment fails with an explanation and the token never goes to the git server; the same applies to webhooks and rehydrate;
+   - webhooks: such a stack gets the result `NotAllowed`.
 
-4. **Хто керує репозиторіями:**
-   - **додати** репозиторій може адміністратор або користувач із роллю Editor (на середовищі або на стеку) у середовищі, де підключення дозволене; для репозиторію без підключення — у будь-якому середовищі;
-   - **змінити** (назву, URL, підключення) і **створити чи вимкнути його webhook** може адміністратор або користувач, який має право деплою на **кожному** стеку цього репозиторію й міг би додати цей репозиторій і з поточним, і з новим підключенням. Зміна репозиторію змінює те, що деплоять його стеки, тож рішення приймає той, хто за них відповідає; інакше простіше створити новий репозиторій;
-   - **список** репозиторіїв: адміністратор бачить усі, решта — ті, що доступні в середовищах, де користувач має роль Editor (на середовищі або на стеку);
-   - назви репозиторіїв не унікальні: перевірка унікальності на всю систему видавала б назви чужих репозиторіїв.
+4. **Who manages repositories:**
+   - an administrator, or a user with the Editor role (on the environment or on a stack) in an environment where the connection is allowed, can **add** a repository; one without a connection, in any environment;
+   - an administrator, or a user with the deploy permission on **every** stack of the repository who could add the repository with both the current and the new connection, can **change** it (name, URL, connection) and **create or disable its webhook**. Changing a repository changes what its stacks deploy, so whoever is responsible for them decides; otherwise it's simpler to create a new repository;
+   - the **list** of repositories: an administrator sees all of them, others those available in environments where they're an Editor (on the environment or a stack);
+   - repository names aren't unique: a system-wide uniqueness check would reveal the names of other people's repositories.
 
-5. **Облікові дані йдуть лише під префікс.** libgit2 отримує токен колбеком (`CredentialsFor`), лише для HTTPS-запиту, чий хост, порт і шлях лежать під префіксом підключення. Сервер, що перенаправив fetch за межі префікса, токена не отримає.
+5. **Credentials go only under the prefix.** libgit2 gets the token through a callback (`CredentialsFor`), only for an HTTPS request whose host, port and path lie under the connection's prefix. A server that redirects a fetch outside the prefix doesn't get the token.
 
-6. **Захист від SSRF.** Репозиторій без підключення може додати будь-який Editor, тож перед його fetch ЦА резолвить хост і відмовляє, якщо будь-яка адреса — loopback, приватна (RFC 1918, ULA, CGNAT), link-local (зокрема metadata хмари `169.254.169.254`), multicast або невизначена. Хост підключення вважається довіреним: його задав адміністратор. Для внутрішнього git-сервера без підключення адміністратор вмикає `Git:AllowPrivateHosts`. Повністю перевірка не захищає від DNS rebinding (резолв і з'єднання libgit2 — окремі кроки), але відсікає прощупування внутрішньої мережі. Помилка fetch такого репозиторію в лозі деплою — узагальнена, деталі libgit2 — у лозі ЦА.
+6. **SSRF protection.** Any Editor can add a repository without a connection, so before fetching it the aggregator resolves the host and refuses if any address is loopback, private (RFC 1918, ULA, CGNAT), link-local (including the cloud metadata `169.254.169.254`), multicast or unspecified. A connection's host is trusted: an administrator set it. For an internal git server without a connection, an administrator turns on `Git:AllowPrivateHosts`. The check doesn't fully protect against DNS rebinding (resolving and libgit2's connection are separate steps), but it cuts off probing the internal network. A fetch error for such a repository is generalised in the deployment log; libgit2's details go to the aggregator's log.
 
-7. **Webhook організації.** Секрет webhook можна створити на підключенні: git-сервер надсилає push будь-якого репозиторію організації на `POST /api/webhooks/connections/{connectionId}`. ЦА перевіряє підпис секретом підключення, бере адресу репозиторію з тіла (`repository.clone_url` і `html_url` у GitHub і Gitea, `project.git_http_url` і `web_url` у GitLab; тіло автентифіковане підписом) і деплоїть стеки репозиторіїв цього підключення з таким URL, гілкою й увімкненим `DeployOnPush`. Webhook на окремому репозиторії (`/api/webhooks/{repositoryId}`) лишається, зокрема для репозиторіїв без підключення.
+7. **Organisation webhooks.** A webhook secret can be created on a connection: the git server sends pushes from any repository of the organisation to `POST /api/webhooks/connections/{connectionId}`. The aggregator checks the signature with the connection's secret, takes the repository's URL from the body (`repository.clone_url` and `html_url` on GitHub and Gitea, `project.git_http_url` and `web_url` on GitLab; the body is authenticated by the signature) and deploys the stacks of the connection's repositories with that URL, branch and `DeployOnPush` turned on. The per-repository webhook (`/api/webhooks/{repositoryId}`) stays, including for repositories without a connection.
 
-8. **Ліміт git-кешу.** Bare-клон репозиторію більший за `Git:MaxCacheBytes` (типово 1 GiB) видаляється, деплой падає з поясненням: репозиторій без підключення може додати будь-який Editor, і диск ЦА — спільний.
+8. **A git cache limit.** A repository's bare clone larger than `Git:MaxCacheBytes` (1 GiB by default) is deleted and the deployment fails with an explanation: any Editor can add a repository without a connection, and the aggregator's disk is shared.
 
-9. **Міграція.** Кожен репозиторій із токеном отримує власне підключення з тим самим id і назвою, префіксом — своїм URL, токеном і ім'ям користувача, а середовищами — тими, де вже є його стеки. Поведінка «токен на один репозиторій» зберігається, нічого не ламається. Об'єднати їх у підключення на організацію адміністратор може пізніше: створити підключення й перевести на нього репозиторії. Репозиторії без токена лишаються без підключення, тобто доступними в усіх середовищах, як і раніше.
+9. **Migration.** Every repository with a token gets its own connection with the same id and name, its URL as the prefix, its token and user name, and the environments where it already has stacks. The "one token per repository" behaviour is kept and nothing breaks. An administrator can merge them into a connection per organisation later: create a connection and move the repositories to it. Repositories without a token stay without a connection, i.e. available in every environment, as before.
 
-## Налаштування для Gitea
+## Setting up Gitea
 
-1. Службовий користувач (наприклад, `forest-team-a`) без права запису, доданий у команду з доступом на читання до потрібних репозиторіїв або до всієї організації.
-2. Токен цього користувача зі scope `read:repository`.
-3. Підключення з префіксом `https://gitea.example.com/team-a/`, цим токеном і середовищами команди.
-4. Webhook організації з секретом підключення (тип `application/json`, подія push).
+1. A service user (e.g. `forest-team-a`) without write access, added to a team with read access to the needed repositories or the whole organisation.
+2. That user's token with the `read:repository` scope.
+3. A connection with the prefix `https://gitea.example.com/team-a/`, this token and the team's environments.
+4. An organisation webhook with the connection's secret (type `application/json`, the push event).
 
-Різний рівень довіри — різні підключення з різними службовими користувачами. Що саме читає токен, визначає членство в Gitea; підключення фіксує, яким середовищам це дозволено.
+Different levels of trust mean different connections with different service users. Membership in Gitea decides what the token reads; the connection records which environments may use it.
 
-## Наслідки
+## Consequences
 
-- Межа довіри явна: адміністратор, створюючи підключення, дозволяє переліченим середовищам розгортати все, що його токен читає під префіксом. Editor середовища і так має root на хості, тож репозиторій, дозволений у його середовищі, не дає йому нічого понад це; межа між середовищами не перетинається.
-- Розробник із роллю Editor підключає нову програму сам: додає репозиторій під підключенням, створює стек, вмикає деплой після push. Адміністратор потрібен лише раз на підключення.
-- API змінюється несумісно: `/api/repositories/{id}/access-token` прибрано, `RepositoryResponse` замість `hasAccessToken` і `accessUserName` має `connectionId`, `connectionName` і `canManage`. Панель оновлюється в тому самому PR; бот репозиторіїв не використовує.
-- Внутрішній git-сервер, що досі працював як публічний репозиторій без токена, після оновлення потребує підключення (або `Git:AllowPrivateHosts=true`): помилка деплою це підказує.
-- Зміна префікса підключення не може залишити його репозиторії поза префіксом (409), а зміна хоста при заданому токені вимагає спершу видалити токен, як і раніше для репозиторію.
-- Видалення підключення, яким користуються репозиторії, — 409.
+- The trust boundary is explicit: by creating a connection, an administrator allows the listed environments to deploy everything its token reads under the prefix. An environment's Editor is root on the host anyway, so a repository allowed in their environment gives them nothing beyond that; the boundary between environments isn't crossed.
+- A developer with the Editor role connects a new application themselves: they add the repository under the connection, create a stack and turn on deploy on push. An administrator is needed only once per connection.
+- The API changes incompatibly: `/api/repositories/{id}/access-token` is removed, and `RepositoryResponse` has `connectionId`, `connectionName` and `canManage` instead of `hasAccessToken` and `accessUserName`. The panel is updated in the same PR; the bot doesn't use repositories.
+- An internal git server that worked so far as a public repository without a token needs a connection after the upgrade (or `Git:AllowPrivateHosts=true`): the deployment error says so.
+- Changing a connection's prefix can't leave its repositories outside it (409), and changing the host while a token is set requires deleting the token first, as it did for repositories.
+- Deleting a connection that repositories use is a 409.

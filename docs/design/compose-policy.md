@@ -1,36 +1,36 @@
-# Політика compose й адміністратор середовища
+# Compose policy and environment administrators
 
-Правила, винятки й обґрунтування — в [ADR-0012](../adr/0012-stack-isolation.md), короткий опис для користувача — в [architecture.md](../architecture.md#політика-compose). Тут — де це в коді й деталі, яких там немає. Шляхи бекенду відносно `src/Aggregator`, панелі — відносно `src/Web`.
+Rules, allowances and reasoning are in [ADR-0012](../adr/0012-stack-isolation.md), a short description for users in [architecture.md](../architecture.md#compose-policy). This note covers where it lives in the code and details the ADR doesn't. Backend paths are relative to `src/Aggregator`, panel paths to `src/Web`.
 
-Код: `Domain/Policies`, `Application/Policies`, `Application/Deployments/Steps/ComposePolicyStep.cs`, `Api/Contracts/PolicyContracts.cs`.
+Code: `Domain/Policies`, `Application/Policies`, `Application/Deployments/Steps/ComposePolicyStep.cs`, `Api/Contracts/PolicyContracts.cs`.
 
-## Адміністратор середовища
+## Environment administrator
 
-- `Role.EnvironmentAdmin` (4): `RoleAssignment.ForStack` і `ChangeRole` на стеку відмовляють. Право — `Permission.AdministerEnvironment`.
-- `EnvironmentAdministration.GetAsync` (невидиме середовище — 404) замість `GetAdministratorAsync` у `EnvironmentService` (зміна, токен реєстрації, відкликання агента), `AgeKeyService`, `RegistryCredentialService`, `ComposePolicyService.ChangeAsync`, `StackService.SetPolicyAllowancesAsync`.
-- Ролі на середовищі — `EnvironmentRoleService`. У відповідях: `EnvironmentResponse.canAdminister`, `StackResponse.canAdministerEnvironment`.
+- `Role.EnvironmentAdmin` (4): `RoleAssignment.ForStack` and `ChangeRole` on a stack refuse it. The permission is `Permission.AdministerEnvironment`.
+- `EnvironmentAdministration.GetAsync` (an invisible environment is a 404) replaces `GetAdministratorAsync` in `EnvironmentService` (changes, enrollment token, revoking the agent), `AgeKeyService`, `RegistryCredentialService`, `ComposePolicyService.ChangeAsync` and `StackService.SetPolicyAllowancesAsync`.
+- Environment roles: `EnvironmentRoleService`. In responses: `EnvironmentResponse.canAdminister`, `StackResponse.canAdministerEnvironment`.
 
-## Модель
+## Model
 
-- `ComposePolicy` (таблиця `ComposePolicies`, ключ — `EnvironmentId`; немає рядка — `Default`): списки — JSON-колонки (`JsonListStorage`). Типовий `DataRoot` не лежить у захищеному каталозі.
-- `Stack.PolicyAllowances`, `Stack.DeployedComposeFacts` (пише `Stack.RecordDeployment(..., composeFacts)`), `Stack.PolicyUnrestricted`.
-- `PolicyAllowance` нормалізує рядок (`capability:cap_sys_admin` → `capability:SYS_ADMIN`, шлях без `/` у кінці). `Covers` — префікс для шляхів, `path-rw` покриває й читання; `CoversExactly` — для захищених шляхів. `HostPath` порівнює за сегментами.
-- `ComposePolicyEvaluator.Evaluate` повертає порушення з винятком або без нього (нічим не знімається: диски, вкладення в rw-джерело, посилання, невидимий агенту шлях) і попередження. `KnownServiceKeys` — allowlist ключів сервісу. `ComposeFactsReader` розбирає модель compose у `ComposeFacts`.
-- Ім'я контейнера — `ComposePolicyEvaluator.ContainerNameOwner`, перевірка при створенні — у `StackService.CreateAsync`.
+- `ComposePolicy` (table `ComposePolicies`, key `EnvironmentId`; no row means `Default`): lists are JSON columns (`JsonListStorage`). The default `DataRoot` isn't inside a protected directory.
+- `Stack.PolicyAllowances`, `Stack.DeployedComposeFacts` (written by `Stack.RecordDeployment(..., composeFacts)`), `Stack.PolicyUnrestricted`.
+- `PolicyAllowance` normalises the string (`capability:cap_sys_admin` → `capability:SYS_ADMIN`, a path without a trailing `/`). `Covers` is a prefix match for paths, and `path-rw` covers reading too; `CoversExactly` is for protected paths. `HostPath` compares by segments.
+- `ComposePolicyEvaluator.Evaluate` returns violations, with or without a possible allowance (some can't be lifted at all: devices, nesting into a read-write source, links, a path the agent can't see), and warnings. `KnownServiceKeys` is the allowlist of service keys. `ComposeFactsReader` turns the compose model into `ComposeFacts`.
+- Container names: `ComposePolicyEvaluator.ContainerNameOwner`; the check at creation is in `StackService.CreateAsync`.
 
-## Пайплайн
+## Pipeline
 
-- `ValidateComposeStep`: парсер посилань — `ComposeService.ReferencedFiles`, `ComposeFile.IncludedFiles`, `HasTags`.
-- `ComposePolicyStep`: політику `DeploymentRunner` завантажує в `DeployContext.Policy`, рендер — `IAgentChannel.RenderStackAsync` (`Deployments:RenderTimeout`). Засвідчення для винятку: `Endorsement` Signed → `SignedBy`, ApprovedUnsigned → `RequestedBy`.
-- `VerifyPaths` — лише в Enforce: джерела, крім системних шляхів, куди може писати контейнер (`IsContainerWritable`). Без винятку для засвідченого вмісту й стеку без обмежень.
+- `ValidateComposeStep`: the reference parser is `ComposeService.ReferencedFiles`, `ComposeFile.IncludedFiles`, `HasTags`.
+- `ComposePolicyStep`: `DeploymentRunner` loads the policy into `DeployContext.Policy`; rendering is `IAgentChannel.RenderStackAsync` (`Deployments:RenderTimeout`). Endorsement for an allowance: `Endorsement` Signed → `SignedBy`, ApprovedUnsigned → `RequestedBy`.
+- `VerifyPaths` runs only in Enforce: sources a container can write to (`IsContainerWritable`), except system paths. No exception for endorsed content or an unrestricted stack.
 
-## Агент
+## Agent
 
-- `RenderStackHandler`, `ComposeInvocation.Config`, `IComposeRunner.CaptureAsync` (stderr — прогрес), `RenderedModel` (що викидається з моделі — в ADR).
-- `HostPathInspector` шукає посилання по компонентах шляху через `Agent:HostRoot`, без нього — лише у власних каталогах агента. Посилання, яке агент сам кладе в каталог стеку на місці секретного файлу пакета (`HostPathInspector.SecretLinks`), пропускається, лише якщо веде саме в tmpfs цього файлу.
-- Тести зі справжнім compose (`RealComposeRenderTests`) у CI обов'язкові (`CF_TEST_REQUIRE_DOCKER_COMPOSE=1`).
+- `RenderStackHandler`, `ComposeInvocation.Config`, `IComposeRunner.CaptureAsync` (stderr is progress), `RenderedModel` (what's dropped from the model is in the ADR).
+- `HostPathInspector` looks for links along the path's components through `Agent:HostRoot`; without it, only in the agent's own directories. A link the agent itself puts in the stack directory in place of a bundle's secret file (`HostPathInspector.SecretLinks`) is skipped only if it points exactly at that file's tmpfs copy.
+- Tests with a real compose (`RealComposeRenderTests`) are required in CI (`CF_TEST_REQUIRE_DOCKER_COMPOSE=1`).
 
-## Панель і ключі стеку
+## Panel and stack keys
 
-- Винятки — `AllowanceList` і діалог (`src/components/compose-policy/allowance-list.tsx`), каталог видів — `allowanceKinds` у `src/features/compose-policy/model.ts`. «Дозволити» біля порушень у звіті: `StackPolicyReportResponse.allowances`, `PolicyViolationResponse.stackOnly`.
-- Ключі стеку: `AgeKey.StackId`, `AgeKey.Serves(stack)`, для git-фільтра — `SopsSecretsService.EditableAsync`, створення — `POST /api/environments/{id}/age-keys?stackId=`.
+- Allowances: `AllowanceList` and its dialog (`src/components/compose-policy/allowance-list.tsx`); the catalogue of kinds is `allowanceKinds` in `src/features/compose-policy/model.ts`. *Allow* next to violations in the report: `StackPolicyReportResponse.allowances`, `PolicyViolationResponse.stackOnly`.
+- Stack keys: `AgeKey.StackId`, `AgeKey.Serves(stack)`; for the git filter, `SopsSecretsService.EditableAsync`; creation is `POST /api/environments/{id}/age-keys?stackId=`.

@@ -1,45 +1,45 @@
-# Журнал аудиту
+# Audit log
 
-Код: `Domain/Audit`, `Application/Audit`, `Api/Contracts/AuditContracts.cs` (відносно `src/Aggregator`), `src/features/audit/model.ts` (відносно `src/Web`).
+Code: `Domain/Audit`, `Application/Audit`, `Api/Contracts/AuditContracts.cs` (relative to `src/Aggregator`), `src/features/audit/model.ts` (relative to `src/Web`).
 
-## Запис
+## The entry
 
-`AuditEntry` складається з чотирьох частин:
+An `AuditEntry` has four parts:
 
-- **Хто** — `AuditActor`: id й ім'я на той момент, канал `Panel`/`ApiToken`/`Bot`/`Anonymous`, id токена, IP (у бота — без IP).
-- **Що** — `AuditAction`, розділ `AuditCategory` виводиться з дії.
-- **Над чим** — ієрархія `AuditTarget`: користувач, роль, токен, середовище, стек, контейнер за ім'ям, файл за шляхом. Ціль дає середовище й стек для фільтра.
-- **Результат** — `Succeeded`, `Denied`, `Failed`.
+- **Who:** `AuditActor`: the id and the name at the time, the channel `Panel`/`ApiToken`/`Bot`/`Anonymous`, the token's id, the IP (none for the bot).
+- **What:** an `AuditAction`; the `AuditCategory` section follows from the action.
+- **On what:** the `AuditTarget` hierarchy: a user, a role, a token, an environment, a stack, a container by name, a file by path. The target supplies the environment and the stack for filtering.
+- **Outcome:** `Succeeded`, `Denied`, `Failed`.
 
-Імена копіюються, зовнішніх ключів немає: журнал переживає перейменування й видалення.
+Names are copied and there are no foreign keys: the log survives renames and deletions.
 
-Секретів у записі немає (інваріант 6): ні паролів, ні токенів, ні вмісту файлів, лише назви й шляхи. Причина невдачі — повідомлення відомих винятків (`AuditOutcomes.Of`), невідомі — «Internal error.».
+An entry holds no secrets (invariant 6): no passwords, tokens or file contents, only names and paths. The failure reason is the message of a known exception (`AuditOutcomes.Of`); unknown ones become "Internal error.".
 
-## Як сервіси пишуть
+## How services write
 
-Через `IAuditTrail`:
+Through `IAuditTrail`:
 
-- **`RunAsync(new AuditDraft(дія, ціль), work)`** виконує дію і записує результат. За винятком: `AccessDeniedException` — `Denied`, решта — `Failed`, `UnauthenticatedException` не записується. Або за `draft.Fail(...)`, коли дія повернулася, але не вдалася, як compose з помилкою. `work` уточнює `draft.Target` і `Details`, коли завантажить об'єкт.
-- **`RecordAsync`** — для відомого результату. Для запитів без сесії (вхід, зворотний виклик Discord, `/link` бота) актора задає `AuditPerson`.
+- **`RunAsync(new AuditDraft(action, target), work)`** runs the action and records the outcome. By exception: `AccessDeniedException` is `Denied`, anything else `Failed`, and `UnauthenticatedException` isn't recorded. Or through `draft.Fail(...)` when the action returned but didn't succeed, like compose with an error. `work` fills in `draft.Target` and `Details` once it has loaded the object.
+- **`RecordAsync`** for a known outcome. For requests without a session (sign-in, the Discord callback, the bot's `/link`) `AuditPerson` sets the actor.
 
-**Нова дія,** яку треба бачити в журналі: нове значення `AuditAction` (зберігається назвою, тож порядок не важливий), випадок у `AuditActions.CategoryOf`, переклад у панелі (`audit.actions`).
+**A new action** that must show in the log: a new `AuditAction` value (stored by name, so order doesn't matter), a case in `AuditActions.CategoryOf`, a translation in the panel (`audit.actions`).
 
-**Збереження:** `AuditLog.AppendAsync` пише у власному `DbContext` нового scope, без токена скасування. Відмовлена чи невдала спроба записується, а напівзроблені зміни запиту — ні; закрита вкладка не губить запис. Ціна: запис не в одній транзакції з дією, тож дія, збережена перед збоєм запису журналу, лишається без запису (помилка йде в лог ЦА, дію вона не ламає).
+**Saving:** `AuditLog.AppendAsync` writes in its own `DbContext` from a new scope, without a cancellation token. A denied or failed attempt is recorded and the request's half-done changes aren't; a closed tab doesn't lose the entry. The price: the entry isn't in the same transaction as the action, so an action saved before the log write fails stays without an entry (the error goes to the aggregator's log and doesn't break the action).
 
-## Що записується
+## What is recorded
 
-- **Вхід і власний акаунт:** вхід паролем, passkey і Discord (невдалий — з наданим ім'ям і причиною), вихід, зміна власного пароля, прив'язка й відв'язка Discord.
-- **Користувачі:** усі дії `UserManagementService` (дія — `UserAccountAction.AuditAction`), створення й відкликання API-токенів.
-- **Середовища:** створення, зміна й видалення, enrollment-токени, відкликання агента.
-- **Стеки:** створення, видалення й зміна джерела, хук деплою, restart і down, деплой вручну (панель, бот, CLI).
-- **Контейнери:** start/stop/restart (декоратор `AuditedCommand` навколо `AuthorizedCommand`, тож і відмови).
-- **Секрети:** розшифрування SOPS для git-фільтра.
-- **Система:** підтвердження особи, зміна налаштувань (лише назви полів, без значень), бекап вручну.
+- **Sign-in and your own account:** password, passkey and Discord sign-in (a failed one with the name given and the reason), sign-out, changing your own password, linking and unlinking Discord.
+- **Users:** every `UserManagementService` action (the action is `UserAccountAction.AuditAction`), creating and revoking API tokens.
+- **Environments:** creation, changes and deletion, enrollment tokens, revoking the agent.
+- **Stacks:** creation, deletion and source changes, the deploy hook, restart and down, manual deployments (panel, bot, CLI).
+- **Containers:** start/stop/restart (the `AuditedCommand` decorator around `AuthorizedCommand`, so refusals too).
+- **Secrets:** SOPS decryption for the git filter.
+- **System:** identity confirmation, settings changes (field names only, no values), manual backups.
 
-Webhook, хук деплою з CI й rehydrate — в історії деплоїв, а бекап за розкладом — в історії бекапів, не в журналі.
+Webhooks, the CI deploy hook and rehydrate are in the deployment history, and scheduled backups in the backup history, not in the log.
 
-## Читання й зберігання
+## Reading and retention
 
-- **API:** `AuditService` (адміністратор без обмежень токена), фільтри `AuditFilter`, сторінки по 1–200 записів, від нових.
-- **Зберігання:** записи старші за `Audit:RetentionDays` (типово 365, 0 — зберігати завжди) видаляє `AuditRetention` при старті й раз на добу.
-- **Панель:** `/audit` («Адміністрування» → «Журнал аудиту»). Фільтри в search params (`category`, `outcome`, `user`, `environment`, `q`, `from`/`to` — локальні дні, `to` включно; `page`), пошук іде до ЦА лише на Enter, сторінка — `keepPreviousData`.
+- **API:** `AuditService` (an administrator without token restrictions), `AuditFilter` filters, pages of 1–200 entries, newest first.
+- **Retention:** `AuditRetention` deletes entries older than `Audit:RetentionDays` (365 by default, 0 keeps them forever) at start and once a day.
+- **Panel:** `/audit` (*Administration* → *Audit log*). Filters are in search params (`category`, `outcome`, `user`, `environment`, `q`, `from`/`to` as local days, `to` inclusive; `page`); search reaches the aggregator only on Enter; pages use `keepPreviousData`.

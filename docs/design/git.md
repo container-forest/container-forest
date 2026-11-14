@@ -1,44 +1,44 @@
-# Git і підключення до git-серверів
+# Git and git connections
 
-Рішення — [ADR-0006](../adr/0006-git-connections.md). Шляхи ЦА відносно `src/Aggregator`.
+The decision: [ADR-0006](../adr/0006-git-connections.md). Aggregator paths are relative to `src/Aggregator`.
 
-## Клони
+## Clones
 
-- **`IGitSource`** — два виклики: `FetchAsync` повертає коміт гілки, `ReadAsync` читає каталог compose-файлу з нього. `GitFetchStep` записує коміт у деплой між ними, тож деплой, що впав на файлах (немає каталогу, перевищено ліміт пакета), усе одно показує свій коміт.
-- **Кеш:** bare-клон на кожен репозиторій у `Git:CacheDirectory` (типово `git-cache` у робочому каталозі), fetch лише гілки стеку з `Prune`, файли читаються з дерева коміту без checkout. Клон більший за `Git:MaxCacheBytes` (1 GiB) видаляється, деплой падає.
-- **Пакет:** каталог compose-файлу (для compose в корені — увесь репозиторій) у межах `Deployments:MaxBundleBytes` (3 MiB). Символьні посилання й сабмодулі пропускаються з попередженням.
-- **Протокол:** LibGit2Sharp з NuGet не підтримує SSH, лише HTTPS.
+- **`IGitSource`** has two calls: `FetchAsync` returns the branch's commit, `ReadAsync` reads the compose file's directory from it. `GitFetchStep` records the commit in the deployment between them, so a deployment that fails on the files (no directory, bundle limit exceeded) still shows its commit.
+- **Cache:** a bare clone per repository in `Git:CacheDirectory` (`git-cache` in the working directory by default), fetching only the stack's branch with `Prune`; files are read from the commit tree without a checkout. A clone larger than `Git:MaxCacheBytes` (1 GiB) is deleted and the deployment fails.
+- **Bundle:** the compose file's directory (the whole repository for a compose file at the root) within `Deployments:MaxBundleBytes` (3 MiB). Symbolic links and submodules are skipped with a warning.
+- **Protocol:** LibGit2Sharp from NuGet doesn't support SSH, only HTTPS.
 
-## Підключення
+## Connections
 
-`GitConnection` (таблиці `GitConnections`, `GitConnectionEnvironments`), `GitConnectionService`, `/api/git-connections/*`.
+`GitConnection` (tables `GitConnections`, `GitConnectionEnvironments`), `GitConnectionService`, `/api/git-connections/*`.
 
-- **Поля:** назва (унікальна), префікс адреси, дозволені середовища або «усі», секрет webhook організації, необов'язковий токен з ім'ям користувача (типово `x-access-token`). Токен зашифрований `ISecretProtector` (`SecretPurpose.GitAccessToken`) і ніколи не повертається, лише `hasAccessToken`.
-- **Доступ:** керує лише адміністратор. Редактор бачить підключення своїх середовищ, і лише свої середовища в `environmentIds`.
-- **Обмеження змін:**
-  - Префікс не може лишити поза собою репозиторії підключення (409).
-  - Хост при заданому токені не змінюється (400).
-  - Підключення з репозиторіями не видаляється (409, FK `Restrict`).
+- **Fields:** a name (unique), a URL prefix, the allowed environments or "all", the organisation webhook secret, an optional token with a user name (`x-access-token` by default). The token is encrypted with `ISecretProtector` (`SecretPurpose.GitAccessToken`) and never returned, only `hasAccessToken`.
+- **Access:** only administrators manage connections. An editor sees the connections of their environments, and only their own environments in `environmentIds`.
+- **Restrictions on changes:**
+  - The prefix can't leave the connection's repositories outside it (409).
+  - The host can't change while a token is set (400).
+  - A connection with repositories can't be deleted (409, FK `Restrict`).
 
-## Репозиторії
+## Repositories
 
-- **Модель:** `GitRepository` має URL і необов'язковий `ConnectionId`. Без нього репозиторій публічний, доступний усім середовищам. Назви не унікальні.
-- **Адреса:**
-  - URL має бути під префіксом. `GitUrl.Covers` порівнює хост і порт та сегменти шляху, без урахування регістру й із відкиданням `.git`.
-  - `GitUrl.Parse` відхиляє облікові дані, query, fragment і будь-яке `%`-кодування в шляху, бо закодоване `..` чи `/` обійшло б префікс.
-- **Права** (`RepositoryAccess`). «Редакторські середовища» — де користувач Editor на середовищі чи на стеку (`AccessPolicy.EditorEnvironments`).
-  - Додати репозиторій може адміністратор або редактор, якщо підключення дозволене в одному з його середовищ. Публічний — будь-який редактор.
-  - Змінити репозиторій і його webhook може адміністратор або той, хто має `Permission.Deploy` на кожному стеку репозиторію (`RepositoryResponse.canManage`).
-  - Недоступне підключення чи репозиторій — 404.
+- **Model:** `GitRepository` has a URL and an optional `ConnectionId`. Without one the repository is public and available to every environment. Names aren't unique.
+- **URL:**
+  - The URL must be under the prefix. `GitUrl.Covers` compares host and port and path segments, case-insensitively and ignoring `.git`.
+  - `GitUrl.Parse` rejects credentials, a query, a fragment and any `%`-encoding in the path, since an encoded `..` or `/` would get around the prefix.
+- **Permissions** (`RepositoryAccess`). "Editor environments" are those where the user is an Editor on the environment or on a stack (`AccessPolicy.EditorEnvironments`).
+  - An administrator can add a repository, or an editor if the connection is allowed in one of their environments. Any editor can add a public one.
+  - An administrator can change a repository and its webhook, or someone with `Permission.Deploy` on every stack of the repository (`RepositoryResponse.canManage`).
+  - An inaccessible connection or repository is a 404.
 
-- **Токен запису** (ADR-0015): необов'язковий `GitConnection.ProtectedPushToken` (`SecretPurpose.GitPushToken`) і `PushUserName`, `PUT|DELETE /api/git-connections/{id}/push-credential`, лише адміністратори, в аудиті (`GitPushCredentialChanged`). Ним ЦА пушить коміти оновлень образів, токен читання для цього не береться ніколи (`GitAccessResolver`). Запис — `IGitWriter` у тому самому bare-клоні, що й fetch ([image-updates.md](image-updates.md#перевірка-й-коміт)).
+- **Write token** (ADR-0015): the optional `GitConnection.ProtectedPushToken` (`SecretPurpose.GitPushToken`) and `PushUserName`, `PUT|DELETE /api/git-connections/{id}/push-credential`, administrators only, audited (`GitPushCredentialChanged`). The aggregator pushes image update commits with it, and never uses the read token for that (`GitAccessResolver`). Writing is `IGitWriter` in the same bare clone as the fetch ([image-updates.md](image-updates.md#check-and-commit)).
 
-## Fetch і захист токена
+## Fetching and protecting the token
 
-- **Перевірка:** `GitFetchStep` перевіряє `IsUsableIn` до fetch і передає `GitAccess` (токен підключення з `Scope` = префікс; `IsTrustedHost` для репозиторіїв підключення).
-- **Токен:** `LibGit2SharpGitSource.CredentialsFor` віддає його лише по HTTPS на адреси під префіксом.
-- **SSRF:** для репозиторію без підключення `GitHostGuard` резолвить хост і відмовляє на loopback, приватних, CGNAT, link-local (metadata хмари), multicast адресах, якщо не задано `Git:AllowPrivateHosts`. Помилка fetch такого репозиторію в лозі деплою узагальнена, деталі libgit2 — у лозі ЦА.
+- **Check:** `GitFetchStep` checks `IsUsableIn` before the fetch and passes a `GitAccess` (the connection's token with `Scope` = the prefix; `IsTrustedHost` for repositories under a connection).
+- **Token:** `LibGit2SharpGitSource.CredentialsFor` hands it out only over HTTPS, to URLs under the prefix.
+- **SSRF:** for a repository without a connection, `GitHostGuard` resolves the host and refuses loopback, private, CGNAT, link-local (cloud metadata) and multicast addresses unless `Git:AllowPrivateHosts` is set. A fetch error for such a repository is generalised in the deployment log; libgit2's details go to the aggregator's log.
 
-## Міграції
+## Migrations
 
-`GitConnections` (схема), `MoveRepositoryTokensToConnections` (кожен репозиторій з токеном отримує власне підключення з тим самим id, префіксом — своїм URL і середовищами своїх стеків), `RemoveRepositoryAccessTokens`. Дві з них перебудовують таблицю `Repositories` у SQLite поза транзакцією, звідси попередження EF при старті.
+`GitConnections` (schema), `MoveRepositoryTokensToConnections` (each repository with a token gets its own connection with the same id, its URL as the prefix and its stacks' environments), `RemoveRepositoryAccessTokens`. Two of them rebuild the `Repositories` table in SQLite outside a transaction, hence EF's warning at start.

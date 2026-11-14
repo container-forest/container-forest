@@ -8,6 +8,9 @@ xUnit1051
 custom_id
 read_repository
 dockerDesktopLinuxEngine
+DiscordErrorCode
+IS_COMPONENTS_V2
+MessageProperties
 
 # Paths that exist only at run time or in an image
 .git/forest/cache.json

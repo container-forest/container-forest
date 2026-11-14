@@ -38,3 +38,12 @@
 - Vite dev-сервер у Linux-контейнері з каталогом, змонтованим із Windows, не отримує подій зміни файлів: після правок його треба перезапускати (або вмикати polling).
 - Router отримує історію з `createRobustBrowserHistory` (`src/lib/browser-history.ts`), а не стандартну. `@tanstack/history` пише URL неприв'язаним викликом `win.history.pushState(...)`. Розширення браузера, що пізніше підміняє History API й викликає нативний метод зі своїм `this`, через це ламає запис URL: у Firefox — `'replaceState' called on an object that does not implement interface History`, адреса лишається `/`, «Назад» закриває вкладку. Не прибирати, доки TanStack не виправить виклик.
 - У прихованій вкладці браузера (`document.visibilityState = hidden`, зокрема вкладка, якою керує автоматизація) TanStack Query не виконує `refetchInterval` і ставить на паузу повтори запитів, а анімації закриття Radix не завершуються: діалог лишається в DOM з `data-state="closed"`. Це не помилки екрана; перевіряти такі речі треба у видимій вкладці.
+
+## Library notes
+
+Why each library was chosen: [docs/dependencies.md](../../docs/dependencies.md).
+
+- **i18next** initialises asynchronously by default; translations are bundled, so `initAsync: false` makes them available on the first render and screens don't flash keys.
+- **TanStack Query.** Requests failing with 401 aren't retried: a finished session would only delay the redirect to sign-in. On sign-out use `removeQueries()`, not `clear()`: `clear()` also drops the mutation cache, so the mutation's own callbacks (the navigation to `/login`) may not run.
+- **TanStack Router.** The `redirect` search param is an arbitrary path with its query string, which `navigate({ to })` doesn't accept by type: use `navigate({ href, replace: true })` (`replace` so *Back* doesn't return to the sign-in form). Devtools are loaded under `import.meta.env.DEV` only.
+- **React Hook Form.** The shadcn checkbox is a Radix button with `role="checkbox"`, not an `<input>`, so `register` doesn't work with it: use `Controller` with `checked` / `onCheckedChange`, and coerce the value to `boolean` (`onCheckedChange` can pass `"indeterminate"`).

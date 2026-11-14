@@ -35,8 +35,6 @@ Subsystem descriptions are in [docs/design/](../../docs/design/README.md); read 
 
 Pitfalls of the libraries the aggregator uses that aren't covered in `docs/design/`. Why each library was chosen: [docs/dependencies.md](../../docs/dependencies.md).
 
-- **ASP.NET Core Identity.** `IdentityResult` doesn't say which errors are about the password: we recognise them by the `Password` code prefix, so custom `IPasswordValidator`s must use codes with that prefix.
-- **Discord OAuth.** A `SameSite=Strict` session cookie set during a redirect chain that started on discord.com isn't sent on the next request, so the last step answers with a `meta refresh` page: the following navigation starts on our site.
 - **AWSSDK.S3.** Besides streaming signing ([design/backup.md](../../docs/design/backup.md)), newer SDKs add checksums some compatible servers don't know: `RequestChecksumCalculation` and `ResponseChecksumValidation` are `WHEN_REQUIRED`. Compatible servers need `ServiceURL`, `ForcePathStyle` and `AuthenticationRegion` (R2's `auto` isn't an AWS region).
 - **EF Core.** Two TPH subclasses with the same property (`EnvironmentId` on environment and stack roles) share one column via `HasColumnName`; the unique index is filtered by discriminator. Case-insensitive unique names (environments, repositories, users) use the `NOCASE` collation, not normalisation in code. Owned collections come back in no particular order: deployment log lines carry a `Sequence`.
 - **gRPC.** `TestServer` applies a client's deadline itself and drops the request before the client's timer fires, so the client sees `Internal`, not `DeadlineExceeded`; it also notices client cancellation only after the server has sent response headers.

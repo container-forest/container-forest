@@ -1,89 +1,89 @@
-# Деплой стеку
+# Stack deployment
 
-Шляхи ЦА відносно `src/Aggregator`.
+Aggregator paths are relative to `src/Aggregator`.
 
-## Пайплайн і черга
+## Pipeline and queue
 
-- **Кроки:** `IDeployStep` реєструються в `AddApplication` у порядку виконання: `GitFetchStep` (для закріпленого деплою — його коміт, а не голова гілки) → `VerifyCommitStep` → `SopsDecryptStep` → `ValidateComposeStep` → `BuildBundleStep` → `ResolveRegistryAuthStep` → `ComposePolicyStep` → `SendToAgentStep`. Новий етап — новий клас і рядок реєстрації, `DeployPipeline` не змінюється.
-- **Між кроками:** результати передаються через `DeployContext`. `DeploymentFailedException` — помилка, яку бачить користувач, решта винятків ховається за «Internal error» і йде в лог ЦА.
-- **Черга:** деплой лише ставиться в чергу (`IDeploymentQueue`, 202 Accepted), виконує його `DeploymentWorker` у власному DI-scope, до `Deployments:MaxConcurrentDeployments` паралельно.
-- **Закріплені деплої** (`Deployment.IsPinned`): rehydrate і оновлення образу (`QueueFromImageUpdate`, тригер `ImageUpdate`, ADR-0015) деплоять свій коміт, а не голову гілки; обидва, як і webhook та хук деплою, — автоматичні (`IsAutomatic`).
-- **Обмеження:** один незавершений деплой на стек (409). До офлайн-агента деплой не ставиться (503). Після рестарту ЦА незавершені деплої позначаються Failed, а не відновлюються.
-- **Лог:** рядки `DeploymentLogLine` у таблиці `DeploymentLogLines`, до 5000 рядків. Вивід compose з агента збирається під час кроку й копіюється в лог після нього: `Deployment` не потокобезпечний, а колбек прогресу викликається з циклу читання gRPC.
+- **Steps:** `IDeployStep`s are registered in `AddApplication` in execution order: `GitFetchStep` (for a pinned deployment, its commit rather than the branch head) → `VerifyCommitStep` → `SopsDecryptStep` → `ValidateComposeStep` → `BuildBundleStep` → `ResolveRegistryAuthStep` → `ComposePolicyStep` → `SendToAgentStep`. A new stage is a new class and a registration line; `DeployPipeline` doesn't change.
+- **Between steps:** results are passed through `DeployContext`. `DeploymentFailedException` is an error the user sees; other exceptions hide behind "Internal error" and go to the aggregator's log.
+- **Queue:** a deployment is only queued (`IDeploymentQueue`, 202 Accepted); `DeploymentWorker` runs it in its own DI scope, up to `Deployments:MaxConcurrentDeployments` in parallel.
+- **Pinned deployments** (`Deployment.IsPinned`): rehydrate and image updates (`QueueFromImageUpdate`, trigger `ImageUpdate`, ADR-0015) deploy their own commit, not the branch head; both, like the webhook and the deploy hook, are automatic (`IsAutomatic`).
+- **Limits:** one unfinished deployment per stack (409). Nothing is queued for an offline agent (503). After an aggregator restart, unfinished deployments are marked Failed rather than resumed.
+- **Log:** `DeploymentLogLine` rows in the `DeploymentLogLines` table, up to 5000 lines. Compose output from the agent is collected during the step and copied into the log after it: `Deployment` isn't thread-safe, and the progress callback runs on the gRPC read loop.
 
-## Креди registry
+## Registry credentials
 
-- ЦА надсилає `RegistryAuth` лише для хостів образів стеку. Для образу з `${VAR}` або з `extends` — усі креди середовища.
-- Ключ Docker Hub у config.json — `https://index.docker.io/v1/` (`RegistryHost.ConfigKey`).
-- Агент пише `config.json` у `<SecretsDirectory>/.docker-config/<guid>` (0700/0600), передає `DOCKER_CONFIG` процесу compose і видаляє каталог після нього. Зі своїм `DOCKER_CONFIG` CLI не бачить контекстів користувача, тому працює з типовим сокетом.
+- The aggregator sends `RegistryAuth` only for the hosts of the stack's images. For an image with `${VAR}` or with `extends`, all of the environment's credentials.
+- The Docker Hub key in config.json is `https://index.docker.io/v1/` (`RegistryHost.ConfigKey`).
+- The agent writes `config.json` to `<SecretsDirectory>/.docker-config/<guid>` (0700/0600), passes `DOCKER_CONFIG` to the compose process and deletes the directory afterwards. With its own `DOCKER_CONFIG` the CLI doesn't see the user's contexts, so it uses the default socket.
 
-## Перезапуск після зміни файлів
+## Restart after file changes
 
-`Stack.RestartOnFileChange`, типово вимкнено; `PUT /api/stacks/{id}/restart-on-file-change`, Editor, для системного стеку — 409; `DeployStack.restart_on_file_change`.
+`Stack.RestartOnFileChange`, off by default; `PUT /api/stacks/{id}/restart-on-file-change`, Editor, 409 for a system stack; `DeployStack.restart_on_file_change`.
 
-**Навіщо:** контейнери читають змонтовані файли (конфіги, файлові секрети) лише на старті, а `compose up` перестворює контейнер, тільки коли змінилося його визначення. Новий конфіг без перезапуску лежить на хості, але не діє.
+**Why:** containers read mounted files (configs, file secrets) only at start, and `compose up` recreates a container only when its definition changed. A new config without a restart sits on the host but has no effect.
 
-- **Виявлення:** `StackFileStore.WriteAsync` до запису порівнює файли пакета, крім `compose.yaml`, з тими, що на хості (секрети — з tmpfs), і з маніфестом. Посилання на місці звичайного файлу вважається зміною й не читається, зниклий файл — теж зміна, перший деплой стеку — ні.
-- **Перезапуск:** якщо опція ввімкнена й файли змінилися, `DeployStackHandler` після `compose up` робить `compose restart` усього стеку (тайм-аут 10 с, як у панелі), без `-f`, як `RestartStackHandler`. Вивід іде в лог деплою.
-- **Спрощення:** перезапускаються й контейнери, які `up` щойно перестворив: простіше, ніж зіставляти файли з сервісами.
-- **Сумісність:** агент без цього поля просто не перезапускає.
+- **Detection:** before writing, `StackFileStore.WriteAsync` compares the bundle's files, except `compose.yaml`, with those on the host (secrets with the tmpfs copies) and with the manifest. A link where a regular file should be counts as a change and isn't read, a missing file is also a change, and a stack's first deployment isn't.
+- **Restart:** if the option is on and files changed, `DeployStackHandler` runs `compose restart` for the whole stack after `compose up` (a 10 s timeout, as in the panel), without `-f`, like `RestartStackHandler`. The output goes to the deployment log.
+- **Simplification:** containers that `up` has just recreated are restarted too: simpler than mapping files to services.
+- **Compatibility:** an agent without this field just doesn't restart.
 
-## Restart і down стеку
+## Stack restart and down
 
-`Application/Stacks/StackCommand.cs`, `StackCommandService`, ієрархія `StackCommand` → `RestartStackCommand`, `DownStackCommand`. Ендпоінти: `POST /api/stacks/<id>/restart|down?timeoutSeconds=N`.
+`Application/Stacks/StackCommand.cs`, `StackCommandService`, the hierarchy `StackCommand` → `RestartStackCommand`, `DownStackCommand`. Endpoints: `POST /api/stacks/<id>/restart|down?timeoutSeconds=N`.
 
-**Перевірки:**
+**Checks:**
 
-- Право — як у `RolePermissions.RequiredFor`: restart — Operator, down — Editor.
-- Невидимий стек — 404 до звернення до агента.
-- Системний стек — 409 (`EnsureAllows`, `RequiresUpdateHelper`).
-- Незавершений деплой стеку — 409, бо `ERROR_CODE_BUSY` агента покриває лише час, коли compose уже працює.
+- The permission follows `RolePermissions.RequiredFor`: Operator for restart, Editor for down.
+- An invisible stack is a 404 before reaching the agent.
+- A system stack is a 409 (`EnsureAllows`, `RequiresUpdateHelper`).
+- An unfinished deployment of the stack is a 409, since the agent's `ERROR_CODE_BUSY` covers only the time compose is already running.
 
-**Виконання:**
+**Execution:**
 
-- Синхронно, без черги й без запису в історію деплоїв: вивід compose (останні 1000 рядків) повертається у відповіді.
-- Тайм-аут зупинки — на кожен контейнер, 0–300 с, типово 10 с.
-- Запит до агента йде без токена викликача: закрита вкладка не має обривати `down` посередині, лишивши частину контейнерів зупиненими. ЦА чекає `AgentGateway:StackCommandTimeout` (16 хв, на хвилину довше за `Agent:ComposeTimeout`).
+- Synchronous, without a queue and without an entry in the deployment history: compose's output (the last 1000 lines) comes back in the response.
+- The stop timeout is per container, 0–300 s, 10 s by default.
+- The request to the agent goes without the caller's token: a closed tab mustn't abort a `down` halfway, leaving some containers stopped. The aggregator waits `AgentGateway:StackCommandTimeout` (16 minutes, a minute longer than `Agent:ComposeTimeout`).
 
-**Відповіді:** помилка самого compose (`ERROR_CODE_COMMAND_FAILED`, `ERROR_CODE_TIMEOUT` агента) — результат із `error` і виводом (HTTP 200). Решта помилок агента — problem details: `ERROR_CODE_NOT_FOUND` для стеку, якого агент не розгортав, — 404, `ERROR_CODE_BUSY` — 409.
+**Responses:** an error from compose itself (the agent's `ERROR_CODE_COMMAND_FAILED`, `ERROR_CODE_TIMEOUT`) is a result with `error` and the output (HTTP 200). Other agent errors are problem details: `ERROR_CODE_NOT_FOUND` for a stack the agent never deployed is a 404, `ERROR_CODE_BUSY` a 409.
 
-**Після down:** успішний down скидає `DeployedCommit` і `DeployedAt` (`Stack.RecordTakenDown`), бо контейнерів цього коміту більше немає, хоча файли стеку лишаються на хості. Невдалий down їх не чіпає: частина контейнерів може працювати. Бот не пропонує такий стек в автодоповненні.
+**After down:** a successful down clears `DeployedCommit` and `DeployedAt` (`Stack.RecordTakenDown`), since no containers of that commit remain, although the stack's files stay on the host. A failed down leaves them alone: some containers may still run. The bot doesn't offer such a stack in autocomplete.
 
-**Бот** викликає те саме через `ListStacks` і `ControlStack` у `bot.proto`:
+**The bot** calls the same through `ListStacks` and `ControlStack` in `bot.proto`:
 
-- Стек вказується за назвою в середовищі. Невідома, некоректна назва й невидимий стек — однаковий `NOT_FOUND`.
-- `can_restart` і `can_take_down` для системного стеку завжди false.
-- `/stack-restart` і `/stack-down` показують кінець виводу compose в блоці коду (`ReplyFormatter.WithOutput`: останні рядки в межах 2000 символів, ` ``` ` у виводі розривається пробілом нульової ширини).
-- Дедлайн виклику — `Bot:StackActionTimeout` (14 хв, менше за 15 хв токена взаємодії Discord). Коли бот перестає чекати, compose усе одно доходить до кінця.
+- The stack is given by name within the environment. An unknown or invalid name and an invisible stack all get the same `NOT_FOUND`.
+- `can_restart` and `can_take_down` are always false for a system stack.
+- `/stack-restart` and `/stack-down` show the end of compose's output in a code block (`ReplyFormatter.WithOutput`: the last lines within 2000 characters, with ` ``` ` in the output broken by a zero-width space).
+- The call's deadline is `Bot:StackActionTimeout` (14 minutes, less than Discord's 15-minute interaction token). When the bot stops waiting, compose still runs to the end.
 
-## API стеків для панелі
+## The stacks API for the panel
 
-`Api/Contracts/StackContracts.cs`. Видимість стеку й деплою — як у `DeploymentService` (невидимий — 404). Назву репозиторію в `StackResponse` бачить кожен, хто бачить стек.
+`Api/Contracts/StackContracts.cs`. Stack and deployment visibility work as in `DeploymentService` (invisible is a 404). Everyone who sees a stack sees the repository's name in `StackResponse`.
 
-**Створення й зміна стеку**
+**Creating and changing a stack**
 
-- Створення стеку й зміна джерела приймають лише репозиторій, дозволений у середовищі стеку (`GitRepository.IsUsableIn`), інакше 404.
-- Джерело (репозиторій, гілка, compose-файл) змінює Editor на стеку (`StackService.ChangeSourceAsync`), але не під час незавершеного деплою (409): деплой у черзі читає джерело, коли запускається.
-- Назва стеку не змінюється: це проєкт compose і каталог на хості.
+- Creating a stack and changing its source accept only a repository allowed in the stack's environment (`GitRepository.IsUsableIn`), otherwise 404.
+- An Editor on the stack changes the source (repository, branch, compose file) (`StackService.ChangeSourceAsync`), but not during an unfinished deployment (409): a queued deployment reads the source when it starts.
+- A stack's name doesn't change: it's the compose project and the directory on the host.
 
-**Видалення стеку** (`DELETE /api/stacks/{id}`, `StackService.RemoveAsync`)
+**Deleting a stack** (`DELETE /api/stacks/{id}`, `StackService.RemoveAsync`)
 
-- Видаляє Editor середовища, як і додає. Editor лише стеку не може: ролі інших на стеку зникли б разом із ним.
-- Системний, розгорнутий (`DeployedCommit`, спершу down) і стек із незавершеним деплоєм — 409 (`Stack.EnsureRemovable`).
-- Історію деплоїв, ролі на стеку й правила сповіщень про нього забирає каскад БД, історія сповіщень лишається.
-- Файли стеку на хості лишаються, як після down: агент не має команди їх прибрати, а новий стек із тією самою назвою деплоїться поверх них.
+- The environment's Editor deletes it, as they add it. An Editor of the stack alone can't: other people's roles on the stack would vanish with it.
+- A system stack, a deployed one (`DeployedCommit`; take it down first) and one with an unfinished deployment are a 409 (`Stack.EnsureRemovable`).
+- The database cascade removes the deployment history, the roles on the stack and notification rules about it; the notification history stays.
+- The stack's files stay on the host, as after down: the agent has no command to remove them, and a new stack with the same name deploys over them.
 
-**Видалення репозиторію** (`DELETE /api/repositories/{id}`, `RepositoryService.RemoveAsync`)
+**Deleting a repository** (`DELETE /api/repositories/{id}`, `RepositoryService.RemoveAsync`)
 
-- Видаляє той, хто може його змінювати, лише коли з нього не деплоїться жоден стек. Інакше 409 з кількістю, без назв, бо стеки можуть бути в чужих середовищах; `RepositoryResponse.stackCount` — лише для `canManage`.
-- Після збереження `IGitSource.ForgetAsync` видаляє клон із `git-cache` (помилка — лише в лог).
+- Whoever may change it deletes it, only when no stack deploys from it. Otherwise a 409 with the count and no names, since the stacks may be in other people's environments; `RepositoryResponse.stackCount` is only for `canManage`.
+- After saving, `IGitSource.ForgetAsync` deletes the clone from `git-cache` (an error only goes to the log).
 
-**Видалення середовища** (`DELETE /api/environments/{id}`, `EnvironmentService.RemoveAsync`)
+**Deleting an environment** (`DELETE /api/environments/{id}`, `EnvironmentService.RemoveAsync`)
 
-- Видаляє адміністратор, лише без стеків (409).
-- Каскад БД забирає age-ключі (файли, зашифровані лише для них, ЦА більше не розшифрує), креди registry, ролі, правила сповіщень і місце в підключеннях.
-- Агент від'єднується після збереження й підключитися знову не може.
+- An administrator deletes it, only without stacks (409).
+- The database cascade removes the age keys (files encrypted only to them can no longer be decrypted by the aggregator), registry credentials, roles, notification rules and its place in connections.
+- The agent is disconnected after saving and can't connect again.
 
-## Пастки
+## Pitfalls
 
-Образи з тегом `latest` або без тегу ламають відтворюваність: відкат файлів стеку не повертає попередній образ. `ValidateComposeStep` лише **попереджає** в лозі деплою, а не відхиляє: багато образів публікуються тільки з `latest`, а «redeploy with pull» існує саме для рухомих тегів. Образ із digest (`@sha256:...`) попередження не отримує. `build:` у compose відхиляється.
+Images tagged `latest` or without a tag break reproducibility: rolling back the stack's files doesn't bring back the previous image. `ValidateComposeStep` only **warns** in the deployment log rather than rejecting: many images are published only as `latest`, and *redeploy with pull* exists precisely for moving tags. An image with a digest (`@sha256:...`) gets no warning. `build:` in compose is rejected.

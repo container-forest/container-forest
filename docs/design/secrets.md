@@ -1,99 +1,99 @@
-# Секрети: SOPS, git-фільтр, rehydrate
+# Secrets: SOPS, the git filter, rehydrate
 
-Рішення — [ADR-0003](../adr/0003-secrets-at-rest.md), [ADR-0010](../adr/0010-git-secrets-filter.md). Як агент пише секрети — [src/Agent/CLAUDE.md](../../src/Agent/CLAUDE.md). Шляхи ЦА відносно `src/Aggregator`.
+Decisions: [ADR-0003](../adr/0003-secrets-at-rest.md), [ADR-0010](../adr/0010-git-secrets-filter.md). How the agent writes secrets: [src/Agent/CLAUDE.md](../../src/Agent/CLAUDE.md). Aggregator paths are relative to `src/Aggregator`.
 
-## Ключі
+## Keys
 
-- **Модель:** `AgeKey` (таблиця `AgeKeys`) — age-пара X25519 на середовище або стек (ADR-0012). Приватна частина зашифрована `ISecretProtector` з `SecretPurpose.AgeIdentity`, у відповідях — лише `recipient`.
-- **Ротація:** ключів на середовище може бути кілька: новий шифрує нові файли, усі разом розшифровують.
-- **Доступ** (`AgeKeyService`): створює й видаляє адміністратор або адміністратор середовища. Публічні ключі бачить кожен, хто бачить середовище: вони потрібні для `.sops.yaml`.
-- **Генерація:** пару створює `age-keygen` (`AgeKeygenCli`), вивід розбирається й ніде не логується.
+- **Model:** `AgeKey` (table `AgeKeys`), an X25519 age key pair per environment or stack (ADR-0012). The private part is encrypted with `ISecretProtector` with `SecretPurpose.AgeIdentity`; responses carry only the `recipient`.
+- **Rotation:** an environment can have several keys: the new one encrypts new files, and all of them decrypt.
+- **Access** (`AgeKeyService`): an administrator or the environment's administrator creates and deletes keys. Everyone who sees the environment sees the public keys: `.sops.yaml` needs them.
+- **Generation:** `age-keygen` (`AgeKeygenCli`) creates the pair; its output is parsed and never logged.
 
-## Розшифрування під час деплою
+## Decrypting during a deployment
 
-`SopsDecryptStep` виконується одразу після `GitFetchStep`.
+`SopsDecryptStep` runs right after `GitFetchStep`.
 
-- **Що вважається зашифрованим:** лише файл із метаданими sops свого формату (`SopsFile.IsEncrypted`), бо файл, що лише згадує sops чи `ENC[`, має деплоїтися як є. Формат визначається за розширенням, як у самого sops:
+- **What counts as encrypted:** only a file with sops metadata in its own format (`SopsFile.IsEncrypted`), since a file that merely mentions sops or `ENC[` must deploy as it is. The format is chosen by extension, as sops itself does:
 
-  | Формат | Ознака |
+  | Format | Marker |
   |---|---|
-  | YAML | ключ `sops:` верхнього рівня |
-  | JSON | об'єкт `sops` |
+  | YAML | a top-level `sops:` key |
+  | JSON | a `sops` object |
   | dotenv | `sops_version=` |
   | INI | `[sops]` |
-  | решта (двійкові) | `{"data", "sops"}` |
+  | anything else (binary) | `{"data", "sops"}` |
 
-- **Ключі:** лише цільового середовища. Без ключа, з чужим ключем або з нечитабельним приватним ключем — помилка деплою з підказкою.
-- **Результат:** файл іде агенту з `StackFile.secret = true` (tmpfs + символьне посилання), у лозі деплою — лише шляхи.
-- **`.gitattributes`:** крок спершу перевіряє їх (`GitAttributes`, правила `.gitignore` лише для атрибута `filter`): файл під `filter=forest` без метаданих sops — помилка деплою. Файли `.gitattributes` каталогів вище стеку `LibGit2SharpGitSource` кладе в `GitSnapshot.OuterAttributes`.
+- **Keys:** only the target environment's. No key, someone else's key or an unreadable private key is a deployment error with a hint.
+- **Result:** the file goes to the agent with `StackFile.secret = true` (tmpfs + a symbolic link); the deployment log shows only paths.
+- **`.gitattributes`:** the step checks them first (`GitAttributes`, with `.gitignore` rules for the `filter` attribute only): a file under `filter=forest` without sops metadata is a deployment error. `LibGit2SharpGitSource` puts the `.gitattributes` files of directories above the stack into `GitSnapshot.OuterAttributes`.
 
-## Виклик sops
+## Calling sops
 
-- **`SopsCli`** запускає `sops decrypt --filename-override <шлях> /dev/stdin`: шифротекст іде через stdin, відкритий текст — через stdout, на диск ЦА нічого не пишеться.
-- **Оточення:** ключі передаються в `SOPS_AGE_KEY` (через `\n`). `CliProcess` очищає оточення дочірнього процесу (лишається `PATH`), тож `CF_*` ЦА до sops не потрапляють.
-- **Помилки:** код виходу 128 (`CouldNotRetrieveKey`) — «жоден ключ середовища не є отримувачем», решта — перший рядок stderr (при розшифруванні sops не друкує відкритого тексту).
-- **Бінарники:** `sops` і `age-keygen` в образі ЦА ставить `scripts/install-sops.sh` (версії й SHA-256 для amd64/arm64 — у скрипті, оновлювати там) в окремій стадії Dockerfile. Шляхи й тайм-аут — `Sops:SopsPath`, `Sops:AgeKeygenPath`, `Sops:Timeout`.
-- **Тести:** `SopsToolsTests` зі справжніми інструментами без них пропускаються, а в CI (`CF_TEST_REQUIRE_SOPS=1`, інструменти ставить той самий скрипт) падають.
+- **`SopsCli`** runs `sops decrypt --filename-override <path> /dev/stdin`: the ciphertext goes through stdin and the plain text through stdout; nothing is written to the aggregator's disk.
+- **Environment:** keys are passed in `SOPS_AGE_KEY` (separated by `\n`). `CliProcess` clears the child process's environment (keeping `PATH`), so the aggregator's `CF_*` never reach sops.
+- **Errors:** exit code 128 (`CouldNotRetrieveKey`) means "none of the environment's keys is a recipient"; anything else is stderr's first line (sops prints no plain text when decrypting).
+- **Binaries:** `scripts/install-sops.sh` installs `sops` and `age-keygen` into the aggregator's image (versions and SHA-256 for amd64/arm64 are in the script; update them there) in a separate Dockerfile stage. Paths and the timeout: `Sops:SopsPath`, `Sops:AgeKeygenPath`, `Sops:Timeout`.
+- **Tests:** `SopsToolsTests` with the real tools are skipped without them and fail in CI (`CF_TEST_REQUIRE_SOPS=1`; the same script installs the tools).
 
-## API для git-фільтра
+## The API for the git filter
 
-`SopsSecretsService`, `Api/Contracts/SopsContracts.cs`, ADR-0010. Обидва ендпоінти приймають до 1 MiB вмісту й мають ліміт `sops` на користувача (token bucket: 300, +60 за 10 с).
+`SopsSecretsService`, `Api/Contracts/SopsContracts.cs`, ADR-0010. Both endpoints accept up to 1 MiB of content and have a per-user `sops` rate limit (a token bucket: 300, +60 per 10 s).
 
 **`POST /api/sops/decrypt`**
 
-- **Право:** `AccessScope.CanDecryptSecrets`. Сесія його має, токен — лише з прапорцем `secrets` (claim `cf:secrets`, ніколи разом із лише читанням).
-- **Ключі:** ті, чиї `recipient` є в метаданих файла (`SopsFile.AgeRecipients`, лише підказка) і чиє середовище в `AccessPolicy.EditorEnvironments` актора. Адміністратор без обмежень — усі.
-- **Відмови:** жодного ключа ЦА серед отримувачів — `SopsDecryptionException` (422), лише чужі середовища — 403.
-- **Лог:** хто й який шлях, без вмісту.
+- **Permission:** `AccessScope.CanDecryptSecrets`. A session has it; a token only with the `secrets` flag (claim `cf:secrets`, never together with read-only).
+- **Keys:** those whose `recipient` is in the file's metadata (`SopsFile.AgeRecipients`, only a hint) and whose environment is in the actor's `AccessPolicy.EditorEnvironments`. An unrestricted administrator gets all of them.
+- **Refusals:** no aggregator key among the recipients is a `SopsDecryptionException` (422); only other people's environments is a 403.
+- **Log:** who and which path, no content.
 
 **`POST /api/sops/encrypt`**
 
-- **Право:** будь-який актор, крім лише читання.
-- **Правило:** `YamlSopsConfigReader` обирає перше правило `.sops.yaml` за `path_regex` (шлях від кореня репозиторію, `RegexOptions.NonBacktracking` замість RE2) і приймає лише `age` та параметри «що шифрувати». Інший тип ключа — `SopsConfigException` (400).
-- **Запуск:** `SopsCli.EncryptAsync` пише тимчасовий JSON-конфіг лише з цим правилом і запускає `sops --config <файл> encrypt`. `.sops.yaml` репозиторію до sops не потрапляє, тож KMS, Vault і PGP ЦА не викликає.
-- **Помилки:** помилка sops — 422, у лог лише код виходу, бо stderr може цитувати відкритий текст.
+- **Permission:** any actor except a read-only one.
+- **Rule:** `YamlSopsConfigReader` picks the first `.sops.yaml` rule by `path_regex` (the path from the repository root, `RegexOptions.NonBacktracking` in place of RE2) and accepts only `age` and the "what to encrypt" parameters. Another key type is a `SopsConfigException` (400).
+- **Running:** `SopsCli.EncryptAsync` writes a temporary JSON config with only that rule and runs `sops --config <file> encrypt`. The repository's `.sops.yaml` never reaches sops, so the aggregator never calls KMS, Vault or PGP.
+- **Errors:** a sops error is a 422, and only the exit code is logged, since stderr may quote plain text.
 
-## Git-фільтр у CLI
+## The git filter in the CLI
 
 `src/Cli/Secrets`, ADR-0010.
 
-**Налаштування**
+**Setup**
 
-- `forest git setup` пише в локальний конфіг клону `filter.forest.process` (`forest git filter-process`, абсолютний шлях бінарника в одинарних лапках, якщо це сам `forest`), `filter.forest.required`, `diff.forest.textconv`, `forest.context`. Також ставить pre-commit хук (`forest secrets check --staged`; чужий хук не перезаписує) і заново checkout'ить зашифровані незмінені файли під фільтром.
-- `git teardown` (`GitFilterSetup.Remove`) — протилежність `setup`: прибирає секції `filter.forest`, `diff.forest`, ключі `forest.*`, свій хук, `.git/forest` і повертає шифротекст у робочі файли. Незакомічені зміни — відмова.
+- `forest git setup` writes `filter.forest.process` (`forest git filter-process`, the binary's absolute path in single quotes if it's `forest` itself), `filter.forest.required`, `diff.forest.textconv` and `forest.context` to the clone's local config. It also installs a pre-commit hook (`forest secrets check --staged`; it doesn't overwrite someone else's hook) and checks out unchanged encrypted files again under the filter.
+- `git teardown` (`GitFilterSetup.Remove`) is the opposite of `setup`: it removes the `filter.forest` and `diff.forest` sections, the `forest.*` keys, its hook and `.git/forest`, and puts the ciphertext back into the working files. Uncommitted changes mean a refusal.
 
-**Сам фільтр**
+**The filter itself**
 
-- `GitFilterProcess` — протокол pkt-line версії 2 (`PktLineReader`/`PktLineWriter`), можливості clean і smudge.
-- Кожен файл — `SmudgeOperation` або `CleanOperation` (Template Method над `FilterOperation`), бекенди — `ISopsBackend` (`AggregatorSops` через `ForestApi`, `LocalSops` з `forest.localSops`).
-- Smudge без доступу повертає шифротекст і success (причина в stderr один раз); clean при будь-якій помилці — `status=error`.
-- `FilterCache` (`.git/forest/cache.json`, ключ HMAC `.git/forest/key`, 0600) повертає незміненому тексту той самий шифротекст. `secrets updatekeys` забуває записи й робить `git add --renormalize`.
+- `GitFilterProcess` implements the pkt-line protocol version 2 (`PktLineReader`/`PktLineWriter`) with the clean and smudge capabilities.
+- Each file is a `SmudgeOperation` or a `CleanOperation` (Template Method over `FilterOperation`); backends are `ISopsBackend` (`AggregatorSops` through `ForestApi`, `LocalSops` with `forest.localSops`).
+- Smudge without access returns the ciphertext and success (the reason goes to stderr once); clean returns `status=error` on any error.
+- `FilterCache` (`.git/forest/cache.json`, HMAC key `.git/forest/key`, 0600) gives unchanged plain text the same ciphertext back. `secrets updatekeys` forgets the entries and runs `git add --renormalize`.
 
-**`secrets remove`** знімає фільтр із файла.
+**`secrets remove`** takes the filter off a file.
 
-- Свій рядок `.gitattributes` видаляє, для шаблону дописує `/<шлях> -filter -diff`. Якщо глибший `.gitattributes` усе одно вмикає фільтр — відкат і відмова.
-- Типово в клоні повертається шифротекст із git (незакомічені зміни — відмова), `--plain --yes` індексує відкритий текст.
+- It deletes its own `.gitattributes` line, or for a pattern appends `/<path> -filter -diff`. If a deeper `.gitattributes` still turns the filter on, it rolls back and refuses.
+- By default the clone gets the ciphertext from git back (uncommitted changes mean a refusal); `--plain --yes` stages the plain text.
 
-**`secrets rule list|add|remove`** редагує `.sops.yaml` через `SopsConfigFile`.
+**`secrets rule list|add|remove`** edits `.sops.yaml` through `SopsConfigFile`.
 
-- Працює з рядками блокового списку `creation_rules`: коментар перед правилом належить йому, незмінені правила пишуться як були. Чужа форма (flow-стиль, блокові скаляри, списки ключів) — відмова.
-- Нове правило стає перед першим, з яким перекривається, з ключами, спільними для всіх правил і не чиїми-небудь ключами середовищ (резервні).
+- It works with the lines of the block list `creation_rules`: a comment before a rule belongs to it, and unchanged rules are written as they were. Another shape (flow style, block scalars, key lists) means a refusal.
+- A new rule goes before the first one it overlaps, with the keys common to all rules that aren't any environment's keys (backup keys).
 
-**Закінчення рядків.** Git перетворює їх до smudge, тому:
+**Line endings.** Git converts them before smudge, so:
 
-- Рядки `.gitattributes` пишуться як `filter=forest diff=forest eol=lf` (`SecretsFiles.FilterAttributes`; старі без `eol` — `LegacyFilterAttributes`, `AddAttributes` дописує їм `eol=lf`).
-- `secrets fix-eol` робить те саме для кореневого `.gitattributes`, кладе в індекс шифротекст без CR через `hash-object` + `update-index` (не `git add`: той узяв би й незакомічені зміни відкритого тексту) і перечитує файли.
-- `GitFilterSetup.Refresh` перечитує й шифротекст, що відрізняється від git лише CR, і повертає stderr checkout'а (причина від фільтра).
-- `setup`, `status`, `check` попереджають про правила без `eol=lf`, `check` відхиляє шифротекст із CRLF.
-- Clean знімає CR з dotenv та INI (`SopsFiles.PlainForSops`) до кешу й шифрування. ЦА шифротекст не нормалізує, лише називає CRLF у помилці (`SopsCli`).
+- `.gitattributes` lines are written as `filter=forest diff=forest eol=lf` (`SecretsFiles.FilterAttributes`; old ones without `eol` are `LegacyFilterAttributes`, and `AddAttributes` appends `eol=lf` to them).
+- `secrets fix-eol` does the same for the root `.gitattributes`, stages ciphertext without CR through `hash-object` + `update-index` (not `git add`, which would also take uncommitted changes to the plain text) and rereads the files.
+- `GitFilterSetup.Refresh` also rereads ciphertext that differs from git's only by CR, and returns the checkout's stderr (the reason from the filter).
+- `setup`, `status` and `check` warn about rules without `eol=lf`; `check` rejects ciphertext with CRLF.
+- Clean strips CR from dotenv and INI (`SopsFiles.PlainForSops`) before caching and encrypting. The aggregator doesn't normalise ciphertext; it only names CRLF in the error (`SopsCli`).
 
 ## Rehydrate
 
-Файлові секрети живуть у tmpfs і зникають із перезавантаженням хоста. Docker піднімає контейнери раніше, ніж підключається агент, тому контейнери з файловими секретами падають до rehydrate. Сигнал для ЦА повторно надіслати секрети — новий `boot_id` у `Hello`.
+File secrets live in tmpfs and disappear when the host reboots. Docker starts containers before the agent connects, so containers with file secrets fail until rehydrate. The aggregator's signal to send the secrets again is a new `boot_id` in `Hello`.
 
-- **Запуск:** `DockerEnvironment.RecordConnection` порівнює `boot_id` з попереднім. Якщо він новий, `AgentGatewayService` після `registry.Open` (деплої йдуть цьому агенту) викликає `SecretRehydrationService`.
-- **Які стеки:** той ставить `Deployment.QueueRehydrate` для кожного стеку з `Stack.NeedsRehydration`: є `DeployedCommit`, останній успішний деплой мав секретні файли (`DeployedWithSecrets`, з `DeployContext.HasSecretFiles`), стек не системний. Стек із незавершеним деплоєм пропускається: той сам надішле секрети.
-- **Без дії:** перший `Hello` після реєстрації (`LastBootId` = null) і перепідключення без перезавантаження нічого не деплоять. Помилка постановки лише логується, з'єднання не страждає.
-- **Закріплений коміт** (`IsPinned`, тригер `Rehydrate`, без користувача, `pull: missing`): гілка могла піти вперед, а відновлення секретів не має деплоїти нічого нового. `GitFetchStep` усе одно робить fetch гілки (кеш міг зникнути), але читає закріплений коміт; недоступний git-сервер — лише попередження, коміт береться з кешу ЦА.
-- **Результат** іде в історію деплоїв і сповіщення, як звичайний деплой.
-- **Застереження:** джерело стеку (`ChangeSource`) після останнього деплою не відстежується, і rehydrate читає закріплений коміт за поточним джерелом.
+- **Start:** `DockerEnvironment.RecordConnection` compares the `boot_id` with the previous one. If it's new, `AgentGatewayService` calls `SecretRehydrationService` after `registry.Open` (so deployments go to this agent).
+- **Which stacks:** it queues `Deployment.QueueRehydrate` for every stack with `Stack.NeedsRehydration`: there's a `DeployedCommit`, the last successful deployment had secret files (`DeployedWithSecrets`, from `DeployContext.HasSecretFiles`), and the stack isn't a system stack. A stack with an unfinished deployment is skipped: that deployment will send the secrets itself.
+- **No action:** the first `Hello` after enrollment (`LastBootId` = null) and a reconnect without a reboot deploy nothing. A failure to queue is only logged; the connection doesn't suffer.
+- **A pinned commit** (`IsPinned`, trigger `Rehydrate`, no user, `pull: missing`): the branch may have moved on, and restoring secrets mustn't deploy anything new. `GitFetchStep` still fetches the branch (the cache may be gone) but reads the pinned commit; an unreachable git server is only a warning, and the commit comes from the aggregator's cache.
+- **The result** goes to the deployment history and notifications like an ordinary deployment.
+- **Caveat:** the stack's source (`ChangeSource`) after the last deployment isn't tracked, and rehydrate reads the pinned commit through the current source.

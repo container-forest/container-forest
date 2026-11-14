@@ -1,194 +1,195 @@
-# ADR-0015. Оновлення образів самою ЦА: політика образів на стеку, коміт у репозиторій стеку, засвідчення через засвідчений батьківський коміт
+# ADR-0015. Image updates by the aggregator: a stack's image policy, a commit to the stack's repository, endorsement through an endorsed parent commit
 
-- Статус: прийнято
-- Дата: 2026-11-08, змінено 2026-11-09 (токени оновлення замінено хуком образів стеку)
+- Status: accepted
+- Date: 2026-11-08, changed 2026-11-09 (update tokens replaced by the stack's image hook)
 
-## Контекст
+## Context
 
-Відтворюваний деплой вимагає незмінного тегу образу в compose (`docs/design/deployment.md`: `latest` лише попереджає, бо відкат файлів стеку не повертає старий образ). Майбутній відкат із панелі теж спиратиметься на те, що кожен коміт стеку називає точний образ. Отже, нову збірку застосунку хтось має закомітити в репозиторій стеку.
+A reproducible deployment needs an immutable image tag in compose (`docs/design/deployment.md`: `latest` only warns, because rolling back the stack's files doesn't bring back the old image). A future rollback from the panel will also rely on every stack commit naming an exact image. So someone has to commit each new build of an application to the stack's repository.
 
-Зараз це робить CI застосунку: скрипт клонує репозиторій розгортання токеном із правом запису, міняє тег і пушить. Із `RequireSignedCommits` (ADR-0011) такий коміт не підписаний, і деплой зупиняється до підтвердження за SHA. Наслідок ADR-0011 пропонує службового користувача `ci` з ключем підпису, але:
+Today the application's CI does it: a script clones the deployment repository with a write token, changes the tag and pushes. With `RequireSignedCommits` (ADR-0011) such a commit is unsigned, and the deployment stops until it's approved by SHA. ADR-0011's consequences suggest a `ci` service user with a signing key, but:
 
-- **Підпис голови засвідчує все дерево.** Ключ CI підпише й непідписаний коміт, який хтось підклав під його оновлення токеном CI чи через git-сервер. Перевіряти базу в скрипті CI марно: токен запису й ключ лежать в одних секретах CI.
-- **Секрети CI читає кожен, хто може запушити workflow** у репозиторій застосунку, навіть у сторонню гілку. Ключ CI — це будь-яка зміна compose стеку для кожного, хто має push у код, а спільний ключ на кілька застосунків — для всіх їхніх стеків.
-- **Права запису в репозиторій розгортання** в CI теж дають будь-яку зміну compose, просто без автоматичного деплою.
+- **The head's signature endorses the whole tree.** The CI key would also sign an unsigned commit someone slipped under its update with the CI token or through the git server. Checking the base in the CI script is pointless: the write token and the key sit in the same CI secrets.
+- **CI secrets can be read by anyone who can push a workflow** to the application's repository, even on a side branch. The CI key means any change to the stack's compose for everyone with push access to the code, and a key shared by several applications means that for all their stacks.
+- **Write access to the deployment repository** in CI also allows any change to compose, just without an automatic deployment.
 
-Рухомий тег із хуком деплою (`:main` + `POST /api/deploy-hooks/{id}`) знімає ключ і запис із CI, але git більше не описує, що працює, і відкат файлів не повертає образ.
+A moving tag with a deploy hook (`:main` + `POST /api/deploy-hooks/{id}`) removes the key and the write access from CI, but git no longer describes what runs, and rolling back the files doesn't bring back the image.
 
-Аналоги: Flux Image Automation (контролер читає registry за політикою й комітить тег у git, може підписати коміт), Argo CD Image Updater (той самий підхід, write-back у git), Renovate / Dependabot (PR з новим тегом, який зливає людина).
+Similar tools: Flux Image Automation (a controller reads the registry by a policy and commits the tag to git, and can sign the commit), Argo CD Image Updater (the same approach, write-back to git), Renovate / Dependabot (a PR with the new tag that a person merges).
 
-Розглянуті варіанти:
+Options considered:
 
-1. **CI з ключем підпису** (наслідок ADR-0011). Нічого не треба будувати; слабкості вище лишаються.
-2. **Рухомий тег + хук деплою.** Немає секретів запису в CI, але це не GitOps: git не описує стан, відкату немає.
-3. **CI передає тег, ЦА комітить.** Токен CI обирає версію, але не може змінити нічого, крім образу. Це краще за 1, але токен усе ще вирішує, що деплоїти.
-4. **ЦА сама читає registry за політикою стеку й комітить** (обрано), а CI лише підганяє перевірку. Явний запит конкретного тегу лишається можливим у межах політики.
-5. **Перевизначення образів у базі ЦА без git** (як override-файл). Немає запису в git і конфліктів, але git перестає бути повною правдою, а відкат має йти за деплоєм, а не за комітом. Відкинуто.
-6. **PR, який зливає людина з підписом.** Найчистіший варіант для довірених середовищ; він буде режимом того самого механізму (п. 10), а не окремим рішенням.
+1. **CI with a signing key** (ADR-0011's consequence). Nothing to build; the weaknesses above remain.
+2. **A moving tag + the deploy hook.** No write secrets in CI, but it isn't GitOps: git doesn't describe the state, and there's no rollback.
+3. **CI passes the tag, the aggregator commits.** The CI token picks the version but can't change anything except the image. Better than 1, but the token still decides what's deployed.
+4. **The aggregator itself reads the registry by the stack's policy and commits** (chosen), and CI only speeds up the check. Explicitly requesting a specific tag stays possible within the policy.
+5. **Overriding images in the aggregator's database without git** (like an override file). No git writes and no conflicts, but git stops being the whole truth, and a rollback has to follow deployments rather than commits. Rejected.
+6. **A PR that a person merges with a signature.** The cleanest option for trusted environments; it will be a mode of the same mechanism (point 10), not a separate decision.
 
-## Рішення
+## Decision
 
-### 1. Політика образів на стеку
+### 1. A stack's image policy
 
-`ImagePolicy` — запис на стеку, яким Editor стеку дозволяє ЦА оновлювати один образ:
+An `ImagePolicy` is a record on a stack through which the stack's Editor lets the aggregator update one image:
 
-| Поле | Значення |
+| Field | Value |
 |---|---|
-| `Image` | репозиторій образу без тегу й digest: `gitea.rup.rocks/lepterion/ananasik/ananasik` |
-| `TagPattern` | регулярний вираз для дозволених тегів, із `\z`: `^main-[0-9a-f]{7}\z` |
-| `Order` | як визначати новіший тег: `ImageCreated` (поле `created` з конфігурації образу, типово) або `TagTimestamp` (іменована група `(?<ts>…)` у `TagPattern`). Лексичного порядку немає: `main-<sha>` за ним не впорядковується |
-| `Services` | необов'язково: оновлювати лише ці сервіси; без нього — кожен сервіс з цим образом |
-| `Poll` | опитувати registry самій ЦА (п. 2); типово так |
-| `AcceptRequests` | приймати запити через хук образів стеку: підганяння й явний тег (п. 2–3); типово так |
-| `PinDigest` | писати `тег@sha256:…`; обов'язково, якщо на стеку `RequireImageDigests` |
-| `Mode` | `Commit` (п. 5); `PullRequest` відкладено (п. 10). Поки режим один, поля в моделі немає: воно з'явиться разом із режимом PR |
-| `PinnedTag`, `PinnedBy` | закріплення, що зупиняє автоматичні оновлення (п. 3) |
+| `Image` | the image repository without a tag or digest: `registry.example.com/team/app` |
+| `TagPattern` | a regular expression for allowed tags, with `\z`: `^main-[0-9a-f]{7}\z` |
+| `Order` | how to tell the newer tag: `ImageCreated` (the `created` field of the image's configuration, the default) or `TagTimestamp` (a named group `(?<ts>…)` in `TagPattern`). There's no lexical order: `main-<sha>` doesn't sort by it |
+| `Services` | optional: update only these services; without it, every service with this image |
+| `Poll` | the aggregator polls the registry itself (point 2); yes by default |
+| `AcceptRequests` | accept requests through the stack's image hook: nudges and an explicit tag (points 2–3); yes by default |
+| `PinDigest` | write `tag@sha256:…`; required if the stack has `RequireImageDigests` |
+| `Mode` | `Commit` (point 5); `PullRequest` is deferred (point 10). While there's one mode, the model has no field: it arrives with the PR mode |
+| `PinnedTag`, `PinnedBy` | a pin that stops automatic updates (point 3) |
 
-- Політик на стеку може бути кілька, по одній на образ. Створює, змінює й видаляє Editor стеку; усе це — в аудиті (`ImagePolicyAdded/Changed/Removed`). Для системного стеку — 409.
-- **Збіг рахується за образом, а не за сервісом.** Одна збірка часто стоїть за кількома сервісами (бот і міграції), і вони мають переходити на нову версію разом. `Services` покриває протилежний випадок (той самий образ різних версій). Запит ніколи не називає сервісів, тож хук не змінить сервіс, якого Editor не дозволив.
-- **Порівняння точне**, за нормалізованим ім'ям репозиторію (registry за замовчуванням, `library/` для Docker Hub), а не за підрядком.
-- **Перевірка при створенні:** політика має збігатися хоча б з одним сервісом compose-файлу стеку на голові гілки. Образ зі змінними (`${TAG}`), сервіс з `extends` без власного `image` і сервіс з файлу `include` ЦА переписати не може, тому такі збіги відхиляються, як у `RequireImageDigests`.
+- A stack can have several policies, one per image. The stack's Editor creates, changes and deletes them; all of it is audited (`ImagePolicyAdded/Changed/Removed`). A 409 for a system stack.
+- **A match is by image, not by service.** One build often stands behind several services (a bot and its migrations), and they should move to a new version together. `Services` covers the opposite case (the same image in different versions). A request never names services, so the hook can't change a service the Editor didn't allow.
+- **The comparison is exact**, by the normalised repository name (the default registry, `library/` for Docker Hub), not by substring.
+- **The check at creation:** the policy must match at least one service of the stack's compose file at the branch head. An image with variables (`${TAG}`), a service with `extends` without its own `image`, and a service from an `include` file can't be rewritten by the aggregator, so such matches are rejected, as with `RequireImageDigests`.
 
-### 2. Коли ЦА перевіряє registry
+### 2. When the aggregator checks the registry
 
-Обидва автоматичні шляхи вмикаються окремо на кожній політиці (`Poll`, `AcceptRequests`), бо стекам потрібне різне:
+Both automatic paths are turned on separately on each policy (`Poll`, `AcceptRequests`), because stacks need different things:
 
-| `Poll` | `AcceptRequests` | Коли |
+| `Poll` | `AcceptRequests` | When |
 |---|---|---|
-| так | так | типово: CI підганяє одразу, опитування підбирає загублений виклик |
-| так | ні | у CI немає жодного секрету; оновлення із затримкою до інтервалу |
-| ні | так | оновлення лише тоді, коли CI попросить; зручно, якщо в registry пушить не тільки цей CI |
-| ні | ні | автоматичних оновлень немає; політика лише обмежує, які теги людина може закріпити з панелі чи CLI |
+| yes | yes | the default: CI nudges at once, polling picks up a lost call |
+| yes | no | CI holds no secret at all; updates lag by up to the interval |
+| no | yes | updates only when CI asks; useful if more than this CI pushes to the registry |
+| no | no | no automatic updates; the policy only limits which tags a person can pin from the panel or the CLI |
 
-Явний запит людини з правом деплою від цих прапорців не залежить. Зміна прапорців — в аудиті (`ImagePolicyChanged`).
+An explicit request by a person allowed to deploy doesn't depend on these flags. Changing the flags is audited (`ImagePolicyChanged`).
 
-- **Опитування:** фонова служба ЦА перевіряє політики з `Poll` раз на інтервал (налаштування системи, ADR-0013; типово 5 хв, мінімум 1 хв), лише для стеків з онлайн-агентом і без закріплення. Ліміти: до 10 політик на стек, з `TagTimestamp` порядок видно з самих тегів, і маніфест читається лише для найновішого; з `ImageCreated` ЦА читає маніфести й конфігурації лише тих тегів, яких ще немає в кеші, до 100 за перевірку (решта — у наступних перевірках). Кеш — за тегом: політика розрахована на незмінні теги, тож перепушений тег із тим самим ім'ям опитування не помітить (digest, записаний у compose з `PinDigest`, від цього не зміниться).
-- **Вибір `Order`.** Обидва способи впорядковують за часом; різниця — звідки час береться і скільки це коштує запитів:
+- **Polling:** a background service of the aggregator checks policies with `Poll` once per interval (a system setting, ADR-0013; 5 minutes by default, at least 1), only for stacks with an online agent and no pin. Limits: up to 10 policies per stack; with `TagTimestamp` the order is visible from the tags themselves, and only the newest one's manifest is read; with `ImageCreated` the aggregator reads manifests and configurations only for tags not yet in the cache, up to 100 per check (the rest in later checks). The cache is per tag: the policy is meant for immutable tags, so polling won't notice a re-pushed tag with the same name (a digest written into compose with `PinDigest` won't change because of it).
+- **Choosing `Order`.** Both order by time; they differ in where the time comes from and how many requests it costs:
 
-  | | `ImageCreated` (типово) | `TagTimestamp` |
+  | | `ImageCreated` (default) | `TagTimestamp` |
   |---|---|---|
-  | Звідки час | поле `created` конфігурації образу | мітка в рядку тегу |
-  | Запити на новий тег | 2–3 (маніфест, для багатоархітектурного — ще маніфест платформи, конфігурація) | 0: вистачає списку тегів |
-  | Зміни в CI | не потрібні | формат тегу, наприклад `main-20261109T120000-7822307` |
+  | Where the time comes from | the `created` field of the image's configuration | a timestamp in the tag string |
+  | Requests per new tag | 2–3 (the manifest, for a multi-arch image also the platform's manifest, the configuration) | 0: the tag list is enough |
+  | Changes in CI | none | a tag format such as `main-20261109T120000-7822307` |
 
-  `ImageCreated` — типовий, бо працює без змін у CI, а після першої перевірки коштує лише кількох запитів на нову збірку. Для власного registry з десятками чи сотнями тегів цього досить. `TagTimestamp` радимо, коли:
-  - **тегів тисячі:** перша перевірка — тисячі запитів, і з лімітом 100 за перевірку розтягується на десятки інтервалів; доки вона не завершиться, ЦА не оновлює образ, бо ще не знає найновішого тегу;
-  - **registry має ліміти запитів:** у Docker Hub `GET` маніфесту рахується як pull, тож читання маніфестів з'їдає ліміт, спільний із pull'ами агентів;
-  - **збірка не пише справжньої дати:** відтворювані збірки (`SOURCE_DATE_EPOCH`, ko, Nix, Jib) часто ставлять сталу дату. Якщо в кандидатів однакові `created`, ЦА не оновлює образ і показує помилку політики, а не вгадує.
+  `ImageCreated` is the default because it works without changes in CI, and after the first check costs only a few requests per new build. That's enough for a registry of your own with tens or hundreds of tags. `TagTimestamp` is recommended when:
+  - **there are thousands of tags:** the first check is thousands of requests, and with the limit of 100 per check it stretches over dozens of intervals; until it finishes, the aggregator doesn't update the image, since it doesn't yet know the newest tag;
+  - **the registry has rate limits:** on Docker Hub a manifest `GET` counts as a pull, so reading manifests eats the limit shared with the agents' pulls;
+  - **the build doesn't write a real date:** reproducible builds (`SOURCE_DATE_EPOCH`, ko, Nix, Jib) often set a constant date. If candidates have the same `created`, the aggregator doesn't update the image and shows a policy error rather than guessing.
 
-  Документація пояснює вибір, а панель показує попередження на політиці з `ImageCreated`, коли кандидатів у репозиторії понад 500 або registry відповів 429. Нічого не блокується.
+  The documentation explains the choice, and the panel shows a warning on a policy with `ImageCreated` when the repository has more than 500 candidates or the registry answered 429. Nothing is blocked.
 
-  В обох способах час — це час збірки (або коміту, якщо CI бере для мітки дату коміту). Перезапуск workflow старого коміту дає «новіший» образ зі старим кодом; мітка з датою коміту цього уникає.
-- **Підганяння:** `POST /api/image-hooks/{stackId}` із секретом хука образів стеку (п. 2а) в заголовку `Authorization: Bearer …` і тілом `{"image"?: "…", "tag"?: "…"}`.
-  - Без `image` ЦА перевіряє зараз усі політики стеку з `AcceptRequests`, з `image` — лише політику цього образу. Відповідь — перелік політик, яких торкнувся запит, з результатом кожної.
-  - Без `tag` запит не несе даних: ЦА сама дивиться в registry, тож витік секрету дає лише раніший час перевірки. З `tag` — явний запит (п. 3), і `image` тоді обов'язковий.
-  - Образ, політики якого немає або вона без `AcceptRequests`, — 404 з тією самою відповіддю, що й на неправильний секрет: ендпойнт не розкриває, які образи має стек.
-  - Немає стеку, немає хука, неправильний секрет — однаковий 401, як у хука деплою.
-- **Webhook пакетів git-сервера** (у Gitea є подія `package`) як підганяння без секрету в CI — **не входить у це рішення**, окремий ADR: у кожного git-сервера свій формат і підпис. Опитування вже дає оновлення без жодного секрету в CI.
+  In both cases the time is the build time (or the commit time, if CI takes the commit's date for the timestamp). Rerunning an old commit's workflow produces a "newer" image with old code; a timestamp from the commit's date avoids that.
+- **A nudge:** `POST /api/image-hooks/{stackId}` with the stack's image hook secret (point 2a) in `Authorization: Bearer …` and a body `{"image"?: "…", "tag"?: "…"}`.
+  - Without `image` the aggregator checks all the stack's policies with `AcceptRequests` now; with `image`, only that image's policy. The response lists the policies the request touched with each one's result.
+  - Without `tag` the request carries no data: the aggregator looks at the registry itself, so a leaked secret only gives an earlier check. With `tag` it's an explicit request (point 3), and `image` is then required.
+  - An image with no policy, or with a policy without `AcceptRequests`, is a 404 with the same response as a wrong secret: the endpoint doesn't reveal which images a stack has.
+  - No stack, no hook and a wrong secret all get the same 401, as with the deploy hook.
+- **The git server's package webhook** (Gitea has a `package` event) as a nudge without a secret in CI is **not part of this decision**; a separate ADR: every git server has its own format and signature. Polling already gives updates without any secret in CI.
 
-### 2а. Хук образів стеку
+### 2a. The stack's image hook
 
-Секрет стеку, за зразком хука деплою (`docs/design/deployment-triggers.md`), а не токен користувача:
+A stack secret modelled on the deploy hook (`docs/design/deployment-triggers.md`), not a user token:
 
-- **Створює, ротує й видаляє** Editor стеку; секрет показується один раз, зберігається лише хеш (інваріант 8). Усе — в аудиті. Для системного стеку — 409, як і для хука деплою.
-- **Окремий від хука деплою.** Хук деплою перевдеплоює голову гілки з `pull: always`, хук образів змінює тег у межах політики. Це різні можливості, і CI зазвичай потрібна одна з них.
-- **`AllowDowngrade`** — прапорець хука: дозволити явний запит старішого тегу (п. 3). Типово ні.
-- **Не дія користувача**, як і push чи хук деплою: Editor, що створив хук і політику, вже вирішив, що можна; виклик лише каже, коли. Тому в запису оновлення й аудиті причина — «хук образів», а не ім'я людини.
-- **Строку дії немає**, як і в хука деплою: секрет замінюється ротацією. Коли людина йде з команди, секрет ротують так само, як хук деплою.
-- **Що обмежує:** область — один стек (у URL), образи — `AcceptRequests` політик, теги — `TagPattern` і наявність у registry, відкат — `AllowDowngrade`. Окремого фільтра образів немає: його роль виконує `AcceptRequests` на політиці, поруч з іншими обмеженнями образу.
-- **CLI:** `forest stack image-hook create <stack> [--allow-downgrade]` (новий секрет), `downgrade <stack> on|off`, `remove`, а стан — у `forest stack show`.
+- **The stack's Editor creates, rotates and deletes it;** the secret is shown once, and only its hash is stored (invariant 8). All of it is audited. A 409 for a system stack, as for the deploy hook.
+- **Separate from the deploy hook.** The deploy hook redeploys the branch head with `pull: always`; the image hook changes a tag within the policy. They're different capabilities, and CI usually needs one of them.
+- **`AllowDowngrade`** is a flag on the hook: allow an explicit request for an older tag (point 3). No by default.
+- **Not a user action**, like a push or the deploy hook: the Editor who created the hook and the policy has already decided what's allowed; a call only says when. So in the update record and the audit log the reason is "image hook", not a person's name.
+- **No expiry**, like the deploy hook: the secret is replaced by rotation. When a person leaves the team, rotate the secret as you would the deploy hook's.
+- **What limits it:** the scope is one stack (in the URL), the images are the policies' `AcceptRequests`, the tags are `TagPattern` and presence in the registry, rollback is `AllowDowngrade`. There's no separate image filter: `AcceptRequests` on the policy plays that role, next to the image's other restrictions.
+- **CLI:** `forest stack image-hook create <stack> [--allow-downgrade]` (a new secret), `downgrade <stack> on|off`, `remove`, with the state in `forest stack show`.
 
-Розглянуто токен користувача з областю (система, середовища або стеки) і фільтром образів. Відкинуто: політики й так задаються на кожному стеку, а область ширша за стек сама розростається на нові стеки, яких ніхто не вирішував віддавати CI. Одна збірка для кількох стеків — кілька хуків, а краще опитування. Токен із власником дав би автоматичне відкликання разом із роллю й ім'я в аудиті; якщо це знадобиться, його можна додати окремим рішенням.
+A user token with a scope (the system, environments or stacks) and an image filter was considered. Rejected: policies are set on each stack anyway, and a scope wider than a stack grows by itself to new stacks nobody decided to hand to CI. One build for several stacks means several hooks, or better, polling. A token with an owner would give automatic revocation along with the role and a name in the audit log; if that's ever needed, it can be added as a separate decision.
 
-### 3. Явний запит тегу й закріплення
+### 3. An explicit tag request and pinning
 
-`{"image": "…", "tag": "main-7822307"}` просить конкретний тег. ЦА перевіряє, що образ є в політиці стеку, тег відповідає `TagPattern` і тег існує в registry (digest береться з registry, а не з запиту).
+`{"image": "…", "tag": "main-7822307"}` asks for a specific tag. The aggregator checks that the image is in the stack's policy, the tag matches `TagPattern` and the tag exists in the registry (the digest comes from the registry, not the request).
 
-| Хто просить | Новіший за розгорнутий | Старіший (відкат) |
+| Who asks | Newer than deployed | Older (a rollback) |
 |---|---|---|
-| Хук образів (типово) | так | 409 |
-| Хук із прапорцем `AllowDowngrade` | так | так, із закріпленням |
-| Людина з правом деплою стеку (панель, CLI) | так | так, із закріпленням |
+| The image hook (default) | yes | 409 |
+| The hook with the `AllowDowngrade` flag | yes | yes, with a pin |
+| A person allowed to deploy the stack (panel, CLI) | yes | yes, with a pin |
 
-- Запит людини або відкат **закріплює** образ (`PinnedTag`, `PinnedBy`): автоматичні оновлення цього образу зупиняються, інакше наступна перевірка одразу повернула б найновіший тег. Панель показує «закріплено на main-dcef568, хто — …»; `forest stack image-policy unpin` знімає закріплення, і наступна перевірка бере найновіший тег.
-- Явний запит новішого тегу хуком не закріплює: це лише швидша автоматична перевірка. Закріплення хуком (відкат) показується як «закріплено хуком образів».
-- Закріплення й зняття — в аудиті.
+- A person's request or a rollback **pins** the image (`PinnedTag`, `PinnedBy`): automatic updates of that image stop, or the next check would bring back the newest tag at once. The panel shows "pinned to main-dcef568 by …"; `forest stack image-policy unpin` removes the pin, and the next check takes the newest tag.
+- An explicit request for a newer tag through the hook doesn't pin: it's only a faster automatic check. A pin by the hook (a rollback) shows as "pinned by the image hook".
+- Pinning and unpinning are audited.
 
-### 4. Зміна compose-файлу
+### 4. Changing the compose file
 
-- ЦА змінює лише скаляри `services.<name>.image`, що збігаються з політикою, **за позиціями з YAML-парсера**, а не пересерилізацією: коментарі, порядок і решта байтів лишаються як були. Інші файли стеку не змінюються.
-- Пишеться `образ:тег` або, з `PinDigest`, `образ:тег@sha256:<digest>`. Для багатоархітектурних образів — digest індексу.
-- Якщо на голові гілки політика більше нічого не знаходить (compose змінили), оновлення падає без запису й надсилає сповіщення: інакше пайплайн тихо зупинився б.
+- The aggregator changes only the `services.<name>.image` scalars that match the policy, **by positions from the YAML parser**, not by re-serialising: comments, order and the rest of the bytes stay as they were. The stack's other files don't change.
+- It writes `image:tag` or, with `PinDigest`, `image:tag@sha256:<digest>`. For multi-arch images, the index's digest.
+- If the policy no longer finds anything at the branch head (compose changed), the update fails without writing and sends a notification: otherwise the pipeline would quietly stop.
 
-### 5. Коміт і push
+### 5. Commit and push
 
-1. ЦА бере голову гілки стеку (`GitFetchStep`) і перевіряє її, як автоматичний тригер ADR-0011: засвідчена й нащадок `DeployedCommit`. Незасвідчена голова — оновлення не робиться, бо інакше ЦА засвідчила б чужий вміст під своїм комітом.
-2. Створює коміт, підписаний ключем ЦА (п. 6): батько — ця голова, автор `container-forest`, повідомлення `deploy: <ім'я образу>:<тег> (<причина>)` з причиною `policy`, `requested by image hook` або `pinned by <користувач>`, трейлер `Forest-Image-Update: <id запису>`.
-3. Пушить fast-forward. Відмова через новий коміт на гілці — fetch, повторна перевірка нової голови, повторна зміна; до трьох спроб, далі помилка й сповіщення.
-4. Деплоїть **саме створений SHA** (закріплений деплой, як із `approveCommit`), а не голову, яку покаже git-сервер. Новий тригер у історії — `ImageUpdate`.
-5. Webhook від власного push ЦА дає `AlreadyRunning`/`AlreadyDeployed` за наявною логікою `PushDeploymentGate`.
+1. The aggregator takes the stack's branch head (`GitFetchStep`) and checks it as an automatic ADR-0011 trigger: endorsed and descending from `DeployedCommit`. If the head isn't endorsed, no update is made, since the aggregator would otherwise endorse someone else's content under its own commit.
+2. It creates a commit signed with the aggregator's key (point 6): its parent is that head, the author is `container-forest`, the message `deploy: <image name>:<tag> (<reason>)` with the reason `policy`, `requested by image hook` or `pinned by <user>`, and a trailer `Forest-Image-Update: <record id>`.
+3. It pushes as a fast-forward. A rejection because of a new commit on the branch means fetch, re-check the new head, change again; up to three attempts, then an error and a notification.
+4. It deploys **exactly the SHA it created** (a pinned deployment, as with `approveCommit`), not the head the git server would show. The new trigger in the history is `ImageUpdate`.
+5. The webhook from the aggregator's own push gets `AlreadyRunning`/`AlreadyDeployed` through the existing `PushDeploymentGate` logic.
 
-Оновлення стеку виконуються послідовно, по одному на стек.
+A stack's updates run one at a time.
 
-**Запис у git.** ADR-0006 радить службового користувача підключення без права запису. Тепер на підключенні (або репозиторії) з'являється **окремий необов'язковий обліковий запис для запису** (`PushCredential`), зашифрований як інші секрети (ADR-0003). Рекомендується окремий службовий користувач git-сервера з правом запису лише в репозиторії розгортання, а не в код застосунків. Без цього облікового запису політику образів створити не можна. Захист гілки на git-сервері має дозволяти push цьому користувачу.
+**Writing to git.** ADR-0006 recommends a connection's service user without write access. Now a connection (or a repository) gets a **separate optional write account** (`PushCredential`), encrypted like other secrets (ADR-0003). A separate service user of the git server with write access only to deployment repositories, not to application code, is recommended. Without this account no image policy can be created. Branch protection on the git server must allow this user to push.
 
-### 6. Засвідчення комітів оновлення
+### 6. Endorsing update commits
 
-ЦА підписує кожен коміт оновлення власним ключем, але **засвідчення від цього ключа не залежить**: ключ, якому ЦА довіряла б автоматично, після витоку засвідчив би будь-що. Засвідчення дає запис оновлення:
+The aggregator signs every update commit with its own key, but **endorsement doesn't depend on that key**: a key the aggregator trusted automatically would endorse anything after leaking. The update record provides the endorsement:
 
-- **`ImageUpdateRecord`** у базі ЦА: `Commit`, `Parent`, `StackId`, зміни (`service`, `from`, `to`, `digest`), причина, хто попросив (політика, хук, користувач), час.
-- **`VerifyCommitStep`**, якщо підпису немає або ключ невідомий, шукає запис за (стек, SHA). Коміт засвідчено, якщо:
-  1. запис є, і його `Parent` — фактичний єдиний батько коміту;
-  2. дерево коміту відрізняється від батьківського **лише** записаними рядками `image` у compose-файлі стеку (ЦА перераховує різницю, а не вірить запису);
-  3. батько засвідчений: підписом за ADR-0011, підтвердженням за SHA або сам є комітом оновлення (ланцюжок обмежений, наприклад, 100 кроками; довший — «ланцюжок оновлень задовгий», потрібен підпис людини).
-- Новий статус засвідчення — `ImageUpdate`, у деплої — запис оновлення й той, хто засвідчив корінь ланцюжка (`SignedBy` кореня). Права власника кореня перевіряються на момент деплою, як і для підписаних комітів.
-Так засвідчення лишається за людиною, а ЦА додає до засвідченого лише зміну образу в межах політики, яку затвердив Editor. Підкладений під оновлення чужий коміт (п. 5.1) або підмінений git-сервером коміт (п. 6.2) не проходять.
+- **`ImageUpdateRecord`** in the aggregator's database: `Commit`, `Parent`, `StackId`, the changes (`service`, `from`, `to`, `digest`), the reason, who asked (the policy, the hook, a user), the time.
+- **`VerifyCommitStep`**, when there's no signature or the key is unknown, looks up a record by (stack, SHA). The commit is endorsed if:
+  1. the record exists and its `Parent` is the commit's actual single parent;
+  2. the commit's tree differs from the parent's **only** in the recorded `image` lines of the stack's compose file (the aggregator recomputes the difference rather than trusting the record);
+  3. the parent is endorsed: by a signature under ADR-0011, an approval by SHA, or by being an update commit itself (the chain is limited, e.g. to 100 steps; a longer one means "the update chain is too long" and needs a person's signature).
+- The new endorsement status is `ImageUpdate`; the deployment shows the update record and whoever endorsed the chain's root (the root's `SignedBy`). The root owner's permissions are checked at deployment time, as for signed commits.
 
-**Ключ підпису ЦА.**
+That way endorsement stays with a person, and the aggregator only adds an image change within a policy an Editor approved on top of endorsed content. Someone else's commit slipped under an update (point 5.1) or a commit swapped by the git server (point 6.2) don't pass.
 
-- **Навіщо, якщо не для довіри.** Історія репозиторію лишається однорідною: на засвідченому стеку кожен коміт підписаний, і непідписаний одразу помітний. Git-сервер показує коміти оновлення як перевірені, якщо публічний ключ додано службовому користувачу з `PushCredential`. Люди можуть перевірити автора локально через `allowed_signers`.
-- **Ключ один на ЦА**, а не на підключення: довіри він не дає, тож розділяти його нема чого. Службовим користувачам різних git-серверів додається той самий публічний ключ. SSH `ssh-ed25519`. ЦА генерує його сама при першій потребі, підписує `ssh-keygen -Y sign -n git` через `CliProcess`, як і перевіряє (ADR-0011). Приватна частина зберігається зашифрованою Data Protection (ADR-0003) і потрапляє в бекап (ADR-0014). Публічну частину показують панель і `forest system signing-key show`.
-- **Цей ключ ніколи не засвідчує вміст.** `VerifyCommitStep` не шукає його серед `SigningKey`, а `SigningKeyService` відхиляє спробу додати його відбиток будь-якому користувачу, щоб довіру до нього не можна було ввімкнути навіть випадково. Коміт, підписаний ключем ЦА, без запису оновлення — «невідомий ключ», як будь-який інший.
-- **Ротація** (`forest system signing-key rotate`, адміністратор, в аудиті) створює новий ключ. Старі коміти лишаються засвідченими, бо засвідчує запис, а не підпис; на git-сервері старий публічний ключ варто лишити, щоб історія й далі показувалась як перевірена.
-- **Витік ключа** дає лише можливість підписувати коміти, які git-сервер показуватиме як перевірені. ЦА такі коміти не задеплоїть: запису оновлення для них немає. Тому ключ — косметика для людей і git-сервера, а не межа безпеки.
+**The aggregator's signing key.**
 
-### 7. Звільнення засвідченого вмісту (ADR-0012)
+- **Why, if not for trust.** The repository's history stays uniform: on an endorsed stack every commit is signed, and an unsigned one stands out at once. The git server shows update commits as verified if the public key is added to the service user with `PushCredential`. People can check the author locally through `allowed_signers`.
+- **One key per aggregator**, not per connection: it grants no trust, so there's nothing to separate. The same public key is added to the service users of different git servers. SSH `ssh-ed25519`. The aggregator generates it on first need and signs with `ssh-keygen -Y sign -n git` through `CliProcess`, as it verifies (ADR-0011). The private part is stored encrypted with Data Protection (ADR-0003) and goes into the backup (ADR-0014). The panel and `forest system signing-key show` show the public part.
+- **This key never endorses content.** `VerifyCommitStep` doesn't look for it among `SigningKey`s, and `SigningKeyService` rejects an attempt to add its fingerprint to any user, so trust in it can't be turned on even by accident. A commit signed with the aggregator's key without an update record is an "unknown key", like any other.
+- **Rotation** (`forest system signing-key rotate`, an administrator, audited) creates a new key. Old commits stay endorsed, since the record endorses, not the signature; it's worth keeping the old public key on the git server so the history still shows as verified.
+- **A leaked key** only allows signing commits that the git server will show as verified. The aggregator won't deploy such commits: there's no update record for them. So the key is cosmetic for people and the git server, not a security boundary.
 
-Коміт оновлення успадковує звільнення батька від політики compose, **лише якщо політику образів востаннє змінював адміністратор або адміністратор цього середовища**. Інакше звільнення немає: адміністратор дозволив `privileged` для конкретного вмісту, і Editor не повинен через свою політику образів підставляти туди будь-який образ.
+### 7. Exemption for endorsed content (ADR-0012)
 
-### 8. Права
+An update commit inherits its parent's exemption from the compose policy **only if the image policy was last changed by an administrator or this environment's administrator**. Otherwise there's no exemption: an administrator allowed `privileged` for specific content, and an Editor mustn't substitute any image there through their image policy.
 
-| Дія | Хто |
+### 8. Permissions
+
+| Action | Who |
 |---|---|
-| Політика образів | Editor стеку |
-| Хук образів стеку | Editor стеку (п. 2а) |
-| Явний запит, закріплення, зняття закріплення | право деплою стеку (Editor) |
-| `PushCredential` на підключенні | той, хто керує підключенням (ADR-0006) |
-| Підганяння, явний запит хуком | секрет хука образів стеку (п. 2а) |
+| Image policy | the stack's Editor |
+| The stack's image hook | the stack's Editor (point 2a) |
+| An explicit request, pinning, unpinning | the stack's deploy permission (Editor) |
+| `PushCredential` on a connection | whoever manages the connection (ADR-0006) |
+| A nudge, an explicit request through the hook | the stack's image hook secret (point 2a) |
 
-### 9. Доступ до registry
+### 9. Registry access
 
-ЦА читає registry за OCI Distribution API (`/v2/<name>/tags/list`, `HEAD`/`GET` маніфесту, blob конфігурації для `created`) кредами registry середовища, які вже зберігає (`ResolveRegistryAuthStep`). Це нові вихідні з'єднання з ЦА до registry. Кеш маніфестів за digest, обмеження кількості тегів на запит, тайм-аути з налаштувань.
+The aggregator reads the registry through the OCI Distribution API (`/v2/<name>/tags/list`, `HEAD`/`GET` of a manifest, the configuration blob for `created`) with the environment's registry credentials it already stores (`ResolveRegistryAuthStep`). These are new outbound connections from the aggregator to registries. A manifest cache by digest, a limit on tags per request, timeouts from settings.
 
-### 10. Режим PR (відкладено)
+### 10. PR mode (deferred)
 
-`Mode = PullRequest`: ЦА пушить гілку `forest/image/<стек>` і відкриває PR через API git-сервера, а не комітить у гілку стеку. Злиття — локальний `git merge -S` людиною з правом деплою (ADR-0011), тож для довірених середовищ засвідчення лишається за людиною повністю. Це потребує клієнтів API для Gitea/GitHub/GitLab і окремого ADR.
+`Mode = PullRequest`: the aggregator pushes a branch `forest/image/<stack>` and opens a PR through the git server's API rather than committing to the stack's branch. The merge is a local `git merge -S` by a person allowed to deploy (ADR-0011), so for trusted environments endorsement stays entirely with a person. This needs API clients for Gitea/GitHub/GitLab and a separate ADR.
 
-### 11. Сповіщення
+### 11. Notifications
 
-- **Успішне оновлення** — це деплой з тригером `ImageUpdate`, тож його покривають наявні сповіщення деплоїв. Нового виду для нього немає.
-- **`ImageUpdateFailed`** (подія стеку): push відхилено після всіх спроб; політика більше нічого не знаходить у compose; порядок тегів не визначено (однакові `created`); голова гілки незасвідчена; registry недоступний три перевірки поспіль. Сповіщення надсилається при першій помилці політики і повторно — лише після успішної перевірки, щоб опитування не слало те саме щоп'ять хвилин.
-- **`ImagePinned`** (подія стеку): закріплення й зняття закріплення, з тим, хто це зробив — людина чи хук з `AllowDowngrade`. Закріплення вимикає автоматичні оновлення, а хук може закріпити образ без участі людини, тож команда має про це знати. Подія також іде в аудит.
-- У `bot.proto` — нові `NOTIFICATION_KIND_IMAGE_UPDATE_FAILED` і `NOTIFICATION_KIND_IMAGE_PINNED` (сумісне додавання); старіший бот покаже їх як «Notification». Наявні правила нових подій не отримують, доки їх не додати в правило.
+- **A successful update** is a deployment with the `ImageUpdate` trigger, so the existing deployment notifications cover it. There's no new kind for it.
+- **`ImageUpdateFailed`** (a stack event): the push was rejected after all attempts; the policy no longer finds anything in compose; the tag order is undetermined (equal `created`); the branch head isn't endorsed; the registry was unreachable for three checks in a row. The notification goes out on a policy's first error, and again only after a successful check, so polling doesn't send the same thing every five minutes.
+- **`ImagePinned`** (a stack event): pinning and unpinning, with who did it, a person or the hook with `AllowDowngrade`. A pin turns off automatic updates, and the hook can pin an image without a person, so the team should know. The event also goes to the audit log.
+- `bot.proto` gets new `NOTIFICATION_KIND_IMAGE_UPDATE_FAILED` and `NOTIFICATION_KIND_IMAGE_PINNED` (a compatible addition); an older bot shows them as "Notification". Existing rules don't receive the new events until they're added to a rule.
 
-## Наслідки
+## Consequences
 
-- **CI застосунку більше не потребує ні запису в репозиторій розгортання, ні ключа підпису.** Найбільше — секрет хука образів стеку, який лише підганяє перевірку або просить тег у межах політики. Хук деплою лишається для образів із рухомими тегами.
-- **Кожен коміт стеку називає точний образ**, тож відкат файлів (`git revert`, майбутній відкат із панелі) повертає й образ.
-- **Що вирішує, яка версія деплоїться:** право push у registry під образом політики. Хто може пушити образ із тегом, що відповідає `TagPattern`, той і так вирішує, який код працює в контейнері; це не нове.
-- **Нова поверхня атаки — права запису ЦА в git.** ЦА й так розшифровує секрети середовищ і має найвищу довіру, тож межа не зсувається. Обліковий запис для запису варто обмежити репозиторіями розгортання.
-- **Зламаний git-сервер** не може підкласти вміст: ЦА деплоїть свій SHA, а пізніший деплой підміненого коміту не проходить п. 6. Він може лише відхилити push і цим затримати оновлення.
-- **ADR-0011 змінюється:** засвідчувати вміст тепер можуть не лише ключі людей і служб, а й запис оновлення ЦА поверх засвідченого коміту. **ADR-0006 змінюється:** у підключення з'являється необов'язковий обліковий запис для запису.
-- Агент не змінюється. У `bot.proto` — лише два нові види сповіщень (п. 11).
-- **Чого це не закриває:** вміст самого образу (підписи cosign відкладені, ADR-0011); образи, яких політика не охоплює; зламаний ЦА.
-- Перехід поступовий: стек, у якого немає політики образів, працює як раніше, а CI зі скриптом оновлення можна замінити одним кроком.
+- **The application's CI no longer needs write access to the deployment repository or a signing key.** At most it holds the stack's image hook secret, which only speeds up the check or asks for a tag within the policy. The deploy hook stays for images with moving tags.
+- **Every stack commit names an exact image**, so rolling back the files (`git revert`, a future rollback from the panel) brings back the image too.
+- **What decides which version is deployed:** push access to the registry under the policy's image. Whoever can push an image with a tag matching `TagPattern` already decides which code runs in the container; that's not new.
+- **A new attack surface: the aggregator's write access to git.** The aggregator already decrypts environments' secrets and has the highest trust, so the boundary doesn't move. Limit the write account to deployment repositories.
+- **A compromised git server** can't slip in content: the aggregator deploys its own SHA, and a later deployment of a swapped commit fails point 6. It can only reject the push and delay the update.
+- **ADR-0011 changes:** content can now be endorsed not only by people's and services' keys but also by the aggregator's update record on top of an endorsed commit. **ADR-0006 changes:** a connection gets an optional write account.
+- The agent doesn't change. `bot.proto` only gets two new notification kinds (point 11).
+- **What this doesn't cover:** the content of the image itself (cosign signatures are deferred, ADR-0011); images no policy covers; a compromised aggregator.
+- The transition is gradual: a stack without an image policy works as before, and a CI with an update script can be replaced in one step.

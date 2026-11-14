@@ -325,4 +325,4 @@ The two ways can be mixed: a clone without `forest git setup` sees encrypted fil
 
 ## Deployment
 
-How to deploy the aggregator with the panel, the agents and the bot, and what each setting means: [installation.md](installation.md). The compose files are in [deploy/](../deploy).
+How to deploy the aggregator with the panel, the agents and the bot, and what each setting means: [installation.md](installation.md). The compose files are in `deploy/`.

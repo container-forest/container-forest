@@ -23,10 +23,10 @@ public sealed partial record ImageName
     /// <summary>The registry host, see <see cref="RegistryHost"/>; "docker.io" for Docker Hub.</summary>
     public string Registry { get; }
 
-    /// <summary>The path in the registry, e.g. "lepterion/ananasik/ananasik" or "library/nginx".</summary>
+    /// <summary>The path in the registry, e.g. "team/app/app" or "library/nginx".</summary>
     public string Repository { get; }
 
-    /// <summary>The full name, e.g. "gitea.rup.rocks/lepterion/ananasik/ananasik" or "docker.io/library/nginx".</summary>
+    /// <summary>The full name, e.g. "registry.example.com/team/app/app" or "docker.io/library/nginx".</summary>
     public string Value => $"{Registry}/{Repository}";
 
     /// <exception cref="DomainValidationException">Not an image name, or one with a tag, digest or variables.</exception>

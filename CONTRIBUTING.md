@@ -2,6 +2,8 @@
 
 Thanks for your interest! Bug reports, ideas, documentation fixes and code are all welcome, from anyone.
 
+Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Ways to help
 
 - **Report a bug.** Open an issue with what you did, what you expected, what happened, the version (`forest --version`, or the image tag) and relevant logs. Logs can contain secrets: check before pasting.

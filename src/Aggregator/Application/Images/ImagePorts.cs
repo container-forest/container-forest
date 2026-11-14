@@ -103,7 +103,7 @@ public interface IComposeImageRewriter
     string? Apply(string yaml, IReadOnlyList<ImageChange> changes);
 }
 
-/// <param name="Value">The image as written, e.g. "gitea.rup.rocks/app:main-1234567".</param>
+/// <param name="Value">The image as written, e.g. "registry.example.com/app:main-1234567".</param>
 /// <param name="Tag">Its tag; null without one.</param>
 /// <param name="Digest">Its digest; null without one.</param>
 public sealed record ComposeImageSlot(string Service, string Value, string? Tag, string? Digest);

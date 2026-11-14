@@ -1,43 +1,43 @@
-# ADR-0005. Єдиний вхід у систему — Caddy в образі панелі
+# ADR-0005. The single entry point is Caddy in the panel's image
 
-- Статус: прийнято
-- Дата: 2026-10-02
+- Status: accepted
+- Date: 2026-10-02
 
-## Контекст
+## Context
 
-Для розгортання альфи на сервері потрібні:
+Deploying the system on a server needs:
 
-1. TLS для всього, що приходить ззовні: браузер, агенти й Discord-бот. Агенти підключаються з інших хостів, часто з-за NAT, тож gRPC теж іде через інтернет.
-2. Один origin для панелі та її API (`/api`, `/hubs`): на цьому тримаються cookie `SameSite=Strict` і WebSocket без CORS.
-3. Довгі gRPC-потоки агентів і бота, які годинами йдуть через проксі й не обриваються за таймаутом.
+1. TLS for everything coming from outside: the browser, agents and the Discord bot. Agents connect from other hosts, often from behind NAT, so gRPC goes over the internet too.
+2. One origin for the panel and its API (`/api`, `/hubs`): `SameSite=Strict` cookies and WebSocket without CORS depend on it.
+3. Long gRPC streams from agents and the bot that run through the proxy for hours without timing out.
 
-Панель досі віддавав nginx з образу `container-forest-web`. Він проксював `/api` і `/hubs`, але:
+Until then nginx in the `container-forest-web` image served the panel. It proxied `/api` and `/hubs`, but:
 
-- сертифікати потребують окремого certbot і його поновлення;
-- gRPC потребує `grpc_pass` і ручних таймаутів, бо типові 60 с рвуть потоки агентів;
-- `add_header` у `location` скасовує заголовки рівня `server`, тож CSP і `nosniff` доводилося повторювати в кожному блоці; пропущений рядок мовчки прибирав заголовок безпеки.
+- certificates need a separate certbot and its renewals;
+- gRPC needs `grpc_pass` and manual timeouts, since the default 60 s break agent streams;
+- `add_header` in a `location` cancels `server`-level headers, so CSP and `nosniff` had to be repeated in every block; a missed line silently dropped a security header.
 
-## Рішення
+## Decision
 
-Образ `container-forest-web` будується на Caddy (`src/Web/Caddyfile`) і є єдиним входом у систему:
+The `container-forest-web` image is built on Caddy (`src/Web/Caddyfile`) and is the single entry point to the system:
 
-- віддає файли SPA: `index.html` з `Cache-Control: no-cache`, `/assets/*` — назавжди, клієнтські маршрути отримують `index.html`, а відсутній asset — 404;
-- проксює `/api` і `/hubs` на REST-порт ЦА;
-- кожен запит із `Content-Type: application/grpc*` (агенти й бот) проксює на gRPC-порт ЦА як HTTP/2 без TLS (`h2c`), без буферизації й таймаутів;
-- `CF_SITE_ADDRESS` з доменом — Caddy сам отримує й поновлює сертифікат Let's Encrypt (порти 80 і 443); `:8080` (типово) — звичайний HTTP для локального запуску або за іншим проксі, що термінує TLS; h2c на ньому увімкнено, тож агенти працюють і так.
+- it serves the SPA's files: `index.html` with `Cache-Control: no-cache`, `/assets/*` forever, client routes get `index.html`, and a missing asset is a 404;
+- it proxies `/api` and `/hubs` to the aggregator's REST port;
+- it proxies every request with `Content-Type: application/grpc*` (agents and the bot) to the aggregator's gRPC port as HTTP/2 without TLS (`h2c`), without buffering or timeouts;
+- with a domain in `CF_SITE_ADDRESS`, Caddy obtains and renews a Let's Encrypt certificate itself (ports 80 and 443); `:8080` (the default) is plain HTTP for local runs or behind another proxy that terminates TLS; h2c is on there, so agents work that way too.
 
-ЦА портів назовні не публікує й довіряє `X-Forwarded-*` (`ASPNETCORE_FORWARDEDHEADERS_ENABLED`): до нього можна дістатися лише через Caddy. Приклад розгортання — `deploy/aggregator/compose.yaml`; агент і бот підключаються до `https://<домен>`.
+The aggregator publishes no ports and trusts `X-Forwarded-*` (`ASPNETCORE_FORWARDEDHEADERS_ENABLED`): it can only be reached through Caddy. The deployment example is `deploy/aggregator/compose.yaml`; agents and the bot connect to `https://<domain>`.
 
-## Відкинуті варіанти
+## Rejected options
 
-- **Лишити nginx** (і як edge, і як сервер SPA): працює, але сертифікати, gRPC і заголовки треба налаштовувати вручну, і саме там помилки найнебезпечніші.
-- **Traefik:** сильний у знаходженні контейнерів за мітками, але для цього йому потрібен Docker-сокет (root на хості), а конфігурація складніша. У нас сервісів три, і статичного конфігу досить.
-- **Окремий edge-проксі перед nginx панелі:** ще один контейнер без виграшу; Caddy й так уміє віддавати файли.
-- **Віддавати SPA з ЦА:** суперечить рішенню, що панель — окремий сервіс (ADR-0001).
+- **Keep nginx** (as both the edge and the SPA server): it works, but certificates, gRPC and headers have to be configured by hand, and that's exactly where mistakes are most dangerous.
+- **Traefik:** strong at discovering containers by labels, but for that it needs the Docker socket (root on the host), and its configuration is more complex. We have three services, and a static config is enough.
+- **A separate edge proxy in front of the panel's nginx:** another container for no gain; Caddy can serve files anyway.
+- **Serving the SPA from the aggregator:** contradicts the decision that the panel is a separate service (ADR-0001).
 
-## Наслідки
+## Consequences
 
-- nginx зі стеку зникає; заголовки безпеки задаються один раз для всієї статики.
-- Власний TLS у ЦА (режим без проксі, `docs/architecture.md`) лишається можливим, але для типового розгортання не потрібен.
-- Сертифікати й ACME-акаунт Caddy зберігає в томі `caddy-data`: без нього кожен перезапуск знову звертається до Let's Encrypt, а там є ліміти.
-- Перевірено вживу: `docker compose` з образами ЦА й панелі, вхід через Caddy, агент у контейнері зареєструвався й підключився до ЦА через Caddy по h2c, список контейнерів пройшов весь ланцюг.
+- nginx disappears from the stack; security headers are set once for all static files.
+- TLS in the aggregator itself (running without a proxy) remains possible, but the typical deployment doesn't need it.
+- Caddy keeps certificates and the ACME account in the `caddy-data` volume: without it every restart goes to Let's Encrypt again, which has rate limits.
+- Checked live: `docker compose` with the aggregator and panel images, sign-in through Caddy, an agent in a container enrolled and connected to the aggregator through Caddy over h2c, and the container list went through the whole chain.

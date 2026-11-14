@@ -1,45 +1,45 @@
-# ADR-0016. Некеровані стеки: compose-проєкти, які адміністратор хоста запускає вручну
+# ADR-0016. Unmanaged stacks: compose projects a host's administrator starts by hand
 
-- Статус: прийнято
-- Дата: 2026-11-13
+- Status: accepted
+- Date: 2026-11-13
 
-## Контекст
+## Context
 
-Стек у системі — це запис `Stack`, розгорнутий із git (ADR-0004). Але на кожному хості є compose-проєкти поза git: Caddy, caddy-dns-sync, PostgreSQL, раннер CI, ігрові сервери. Вони лежать у `/srv/docker/<назва>`, і адміністратор хоста запускає їх вручну. Їхні контейнери вже видно в панелі як контейнери поза керованими стеками: їх можна запускати, зупиняти й перезапускати, читати їхні логи (права — роль на всьому середовищі). Але з самим проєктом робити нічого не можна: `compose pull`, `up`, `restart`, `down` усе ще вимагають SSH на хост. Видалити зупинений контейнер теж не можна ні для яких контейнерів.
+A stack in the system is a `Stack` record deployed from git (ADR-0004). But every host has compose projects outside git: a reverse proxy, a database, a CI runner, game servers. They live in, say, `/srv/docker/<name>`, and the host's administrator starts them by hand. Their containers already show in the panel as containers outside managed stacks: they can be started, stopped and restarted, and their logs read (the permission is a role on the whole environment). But nothing can be done with the project itself: `compose pull`, `up`, `restart` and `down` still need SSH to the host. Removing a stopped container isn't possible for any container either.
 
-Перетворювати їх на керовані стеки не завжди варто. Частина з них системні (Caddy панелі, сам агент), частина тримає стан і конфігурацію, яких немає в git, а частину адміністратор хоста просто хоче й далі змінювати руками.
+Turning them into managed stacks isn't always worth it. Some are system services (the panel's Caddy, the agent itself), some hold state and configuration that isn't in git, and some the host's administrator simply wants to keep changing by hand.
 
-Розглянуті варіанти:
+Options considered:
 
-1. **ЦА надсилає шлях до compose-файлу.** Найпростіше, але тоді ЦА (або хтось зі зламаною ЦА) змушує агента від root читати compose-файл будь-де на хості й запускати його. Відкинуто.
-2. **Агент знаходить проєкти лише за мітками контейнерів** (`com.docker.compose.project.working_dir`, `config_files`). Конфігурації не треба, але після `down` контейнерів немає, проєкт зникає зі списку, і підняти його знову з панелі не можна. До того ж агент запускав би compose у будь-якому каталозі, звідки його колись запускали.
-3. **Корені в налаштуваннях агента** (обрано). Адміністратор хоста явно відкриває каталоги (`Agent:UnmanagedStackRoots`, наприклад `/srv/docker`) і монтує їх в агента за тим самим шляхом. Агент знаходить проєкти і за мітками контейнерів, і за compose-файлами в цих каталогах.
+1. **The aggregator sends the path to the compose file.** The simplest, but then the aggregator (or someone with a compromised aggregator) makes the agent, as root, read a compose file anywhere on the host and run it. Rejected.
+2. **The agent finds projects only by container labels** (`com.docker.compose.project.working_dir`, `config_files`). No configuration needed, but after `down` there are no containers, the project disappears from the list, and it can't be brought up again from the panel. The agent would also run compose in any directory it had ever been run from.
+3. **Roots in the agent's settings** (chosen). The host's administrator explicitly opens directories (`Agent:UnmanagedStackRoots`, e.g. `/srv/docker`) and mounts them into the agent at the same path. The agent finds projects both by container labels and by compose files in these directories.
 
-## Рішення
+## Decision
 
-1. **Що таке некерований стек.** Це compose-проєкт, усі файли якого (каталог проєкту, compose-файли, `--env-file`) лежать в одному з `Agent:UnmanagedStackRoots`. Його знаходять двома способами:
-   - за мітками контейнерів: береться найновіший контейнер проєкту;
-   - скануванням коренів до глибини 3. Сканування не заходить у підкаталоги каталогу з compose-файлом, у приховані каталоги й за символьні посилання. Ім'я проєкту визначається як у compose: `COMPOSE_PROJECT_NAME` із `.env`, потім `name:` у файлі, потім нормалізована назва каталогу. Якщо ім'я залежить від інтерполяції, проєкт пропускається.
+1. **What an unmanaged stack is.** A compose project all of whose files (the project directory, the compose files, the `--env-file`) lie in one of `Agent:UnmanagedStackRoots`. It's found in two ways:
+   - by container labels: the project's newest container is used;
+   - by scanning the roots to depth 3. Scanning doesn't descend into subdirectories of a directory with a compose file, into hidden directories, or through symbolic links. The project name is determined as compose does: `COMPOSE_PROJECT_NAME` from `.env`, then `name:` in the file, then the normalised directory name. If the name depends on interpolation, the project is skipped.
 
-   Проєкти з каталогу стеків агента (`StacksDirectory`) некерованими ніколи не бувають, а корені не можуть перетинатися з власними каталогами агента (перевіряється на старті). Без коренів функція вимкнена, і агент відповідає порожнім списком.
+   Projects in the agent's stacks directory (`StacksDirectory`) are never unmanaged, and the roots can't overlap the agent's own directories (checked at start). Without roots the feature is off, and the agent answers with an empty list.
 
-2. **ЦА називає стек лише іменем.** `ControlUnmanagedStack` несе ім'я проєкту й операцію. Агент щоразу знаходить стек сам і запускає compose з тими каталогом, файлами й env-файлами, з якими його запускав адміністратор. Так ЦА не може змусити агента прочитати файл поза коренями (інваріант 5 лишається: операцій чотири, і всі фіксовані).
+2. **The aggregator names a stack only by name.** `ControlUnmanagedStack` carries the project's name and the operation. The agent finds the stack itself every time and runs compose with the directory, files and env files the administrator ran it with. That way the aggregator can't make the agent read a file outside the roots (invariant 5 holds: there are four operations, all fixed).
 
-3. **Операції** — `up -d`, `pull`, `restart`, `down`. Restart і down, як для керованих стеків, виконуються без `-f`, лише з `-p`, за мітками контейнерів, тож compose-файл, якого вже немає, їм не заважає. Up без `--remove-orphans` і без `--wait`: агент не знає, що в стеку, і не має прибирати чужого.
+3. **Operations:** `up -d`, `pull`, `restart`, `down`. Restart and down, as for managed stacks, run without `-f`, only with `-p`, by container labels, so a compose file that's gone doesn't get in their way. Up runs without `--remove-orphans` and without `--wait`: the agent doesn't know what's in the stack and mustn't clean up something that isn't its own.
 
-4. **Права — лише роль на всьому середовищі**, бо запису `Stack`, на який можна дати роль, немає. Restart потребує Operator, pull, up і down — Editor, як у керованих стеках. Користувач без ролі на середовищі некерованих стеків не бачить, як не бачить і контейнерів поза стеками. Ім'я керованого стеку ніколи не стає некерованим, навіть якщо користувач цей керований стек не бачить.
+4. **Permissions are only a role on the whole environment**, since there's no `Stack` record to grant a role on. Restart needs Operator; pull, up and down need Editor, as for managed stacks. A user without a role on the environment doesn't see unmanaged stacks, just as they don't see containers outside stacks. A managed stack's name never becomes unmanaged, even if the user can't see that managed stack.
 
-5. **Системні.** Якщо хоч один контейнер проєкту має мітку `com.container-forest.system`, ЦА відмовляє (409) у кожній операції: up чи down агента або Caddy панелі обірвали б з'єднання, яким іде команда.
+5. **System stacks.** If any container of the project has the `com.container-forest.system` label, the aggregator refuses (409) every operation: up or down of the agent or the panel's Caddy would cut the connection the command travels on.
 
-6. **Креди registry.** ЦА не читає compose-файл стеку, тож не знає, які registry потрібні. Для pull і up агент отримує всі креди середовища, як для керованого стеку з інтерпольованим образом.
+6. **Registry credentials.** The aggregator doesn't read the stack's compose file, so it doesn't know which registries are needed. For pull and up the agent gets all the environment's credentials, as for a managed stack with an interpolated image.
 
-7. **Видалення контейнера** (`RemoveContainer`) — це `docker rm` без `-f` і без анонімних томів, лише для контейнера в стані created, exited або dead. Воно доступне для будь-якого несистемного контейнера, з правом Deploy (Editor): контейнер разом із конфігурацією повертає лише compose up або деплой.
+7. **Removing a container** (`RemoveContainer`) is `docker rm` without `-f` and without anonymous volumes, only for a container in the created, exited or dead state. It's available for any non-system container, with the Deploy permission (Editor): only compose up or a deployment brings the container back with its configuration.
 
-8. **Сумісність.** Усе це — нові варіанти `oneof`. Старий агент відповідає `ERROR_CODE_UNSUPPORTED`. ЦА тоді показує некеровані стеки порожніми (бот) або помилкою агента (панель і CLI). Бот отримує некеровані стеки в `ListStacks` з `unmanaged = true` і керує ними через `ControlStack` з новими `STACK_ACTION_UP` і `STACK_ACTION_PULL`.
+8. **Compatibility.** All of this is new `oneof` cases. An old agent answers `ERROR_CODE_UNSUPPORTED`. The aggregator then shows unmanaged stacks as empty (the bot) or as an agent error (the panel and the CLI). The bot gets unmanaged stacks in `ListStacks` with `unmanaged = true` and controls them through `ControlStack` with the new `STACK_ACTION_UP` and `STACK_ACTION_PULL`.
 
-## Наслідки
+## Consequences
 
-- **Хто може змінити compose-файл, той керує тим, що запустить Editor середовища.** Compose-файл некерованого стеку не проходить політику compose (ADR-0012): Editor середовища може підняти привілейований стек, який поклав адміністратор хоста. Змінити файл через систему він не може, тож за довіреного адміністратора хоста привілеїв не додається. Але контейнер, що має rw-доступ до свого каталогу в корені, може переписати власний compose-файл, і наступний up від Editor'а його виконає. Тому корінь відкривається свідомо, а в документації агента сказано, що для цього достатньо монтування лише для читання.
-- **Шляхи хоста видно в панелі** всім, хто має роль на середовищі: каталог проєкту й compose-файли. Секретів у них немає. Вміст файлів ЦА не отримує.
-- **Без кредів на хості.** Агент працює з власним `DOCKER_CONFIG` і не бачить `docker login` адміністратора хоста. Приватний образ некерованого стеку підтягується лише з кредами registry, заданими для середовища в ЦА.
-- **`StacksDirectory` може ще не існувати:** restart і down некерованого стеку виконуються в ньому, як для керованих, тому агент створює його перед запуском compose. На хості без керованих стеків (як A1) цього каталогу інакше немає.
+- **Whoever can change the compose file controls what an environment's Editor will start.** An unmanaged stack's compose file doesn't go through the compose policy (ADR-0012): an environment's Editor can bring up a privileged stack that the host's administrator put there. They can't change the file through the system, so with a trusted host administrator no privileges are added. But a container with read-write access to its directory in the root can rewrite its own compose file, and the next up by an Editor will run it. So open a root deliberately; the agent's documentation says a read-only mount is enough.
+- **Host paths are visible in the panel** to everyone with a role on the environment: the project directory and the compose files. They hold no secrets. The aggregator doesn't receive the files' content.
+- **No credentials from the host.** The agent works with its own `DOCKER_CONFIG` and doesn't see the host administrator's `docker login`. An unmanaged stack's private image is pulled only with registry credentials set for the environment in the aggregator.
+- **`StacksDirectory` may not exist yet:** restart and down of an unmanaged stack run in it, as for managed stacks, so the agent creates it before running compose. On a host without managed stacks this directory wouldn't otherwise exist.

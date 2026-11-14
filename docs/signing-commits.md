@@ -1,56 +1,56 @@
-# Підпис комітів і git по SSH
+# Commit signing and git over SSH
 
-Інструкція для всіх, хто працює з репозиторіями, з яких деплоїть container-forest. Тут описано налаштування на Linux, macOS і Windows для Gitea й GitHub.
+For everyone who works with repositories container-forest deploys from. It covers setup on Linux, macOS and Windows, for GitHub and Gitea.
 
-## Навіщо
+## Why
 
-Стек, у якого ввімкнено «Деплоїти лише підписані коміти», деплоїть лише коміт, підписаний ключем людини з правом деплою цього стеку ([ADR-0011](adr/0011-signed-commits.md), [«Засвідчення вмісту»](architecture.md#засвідчення-вмісту-підписи-комітів)). Без підпису право push у гілку фактично дорівнює root на хості й доступу до секретів середовища, у тому числі для зламаного git-сервера. Непідписаний коміт можна задеплоїти лише вручну, підтвердивши його SHA в панелі.
+A stack with *Deploy only signed commits* turned on deploys only a commit signed with the key of a person allowed to deploy that stack ([ADR-0011](adr/0011-signed-commits.md), [Content endorsement](architecture.md#content-endorsement-commit-signatures)). Without signatures, push access to the branch effectively equals root on the host and access to the environment's secrets, including for a compromised git server. An unsigned commit can only be deployed by hand, by approving its SHA in the panel.
 
-Домовленість команди:
+Recommendations:
 
-- **Окремий ключ підпису на кожен пристрій.** Один пристрій — один ключ. Загубили ноутбук — видаляєте лише його ключ.
-- **Ключ підпису не використовується для входу по SSH**, а ключі для входу — для підпису. Детальніше — у розділі [«Чому окремий ключ»](#чому-окремий-ключ-підпису).
-- **Git працює по SSH, а не HTTPS.** Чому — у розділі [«Git по SSH, а не HTTPS»](#git-по-ssh-а-не-https).
+- **A separate signing key per device.** One device, one key. Lose a laptop, and you delete only its key.
+- **Don't use the signing key to log in over SSH**, or login keys to sign. More in [Why a separate signing key](#why-a-separate-signing-key).
+- **Use git over SSH rather than HTTPS.** Why: [Git over SSH, not HTTPS](#git-over-ssh-not-https).
 
-Потрібно: git 2.34 або новіший (`git --version`), OpenSSH 8.2 або новіший (`ssh -V`), для апаратного ключа — 8.9 або новіший.
+You need git 2.34 or later (`git --version`), OpenSSH 8.2 or later (`ssh -V`), and 8.9 or later for a hardware key.
 
-## 1. Згенерувати ключ підпису
+## 1. Generate a signing key
 
-У командах нижче `<пристрій>` — назва пристрою, наприклад `laptop`; вона потрапить у коментар ключа й допоможе впізнати його в списках.
+In the commands below, `<device>` is the device's name, e.g. `laptop`; it goes into the key's comment and helps you recognise the key in lists.
 
-### Linux і macOS
+### Linux and macOS
 
 ```bash
-ssh-keygen -t ed25519 -C "<ваше ім'я>@<пристрій> (commit signing)" -f ~/.ssh/id_commit_signing
+ssh-keygen -t ed25519 -C "<your name>@<device> (commit signing)" -f ~/.ssh/id_commit_signing
 ```
 
-Задайте пароль, коли `ssh-keygen` попросить: він захищає приватний ключ, якщо файл вкрадуть.
+Set a passphrase when `ssh-keygen` asks: it protects the private key if the file is stolen.
 
 ### Windows (PowerShell)
 
-У Windows 10 і 11 OpenSSH уже є (`C:\Windows\System32\OpenSSH`). Якщо `ssh -V` показує версію, старішу за 8.2, оновіть OpenSSH (наприклад, `winget install Microsoft.OpenSSH.Preview`).
+Windows 10 and 11 already have OpenSSH (`C:\Windows\System32\OpenSSH`). If `ssh -V` shows a version older than 8.2, update OpenSSH (for example, `winget install Microsoft.OpenSSH.Preview`).
 
 ```powershell
-ssh-keygen -t ed25519 -C "<ваше ім'я>@<пристрій> (commit signing)" -f $HOME\.ssh\id_commit_signing
+ssh-keygen -t ed25519 -C "<your name>@<device> (commit signing)" -f $HOME\.ssh\id_commit_signing
 ```
 
-### Апаратний ключ (YubiKey, інший FIDO2) — рекомендовано
+### A hardware key (YubiKey, other FIDO2): recommended
 
-Приватна частина лишається на пристрої: її неможливо скопіювати, а кожен підпис вимагає дотику.
+The private part stays on the device: it can't be copied, and every signature needs a touch.
 
 ```bash
-ssh-keygen -t ed25519-sk -O resident -O verify-required -C "<ваше ім'я>@<пристрій> (commit signing)" -f ~/.ssh/id_commit_signing_sk
+ssh-keygen -t ed25519-sk -O resident -O verify-required -C "<your name>@<device> (commit signing)" -f ~/.ssh/id_commit_signing_sk
 ```
 
-- **Linux:** потрібна бібліотека `libfido2` (Debian і Ubuntu: `sudo apt install libfido2-1`).
-- **macOS:** системний OpenSSH від Apple зібраний без підтримки FIDO. Поставте OpenSSH із Homebrew (`brew install openssh`) і користуйтеся ним (`/opt/homebrew/bin/ssh-keygen`).
-- **Windows:** OpenSSH 8.9 і новіший працює з FIDO через Windows Hello; у PowerShell замініть `~/.ssh/…` на `$HOME\.ssh\…`.
+- **Linux:** you need the `libfido2` library (Debian and Ubuntu: `sudo apt install libfido2-1`).
+- **macOS:** Apple's system OpenSSH is built without FIDO support. Install OpenSSH from Homebrew (`brew install openssh`) and use it (`/opt/homebrew/bin/ssh-keygen`).
+- **Windows:** OpenSSH 8.9 and later works with FIDO through Windows Hello; in PowerShell replace `~/.ssh/…` with `$HOME\.ssh\…`.
 
-Далі в інструкції для апаратного ключа скрізь замість `id_commit_signing` пишіть `id_commit_signing_sk`.
+From here on, for a hardware key write `id_commit_signing_sk` wherever the guide says `id_commit_signing`.
 
-## 2. Додати ключ в агент
+## 2. Add the key to the agent
 
-Щоб пароль не питався на кожен коміт.
+So you aren't asked for the passphrase on every commit.
 
 ### Linux
 
@@ -58,9 +58,9 @@ ssh-keygen -t ed25519-sk -O resident -O verify-required -C "<ваше ім'я>@<
 ssh-add ~/.ssh/id_commit_signing
 ```
 
-GNOME і KDE запускають агент самі. Окремі композитори Wayland (Hyprland, Sway, niri), віконні менеджери X11 (i3, bspwm) і сесії без графіки — ні, і тоді `ssh-add` відповідає `Could not open a connection to your authentication agent`: змінна `SSH_AUTH_SOCK` не задана, бо агента немає. Є три варіанти.
+GNOME and KDE start an agent themselves. Standalone Wayland compositors (Hyprland, Sway, niri), X11 window managers (i3, bspwm) and sessions without graphics don't, and then `ssh-add` answers `Could not open a connection to your authentication agent`: `SSH_AUTH_SOCK` isn't set because there's no agent. There are three options.
 
-**Агент як служба systemd користувача** (рекомендовано): працює в усіх терміналах і програмах сесії, доки ви залогінені. Створіть `~/.config/systemd/user/ssh-agent.service`:
+**The agent as a systemd user service** (recommended): it works in every terminal and program of the session while you're logged in. Create `~/.config/systemd/user/ssh-agent.service`:
 
 ```ini
 [Unit]
@@ -75,60 +75,60 @@ ExecStart=/usr/bin/ssh-agent -D -a $SSH_AUTH_SOCK
 WantedBy=default.target
 ```
 
-Увімкніть службу:
+Enable the service:
 
 ```bash
 systemctl --user enable --now ssh-agent
 ```
 
-Скажіть shell, де агент: додайте в `~/.bashrc` або `~/.zshrc` рядок нижче й відкрийте новий термінал.
+Tell your shell where the agent is: add the line below to `~/.bashrc` or `~/.zshrc` and open a new terminal.
 
 ```bash
 export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
 ```
 
-Щоб агент бачили й програми, запущені не з терміналу (IDE, git-клієнти), задайте ту саму змінну для всієї сесії. Спосіб, що не залежить від композитора, — файл `~/.config/environment.d/ssh-agent.conf`:
+So that programs not started from a terminal (IDEs, git clients) see the agent too, set the same variable for the whole session. A compositor-independent way is the file `~/.config/environment.d/ssh-agent.conf`:
 
 ```
 SSH_AUTH_SOCK=${XDG_RUNTIME_DIR}/ssh-agent.socket
 ```
 
-Його читає менеджер користувача systemd, тож змінну отримують служби користувача й сесії, запущені через systemd. Змінна з'явиться після повторного входу. Якщо композитор запускається інакше, задайте `SSH_AUTH_SOCK` у його власній конфігурації.
+The systemd user manager reads it, so user services and sessions started through systemd get the variable. It appears after you log in again. If your compositor starts differently, set `SSH_AUTH_SOCK` in its own configuration.
 
-**Hyprland.** Обирайте один із варіантів залежно від того, як його запущено:
+**Hyprland.** Pick one of these depending on how it's started:
 
-- **через `uwsm`** (так радить wiki Hyprland) — рядок у `~/.config/uwsm/env`; змінні сесії wiki радить тримати саме там, а не в конфігурації Hyprland:
+- **with `uwsm`** (as the Hyprland wiki recommends): a line in `~/.config/uwsm/env`; the wiki recommends keeping session variables there rather than in Hyprland's config:
 
   ```
   export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
   ```
 
-- **без `uwsm`, конфігурація на Lua** (`~/.config/hypr/hyprland.lua`, у нових версіях) — `hl.env`; на чужі змінні посилаються через `os.getenv`, а не `$`:
+- **without `uwsm`, a Lua config** (`~/.config/hypr/hyprland.lua`, in newer versions): `hl.env`; refer to other variables with `os.getenv`, not `$`:
 
   ```lua
   hl.env("SSH_AUTH_SOCK", os.getenv("XDG_RUNTIME_DIR") .. "/ssh-agent.socket")
   ```
 
-- **без `uwsm`, старіша конфігурація** (`~/.config/hypr/hyprland.conf`):
+- **without `uwsm`, the older config** (`~/.config/hypr/hyprland.conf`):
 
   ```
   env = SSH_AUTH_SOCK,$XDG_RUNTIME_DIR/ssh-agent.socket
   ```
 
-Синтаксис — за [wiki Hyprland](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Environment-variables/). Змінна діє після перезапуску сесії.
+The syntax follows the [Hyprland wiki](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Environment-variables/). The variable takes effect after restarting the session.
 
-Деякі дистрибутиви вже мають таку службу в пакеті `openssh` (`systemctl --user cat ssh-agent` її покаже). Тоді власний файл не потрібен, але перевірте, який шлях сокета вона задає, і вкажіть у `SSH_AUTH_SOCK` саме його.
+Some distributions already ship such a service in the `openssh` package (`systemctl --user cat ssh-agent` shows it). Then you don't need your own file, but check which socket path it sets and use exactly that in `SSH_AUTH_SOCK`.
 
-Якщо додати в `~/.ssh/config` рядки нижче, ключ потрапить в агент сам під час першого використання, і `ssh-add` викликати не доведеться:
+With these lines in `~/.ssh/config` the key goes into the agent by itself on first use, and you won't need `ssh-add`:
 
 ```
 Host *
   AddKeysToAgent yes
 ```
 
-**Агент лише для одного терміналу:** `eval "$(ssh-agent -s)"`, потім `ssh-add`. Інші термінали й IDE цього агента не бачать, і після закриття терміналу він зникає.
+**An agent for one terminal only:** `eval "$(ssh-agent -s)"`, then `ssh-add`. Other terminals and IDEs don't see this agent, and it's gone when the terminal closes.
 
-**Без агента:** нічого не налаштовувати. Тоді git запитає пароль ключа на кожен коміт. З апаратним ключем (`ed25519-sk`) агент не обов'язковий: підпис і так потребує дотику, а пароль на сам файл ключа зазвичай не задають.
+**No agent:** configure nothing. Git will then ask for the key's passphrase on every commit. With a hardware key (`ed25519-sk`) the agent is optional: signing needs a touch anyway, and the key file usually has no passphrase.
 
 ### macOS
 
@@ -136,7 +136,7 @@ Host *
 ssh-add --apple-use-keychain ~/.ssh/id_commit_signing
 ```
 
-Щоб пароль брався з Keychain після перезавантаження, додайте в `~/.ssh/config`:
+To take the passphrase from the Keychain after a reboot, add to `~/.ssh/config`:
 
 ```
 Host *
@@ -146,7 +146,7 @@ Host *
 
 ### Windows
 
-Службу агента треба один раз увімкнути в PowerShell **від адміністратора**:
+Enable the agent service once, in PowerShell **as administrator**:
 
 ```powershell
 Get-Service ssh-agent | Set-Service -StartupType Automatic
@@ -156,17 +156,17 @@ Get-Service ssh-agent | Set-Service -StartupType Automatic
 Start-Service ssh-agent
 ```
 
-Потім у звичайному PowerShell:
+Then in an ordinary PowerShell:
 
 ```powershell
 ssh-add $HOME\.ssh\id_commit_signing
 ```
 
-**Не пересилайте агент на хости, яким не довіряєте** (`ForwardAgent yes`, `ssh -A`): поки сесія відкрита, root на такому хості може підписувати коміти вашим ключем. Якщо пересилати агент усе ж треба, додавайте ключ підпису з підтвердженням кожного використання: `ssh-add -c` (Linux, macOS).
+**Don't forward the agent to hosts you don't trust** (`ForwardAgent yes`, `ssh -A`): while the session is open, root on such a host can sign commits with your key. If you must forward the agent, add the signing key with confirmation of every use: `ssh-add -c` (Linux, macOS).
 
-## 3. Налаштувати git
+## 3. Configure git
 
-Однаково для всіх систем:
+The same on every system:
 
 ```bash
 git config --global gpg.format ssh
@@ -176,7 +176,7 @@ git config --global gpg.format ssh
 git config --global user.signingkey ~/.ssh/id_commit_signing.pub
 ```
 
-Шлях до приватного ключа (`~/.ssh/id_commit_signing`) теж працює. Публічний універсальніший: git передає його `ssh-keygen`, а той бере приватний ключ з агента, якщо він там є, інакше — з файлу поруч без `.pub`. Ключ без файлу на диску, як-от у 1Password чи KeePassXC, можна вказати лише публічним.
+The path to the private key (`~/.ssh/id_commit_signing`) works too. The public one is more versatile: git passes it to `ssh-keygen`, which takes the private key from the agent if it's there, or else from the file next to it without `.pub`. A key with no file on disk, as in 1Password or KeePassXC, can only be given as the public key.
 
 ```bash
 git config --global commit.gpgsign true
@@ -186,15 +186,15 @@ git config --global commit.gpgsign true
 git config --global tag.gpgsign true
 ```
 
-`user.email` має збігатися з підтвердженою адресою вашого облікового запису на GitHub і в Gitea, інакше вони не покажуть «Verified»:
+`user.email` must match a verified address of your GitHub and Gitea accounts, or they won't show *Verified*:
 
 ```bash
 git config --global user.email
 ```
 
-### Windows: щоб git і агент працювали в парі
+### Windows: making git and the agent work together
 
-Git for Windows має власний OpenSSH, який не бачить служби `ssh-agent` Windows. Вкажіть git системний OpenSSH:
+Git for Windows has its own OpenSSH, which doesn't see the Windows `ssh-agent` service. Point git at the system OpenSSH:
 
 ```powershell
 git config --global gpg.ssh.program "C:/Windows/System32/OpenSSH/ssh-keygen.exe"
@@ -204,11 +204,11 @@ git config --global gpg.ssh.program "C:/Windows/System32/OpenSSH/ssh-keygen.exe"
 git config --global core.sshCommand "C:/Windows/System32/OpenSSH/ssh.exe"
 ```
 
-У PowerShell шлях до ключа задавайте явно: `git config --global user.signingkey "$HOME/.ssh/id_commit_signing.pub"`.
+In PowerShell, give the key's path explicitly: `git config --global user.signingkey "$HOME/.ssh/id_commit_signing.pub"`.
 
-### Перевірка підписів локально (необов'язково)
+### Checking signatures locally (optional)
 
-Щоб `git log --show-signature` писав «Good signature», git має знати, яким ключам довіряти:
+For `git log --show-signature` to say *Good signature*, git has to know which keys to trust:
 
 ```bash
 echo "$(git config user.email) namespaces=\"git\" $(cat ~/.ssh/id_commit_signing.pub)" >> ~/.ssh/allowed_signers
@@ -218,53 +218,53 @@ echo "$(git config user.email) namespaces=\"git\" $(cat ~/.ssh/id_commit_signing
 git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
 ```
 
-У PowerShell перший крок — `Add-Content $HOME\.ssh\allowed_signers "$(git config user.email) namespaces=`"git`" $(Get-Content $HOME\.ssh\id_commit_signing.pub)"`. Для container-forest цей файл не потрібен: ЦА перевіряє підпис ключами з панелі.
+In PowerShell the first step is `Add-Content $HOME\.ssh\allowed_signers "$(git config user.email) namespaces=`"git`" $(Get-Content $HOME\.ssh\id_commit_signing.pub)"`. container-forest doesn't need this file: the aggregator verifies signatures with the keys from the panel.
 
-## 4. Додати ключ у container-forest
+## 4. Add the key to container-forest
 
-Скопіюйте публічний ключ: `cat ~/.ssh/id_commit_signing.pub` (Windows: `Get-Content $HOME\.ssh\id_commit_signing.pub`).
+Copy the public key: `cat ~/.ssh/id_commit_signing.pub` (Windows: `Get-Content $HOME\.ssh\id_commit_signing.pub`).
 
-Панель → «Обліковий запис» → «Ключі підпису комітів» → «Додати ключ»: назва (пристрій), публічний ключ, середовища.
+Panel → *Account* → *Commit signing keys* → *Add key*: a name (the device), the public key, environments.
 
-- **Середовища.** Ключ засвідчує деплой стеку, лише якщо ви самі можете деплоїти цей стек. Обмеження середовищами звужує ще більше: ключ на пристрої, якому ви довіряєте менше (робочий комп'ютер, спільна машина), обмежте середовищами того самого рівня довіри.
-- **Через API-токен чи CLI** свій ключ додати не можна, лише із сесії в панелі.
-- **Ключ службового користувача** (наприклад, `ci`) додає адміністратор: `forest user signing-key add ci runner ./ci.pub -e <середовище>`.
+- **Environments.** A key endorses a stack's deployment only if you can deploy that stack yourself. Limiting it to some environments narrows it further: limit a key on a device you trust less (a work computer, a shared machine) to environments of the same level of trust.
+- **You can't add your own key with an API token or the CLI**, only from a panel session.
+- **A service user's key** (for example `ci`) is added by an administrator: `forest user signing-key add ci runner ./ci.pub -e <environment>`.
 
-## 5. Додати ключ у GitHub і Gitea
+## 5. Add the key to GitHub and Gitea
 
-Ці сервіси показують «Verified» на комітах для зручності рев'ю. Для container-forest це нічого не означає: ЦА перевіряє підпис сама.
+These services show *Verified* on commits as a convenience for reviews. For container-forest it means nothing: the aggregator verifies signatures itself.
 
 ### GitHub
 
-Settings → **SSH and GPG keys** → **New SSH key**, у полі **Key type** — **Signing Key**, у **Key** — вміст `.pub`.
+Settings → **SSH and GPG keys** → **New SSH key**, **Key type** **Signing Key**, and the contents of the `.pub` in **Key**.
 
-Ключ типу Authentication коміти не верифікує, а ключ типу Signing не дає входу по SSH. Це якраз те розділення, якого ми хочемо.
+An Authentication key doesn't verify commits, and a Signing key doesn't allow SSH login. That's exactly the separation we want.
 
 ### Gitea
 
-Settings → **SSH / GPG Keys** → блок **Manage SSH Keys** → **Add Key**: назва й вміст `.pub`. Після збереження біля ключа натисніть **Verify**: Gitea покаже токен, який треба підписати цим ключем.
+Settings → **SSH / GPG Keys** → the **Manage SSH Keys** block → **Add Key**: a name and the contents of the `.pub`. After saving, press **Verify** next to the key: Gitea shows a token to sign with this key.
 
-Linux і macOS:
+Linux and macOS:
 
 ```bash
-echo -n '<токен>' | ssh-keygen -Y sign -n gitea -f ~/.ssh/id_commit_signing
+echo -n '<token>' | ssh-keygen -Y sign -n gitea -f ~/.ssh/id_commit_signing
 ```
 
-Windows (PowerShell; токен записується у файл без переводу рядка, а підпис з'являється поруч у `token.txt.sig`):
+Windows (PowerShell; the token is written to a file without a newline, and the signature appears next to it in `token.txt.sig`):
 
 ```powershell
-Set-Content -NoNewline -Path token.txt -Value '<токен>'
+Set-Content -NoNewline -Path token.txt -Value '<token>'
 ```
 
 ```powershell
 ssh-keygen -Y sign -n gitea -f $HOME\.ssh\id_commit_signing token.txt
 ```
 
-Вставте підпис від `-----BEGIN SSH SIGNATURE-----` до `-----END SSH SIGNATURE-----` у форму. Якщо кнопки **Verify** немає, адміністратор інстансу вимкнув перевірку, і ключ вважається підтвердженим за email.
+Paste the signature from `-----BEGIN SSH SIGNATURE-----` to `-----END SSH SIGNATURE-----` into the form. If there's no **Verify** button, the instance's administrator turned verification off, and the key is considered verified by email.
 
-⚠️ Gitea не розділяє ключі для входу й для підпису: доданий ключ підпису зможе ще й пушити по SSH з вашими правами. Для вашого власного ключа це нормально, але на ключ службового користувача це варто зважати.
+⚠️ Gitea doesn't separate login and signing keys: an added signing key can also push over SSH with your permissions. That's fine for your own key, but keep it in mind for a service user's key.
 
-## 6. Перевірити
+## 6. Check
 
 ```bash
 git commit --allow-empty -m "test: signed commit"
@@ -274,45 +274,45 @@ git commit --allow-empty -m "test: signed commit"
 git log --show-signature -1
 ```
 
-Після push GitHub і Gitea показують «Verified» біля коміту. Для стеку з вимогою підпису історія деплоїв покаже «Підписав <ім'я>», а на екрані деплою — відбиток ключа.
+After a push, GitHub and Gitea show *Verified* next to the commit. For a stack that requires signatures, the deployment history shows *Signed by <name>*, and the deployment screen shows the key's fingerprint.
 
-## Як працювати далі
+## Working with it
 
-- **Звичайні коміти** підписуються автоматично (`commit.gpgsign true`), так само `git commit --amend` і `git rebase`: вони створюють нові коміти й підписують їх.
-- **Злиття в гілку, з якої деплоїться стек**, робіть локально: `git merge -S` або fast-forward на коміт, який підписав автор із правом деплою. Merge кнопкою у веб-інтерфейсі Gitea чи GitHub підписує ключ платформи, і такий коміт деплоїться лише після підтвердження SHA в панелі (екран деплою → «Підтвердити й задеплоїти») або `forest stack deploy <стек> --approve <sha>`.
-- **Підпис голови гілки засвідчує весь стан репозиторію**, включно з непідписаними комітами під ним. Не підписуйте коміт поверх чужих змін, яких не переглянули.
-- **Force-push** у гілку стеку зупиняє деплой після push і хук CI: новий коміт має бути нащадком розгорнутого. Такий коміт деплоїться лише вручну.
+- **Ordinary commits** are signed automatically (`commit.gpgsign true`), as are `git commit --amend` and `git rebase`: they create new commits and sign them.
+- **Merge into a branch a stack deploys from** locally: `git merge -S`, or a fast-forward to a commit signed by an author allowed to deploy. Merging with the button in Gitea's or GitHub's web interface signs with the platform's key, and such a commit deploys only after its SHA is approved in the panel (deployment screen → *Approve and deploy*) or with `forest stack deploy <stack> --approve <sha>`.
+- **The branch head's signature endorses the whole state of the repository**, including unsigned commits under it. Don't sign a commit on top of other people's changes you haven't reviewed.
+- **A force push** to a stack's branch stops deploy on push and the CI hook: the new commit must descend from the deployed one. Such a commit deploys only by hand.
 
-## Новий пристрій, загублений пристрій
+## A new device, a lost device
 
-- **Новий пристрій:** новий ключ (кроки 1–6), старі не копіюйте.
-- **Загублений або скомпрометований:** видаліть його ключ підпису в панелі («Обліковий запис» → «Ключі підпису комітів»), у GitHub і в Gitea, а також ключі входу по SSH цього пристрою. Видалений із панелі ключ одразу перестає засвідчувати деплої, зокрема для вже запушених комітів.
+- **A new device:** a new key (steps 1–6); don't copy the old ones.
+- **Lost or compromised:** delete its signing key in the panel (*Account* → *Commit signing keys*), on GitHub and in Gitea, along with that device's SSH login keys. A key deleted from the panel stops endorsing deployments at once, including for commits already pushed.
 
-## Git по SSH, а не HTTPS
+## Git over SSH, not HTTPS
 
-Для роботи з Gitea й GitHub користуйтеся адресами `git@…:…`, а не `https://…`. Ключі для входу — свої, окремі від ключа підпису.
+Use `git@…:…` URLs with Gitea and GitHub rather than `https://…`. Login keys are your own, separate from the signing key.
 
-### Чому
+### Why
 
-- **Немає паролів і токенів на диску.** Для HTTPS потрібен токен доступу (пароль GitHub уже не приймає), і git зберігає його в credential helper, а часто й відкритим текстом у `~/.git-credentials`. Такий токен зазвичай має доступ до всіх ваших репозиторіїв, а не лише до одного, і витікає разом із файлом. По SSH сервер перевіряє підпис запиту, а приватний ключ із пристрою не виходить.
-- **Апаратні ключі.** Ключ входу теж може бути на FIDO-ключі (`ed25519-sk`): без дотику ніхто не запушить від вашого імені, навіть маючи доступ до ноутбука. Для токена HTTPS такого способу немає.
-- **Ключ на пристрій і окреме відкликання.** Загубили ноутбук — видаляєте один ключ, решта пристроїв працює далі. Спільний токен довелося б перевипустити й прописати знову скрізь.
-- **Немає строку дії й ротації.** Токени HTTPS спливають, і push раптом перестає працювати. Ключ SSH діє, доки ви його не видалите.
-- **Захист від фішингу.** Ключ SSH нічого не відправляє на сервер, тож сторінка, що вдає Gitea, нічого не вкраде. Токен можна вставити не туди.
-- **Перевірка сервера.** SSH запам'ятовує ключ хоста (`known_hosts`) і попереджає, якщо він змінився: підмінений Gitea помітно одразу.
-- **Один агент.** Той самий `ssh-agent` дає ключі і для git, і для підпису, тож пароль вводиться раз за сесію.
+- **No passwords or tokens on disk.** HTTPS needs an access token (GitHub no longer accepts passwords), and git stores it in a credential helper, often in plain text in `~/.git-credentials`. Such a token usually has access to all your repositories, not just one, and leaks with the file. Over SSH the server checks the request's signature, and the private key never leaves the device.
+- **Hardware keys.** A login key can live on a FIDO key too (`ed25519-sk`): without a touch nobody can push in your name, even with access to your laptop. There's no equivalent for an HTTPS token.
+- **A key per device, revoked separately.** Lose a laptop and you delete one key; your other devices keep working. A shared token would have to be reissued and set up again everywhere.
+- **No expiry or rotation.** HTTPS tokens expire, and pushing suddenly stops working. An SSH key works until you delete it.
+- **Phishing protection.** An SSH key sends nothing to the server, so a page pretending to be Gitea can't steal anything. A token can be pasted into the wrong place.
+- **Server verification.** SSH remembers the host key (`known_hosts`) and warns if it changes: an impersonated Gitea is noticed at once.
+- **One agent.** The same `ssh-agent` provides keys for both git and signing, so you enter the passphrase once per session.
 
-### Як перейти
+### How to switch
 
-1. Ключ для входу (окремо від ключа підпису), по одному на сервіс або на пристрій:
+1. A login key (separate from the signing key), one per service or per device:
 
 ```bash
-ssh-keygen -t ed25519 -C "<ваше ім'я>@<пристрій> (gitea)" -f ~/.ssh/id_ed25519_gitea
+ssh-keygen -t ed25519 -C "<your name>@<device> (gitea)" -f ~/.ssh/id_ed25519_gitea
 ```
 
-2. Додати `.pub`: GitHub → Settings → SSH and GPG keys → **New SSH key**, тип **Authentication Key**; Gitea → Settings → SSH / GPG Keys → **Add Key**.
+2. Add the `.pub`: GitHub → Settings → SSH and GPG keys → **New SSH key**, type **Authentication Key**; Gitea → Settings → SSH / GPG Keys → **Add Key**.
 
-3. Указати, який ключ для якого сервера, у `~/.ssh/config` (Windows: `$HOME\.ssh\config`). Порт Gitea дізнайтеся в адміністратора: часто це не 22.
+3. Say which key goes to which server in `~/.ssh/config` (Windows: `$HOME\.ssh\config`). Ask the administrator for Gitea's SSH port: it often isn't 22.
 
 ```
 Host gitea.example.com
@@ -327,21 +327,21 @@ Host github.com
   IdentitiesOnly yes
 ```
 
-`IdentitiesOnly yes` не дає SSH пропонувати серверу всі ключі з агента, зокрема й ключ підпису.
+`IdentitiesOnly yes` stops SSH from offering the server every key in the agent, the signing key included.
 
-4. Перевірити й переключити наявні клони:
+4. Check, and switch existing clones:
 
 ```bash
 ssh -T git@gitea.example.com
 ```
 
 ```bash
-git remote set-url origin git@gitea.example.com:<організація>/<репозиторій>.git
+git remote set-url origin git@gitea.example.com:<organisation>/<repository>.git
 ```
 
-Під час першого підключення SSH покаже відбиток ключа хоста. Звірте його з тим, що дає адміністратор Gitea або [документація GitHub](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints), і лише тоді відповідайте `yes`.
+On the first connection SSH shows the host key's fingerprint. Compare it with the one from Gitea's administrator or [GitHub's documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints), and only then answer `yes`.
 
-Якщо мережа блокує порт 22, GitHub приймає SSH і на 443:
+If your network blocks port 22, GitHub accepts SSH on 443 too:
 
 ```
 Host github.com
@@ -350,25 +350,25 @@ Host github.com
   User git
 ```
 
-### Чому окремий ключ підпису
+### Why a separate signing key
 
-Технічно ключем входу можна й підписувати: формати підпису різні, і один підпис не підставиш замість іншого. Окремий ключ потрібен з інших причин:
+Technically a login key can sign too: the signature formats differ, and one signature can't stand in for the other. A separate key is needed for other reasons:
 
-- **Ключ входу ви використовуєте постійно**, часто з пересланим агентом. Ключ підпису засвідчує, що потрапить на продакшн-хости, і його краще не пускати туди, де він не потрібен.
-- **Їх незалежно видаляють і обмежують:** у панелі — середовищами, на серверах — доступом.
-- **GitHub** однаково розділяє ці ролі: ключ треба додавати окремо як Authentication і як Signing.
+- **You use your login key all the time**, often with a forwarded agent. The signing key endorses what reaches production hosts, and is best kept away from places it isn't needed.
+- **They're deleted and restricted independently:** in the panel by environment, on servers by access.
+- **GitHub** separates the roles anyway: a key has to be added separately as Authentication and as Signing.
 
-## Якщо щось не так
+## Troubleshooting
 
-| Симптом | Причина |
+| Symptom | Cause |
 |---|---|
-| `error: Load key "…": invalid format` або `incorrect passphrase` при коміті | `user.signingkey` вказує на неіснуючий файл або ключа немає в агенті й пароль неправильний; перевірте шлях і `ssh-add -l` |
-| `error: unsupported value for gpg.format: ssh` | git старіший за 2.34 |
-| `No principal matched` у `git log --show-signature` | немає `allowed_signers` (крок 3); на деплой це не впливає |
-| «Unverified» на GitHub чи в Gitea | `user.email` коміту не збігається з підтвердженою адресою облікового запису або ключ не доданий як Signing (GitHub) чи не підтверджений через Verify (Gitea) |
-| `Could not open a connection to your authentication agent` (Linux) | агента немає або shell не знає `SSH_AUTH_SOCK`; див. крок 2, розділ Linux |
-| Windows: git питає пароль ключа щоразу, хоча агент запущено | git користується власним OpenSSH; виконайте два `git config` з розділу «Windows: щоб git і агент працювали в парі» |
-| Деплой: «commit … is signed with key …, which no user has added» | ключ не доданий у панель container-forest (крок 4) |
-| Деплой: «… is limited to other environments» | ключ обмежено іншими середовищами; змініть його в «Ключах підпису комітів» |
-| Деплой: «… may not deploy the stack» | у вас немає ролі Editor на стеку чи середовищі; підпис засвідчує лише те, що ви й так можете деплоїти |
-| Деплой: «… does not descend from the deployed commit» | гілку переписано або змінено джерело стеку; задеплойте вручну з панелі |
+| `error: Load key "…": invalid format` or `incorrect passphrase` when committing | `user.signingkey` points to a file that doesn't exist, or the key isn't in the agent and the passphrase is wrong; check the path and `ssh-add -l` |
+| `error: unsupported value for gpg.format: ssh` | git older than 2.34 |
+| `No principal matched` in `git log --show-signature` | no `allowed_signers` (step 3); it doesn't affect deployments |
+| *Unverified* on GitHub or in Gitea | the commit's `user.email` doesn't match a verified address of the account, or the key isn't added as Signing (GitHub) or verified through Verify (Gitea) |
+| `Could not open a connection to your authentication agent` (Linux) | there's no agent, or the shell doesn't know `SSH_AUTH_SOCK`; see step 2, Linux |
+| Windows: git asks for the key's passphrase every time even though the agent runs | git uses its own OpenSSH; run the two `git config` commands from "Windows: making git and the agent work together" |
+| Deployment: "commit … is signed with key …, which no user has added" | the key isn't added in the container-forest panel (step 4) |
+| Deployment: "… is limited to other environments" | the key is limited to other environments; change it under *Commit signing keys* |
+| Deployment: "… may not deploy the stack" | you have no Editor role on the stack or the environment; a signature endorses only what you can deploy anyway |
+| Deployment: "… does not descend from the deployed commit" | the branch was rewritten or the stack's source changed; deploy by hand from the panel |

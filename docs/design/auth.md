@@ -1,64 +1,64 @@
-# Автентифікація, користувачі, токени
+# Authentication, users, tokens
 
-Рішення — [ADR-0007](../adr/0007-api-tokens.md) (токени), [ADR-0008](../adr/0008-cli.md) (CLI), [ADR-0009](../adr/0009-passwordless-sign-in.md) (passkeys, Discord). Шляхи бекенду відносно `src/Aggregator`, панелі — відносно `src/Web`.
+Decisions: [ADR-0007](../adr/0007-api-tokens.md) (tokens), [ADR-0008](../adr/0008-cli.md) (CLI), [ADR-0009](../adr/0009-passwordless-sign-in.md) (passkeys, Discord). Backend paths are relative to `src/Aggregator`, panel paths to `src/Web`.
 
-## Спільний договір
+## The shared contract
 
-- **Автентифікація й авторизація розділені одним договором:** будь-яка схема (cookie, API-токен, dev-заголовок, бот) кладе `UserId` у claim `ClaimTypes.NameIdentifier`; `ClaimsCurrentUser` читає його як `ICurrentUser`, а сервіси `Application` отримують користувача лише через `CurrentActor` (немає користувача — 401, деактивований — 403). Контракт логіну — `Api/Contracts/AccountContracts.cs`.
-- **Схема за замовчуванням** — policy `Default` (`AuthenticationSetup`): Bearer → `ApiToken`, у `Development` заголовок `X-Dev-User` → `DevUser`, інакше cookie. Поза `Development` заголовок ігнорується. `DevUser` називає будь-якого користувача, створеного через `/api/users` або bootstrap, без пароля; ним користуються curl і `CF_DEV_USER` панелі.
+- **Authentication and authorization are separated by one contract:** every scheme (cookie, API token, dev header, bot) puts the `UserId` into the `ClaimTypes.NameIdentifier` claim; `ClaimsCurrentUser` reads it as `ICurrentUser`, and `Application` services get the user only through `CurrentActor` (no user is a 401, a deactivated one a 403). The sign-in contract is `Api/Contracts/AccountContracts.cs`.
+- **The default scheme** is the `Default` policy (`AuthenticationSetup`): Bearer → `ApiToken`, in `Development` the `X-Dev-User` header → `DevUser`, otherwise the cookie. Outside `Development` the header is ignored. `DevUser` names any user created through `/api/users` or the bootstrap, without a password; curl and the panel's `CF_DEV_USER` use it.
 
-## Пароль і користувачі
+## Passwords and users
 
-- **Вхід за паролем.** Паролі, lockout і security stamp — в ASP.NET Identity: `AccountUser : IdentityUser<Guid>` (`Infrastructure/Accounts`) з тим самим id, що й доменний `User`; `AggregatorDbContext` успадковує `IdentityUserContext<AccountUser, Guid>` (таблиці `AspNetUsers*`, без таблиць ролей). Зовнішнього ключа `AspNetUsers` → `Users` немає: EF не з'єднує `Guid` із `UserId`; обліковий запис створюється разом із доменним користувачем в одному `SaveChanges` (`UserManager.CreateAsync` зберігає контекст). Користувачі, створені колись через видалений `/api/dev/users`, облікового запису не мають: його створює скидання пароля адміністратором.
-- **Керування користувачами** (`/api/users/*`, контракт — `Api/Contracts/UserContracts.cs`): `UserManagementService`, усе лише для адміністраторів. Облікові записи Identity сервіс змінює лише через порт `IAccountStore` (`IdentityAccountStore`); кожна зміна облікового запису зберігає контекст разом із доменними змінами. Пароль перевіряється політикою до зміни хешу, щоб невдалий пароль не лишив облікового запису без пароля.
-  - Зміни користувача — ієрархія `UserAccountAction` (Command): перевірка → дія → завершення сесій (`EndsSessions`). `AdministratorRemovingAction` (деактивація, зняття прав адміна) не дає прибрати останнього активного адміністратора (409). Деактивація, зняття прав адміна й скидання пароля завершують сесії користувача; перейменування — ні (`SetUserNameAsync` Identity міняв би security stamp, тому ім'я змінюється через `UpdateAsync`).
-  - Ролі: одна на область (середовище або стек), друга — 409; стек іншого середовища й чуже призначення — 404.
-  - Політика — `AccountPolicy`: мінімальна довжина без правил про склад і lockout. Решту NIST SP 800-63B перевіряють правила `PasswordRule` (`IPasswordValidator` Identity, `Infrastructure/Accounts/PasswordRules.cs`): обмеження довжини, без повторів і послідовностей, без імені користувача й назви системи. Код помилки правила починається з `Password`: так `IdentityAccountStore` відрізняє відхилений пароль від інших помилок Identity. Відхилений пароль — `PasswordRejectedException` → 400 з `errors` у problem details.
-  - `PasswordSignIn`: невідоме ім'я, неправильний пароль, lockout і деактивований користувач — однаковий 401; для невідомого імені все одно рахується хеш (decoy), щоб час відповіді не видавав наявні імена.
-  - `/api/auth/login` і `/api/auth/password` мають ліміт на адресу клієнта (`AuthEndpoints.SignInPolicy`, інакше 429): lockout захищає один обліковий запис, але не один пароль, який пробують на багатьох іменах. За Caddy адреса — з `X-Forwarded-For`.
-  - Cookie `cf_session`: HttpOnly, `SameSite=Strict`, `Secure` — `Always`, у `Development` — `SameAsRequest`; `RememberMe` — постійна cookie, інакше сесійна. Security stamp перевіряється на кожному запиті (`ValidationInterval = 0`): зміна пароля завершує інші сесії одразу, поточна перевидається (`RefreshSignInAsync`). Ціна — запит до БД і нова cookie на кожну відповідь.
-  - Перший адміністратор: `AdminBootstrapper` після міграцій, якщо в базі немає жодного користувача, створює його з `CF_BOOTSTRAP__ADMINUSERNAME` / `CF_BOOTSTRAP__ADMINPASSWORD` (задаються разом або жодна, `ValidateOnStart`). Пароль не логується; без змінних і без користувачів — попередження в лозі.
+- **Password sign-in.** Passwords, lockout and security stamps are ASP.NET Identity's: `AccountUser : IdentityUser<Guid>` (`Infrastructure/Accounts`) has the same id as the domain `User`; `AggregatorDbContext` inherits `IdentityUserContext<AccountUser, Guid>` (tables `AspNetUsers*`, no role tables). There's no `AspNetUsers` → `Users` foreign key: EF won't join a `Guid` with a `UserId`; the account is created together with the domain user in one `SaveChanges` (`UserManager.CreateAsync` saves the context). Users once created through the removed `/api/dev/users` have no account: an administrator's password reset creates one.
+- **User management** (`/api/users/*`, contract in `Api/Contracts/UserContracts.cs`): `UserManagementService`, administrators only. The service changes Identity accounts only through the `IAccountStore` port (`IdentityAccountStore`); every account change saves the context together with the domain changes. A password is checked against the policy before the hash changes, so a rejected password can't leave the account without one.
+  - User changes form the `UserAccountAction` hierarchy (Command): check → act → end sessions (`EndsSessions`). `AdministratorRemovingAction` (deactivation, removing admin rights) won't remove the last active administrator (409). Deactivation, removing admin rights and a password reset end the user's sessions; renaming doesn't (Identity's `SetUserNameAsync` would change the security stamp, so the name changes through `UpdateAsync`).
+  - Roles: one per scope (environment or stack); a second is a 409; a stack from another environment and someone else's assignment are a 404.
+  - The policy is `AccountPolicy`: a minimum length, no composition rules, and lockout. The rest of NIST SP 800-63B is checked by `PasswordRule` rules (Identity's `IPasswordValidator`, `Infrastructure/Accounts/PasswordRules.cs`): length limits, no repeats or sequences, no user name or system name. A rule's error code starts with `Password`: that's how `IdentityAccountStore` tells a rejected password from other Identity errors. A rejected password is `PasswordRejectedException` → 400 with `errors` in problem details.
+  - `PasswordSignIn`: an unknown name, a wrong password, lockout and a deactivated user all get the same 401; a hash is computed for an unknown name anyway (a decoy), so the response time doesn't reveal which names exist.
+  - `/api/auth/login` and `/api/auth/password` are rate-limited per client address (`AuthEndpoints.SignInPolicy`, else 429): lockout protects one account, not one password tried against many names. Behind Caddy, the address comes from `X-Forwarded-For`.
+  - The `cf_session` cookie: HttpOnly, `SameSite=Strict`, `Secure` `Always` (`SameAsRequest` in `Development`); `RememberMe` makes it persistent, otherwise it's a session cookie. The security stamp is checked on every request (`ValidationInterval = 0`): changing the password ends other sessions at once and reissues the current one (`RefreshSignInAsync`). The price is a database query and a new cookie on every response.
+  - The first administrator: after migrations, if the database has no users, `AdminBootstrapper` creates one from `CF_BOOTSTRAP__ADMINUSERNAME` / `CF_BOOTSTRAP__ADMINPASSWORD` (set both or neither, `ValidateOnStart`). The password isn't logged; with neither the variables nor any users there's a warning in the log.
 
-## API-токени
+## API tokens
 
-Формат, правила обмежень і причини — в ADR-0007.
+Format, restriction rules and reasons are in ADR-0007.
 
-- **Код:** `Domain/Access/ApiToken.cs`, `Api/Access/ApiTokenAuthenticationHandler.cs`, `/api/me/tokens`, `/api/users/{id}/tokens`. Підказка в БД — перші 6 символів після префікса. Bearer іншої форми (хук деплою) схема пропускає (`NoResult`).
-- **Обмеження** — у claims (`ApiTokenClaims`: `cf:api-token`, `cf:read-only`, `cf:restricted`, `cf:environment`), `ClaimsCurrentUser` віддає їх як `ICurrentUser.Scope` і `ApiTokenId`. Рішення приймає `AccessPolicy` на `Actor(User, AccessScope)`.
-- **Лише читання:** `ReadOnlyTokens` (middleware після автентифікації) відповідає 403 на будь-який не-GET/HEAD/OPTIONS запит, крім ендпоінтів з `AllowReadOnlyTokens()`.
-- **Лише сесія:** новий сервісний метод, що змінює сам обліковий запис або видає облікові дані, бере користувача через `CurrentActor.GetSignedInUserAsync`. Live-хаб — політика `Session`.
+- **Code:** `Domain/Access/ApiToken.cs`, `Api/Access/ApiTokenAuthenticationHandler.cs`, `/api/me/tokens`, `/api/users/{id}/tokens`. The hint stored in the database is the first 6 characters after the prefix. The scheme skips a Bearer of another shape (the deploy hook) with `NoResult`.
+- **Restrictions** live in claims (`ApiTokenClaims`: `cf:api-token`, `cf:read-only`, `cf:restricted`, `cf:environment`); `ClaimsCurrentUser` exposes them as `ICurrentUser.Scope` and `ApiTokenId`. `AccessPolicy` decides on an `Actor(User, AccessScope)`.
+- **Read-only:** `ReadOnlyTokens` (middleware after authentication) answers 403 to any request other than GET/HEAD/OPTIONS, except endpoints with `AllowReadOnlyTokens()`.
+- **Session only:** a new service method that changes the account itself or issues credentials gets the user through `CurrentActor.GetSignedInUserAsync`. The live hub uses the `Session` policy.
 
 ## Passkeys
 
-Потік, cookie стану й правила керування — в ADR-0009.
+The flow, the state cookie and the management rules are in ADR-0009.
 
-- **Код:** `Api/Access/PasskeySignIn.cs`, `PasskeyManagement.cs`, `PasskeyContracts.cs`.
-- **Пастка міграцій.** Схема Identity — версія 3 (`AccountPolicy`: `Stores.SchemaVersion`). `IdentityUserContext` будує модель з `IdentityOptions` сервісів застосунку, а не з властивості `SchemaVersion`: `DesignTimeDbContextFactory` передає `AccountPolicy.Configure` через `UseApplicationServiceProvider`, інакше міграції не бачать таблиці passkeys.
-- **Вхід:** `MakePasskeyRequestOptionsAsync(null)` → `PerformPasskeyAssertionAsync`, перевірка lockout і активності доменного користувача, `AddOrUpdatePasskeyAsync` для лічильника, `SignInAsync(isPersistent: rememberMe)`. Опції — сирий JSON Identity (`TypedResults.Text`).
-- **Керування:** id — credential id у base64url; атестація приймається, лише якщо `UserEntity.Id` — поточний користувач.
-- **Тести:** `tests/Aggregator/Api/PasskeyTests.cs` з програмним автентифікатором `FakeAuthenticator` (ES256, CBOR через `System.Formats.Cbor`, атестація `none`); запити тесту мають заголовок `Origin`.
+- **Code:** `Api/Access/PasskeySignIn.cs`, `PasskeyManagement.cs`, `PasskeyContracts.cs`.
+- **A migration pitfall.** The Identity schema is version 3 (`AccountPolicy`: `Stores.SchemaVersion`). `IdentityUserContext` builds its model from the application services' `IdentityOptions`, not from the `SchemaVersion` property: `DesignTimeDbContextFactory` passes `AccountPolicy.Configure` through `UseApplicationServiceProvider`, otherwise migrations don't see the passkey tables.
+- **Sign-in:** `MakePasskeyRequestOptionsAsync(null)` → `PerformPasskeyAssertionAsync`, a check of lockout and the domain user being active, `AddOrUpdatePasskeyAsync` for the counter, `SignInAsync(isPersistent: rememberMe)`. The options are Identity's raw JSON (`TypedResults.Text`).
+- **Management:** the id is the credential id in base64url; an attestation is accepted only if `UserEntity.Id` is the current user.
+- **Tests:** `tests/Aggregator/Api/PasskeyTests.cs` with the software authenticator `FakeAuthenticator` (ES256, CBOR through `System.Formats.Cbor`, `none` attestation); the test's requests carry an `Origin` header.
 
 ## Discord OAuth2
 
-Потік, вибір `DiscordLink` замість `AspNetUserLogins` і робота навколо `SameSite=Strict` — у доповненні до ADR-0009.
+The flow, choosing `DiscordLink` over `AspNetUserLogins`, and working around `SameSite=Strict` are in the addendum to ADR-0009.
 
-- **Код:** `Api/Access/DiscordSignIn.cs`, `Endpoints/DiscordAuthEndpoints.cs`.
-- **Реєстрація схеми:** лише з `DiscordAuth:ClientId` і `ClientSecret` (`DiscordAuthOptions.IsConfigured`), інакше ендпоінти — 404. `SignInScheme` — `IdentityConstants.ExternalScheme`.
-- **Сервіс:** вхід — `DiscordLinkService.FindUserForSignInAsync`, прив'язка — `LinkVerifiedAsync`.
-- **Стан:** мета (`cf.purpose`), адреса повернення й id користувача прив'язки — в `AuthenticationProperties.Items`. Сторінка замість 302 — `ContinuePage`, адреса повернення перевіряється в `SafePath`, невдача обробляється й в `OnRemoteFailure`.
-- **OpenAPI:** ендпоінти — навігації браузера, тому не описуються (`ExcludeFromDescription`).
-- **Тести:** `DiscordSignInTests` з фальшивим Discord на `BackchannelHttpHandler` (через `AggregatorApp.Customize`).
+- **Code:** `Api/Access/DiscordSignIn.cs`, `Endpoints/DiscordAuthEndpoints.cs`.
+- **Registering the scheme:** only with `DiscordAuth:ClientId` and `ClientSecret` (`DiscordAuthOptions.IsConfigured`), otherwise the endpoints are a 404. `SignInScheme` is `IdentityConstants.ExternalScheme`.
+- **Service:** sign-in is `DiscordLinkService.FindUserForSignInAsync`, linking `LinkVerifiedAsync`.
+- **State:** the purpose (`cf.purpose`), the return URL and the linking user's id are in `AuthenticationProperties.Items`. A page instead of a 302 is `ContinuePage`; the return URL is checked in `SafePath`, and failures are handled in `OnRemoteFailure` too.
+- **OpenAPI:** the endpoints are browser navigations, so they aren't described (`ExcludeFromDescription`).
+- **Tests:** `DiscordSignInTests` with a fake Discord on `BackchannelHttpHandler` (through `AggregatorApp.Customize`).
 
-## Вхід у CLI
+## CLI sign-in
 
-Потік, строки й ліміти — в ADR-0008.
+The flow, lifetimes and limits are in ADR-0008.
 
-- **Код:** `CliAuthorizationService`, `Domain/Access/CliAuthorization.cs`, `CliAuthorizationEndpoints`. `userCode` генерує `OneTimeCode`, показується як `XXXX-XXXX`.
-- **Обмеження токена** перевіряються як для `/api/me/tokens` (`ApiTokenService.EnsureRoomForTokenAsync`, `EnsureEnvironmentsVisibleAsync`).
-- **Видача:** токен створює `ExchangeAsync` (`CliAuthorization.IssueToken`), запит після цього видаляється; деактивований після затвердження користувач — `Denied`.
-- **Ліміти запитів:** за Caddy адреса клієнта — з `X-Forwarded-For`.
-- **Панель:** `/cli/authorize?code=&port=` (після рішення — `window.location.assign("http://127.0.0.1:<port>/done?result=…")`) і `/cli/device`.
+- **Code:** `CliAuthorizationService`, `Domain/Access/CliAuthorization.cs`, `CliAuthorizationEndpoints`. `OneTimeCode` generates the `userCode`, shown as `XXXX-XXXX`.
+- **The token's restrictions** are checked as for `/api/me/tokens` (`ApiTokenService.EnsureRoomForTokenAsync`, `EnsureEnvironmentsVisibleAsync`).
+- **Issuing:** `ExchangeAsync` creates the token (`CliAuthorization.IssueToken`), and the request is deleted afterwards; a user deactivated after approving gets `Denied`.
+- **Rate limits:** behind Caddy, the client's address comes from `X-Forwarded-For`.
+- **Panel:** `/cli/authorize?code=&port=` (after the decision, `window.location.assign("http://127.0.0.1:<port>/done?result=…")`) and `/cli/device`.
 
-## Свіже підтвердження особи
+## Fresh identity confirmation
 
-Чутливі дії (зміна налаштувань системи) вимагають не лише сесії, а й щойно введеного пароля чи passkey: [налаштування й підтвердження](backup.md#підтвердження-особи).
+Sensitive actions (changing system settings) need not just a session but a freshly entered password or passkey: [settings and confirmation](backup.md#identity-confirmation).

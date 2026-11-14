@@ -1,159 +1,159 @@
-# ADR-0012. Ізоляція стеків на хості: адміністратор середовища, політика compose, ключі на стек
+# ADR-0012. Stack isolation on the host: environment administrators, the compose policy, per-stack keys
 
-- Статус: прийнято
-- Дата: 2026-11-04
+- Status: accepted
+- Date: 2026-11-04
 
-## Контекст
+## Context
 
-Після ADR-0011 ЦА знає, **хто** засвідчив вміст стеку, але не обмежує, **що** цей вміст може зробити на хості. Compose-файл будь-якого стеку може зробити таке:
+After ADR-0011 the aggregator knows **who** endorsed a stack's content, but doesn't limit **what** that content can do on the host. Any stack's compose file can:
 
-- змонтувати `/` хоста, `docker.sock` або каталоги й tmpfs інших стеків;
-- запустити `privileged`-контейнер;
-- увійти в `pid`- чи `network`-namespace хоста;
-- узяти чужий іменований том;
-- прочитати через `env_file` секрети іншого стеку з `/run/container-forest`. Compose працює всередині агента, а той бачить увесь цей каталог.
+- mount the host's `/`, `docker.sock`, or other stacks' directories and tmpfs;
+- run a `privileged` container;
+- join the host's `pid` or `network` namespace;
+- take someone else's named volume;
+- read another stack's secrets from `/run/container-forest` through `env_file`. Compose runs inside the agent, which sees that whole directory.
 
-Тому в `architecture.md` записано: «Editor середовища фактично має root на хості», і «Editor окремого стеку — теж». Наслідки:
+That's why `architecture.md` says "an environment's Editor is effectively root on the host", and "so is an Editor of a single stack". The consequences:
 
-- Підпис ADR-0011 захищає лише наполовину: викрадений ключ людини з правом деплою одного стеку дає root на хості.
-- ADR-0010 відмовився від ключів SOPS на стек, бо поки compose не обмежений, окремий ключ нічого не ізолює.
-- Шифротекст стеку B, скопійований у каталог стеку A, ЦА розшифрує ключем середовища й віддасть контейнерам A.
+- The ADR-0011 signature protects only halfway: a stolen key of a person allowed to deploy one stack gives root on the host.
+- ADR-0010 gave up on per-stack SOPS keys, because as long as compose isn't restricted, a separate key isolates nothing.
+- Stack B's ciphertext copied into stack A's directory is decrypted by the aggregator with the environment's key and handed to A's containers.
 
-Водночас у продакшні команди є люди без прав адміністратора container-forest, які мають SSH і root на одному з хостів. Обмежувати їх марно: вони обійдуть будь-яку політику командою `docker run`. Тертя від політики для них лише змусило б вимкнути її для всього середовища.
+At the same time, some people without container-forest administrator rights have SSH and root on one of the hosts. Restricting them is pointless: they'd get around any policy with `docker run`. Friction from the policy would only make them turn it off for the whole environment.
 
-### Де перевіряти compose-файл
+### Where to check the compose file
 
-1. **ЦА перевіряє сирий YAML.** Без змін протоколу, до розшифрування. Але ЦА читає файл YamlDotNet, а compose — go-yaml. Будь-яка розбіжність між ними є обходом: дублікати ключів, булеві YAML 1.1, теги, підстановка змінних з `.env`, `extends`, `include`, короткий і довгий синтаксис, нові ключі в нових версіях compose. Повторювати compose самим — це шукати ці розбіжності вічно.
-2. **ЦА запускає `docker compose config` у себе.** Розшифровані файли лягли б на диск ЦА, а оточення процесу відрізнялося б від оточення агента.
-3. **Агент запускає `docker compose config` тим самим бінарником, з тими самими файлами й тим самим оточенням, що й `up`, а рішення приймає ЦА** (обрано). Нормалізована модель compose: змінні підставлено, `extends` і `include` злито, синтаксис довгий, шляхи абсолютні. Правила тоді прості, а невідомий ключ означає відмову. Ціна — нова команда агента й ще один обмін під час деплою.
+1. **The aggregator checks the raw YAML.** No protocol changes, before decryption. But the aggregator reads the file with YamlDotNet, and compose with go-yaml. Any discrepancy between them is a bypass: duplicate keys, YAML 1.1 booleans, tags, variable substitution from `.env`, `extends`, `include`, short and long syntax, new keys in new compose versions. Reimplementing compose means hunting for these discrepancies forever.
+2. **The aggregator runs `docker compose config` itself.** Decrypted files would land on the aggregator's disk, and the process's environment would differ from the agent's.
+3. **The agent runs `docker compose config` with the same binary, the same files and the same environment as `up`, and the aggregator decides** (chosen). The normalised compose model: variables substituted, `extends` and `include` merged, long syntax, absolute paths. The rules are then simple, and an unknown key means a refusal. The price is a new agent command and one more exchange during a deployment.
 
-Перевіряти політику на самому агенті, надіславши йому правила, означало б мати правила у двох місцях, з версіями на кожному агенті. Це суперечило б інваріанту 4: права перевіряються лише в ЦА.
+Checking the policy on the agent itself by sending it the rules would mean rules in two places, with versions on every agent. That would contradict invariant 4: permissions are checked only on the aggregator.
 
-## Рішення
+## Decision
 
-### 1. Роль «адміністратор середовища»
+### 1. The environment administrator role
 
-1. Нова роль `Role.EnvironmentAdmin` («Адміністратор середовища») вища за Editor. Глобальна роль лишається «Адміністратор» (`isAdmin` в API, `CF_BOOTSTRAP__ADMIN*` і `is_admin` у `bot.proto` не змінюються). У коді — завжди `EnvironmentAdmin`, у панелі — завжди повна назва.
-2. Роль видається **лише на середовище**, не на стек. Призначає й знімає її лише адміністратор. Вона фіксує факт: людина й так має root на цьому хості.
-3. Окрім прав Editor, адміністратор середовища керує тим, що стосується лише цього середовища:
-   - політикою compose: режимом, allowlist-ом, винятками стеків (п. 2);
-   - ролями Viewer, Operator, Editor наявних користувачів на цьому середовищі та його стеках;
-   - age-ключами середовища та його стеків, кредами registry, токеном реєстрації агента, відкликанням агента;
-   - назвою та приватністю середовища.
+1. A new role `Role.EnvironmentAdmin` (*Environment administrator*) above Editor. The global role stays *Administrator* (`isAdmin` in the API, `CF_BOOTSTRAP__ADMIN*` and `is_admin` in `bot.proto` don't change). In code it's always `EnvironmentAdmin`, in the panel always the full name.
+2. The role is granted **only on an environment**, not on a stack. Only an administrator grants and removes it. It records a fact: the person is root on that host anyway.
+3. Beyond an Editor's rights, an environment administrator manages what concerns only that environment:
+   - the compose policy: the mode, the allowlist, stack allowances (point 2);
+   - the Viewer, Operator and Editor roles of existing users on the environment and its stacks;
+   - the age keys of the environment and its stacks, registry credentials, the agent's enrollment token, revoking the agent;
+   - the environment's name and privacy.
 
-   Секрети й креди середовища він і так бачить на хості (tmpfs, `DOCKER_CONFIG`), тож нового доступу це не дає.
-4. **За адміністратором лишається:** користувачі, створення й видалення середовищ, підключення до git-серверів, канали й правила сповіщень, журнал аудиту, призначення ролі «адміністратор середовища».
-5. Право — `Permission.AdministerEnvironment` в `AccessPolicy`. Обмежений токен адміністратора й надалі дає роль Editor, а не адміністратора середовища. Токен лише для читання цього права не має.
+   They can see the environment's secrets and credentials on the host anyway (tmpfs, `DOCKER_CONFIG`), so this gives no new access.
+4. **What stays with the administrator:** users, creating and deleting environments, git connections, notification channels and rules, the audit log, granting the environment administrator role.
+5. The permission is `Permission.AdministerEnvironment` in `AccessPolicy`. An administrator's restricted token still gives the Editor role, not environment administrator. A read-only token doesn't have this permission.
 
-### 2. Політика compose
+### 2. The compose policy
 
-#### Режими
+#### Modes
 
-На середовищі задається режим `ComposePolicyMode`:
+An environment has a `ComposePolicyMode`:
 
-- `Off` — типово, поведінка як досі;
-- `Audit` — порушення пишуться в лог деплою попередженнями, деплой іде;
-- `Enforce` — деплой із порушенням падає до запуску compose, а помилка перелічує всі порушення разом.
+- `Off`: the default, behaviour as before;
+- `Audit`: violations are written to the deployment log as warnings, and the deployment goes on;
+- `Enforce`: a deployment with a violation fails before compose runs, and the error lists all the violations together.
 
-Для наявних середовищ міграція ставить `Off`.
+The migration sets `Off` for existing environments.
 
-#### Пайплайн
+#### Pipeline
 
 `GitFetch → VerifyCommit → SopsDecrypt → ValidateCompose → BuildBundle → ResolveRegistryAuth → ComposePolicy → SendToAgent`
 
-- **`ValidateComposeStep`** з увімкненою політикою ще й перевіряє в сирому YAML, що `env_file`, `label_file`, `extends.file` і `include` посилаються лише на файли пакета: відносні шляхи без змінних, які є серед файлів деплою. Нормалізована модель цих посилань уже не містить (вміст `env_file` і `extends` compose вбудовує), а сам `compose config` читав би їх з файлової системи агента: з чужих стеків, з tmpfs секретів, з git чи OCI-registry для віддаленого `include`. YAML-теги (`!reset`, `!override`) з політикою відхиляються.
-- **`ComposePolicyStep`**, спершу рендеринг: агент отримує `RenderStack`, тобто ті самі файли й змінні, що й для `DeployStack`. Далі він:
-  1. розкладає їх у каталог у tmpfs (`<SecretsDirectory>/.render/<guid>`, 0700, видаляється одразу після виконання);
-  2. запускає `docker compose -p <стек> --project-directory <каталог> -f compose.yaml --env-file <.env пакета або /dev/null> config --format json`;
-  3. переводить шляхи каталогу підготовки на справжній каталог стеку;
-  4. викидає з моделі те, що може містити секрети й не потрібне політиці: `environment`, `command`, `entrypoint`, `healthcheck`, значення міток, `content` у `secrets` і `configs`, розширення `x-*`;
-  5. для кожного джерела bind-mount'а через корінь хоста (`Agent:HostRoot`, у `deploy/agent/compose.yaml` — `/:/host:ro,rslave`) перевіряє, чи немає в шляху символьного посилання.
+- **`ValidateComposeStep`** with the policy on also checks in the raw YAML that `env_file`, `label_file`, `extends.file` and `include` refer only to bundle files: relative paths without variables that are among the deployment's files. The normalised model no longer contains these references (compose inlines the content of `env_file` and `extends`), and `compose config` itself would read them from the agent's file system: from other stacks, from the secrets' tmpfs, from git or an OCI registry for a remote `include`. YAML tags (`!reset`, `!override`) are rejected under the policy.
+- **`ComposePolicyStep`** renders first: the agent receives `RenderStack`, i.e. the same files and variables as for `DeployStack`. Then it:
+  1. lays them out in a directory on tmpfs (`<SecretsDirectory>/.render/<guid>`, 0700, deleted right after the run);
+  2. runs `docker compose -p <stack> --project-directory <directory> -f compose.yaml --env-file <the bundle's .env or /dev/null> config --format json`;
+  3. translates the preparation directory's paths to the real stack directory;
+  4. drops from the model what may contain secrets and isn't needed by the policy: `environment`, `command`, `entrypoint`, `healthcheck`, label values, `content` in `secrets` and `configs`, `x-*` extensions;
+  5. for every bind-mount source, checks through the host root (`Agent:HostRoot`; `/:/host:ro,rslave` in `deploy/agent/compose.yaml`) whether the path has a symbolic link.
 
-  У результаті (`RenderedStack`) — модель і список шляхів із посиланнями. Агент без цієї команди відповідає `UNSUPPORTED`: у `Audit` це попередження, у `Enforce` — помилка деплою.
-- **Потім той самий крок** розбирає модель у факти (`ComposeFacts`: лише те, що потрібно правилам, без секретів) і перевіряє правила. Факти зберігаються на стеку після успішного деплою (`Stack.DeployedComposeFacts`), тож звіт «які розгорнуті стеки порушують поточну політику» перевіряє їх заново. Посилення політики контейнерів, що вже працюють, не зупиняє.
-- **`DeployStack`** з політикою (`Audit` або `Enforce`) отримує:
-  - `explicit_env_file`: агент передає compose той самий `--env-file`, що й під час рендерингу. `.env`, створений на хості не з пакета (наприклад, контейнером), на підстановку змінних більше не впливає;
-  - у `Enforce` — `verify_paths`: агент ще раз перевіряє шляхи безпосередньо перед `up`.
+  The result (`RenderedStack`) is the model and a list of paths with links. An agent without this command answers `UNSUPPORTED`: a warning in `Audit`, a deployment error in `Enforce`.
+- **Then the same step** turns the model into facts (`ComposeFacts`: only what the rules need, no secrets) and checks the rules. The facts are saved on the stack after a successful deployment (`Stack.DeployedComposeFacts`), so the report "which deployed stacks violate the current policy" checks them again. Tightening the policy doesn't stop containers that already run.
+- **`DeployStack`** under a policy (`Audit` or `Enforce`) gets:
+  - `explicit_env_file`: the agent passes compose the same `--env-file` as during rendering. An `.env` created on the host outside the bundle (for example, by a container) no longer affects variable substitution;
+  - in `Enforce`, `verify_paths`: the agent checks the paths again right before `up`.
 
 #### Rehydrate
 
-Rehydrate політику не перевіряє: після перезавантаження Docker однаково піднімає ці контейнери з їхньою конфігурацією, а відмова лише лишила б стек без секретів. `explicit_env_file` надсилається й тут.
+Rehydrate doesn't check the policy: after a reboot Docker brings these containers up with their configuration anyway, and a refusal would only leave the stack without secrets. `explicit_env_file` is sent here too.
 
-#### Винятки
+#### Allowances
 
-Кожне порушення називає **виняток** (рядок `PolicyAllowance`), який його знімає. Винятки задає адміністратор або адміністратор середовища: для всього середовища (allowlist) або для окремого стеку. Кожна зміна — запис в аудиті.
+Every violation names the **allowance** (a `PolicyAllowance` string) that lifts it. An administrator or the environment's administrator sets allowances: for the whole environment (the allowlist) or for one stack. Every change is an audit entry.
 
-| Виняток | Що дозволяє |
+| Allowance | What it allows |
 |---|---|
-| `privileged` | `privileged: true`, зокрема в `post_start`/`pre_stop` |
-| `host:<network\|pid\|ipc\|uts\|userns\|cgroup>` | namespace хоста |
-| `docker-socket` | монтування `docker.sock`/`containerd.sock` (навіть `:ro` це root), `use_api_socket` |
-| `capability:<NAME>` | `cap_add`, крім типових capabilities Docker і `NET_ADMIN`, `IPC_LOCK`, `SYS_NICE`, `SYS_RESOURCE` |
-| `security-opt:<значення>` | будь-яке `security_opt`, крім `no-new-privileges` |
-| `device:<шлях>` | пристрій хоста; блокові пристрої й `/dev/mem` у `Enforce` не дозволяються ніколи |
-| `gpus`, `device-cgroup-rules`, `cgroup-parent`, `runtime:<назва>`, `provider` | відповідні ключі; `provider` запускає програму на агенті |
-| `path:<шлях>`, `path-rw:<шлях>` | bind-mount поза типовими місцями, лише для читання або й для запису; для середовища діє як префікс |
-| `port:<номер>` | публікацію порту хоста нижче 1024 |
-| `network:<назва>`, `network-driver:<драйвер>` | мережу поза стеком (наприклад, `proxy`), драйвер, відмінний від `bridge` |
-| `volume:<назва>`, `volume-driver` | том поза стеком; драйвер, відмінний від `local`, або `driver_opts` (це bind-mount будь-чого) |
-| `foreign-container` | `container:…` у `network_mode`, `pid`, `ipc`, `volumes_from` |
-| `propagation` | `bind.propagation`, відмінну від типової |
-| `label:<ключ>` | мітки `com.container-forest.*` і `com.docker.compose.*` |
-| `container-name` | `container_name`, що належить не цьому стеку: ім'я належить стеку середовища з найдовшою назвою, якій воно дорівнює або з якої починається з `-` після неї (`web-db-1` при стеках `web` і `web-db` — стеку `web-db`). Новий стек не можна створити з назвою, під яку вже підпадає контейнер іншого стеку |
-| `key:<назва>` | ключ сервісу, якого політика не знає |
+| `privileged` | `privileged: true`, including in `post_start`/`pre_stop` |
+| `host:<network\|pid\|ipc\|uts\|userns\|cgroup>` | a host namespace |
+| `docker-socket` | mounting `docker.sock`/`containerd.sock` (even `:ro` is root), `use_api_socket` |
+| `capability:<NAME>` | `cap_add`, except Docker's default capabilities and `NET_ADMIN`, `IPC_LOCK`, `SYS_NICE`, `SYS_RESOURCE` |
+| `security-opt:<value>` | any `security_opt` except `no-new-privileges` |
+| `device:<path>` | a host device; block devices and `/dev/mem` are never allowed in `Enforce` |
+| `gpus`, `device-cgroup-rules`, `cgroup-parent`, `runtime:<name>`, `provider` | the corresponding keys; `provider` runs a program on the agent |
+| `path:<path>`, `path-rw:<path>` | a bind mount outside the usual places, read-only or also for writing; for an environment it works as a prefix |
+| `port:<number>` | publishing a host port below 1024 |
+| `network:<name>`, `network-driver:<driver>` | a network outside the stack (e.g. `proxy`), a driver other than `bridge` |
+| `volume:<name>`, `volume-driver` | a volume outside the stack; a driver other than `local`, or `driver_opts` (which is a bind mount of anything) |
+| `foreign-container` | `container:…` in `network_mode`, `pid`, `ipc`, `volumes_from` |
+| `propagation` | a `bind.propagation` other than the default |
+| `label:<key>` | the labels `com.container-forest.*` and `com.docker.compose.*` |
+| `container-name` | a `container_name` that doesn't belong to this stack: a name belongs to the environment's stack with the longest name that it equals or starts with followed by `-` (`web-db-1` with stacks `web` and `web-db` belongs to `web-db`). A new stack can't be created with a name that another stack's container already falls under |
+| `key:<name>` | a service key the policy doesn't know |
 
-#### Bind-mount'и
+#### Bind mounts
 
-Шляхи порівнюються після нормалізації, за сегментами, з урахуванням регістру. Дозволено без винятків:
+Paths are compared after normalisation, by segments, case-sensitively. Allowed without allowances:
 
-- **каталог стеку** (файли з git). Для запису — з попередженням «перенесіть дані в каталог даних». Сам корінь каталогу стеку для запису дозволяється лише винятком `path-rw:` з точним шляхом;
-- **каталог даних стеку** `<DataRoot>/<стек>`, для читання й запису. `DataRoot` задається на середовищі, типово `/var/lib/container-forest/data`. Docker сам створює відсутні каталоги;
-- **системні шляхи лише для читання**: список на середовищі, типово `/etc/localtime`, `/etc/timezone`, `/usr/share/zoneinfo`, `/etc/locale.conf`, `/etc/default/locale`, `/etc/os-release`, `/etc/ssl/certs`.
+- **the stack directory** (files from git). For writing, with a warning "move the data to the data directory". The root of the stack directory itself is allowed for writing only with a `path-rw:` allowance with the exact path;
+- **the stack's data directory** `<DataRoot>/<stack>`, for reading and writing. `DataRoot` is set on the environment, `/var/lib/container-forest/data` by default. Docker creates missing directories itself;
+- **system paths, read-only**: a list on the environment, by default `/etc/localtime`, `/etc/timezone`, `/usr/share/zoneinfo`, `/etc/locale.conf`, `/etc/default/locale`, `/etc/os-release`, `/etc/ssl/certs`.
 
-**Захищені шляхи** (`/`, `/bin`, `/boot`, `/dev`, `/etc`, `/home`, `/lib*`, `/proc`, `/root`, `/run`, `/sbin`, `/sys`, `/usr`, `/var/run`, `/var/lib/docker`, `/var/lib/containerd`, `/opt/container-forest`, `DataRoot` і каталоги інших стеків у ньому):
+**Protected paths** (`/`, `/bin`, `/boot`, `/dev`, `/etc`, `/home`, `/lib*`, `/proc`, `/root`, `/run`, `/sbin`, `/sys`, `/usr`, `/var/run`, `/var/lib/docker`, `/var/lib/containerd`, `/opt/container-forest`, `DataRoot` and other stacks' directories in it):
 
-- діють і для читання, і для запису, а також для предків і нащадків цих шляхів;
-- allowlist середовища їх не відкриває, лише виняток стеку з **точним** шляхом.
+- apply to both reading and writing, and to the ancestors and descendants of these paths;
+- the environment's allowlist doesn't open them, only a stack allowance with the **exact** path.
 
-Ще два правила:
+Two more rules:
 
-- джерело не може лежати всередині іншого джерела, змонтованого для запису: так контейнер не підкладе посилання на шлях, який змонтує інший сервіс;
-- джерело зі символьним посиланням у шляху відхиляється, якщо посилання лежить там, куди може писати контейнер: каталог стеку, каталог даних, джерело цього стеку для запису, шлях, відкритий винятком `path-rw:`. Посилання деінде (`/var/run` → `/run`, `/etc/localtime`) міг створити лише root хоста: це частина хоста, а не пастка, і агент їх перед `up` не перевіряє.
+- a source can't lie inside another source mounted for writing: that way a container can't plant a link at a path another service will mount;
+- a source with a symbolic link in its path is rejected if the link lies where a container can write: the stack directory, the data directory, a source of this stack mounted for writing, a path opened by a `path-rw:` allowance. Links elsewhere (`/var/run` → `/run`, `/etc/localtime`) could only have been created by the host's root: they're part of the host, not a trap, and the agent doesn't check them before `up`.
 
-Файли `secrets`/`configs` з `file:` мають бути в каталозі стеку.
+`secrets`/`configs` files with `file:` must be in the stack directory.
 
-#### Стек без обмежень
+#### An unrestricted stack
 
-Стек, якому root на хості потрібен за призначенням (`privileged`, `pid: host`, `docker.sock`), адміністратор системи або середовища може вивести з-під політики одним перемикачем (`Stack.PolicyUnrestricted`, `PUT /api/stacks/{id}/policy-unrestricted`, `forest stack policy unrestricted on`). Для такого стеку не перевіряється нічого, зокрема й посилання на файли в `ValidateComposeStep`; агент однаково рендерить модель (старий агент — лише запис у лозі), порушення пишуться в лог як «не застосовано», а звіт показує стек із позначкою «без обмежень». `explicit_env_file` лишається. Зміна потрапляє в аудит (`StackPolicyUnrestrictedChanged`), а панель перед увімкненням просить підтвердження.
+A stack that needs root on the host by design (`privileged`, `pid: host`, `docker.sock`) can be taken out from under the policy by a system or environment administrator with one switch (`Stack.PolicyUnrestricted`, `PUT /api/stacks/{id}/policy-unrestricted`, `forest stack policy unrestricted on`). Nothing is checked for such a stack, including file references in `ValidateComposeStep`; the agent still renders the model (an old agent only logs it), violations are logged as "not applied", and the report shows the stack marked *unrestricted*. `explicit_env_file` stays. The change goes to the audit log (`StackPolicyUnrestrictedChanged`), and the panel asks for confirmation before turning it on.
 
-#### Звільнення засвідченого вмісту
+#### Exemption for endorsed content
 
-Порушення в деплої, вміст якого засвідчив адміністратор або адміністратор цього середовища, пишуться попередженнями з іменем цієї людини, і деплой іде, як у режимі `Audit`. Перевірки посилань на файли й YAML-тегів у `ValidateComposeStep` це не знімає: для цього — стек без обмежень. Засвідчення — за ADR-0011: коміт підписано ключем людини, область ключа включає середовище, або людина підтвердила непідписаний коміт за SHA. Натискання «Деплой» звільнення не дає, бо деплой бере голову гілки, яку міг змінити хто завгодно. Стек без «Деплоїти лише підписані коміти» звільнення не має.
+Violations in a deployment whose content an administrator or this environment's administrator endorsed are written as warnings with that person's name, and the deployment goes on as in `Audit`. This doesn't lift the file reference and YAML tag checks in `ValidateComposeStep`: that's what an unrestricted stack is for. Endorsement follows ADR-0011: the commit is signed with the person's key, the key's scope includes the environment, or the person approved an unsigned commit by SHA. Pressing *Deploy* gives no exemption, since a deployment takes the branch head, which anyone could have changed. A stack without *Deploy only signed commits* has no exemption.
 
-### 3. Ключі SOPS на стек
+### 3. Per-stack SOPS keys
 
-1. `AgeKey` отримує необов'язковий `StackId`: ключ середовища означає **спільні** секрети стеків середовища, ключ стеку — **секрети лише цього стеку**. Ключ видаляється разом зі стеком (каскад).
-2. Деплой стеку розшифровує файли ключами середовища і ключами **свого** стеку. Шифротекст іншого стеку, скопійований у каталог, ЦА не розшифрує.
-3. Git-фільтр (ADR-0010) розшифровує файл ключем стеку для тих, хто може деплоїти цей стек: Editor і адміністратор середовища, Editor стеку, адміністратор. Ключем середовища — як досі, для Editor'ів середовища або будь-якого його стеку.
-4. Ключі стеку створює й видаляє адміністратор середовища або адміністратор. Правило `.sops.yaml` для ключа стеку — `forest secrets rule add <шлях>=<середовище>/<стек>`.
-5. Справжня ізоляція є лише в режимі `Enforce`: без політики Editor стеку однаково прочитає tmpfs іншого стеку через compose.
+1. `AgeKey` gets an optional `StackId`: an environment key means secrets **shared** by the environment's stacks, a stack key means **secrets of that stack only**. The key is deleted with the stack (cascade).
+2. A stack's deployment decrypts files with the environment's keys and **its own** stack's keys. Another stack's ciphertext copied into the directory won't be decrypted.
+3. The git filter (ADR-0010) decrypts a file with a stack key for those who can deploy that stack: the environment's Editor and administrator, the stack's Editor, an administrator. With an environment key, as before, for Editors of the environment or any of its stacks.
+4. An environment administrator or an administrator creates and deletes stack keys. The `.sops.yaml` rule for a stack key is `forest secrets rule add <path>=<environment>/<stack>`.
+5. Real isolation exists only in `Enforce`: without the policy a stack's Editor can still read another stack's tmpfs through compose.
 
-## Наслідки
+## Consequences
 
-- Editor стеку й викрадений ключ підпису в середовищі з `Enforce` обмежені своїм стеком: ні root на хості, ні даних і секретів інших стеків. Попередження «Editor = root» в `architecture.md` стає умовним.
-- `.proto` змінюється сумісно: команда `RenderStack`, результат `RenderedStack`, поля `DeployStack.explicit_env_file` і `verify_paths`. Політика потребує нового агента, але старий не ламає нічого, крім самої перевірки.
-- Агенту потрібен корінь хоста лише для читання (`/:/host:ro,rslave`). Нових прав це не дає: через `docker.sock` агент і так root. Без нього шляхи поза `/opt/container-forest` не перевіряються, і в `Enforce` деплой із ними падає.
-- Деплой із політикою на одну операцію довший: рендеринг на агенті. Пакет надсилається двічі (до 3 MiB).
-- Відхилений на рендерингу деплой уже доставив розшифровані секрети в tmpfs агента на час `compose config`. Контейнери при цьому не стартують, а підпис коміту перевіряється раніше.
-- **Залишковий ризик.** Контейнер старої версії стеку, що ще працює, може підмінити шлях на посилання між перевіркою агента й монтуванням. Для цього стара версія вже має бути зловмисною під політикою й влучити у вікно в мілісекунди. Ризик задокументовано, а не закрито.
-- **Міграція:**
-  1. `Audit` на всіх середовищах.
-  2. Тиждень збирати звіт.
-  3. Налаштувати allowlist і винятки.
-  4. Увімкнути `Enforce`, починаючи з найменш довіреного середовища.
-- **Не закрито:**
-  - DoS ресурсами хоста;
-  - втеча через вразливість ядра;
-  - мережевий доступ до сервісів, які й так відкриті;
-  - перехоплення портів від 1024, які звільнив інший стек.
-- **Далі:** безпекові події (зміна політики, винятки на захищені шляхи) в окремий Discord-канал. Переробка команд `forest secrets` після ключів на стек: зараз різниця між `secrets add` і `secrets rule add` незрозуміла новій людині.
+- A stack's Editor and a stolen signing key in an environment with `Enforce` are limited to their stack: no root on the host, no other stacks' data or secrets. The "Editor = root" warning in `architecture.md` becomes conditional.
+- `.proto` changes compatibly: the `RenderStack` command, the `RenderedStack` result, the fields `DeployStack.explicit_env_file` and `verify_paths`. The policy needs a new agent, but an old one breaks nothing except the check itself.
+- The agent needs the host root read-only (`/:/host:ro,rslave`). That gives no new rights: through `docker.sock` the agent is root anyway. Without it, paths outside `/opt/container-forest` aren't checked, and in `Enforce` a deployment with them fails.
+- A deployment under a policy takes one more operation: rendering on the agent. The bundle is sent twice (up to 3 MiB).
+- A deployment rejected at rendering has already delivered decrypted secrets to the agent's tmpfs for the duration of `compose config`. No containers start, and the commit signature is checked earlier.
+- **Residual risk.** A still running container of an older stack version could swap a path for a link between the agent's check and the mount. For that, the old version must already be malicious under the policy and hit a window of milliseconds. The risk is documented, not closed.
+- **Migration:**
+  1. `Audit` on every environment.
+  2. Collect the report for a week.
+  3. Set up the allowlist and allowances.
+  4. Turn on `Enforce`, starting with the least trusted environment.
+- **Not covered:**
+  - DoS through host resources;
+  - escaping through a kernel vulnerability;
+  - network access to services that are open anyway;
+  - taking over ports from 1024 up that another stack released.
+- **Next:** security events (policy changes, allowances on protected paths) in a separate Discord channel. Reworking the `forest secrets` commands after per-stack keys: the difference between `secrets add` and `secrets rule add` is unclear to a newcomer.

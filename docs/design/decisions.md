@@ -1,39 +1,39 @@
-# Рішення та їх обґрунтування
+# Decisions and their reasoning
 
-Нове рішення, що змінює щось у цій таблиці, оформлюється як [ADR](../adr/README.md).
+A new decision that changes something in this table gets an [ADR](../adr/README.md).
 
-| Рішення | Чому |
+| Decision | Why |
 |---|---|
-| Шари ЦА `Domain ← Application ← Infrastructure ← Api`, без SharedKernel; `src/Contracts` — лише `.proto`-файли, код генерує кожен споживач (ADR-0002); веб отримує типи з OpenAPI-документа, який комітиться (ADR-0001, ADR-0002) | Спільний між застосунками лише протокол; зміни HTTP-контракту видно в диффі PR |
-| Агент на кожному хості сам відкриває gRPC bidi-стрім до ЦА | На хостах немає вхідних портів, Docker API не виставляється в мережу, працює за NAT |
-| gRPC, а не SignalR, для агентів і бота | Жорсткий контракт у `.proto`, природний стрімінг логів, агент теоретично можна переписати іншою мовою |
-| Request/response поверх стріму через `request_id` + `TaskCompletionSource` | gRPC-стрім не має семантики запит→відповідь |
-| SOPS розшифровується лише в ЦА; окрема age-пара на кожне середовище | ЦА і так має root-еквівалентний контроль над усіма хостами; розсилати ключі на хости означає розширювати поверхню атаки без виграшу. Окремий ключ на середовище дає криптографічну ізоляцію між серверами |
-| Git-репозиторій тягне ЦА (LibGit2Sharp, HTTPS + токен лише на читання) | ЦА потрібен вміст для розшифрування; агенту не потрібні ні git-креди, ні ключі |
-| Токен і дозволені середовища — на підключенні до git-сервера, а не на репозиторії ([ADR-0006](../adr/0006-git-connections.md)) | Без цього Editor одного середовища розгортав би приватний репозиторій іншого |
-| Образи тягне агент напряму з registry | Пересилати гігабайти через ЦА безглуздо; креди registry ЦА передає агенту в тимчасовому `DOCKER_CONFIG` на tmpfs |
-| Агент викликає `docker compose` CLI, а не реалізує compose через Docker API | Повторювати compose вручну — величезна робота |
-| Каталоги стеків монтуються в агент за тим самим шляхом, що й на хості | Шляхи bind-mount'ів резолвить Docker daemon на хості |
-| Файлові секрети в `/run/container-forest` (tmpfs хоста) | Не потрапляють на диск; ціна — rehydrate після перезавантаження |
-| Env-секрети — свідомий компроміс | Docker зберігає env у конфігурації контейнера на диску (`docker inspect`). Так роблять усі, включно з Portainer; це задокументовано, а не приховано |
-| Команди до офлайн-агента не ставляться в чергу | `restart`, виконаний через години, гірший за помилку |
-| Авторизація — лише в ЦА, як Decorator навколо команд | Одна перевірка для панелі й бота; обійти через інший інтерфейс неможливо |
-| CLI отримує токен через device flow з loopback-сигналом ([ADR-0008](../adr/0008-cli.md)) | Працює з будь-яким способом входу в панель і по SSH; токен не проходить через браузер |
-| Засвідчення вмісту стеку SSH-підписами комітів, які перевіряє ЦА ([ADR-0011](../adr/0011-signed-commits.md)) | Право push дорівнювало root на хостах і доступу до відкритих секретів, у тому числі для зламаного git-сервера |
-| Нові образи комітить у репозиторій стеку сама ЦА за політикою образу, а не CI; коміт засвідчує запис оновлення поверх засвідченого вмісту, а не ключ ЦА ([ADR-0015](../adr/0015-image-updates.md)) | CI не потребує ні запису в репозиторій розгортання, ні ключа підпису, а кожен коміт стеку називає точний образ, тож відкат файлів повертає й образ |
-| Ізоляція стеків: політику compose перевіряє ЦА на моделі, яку рендерить агент ([ADR-0012](../adr/0012-stack-isolation.md)) | Без політики Editor стеку — root на хості; сирий YAML у ЦА дав би розбіжності парсерів |
-| Персональні API-токени з обмеженнями поверх ролей, перевірка — в `AccessPolicy` ([ADR-0007](../adr/0007-api-tokens.md)) | Токени витікають частіше за сесії; фільтр на рівні HTTP не покриває списків і публічних середовищ |
-| Секрети в клоні — відкритий текст через git-фільтр CLI, у git — стандартні файли sops ([ADR-0010](../adr/0010-git-secrets-filter.md)) | Особисті age-ключі й ручні кроки не потрібні, а репозиторій не прив'язаний до продукту |
-| Налаштування необов'язкових функцій — типізовані секції в БД, змінна середовища має пріоритет ([ADR-0013](../adr/0013-system-settings.md)) | Функції вмикаються з панелі без доступу до хоста, а хто хоче, фіксує значення в середовищі; чутлива зміна потребує свіжого пароля чи passkey |
-| Бекап ЦА робить сам ЦА: архів, зашифрований на офлайн-ключ, у S3-сумісний бакет ([ADR-0014](../adr/0014-aggregator-backup.md)) | Узгоджений знімок SQLite, видимий стан і сповіщення про збій; бакет в іншого провайдера переживає втрату хоста |
-| Compose-проєкти, запущені вручну, — некеровані стеки в коренях, які відкрив агенту адміністратор хоста; ЦА називає стек лише іменем ([ADR-0016](../adr/0016-unmanaged-stacks.md)) | Pull, up, restart і down без SSH, а ЦА не може змусити агента запустити compose-файл поза цими каталогами |
-| Одна версія на всю систему, релізи через release PR від release-please, `latest` — лише останній реліз (docs/development.md, «Releases») | Сумісність агента, бота й CLI з ЦА видно за номером; ви самі вирішуєте, коли робити реліз, а ноди на `latest` не отримують неперевірений `main` |
-| Три окремі операції: restart / redeploy / redeploy with pull (+ окремо down) | Portainer змішує їх в одну кнопку, це головне джерело скарг на нього |
-| Веб-панель — статична SPA у Caddy, який є єдиним входом у систему ([ADR-0005](../adr/0005-caddy-entry-point.md)) | Same-origin → cookie `SameSite=Strict` і WebSocket без CORS; сертифікати й довгі gRPC-потоки без ручного налаштування |
-| React + Vite + TanStack Router + TanStack Query | Типізовані маршрути й search params, інтеграція loader'ів із кешем Query |
-| UI — shadcn/ui на Tailwind CSS і Radix UI, іконки Material Symbols | Tailwind потрібен у будь-якому разі; компоненти shadcn лежать у репозиторії й правляться під наші екрани, доступність (фокус, клавіатура, ARIA) дає Radix. Mantine / MUI / Ant Design відкинуто: власний вигляд і стилі, MUI і Ant — ще й CSS-in-JS і власні форми, що конфліктують із React Hook Form |
-| Discord-бот — окремий .NET-застосунок, говорить із ЦА по gRPC | Сервісний токен бота + Discord ID користувача (on-behalf-of); права перевіряє ЦА |
-| Секрети в БД ЦА шифруються ASP.NET Core Data Protection ([ADR-0003](../adr/0003-secrets-at-rest.md)) | Готові ротація ключів і автентифіковане шифрування; власний формат шифротексту довелося б писати й тестувати самим |
-| Креди registry прив'язані до середовища, агент отримує лише ті, що потрібні образам стеку | Editor середовища фактично root на хості й може прочитати все, що отримує агент; креди інших середовищ до нього не потрапляють |
-| SQLite для MVP | Підтримка ще й PostgreSQL означає два набори міграцій EF Core |
-| Системні стеки (ЦА, агент) оновлюються через одноразовий helper-контейнер | Агент, що робить `compose up` власного контейнера, вбиває себе посеред команди |
+| Aggregator layers `Domain ← Application ← Infrastructure ← Api`, no SharedKernel; `src/Contracts` holds only `.proto` files and each consumer generates its code (ADR-0002); the web panel gets its types from a committed OpenAPI document (ADR-0001, ADR-0002) | The only thing shared between applications is the protocol; changes to the HTTP contract show in the PR diff |
+| The agent on each host opens a gRPC bidi stream to the aggregator itself | No inbound ports on hosts, the Docker API isn't exposed to the network, works behind NAT |
+| gRPC rather than SignalR for agents and the bot | A strict contract in `.proto`, natural log streaming, the agent could in principle be rewritten in another language |
+| Request/response on top of the stream with `request_id` + `TaskCompletionSource` | A gRPC stream has no request→response semantics |
+| SOPS is decrypted only in the aggregator; a separate age key pair per environment | The aggregator already has root-equivalent control over every host; sending keys to hosts would widen the attack surface for no gain. A key per environment gives cryptographic isolation between servers |
+| The aggregator fetches git repositories (LibGit2Sharp, HTTPS + a read-only token) | The aggregator needs the content to decrypt it; the agent needs neither git credentials nor keys |
+| The token and allowed environments belong to the git connection, not the repository ([ADR-0006](../adr/0006-git-connections.md)) | Otherwise an Editor of one environment could deploy another environment's private repository |
+| The agent pulls images straight from the registry | Sending gigabytes through the aggregator makes no sense; the aggregator passes registry credentials to the agent in a temporary `DOCKER_CONFIG` on tmpfs |
+| The agent runs the `docker compose` CLI rather than reimplementing compose over the Docker API | Reimplementing compose is a huge amount of work |
+| Stack directories are mounted into the agent at the same path as on the host | The Docker daemon on the host resolves bind-mount paths |
+| File secrets in `/run/container-forest` (the host's tmpfs) | They never reach the disk; the price is a rehydrate after a reboot |
+| Env secrets are a deliberate trade-off | Docker stores env in the container's configuration on disk (`docker inspect`). Everyone does this, Portainer included; it's documented, not hidden |
+| Commands to an offline agent aren't queued | A `restart` executed hours later is worse than an error |
+| Authorization only in the aggregator, as a Decorator around commands | One check for the panel and the bot; it can't be bypassed through another interface |
+| The CLI gets its token through a device flow with a loopback signal ([ADR-0008](../adr/0008-cli.md)) | Works with any way of signing in to the panel and over SSH; the token never passes through the browser |
+| Endorsing stack content with SSH commit signatures verified by the aggregator ([ADR-0011](../adr/0011-signed-commits.md)) | Push access equalled root on the hosts and access to plain-text secrets, including for a compromised git server |
+| The aggregator itself commits new images to the stack's repository according to an image policy, not CI; an update record on top of endorsed content endorses the commit, not the aggregator's key ([ADR-0015](../adr/0015-image-updates.md)) | CI needs neither write access to the deployment repository nor a signing key, and every stack commit names an exact image, so rolling back the files rolls back the image too |
+| Stack isolation: the aggregator checks the compose policy against the model the agent renders ([ADR-0012](../adr/0012-stack-isolation.md)) | Without a policy a stack's Editor is root on the host; raw YAML in the aggregator would mean parser discrepancies |
+| Personal API tokens with restrictions on top of roles, checked in `AccessPolicy` ([ADR-0007](../adr/0007-api-tokens.md)) | Tokens leak more often than sessions; a filter at the HTTP level doesn't cover lists and public environments |
+| Secrets are plain text in a clone through the CLI's git filter and standard sops files in git ([ADR-0010](../adr/0010-git-secrets-filter.md)) | No personal age keys or manual steps, and the repository isn't tied to the product |
+| Settings of optional features are typed sections in the database; an environment variable takes precedence ([ADR-0013](../adr/0013-system-settings.md)) | Features are turned on from the panel without access to the host, and whoever wants to pins the value in the environment; a sensitive change needs a fresh password or passkey |
+| The aggregator backs itself up: an archive encrypted to an offline key, in an S3-compatible bucket ([ADR-0014](../adr/0014-aggregator-backup.md)) | A consistent SQLite snapshot, visible state and failure notifications; a bucket at another provider survives losing the host |
+| Compose projects started by hand are unmanaged stacks in roots the host's administrator opened to the agent; the aggregator names a stack only by name ([ADR-0016](../adr/0016-unmanaged-stacks.md)) | Pull, up, restart and down without SSH, and the aggregator can't make the agent run a compose file outside those directories |
+| One version for the whole system, releases through a release-please release PR, `latest` only for the last release (docs/development.md, "Releases") | The number shows whether the agent, the bot and the CLI are compatible with the aggregator; you decide when to release, and nodes on `latest` never get an untested `main` |
+| Three separate operations: restart / redeploy / redeploy with pull (+ down separately) | Portainer merges them into one button, the main source of complaints about it |
+| The web panel is a static SPA in Caddy, which is the single entry point to the system ([ADR-0005](../adr/0005-caddy-entry-point.md)) | Same origin → a `SameSite=Strict` cookie and WebSocket without CORS; certificates and long gRPC streams without manual configuration |
+| React + Vite + TanStack Router + TanStack Query | Typed routes and search params, loaders integrated with the Query cache |
+| UI: shadcn/ui on Tailwind CSS and Radix UI, Material Symbols icons | Tailwind is needed anyway; shadcn components live in the repository and are adapted to our screens, and Radix provides accessibility (focus, keyboard, ARIA). Mantine / MUI / Ant Design were rejected: their own look and styles, and MUI and Ant also bring CSS-in-JS and their own forms, which clash with React Hook Form |
+| The Discord bot is a separate .NET application talking to the aggregator over gRPC | The bot's service token + the user's Discord ID (on-behalf-of); the aggregator checks permissions |
+| Secrets in the aggregator's database are encrypted with ASP.NET Core Data Protection ([ADR-0003](../adr/0003-secrets-at-rest.md)) | Key rotation and authenticated encryption out of the box; our own ciphertext format would have to be written and tested by us |
+| Registry credentials belong to an environment, and the agent receives only those the stack's images need | An environment's Editor is effectively root on the host and can read everything the agent receives; other environments' credentials never reach it |
+| SQLite | Supporting PostgreSQL as well means two sets of EF Core migrations |
+| System stacks (aggregator, agent) are updated through a one-off helper container | An agent running `compose up` on its own container kills itself mid-command |

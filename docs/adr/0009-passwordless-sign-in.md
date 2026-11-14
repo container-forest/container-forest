@@ -1,55 +1,55 @@
-# ADR-0009. Вхід без пароля: passkeys і Discord
+# ADR-0009. Passwordless sign-in: passkeys and Discord
 
-- Статус: прийнято
-- Дата: 2026-10-09
+- Status: accepted
+- Date: 2026-10-09
 
-## Контекст
+## Context
 
-Панель мала лише вхід паролем. Паролі повторно використовують і фішать, а вводити довгу фразу з телефона незручно, хоча саме з телефона перезапускають сервіс, що впав. WebAuthn (passkeys) прив'язує вхід до домену панелі й до ключа на пристрої людини: фішинговий сайт ним не скористається, а на сервері лежить лише публічний ключ.
+The panel had only password sign-in. Passwords are reused and phished, and typing a long passphrase on a phone is awkward, yet a phone is exactly where people restart a crashed service. WebAuthn (passkeys) binds sign-in to the panel's domain and to a key on the person's device: a phishing site can't use it, and the server holds only a public key.
 
-Розглянуті варіанти:
+Options considered:
 
-1. **Бібліотека WebAuthn** (Fido2NetLib на сервері, `@simplewebauthn/browser` у панелі). Зріла, але це дві залежності й власні таблиці для ключів.
-2. **Passkeys ASP.NET Core Identity .NET 10** (обрано). Identity уже веде облікові записи (вхід паролем, lockout, security stamp); у .NET 10 вона вміє WebAuthn сама: опції, перевірка атестації й асерції, таблиця `AspNetUserPasskeys`. У панелі — вбудовані в браузер `PublicKeyCredential.parse*OptionsFromJSON()` і `toJSON()`, без бібліотеки.
-3. **Passkey як другий фактор після пароля.** Захищає від викраденого пароля, але не позбавляє від нього; обрано вхід без пароля, а 2FA — окремо пізніше.
+1. **A WebAuthn library** (Fido2NetLib on the server, `@simplewebauthn/browser` in the panel). Mature, but that's two dependencies and tables of our own for the keys.
+2. **ASP.NET Core Identity passkeys in .NET 10** (chosen). Identity already handles accounts (password sign-in, lockout, security stamps), and in .NET 10 it does WebAuthn itself: options, attestation and assertion verification, the `AspNetUserPasskeys` table. The panel uses the browser's built-in `PublicKeyCredential.parse*OptionsFromJSON()` and `toJSON()`, with no library.
+3. **A passkey as a second factor after the password.** Protects against a stolen password but doesn't get rid of it; passwordless sign-in was chosen, with 2FA separately later.
 
-## Рішення
+## Decision
 
-1. **Схема Identity версії 3** (`IdentityOptions.Stores.SchemaVersion`, `AccountPolicy`) додає таблицю `AspNetUserPasskeys` (міграція `Passkeys`). `IdentityUserContext` будує модель з `IdentityOptions` сервісів застосунку, тому фабрика контексту для міграцій (`DesignTimeDbContextFactory`) передає ті самі налаштування; без цього міграція виходить порожньою.
-2. **Вхід** (`PasskeySignIn`): `POST /api/auth/passkey/options` → браузер → `POST /api/auth/passkey/login`. Опції — для будь-якого користувача (discoverable credentials): браузер сам пропонує ключі цього сайту, ім'я вводити не треба. Сесія — та сама `cf_session`, що й після пароля. Невідомий ключ, невдала перевірка, lockout і деактивований користувач — однаковий 401. Лічильник підписів оновлюється після кожного входу, тож клонований автентифікатор можна помітити.
-3. **Стан між опціями й відповіддю** Identity тримає в cookie схеми `TwoFactorUserId`; у нас це `cf_passkey`: HttpOnly, SameSite=Strict, Secure поза Development, 5 хвилин. Обидва запити мають іти з одного браузера.
-4. **Керування** (`PasskeyManagement`, `/api/me/passkeys`) — лише сесія, не API-токен (як пароль і токени, ADR-0007): токен не повинен додавати спосіб входу. До 20 ключів на користувача, назва до 64 символів. Ключ додається, лише якщо опції було створено для цього ж користувача. Адміністратор бачить і видаляє ключі будь-кого (`/api/users/{id}/passkeys`): загублений пристрій.
-5. **Домен (RP ID)** — хост запиту; за Caddy це домен панелі (ADR-0005). Origin перевіряється за замовчуванням Identity: заголовок `Origin` запиту має збігатися з origin у відповіді браузера.
-6. **Панель:** кнопка «Увійти з passkey» і ключі в автозаповненні поля імені (`autocomplete="username webauthn"`, conditional mediation), розділ «Passkeys» в «Обліковому записі», картка ключів користувача для адміністратора. Браузер без `parse*OptionsFromJSON` (до Chrome 129, Firefox 119, Safari 18.4) кнопки не бачить. `GET /api/auth/methods` каже екрану входу, які способи ввімкнені.
+1. **Identity schema version 3** (`IdentityOptions.Stores.SchemaVersion`, `AccountPolicy`) adds the `AspNetUserPasskeys` table (migration `Passkeys`). `IdentityUserContext` builds its model from the application services' `IdentityOptions`, so the context factory for migrations (`DesignTimeDbContextFactory`) passes the same settings; without that the migration comes out empty.
+2. **Sign-in** (`PasskeySignIn`): `POST /api/auth/passkey/options` → the browser → `POST /api/auth/passkey/login`. The options are for any user (discoverable credentials): the browser offers this site's keys itself, with no name to type. The session is the same `cf_session` as after a password. An unknown key, a failed check, lockout and a deactivated user all get the same 401. The signature counter is updated after every sign-in, so a cloned authenticator can be noticed.
+3. **The state between the options and the response** is kept by Identity in the `TwoFactorUserId` scheme's cookie; for us that's `cf_passkey`: HttpOnly, SameSite=Strict, Secure outside Development, 5 minutes. Both requests must come from the same browser.
+4. **Management** (`PasskeyManagement`, `/api/me/passkeys`) is sessions only, not API tokens (like the password and tokens, ADR-0007): a token mustn't add a way to sign in. Up to 20 keys per user, a name of up to 64 characters. A key is added only if the options were created for the same user. An administrator sees and removes anyone's keys (`/api/users/{id}/passkeys`): a lost device.
+5. **The domain (RP ID)** is the request's host; behind Caddy, the panel's domain (ADR-0005). The origin is checked as Identity does by default: the request's `Origin` header must match the origin in the browser's response.
+6. **Panel:** a *Sign in with a passkey* button and keys in the user name field's autofill (`autocomplete="username webauthn"`, conditional mediation), a *Passkeys* section under *Account*, and a user's keys card for administrators. A browser without `parse*OptionsFromJSON` (before Chrome 129, Firefox 119, Safari 18.4) doesn't see the button. `GET /api/auth/methods` tells the sign-in screen which methods are enabled.
 
-## Наслідки
+## Consequences
 
-- Вхід без пароля працює з будь-яким автентифікатором WebAuthn: платформним (Windows Hello, Touch ID, Android), менеджером паролів, апаратним ключем.
-- ~~Додати passkey може будь-хто з активною сесією~~: з ADR-0013 додавання потребує свіжого пароля чи passkey, крім першого ключа акаунта лише з Discord. Інший захист: короткий строк сесії без «Запам'ятати мене», завершення сесій при зміні пароля і видалення ключа адміністратором.
-- Атестація не перевіряється (`none`): нам не потрібно знати модель автентифікатора.
-- Вхід через Discord — розділ нижче.
+- Passwordless sign-in works with any WebAuthn authenticator: platform ones (Windows Hello, Touch ID, Android), password managers, hardware keys.
+- ~~Anyone with an active session can add a passkey~~: since ADR-0013, adding one needs a fresh password or passkey, except for the first key of a Discord-only account. Other protection: a short session lifetime without *Remember me*, ending sessions when the password changes, and an administrator removing keys.
+- Attestation isn't verified (`none`): we don't need to know the authenticator's model.
+- Discord sign-in: the section below.
 
-## Доповнення: вхід і прив'язка через Discord OAuth2
+## Addendum: sign-in and linking through Discord OAuth2
 
-### Контекст
+### Context
 
-Прив'язка Discord-акаунта (для бота) була лише одноразовим кодом із панелі, який людина вводить у Discord командою `/link`. Більшість команди й так має Discord-акаунт; входити ним у панель і прив'язувати його одним кліком — природно для інструмента, де Discord є повноцінним інтерфейсом.
+Linking a Discord account (for the bot) was only a one-time code from the panel that the person enters in Discord with `/link`. Most users already have a Discord account; signing in to the panel with it and linking it with one click is natural for a tool where Discord is a full interface.
 
-Розглянуті варіанти:
+Options considered:
 
-1. **Зовнішній вхід ASP.NET Identity** (`AspNetUserLogins`). Стандартний шлях, але тоді Discord-акаунт зберігався б двічі: для входу в Identity і для бота в `DiscordLink`, і вони могли б розійтися.
-2. **`DiscordLink` як єдина ідентичність** (обрано): той самий запис, що й для бота. Прив'язка кодом і через OAuth2 пишуть одне й те саме; вхід через Discord шукає користувача за `DiscordLink`.
-3. **Власна реалізація OAuth2.** Відкинуто: протокол із PKCE, state і correlation cookie краще брати готовим.
+1. **An ASP.NET Identity external login** (`AspNetUserLogins`). The standard path, but then the Discord account would be stored twice, for Identity sign-in and for the bot in `DiscordLink`, and the two could drift apart.
+2. **`DiscordLink` as the single identity** (chosen): the same record as for the bot. Linking by code and through OAuth2 write the same thing; Discord sign-in looks the user up by `DiscordLink`.
+3. **Our own OAuth2 implementation.** Rejected: a protocol with PKCE, state and correlation cookies is better taken ready-made.
 
-### Рішення
+### Decision
 
-1. **Пакет `AspNet.Security.OAuth.Discord`** (aspnet-contrib) — обробник OAuth2 для Discord поверх вбудованого `OAuthHandler` ASP.NET Core: PKCE, `state` під захистом Data Protection, correlation cookie. Scope — лише `identify`. Застосунок Discord той самий, що й у бота; `CF_DISCORDAUTH__CLIENTID` і `CF_DISCORDAUTH__CLIENTSECRET` (секрет — як токен бота, лише в `.env` ЦА). Без них вхід через Discord вимкнений, і `GET /api/auth/methods` каже про це панелі.
-2. **Вхід:** `GET /api/auth/discord/login?redirect=/шлях` → Discord → `/api/auth/discord/callback` (обробник, зовнішня cookie `cf_external`) → `/api/auth/discord/complete`: користувач, до якого прив'язаний цей Discord-акаунт, отримує `cf_session`. **Реєстрації через Discord немає:** неприв'язаний акаунт, деактивований користувач і lockout дають однакове `/login?error=discord`. Ім'я в прив'язці оновлюється при кожному вході.
-3. **Прив'язка:** `GET /api/me/discord/oauth` (з панелі, лише сесія; без неї — на `/login`) → Discord → `/api/auth/discord/complete` → `/discord?linked=discord`. Id користувача, що почав прив'язку, їде в `state` під захистом Data Protection: на зворотному шляху сесійної cookie немає (нижче). Discord-акаунт, прив'язаний до іншого користувача, переноситься, як і з кодом. Код лишається альтернативою.
-4. **SameSite=Strict і чужий сайт.** Discord повертає браузер з іншого сайту, тож cookie, виставлена в цьому ланцюжку редиректів (`cf_session`), на наступному кроці не надсилається. Тому `/api/auth/discord/complete` відповідає не редиректом, а сторінкою з `<meta http-equiv="refresh">`: наступна навігація починається з нашого сайту. Correlation cookie й `cf_external` — `SameSite=Lax`, бо мають пережити повернення з Discord; живуть хвилини.
-5. **CSRF входу.** Correlation cookie прив'язує потік до браузера, що його почав: callback, підсунутий у чужий браузер (щоб прив'язати Discord жертви до акаунта зловмисника), відхиляється. Адреса повернення — лише шлях цього сайту (`/x`, не `//host`).
+1. **The `AspNet.Security.OAuth.Discord` package** (aspnet-contrib): a Discord OAuth2 handler on top of ASP.NET Core's built-in `OAuthHandler`: PKCE, a `state` protected by Data Protection, a correlation cookie. The scope is only `identify`. The Discord application is the same as the bot's; `CF_DISCORDAUTH__CLIENTID` and `CF_DISCORDAUTH__CLIENTSECRET` (the secret is like the bot's token, only in the aggregator's `.env`). Without them Discord sign-in is off, and `GET /api/auth/methods` tells the panel so.
+2. **Sign-in:** `GET /api/auth/discord/login?redirect=/path` → Discord → `/api/auth/discord/callback` (the handler, external cookie `cf_external`) → `/api/auth/discord/complete`: the user this Discord account is linked to gets a `cf_session`. **There's no sign-up through Discord:** an unlinked account, a deactivated user and lockout all lead to the same `/login?error=discord`. The name in the link is updated on every sign-in.
+3. **Linking:** `GET /api/me/discord/oauth` (from the panel, sessions only; without one, to `/login`) → Discord → `/api/auth/discord/complete` → `/discord?linked=discord`. The id of the user who started linking travels in the `state`, protected by Data Protection: on the way back there's no session cookie (below). A Discord account linked to another user is moved, as with a code. The code remains an alternative.
+4. **SameSite=Strict and a foreign site.** Discord sends the browser back from another site, so a cookie set in that redirect chain (`cf_session`) isn't sent on the next step. That's why `/api/auth/discord/complete` answers not with a redirect but with a page with `<meta http-equiv="refresh">`: the next navigation starts on our site. The correlation cookie and `cf_external` are `SameSite=Lax`, since they must survive the return from Discord; they live for minutes.
+5. **Sign-in CSRF.** The correlation cookie binds the flow to the browser that started it: a callback slipped into someone else's browser (to link the victim's Discord to the attacker's account) is rejected. The return URL is only a path on this site (`/x`, not `//host`).
 
-### Наслідки
+### Consequences
 
-- Злам Discord-акаунта тепер дає вхід у панель, а не лише дії через бота; права ті самі. 2FA в Discord радимо вмикати.
-- Нова залежність; у застосунку Discord треба зареєструвати redirect `https://<домен>/api/auth/discord/callback`.
+- A compromised Discord account now gives sign-in to the panel, not only actions through the bot; the rights are the same. Turning on 2FA in Discord is recommended.
+- A new dependency; the Discord application must register the redirect `https://<domain>/api/auth/discord/callback`.

@@ -1,4 +1,4 @@
-/** A date and time in the panel's language, e.g. "2 жовтня 2026 р. о 14:05". */
+/** A date and time in the panel's language, e.g. "October 2, 2026 at 2:05 PM". */
 export function formatDateTime(value: string, language: string | undefined): string {
   return new Intl.DateTimeFormat(language, { dateStyle: "long", timeStyle: "short" }).format(new Date(value));
 }

@@ -1,81 +1,81 @@
-# Сповіщення
+# Notifications
 
-Коли саме надсилається подія, описують коментарі `ContainerIncidentWatch` і `AgentConnectivityWatch`; типові значення — `NotificationOptions`. Шляхи ЦА відносно `src/Aggregator`.
+When exactly an event is sent is described in the comments of `ContainerIncidentWatch` and `AgentConnectivityWatch`; the defaults are in `NotificationOptions`. Aggregator paths are relative to `src/Aggregator`.
 
-## Канал доставки
+## Delivery channel
 
-Сповіщення доставляються в Discord через живого бота, а не webhook'ом каналу: бот тримає server-stream `WatchNotifications` і звітує `ReportDelivery` про кожне (`bot.proto`).
+Notifications reach Discord through the live bot, not a channel webhook: the bot holds the `WatchNotifications` server stream and reports each one with `ReportDelivery` (`bot.proto`).
 
-- **Чому так:** URL webhook'ів (фактично секрети) ніде не зберігаються, а бот додає кнопки до повідомлення, і натискання йде звичайним `ControlContainer` чи `GetContainerLogs` з правами того, хто натиснув.
-- **Ціна:** без підключеного бота сповіщення не доставляються. Вони лишаються `Pending` і надсилаються після підключення, а старші за годину стають `Expired`.
+- **Why:** webhook URLs (effectively secrets) aren't stored anywhere, and the bot adds buttons to the message, whose clicks go through the ordinary `ControlContainer` or `GetContainerLogs` with the permissions of whoever clicked.
+- **The price:** without a connected bot, notifications aren't delivered. They stay `Pending` and go out once it connects; those older than an hour become `Expired`.
 
-## Домен
+## Domain
 
 `Domain/Notifications`:
 
-- `NotificationChannel` — Discord-канал.
-- `NotificationRule` — які події, з якої області: уся система, середовище або стек (`Matches`).
-- `NotificationEvent` — одна подія з рівно одним видом.
-- `Notification` — запис історії: Pending → Delivered | Failed | Expired. Історія не має зовнішніх ключів на правила й канали, щоб переживати їх видалення.
+- `NotificationChannel`: a Discord channel.
+- `NotificationRule`: which events, from what scope: the whole system, an environment or a stack (`Matches`).
+- `NotificationEvent`: one event of exactly one kind.
+- `Notification`: a history record: Pending → Delivered | Failed | Expired. The history has no foreign keys to rules and channels so it survives their deletion.
 
-**Події всієї системи** (`BackupFailed`, `SettingsChanged`, `AccountSecurityChanged`) не мають середовища: `NotificationEvent.EnvironmentId` порожній, тому їх отримують лише правила на всю систему. Боту йде `environment_name` зі значенням `System`, а не порожнє: старіший бот показав би поле середовища й не зміг би зібрати embed. Такі події створює `SystemNotifier`, збій якого лише логується.
+**System-wide events** (`BackupFailed`, `SettingsChanged`, `AccountSecurityChanged`) have no environment: `NotificationEvent.EnvironmentId` is empty, so only system-wide rules receive them. The bot gets `environment_name` set to `System` rather than empty: an older bot would show the environment field and fail to build the embed. `SystemNotifier` creates these events, and its failures are only logged.
 
-**`ImageUpdateFailed`** і **`ImagePinned`** (ADR-0015) — події стеку від `ImageUpdateService` і `ImagePolicyService`: перша — коли політика образу перестала працювати (раз до наступної успішної перевірки, недоступний registry — з третьої спроби поспіль), друга — закріплення людиною чи хуком і відкріплення. У `bot.proto` — `NOTIFICATION_KIND_IMAGE_UPDATE_FAILED` і `NOTIFICATION_KIND_IMAGE_PINNED`; старіший бот покаже їх як «Notification».
+**`ImageUpdateFailed`** and **`ImagePinned`** (ADR-0015) are stack events from `ImageUpdateService` and `ImagePolicyService`: the first when an image policy stops working (once until the next successful check; an unreachable registry from the third attempt in a row), the second when a person or the hook pins an image, and when it's unpinned. In `bot.proto` they're `NOTIFICATION_KIND_IMAGE_UPDATE_FAILED` and `NOTIFICATION_KIND_IMAGE_PINNED`; an older bot shows them as "Notification".
 
-**`AccountSecurityChanged`** надсилає `UserManagementService`, коли адміністратор видає права адміністратора, створює адміністратора або скидає пароль: кожна з цих дій дає спосіб увійти. У тексті — хто й кому, без пароля. Зміна власного пароля й решта дій над користувачами подію не створюють. Наявні правила її не отримують, поки її не додати в правило.
+**`AccountSecurityChanged`** is sent by `UserManagementService` when an administrator grants administrator rights, creates an administrator or resets a password: each of these gives a way to sign in. The text says who did it to whom, without the password. Changing your own password and other user actions don't create the event. Existing rules don't receive it until it's added to a rule.
 
-## ЦА
+## Aggregator
 
-- **Диспетчер:** джерело подій викликає `NotificationDispatcher.DispatchAsync(event, summary)`. Той створює одне `Notification` на канал (від найконкретнішого правила, що збіглося), зберігає й будить потік бота через `NotificationFeed`.
-- **Деплої:** через `IDeploymentObserver` (`DeploymentNotifier`), який `DeployPipeline` викликає після збереження результату. Спостерігач сам логує свої помилки й не кидає.
-- **Деталі:** `Notification.Details` — знімок деталей події (`DeploymentNotificationDetails`), зберігається JSON-колонкою (`NotificationDetailsConverter`), щоб сповіщення, доставлене після перепідключення бота, було тим самим.
-- **Канал і назва середовища** беруться на момент надсилання: переміщений канал отримує й старі сповіщення, а сповіщення видаленого чи вимкненого каналу стають `Failed`.
+- **Dispatcher:** an event source calls `NotificationDispatcher.DispatchAsync(event, summary)`. It creates one `Notification` per channel (from the most specific matching rule), saves it and wakes the bot's stream through `NotificationFeed`.
+- **Deployments:** through `IDeploymentObserver` (`DeploymentNotifier`), which `DeployPipeline` calls after saving the result. The observer logs its own errors and never throws.
+- **Details:** `Notification.Details` is a snapshot of the event's details (`DeploymentNotificationDetails`), stored as a JSON column (`NotificationDetailsConverter`), so a notification delivered after the bot reconnects is the same one.
+- **The channel and the environment's name** are taken at sending time: a moved channel also gets old notifications, and those for a deleted or disabled channel become `Failed`.
 
-## Бот
+## Bot
 
-- **Потік:** `NotificationWatcher` (hosted service) чекає `Ready` Discord, тримає потік через `INotificationSource` (`GrpcNotificationSource`) і перепідключається з backoff. Канал шле HTTP/2 keepalive-пінги, бо потік може мовчати годинами.
-- **Публікація:** кожне сповіщення публікує `INotificationPoster` (`DiscordNotificationPoster`, embed з `AllowedMentions.None`) і звітує результат.
-- **Відмови:** відмова Discord (немає каналу, бракує прав) — `delivered = false` з підказкою для панелі. Невдалий звіт лише логується: ЦА надішле сповіщення знову в наступному потоці.
+- **Stream:** `NotificationWatcher` (a hosted service) waits for Discord's `Ready`, holds the stream through `INotificationSource` (`GrpcNotificationSource`) and reconnects with backoff. The channel sends HTTP/2 keepalive pings because the stream may be silent for hours.
+- **Posting:** `INotificationPoster` (`DiscordNotificationPoster`, an embed with `AllowedMentions.None`) posts each notification and reports the result.
+- **Refusals:** a Discord refusal (no channel, missing permissions) is `delivered = false` with a hint for the panel. A failed report is only logged: the aggregator sends the notification again on the next stream.
 
-## Налаштування в панелі
+## Settings in the panel
 
 `NotificationSettingsService`, `Api/Contracts/NotificationContracts.cs`.
 
-- **Доступ:** канали, правила й історія — лише для адміністраторів, бо Discord-канал можуть читати люди без жодної ролі.
-- **Discord id** у JSON — рядки: 64-бітні числа JavaScript округлює.
-- **Події правила** — список окремих видів, у домені — прапорці `NotificationEventKinds`. Порожній список — 400.
-- **Область правила:** правило на стек може не вказувати середовище, а вказане чуже — 400. Область не змінюється (видалити й додати нове), змінюються лише події й увімкнення.
-- **Видалення каналу** забирає його правила (каскад), історія лишається з `channelName = null`.
+- **Access:** channels, rules and history are for administrators only, since people without any role may be able to read a Discord channel.
+- **Discord ids** are strings in JSON: JavaScript rounds 64-bit numbers.
+- **A rule's events** are a list of individual kinds; in the domain they're `NotificationEventKinds` flags. An empty list is a 400.
+- **A rule's scope:** a stack rule may omit the environment, and a wrong one is a 400. The scope can't change (delete and add a new rule); only the events and the enabled flag can.
+- **Deleting a channel** removes its rules (cascade); the history stays with `channelName = null`.
 
-## Агент офлайн
+## Agent offline
 
-`AgentConnectivityWatch` (singleton), `AgentConnectivityNotifier` (scoped). `AgentGatewayService` повідомляє сторожа після `registry.Open` і після `registry.Remove` поточної сесії.
+`AgentConnectivityWatch` (singleton), `AgentConnectivityNotifier` (scoped). `AgentGatewayService` informs the watch after `registry.Open` and after `registry.Remove` of the current session.
 
-- Повторний розрив під час очікування простою не зсуває.
-- Видалене середовище не сповіщається.
-- Подія без стеку: правила на стек її не отримують.
+- Another disconnect while waiting doesn't move the downtime.
+- A deleted environment isn't notified.
+- The event has no stack: stack rules don't receive it.
 
-## Падіння й unhealthy контейнера
+## Crashed and unhealthy containers
 
-`ContainerIncidentWatch` (singleton), `ContainerIncidentNotifier` (scoped). `AgentGatewayService` передає кожен `ContainerEvent` як `ContainerObservation`.
+`ContainerIncidentWatch` (singleton), `ContainerIncidentNotifier` (scoped). `AgentGatewayService` passes each `ContainerEvent` as a `ContainerObservation`.
 
-- **Послідовності подій** з коментаря класу перевірено на Docker 29. `docker kill` без stop теж вважається падінням.
-- **Код виходу:**
-  - Береться з `ContainerEvent.exit_code`, а від агента старшої версії — зі статусу Docker після події (`Exited (N)` або `Restarting (N)` для контейнера з політикою перезапуску). Контейнер, який Docker уже встиг запустити знову, тоді сповіщається без коду.
-  - Код 0 не сповіщається, зокрема й перезапущена політикою `always` задача.
-  - Код понад 128 — смерть від сигналу 128 + N, у тексті з назвою (`SignalName`).
-- **OOM:** текст «was killed: out of memory» замість коду 137, `ContainerNotificationDetails.OutOfMemory`. У `bot.proto` поля для OOM немає: бот бачить це лише в тексті.
-- **Unhealthy:** приглушене інтервалом повтору unhealthy свого «знову здоровий» не має. У `bot.proto` — `NOTIFICATION_KIND_CONTAINER_HEALTHY`; старіший бот покаже його як «Notification» без кнопок.
-- **Контейнер** рахується за ім'ям, бо перестворення змінює id.
-- **Стек події** — керований стек середовища з назвою compose-проєкту. Інший проєкт і контейнер поза compose — подія середовища, правила на стек її не отримують.
-- **Деталі:** `ContainerNotificationDetails` (JSON-колонка, `ContainerDetails` у `bot.proto`).
+- **The event sequences** in the class's comment were checked on Docker 29. `docker kill` without stop also counts as a crash.
+- **Exit code:**
+  - Taken from `ContainerEvent.exit_code`, or, from an older agent, from Docker's status after the event (`Exited (N)` or `Restarting (N)` for a container with a restart policy). A container Docker has already started again is then notified without a code.
+  - Code 0 isn't notified, including a job restarted by an `always` policy.
+  - A code above 128 is death by signal 128 + N, named in the text (`SignalName`).
+- **OOM:** the text "was killed: out of memory" instead of code 137, `ContainerNotificationDetails.OutOfMemory`. `bot.proto` has no field for OOM: the bot only sees it in the text.
+- **Unhealthy:** an unhealthy suppressed by the repeat interval has no "healthy again" of its own. In `bot.proto` it's `NOTIFICATION_KIND_CONTAINER_HEALTHY`; an older bot shows it as "Notification" without buttons.
+- **A container** is counted by name, since recreating it changes its id.
+- **The event's stack** is the environment's managed stack named like the compose project. Another project, or a container outside compose, is an environment event that stack rules don't receive.
+- **Details:** `ContainerNotificationDetails` (a JSON column, `ContainerDetails` in `bot.proto`).
 
-## Кнопки під сповіщенням
+## Buttons under a notification
 
-`ContainerButton`, `NotificationModule`. `DiscordNotificationPoster` додає їх до `ContainerDied` і `ContainerUnhealthy`.
+`ContainerButton`, `NotificationModule`. `DiscordNotificationPoster` adds them to `ContainerDied` and `ContainerUnhealthy`.
 
-- **Яким контейнерам:** «Logs» — завжди. «Restart» — крім контейнерів, які можна лише запускати (`ContainerDetails.system` у `bot.proto`: мітка `com.container-forest.system` з `ContainerInfo.system` агента або системний стек, `ContainerNotificationDetails.IsSystem`).
-- **`custom_id`:** `ntf:<rs|lg>:<середовище base64url>:<ім'я контейнера>`, задовге ім'я — сповіщення без кнопок. Бот без стану, тож кнопки працюють і під старими повідомленнями. Ідентифікатори — `CompactGuid` (спільний із `/dashboard`).
-- **«Logs»** (`ContainerLogsCommand`, `GetContainerLogs` у `bot.proto` → `ContainerLogService`, право `ViewLogs`) показує кінець логу, що вміщається в одне повідомлення (`ReplyFormatter.WithOutput`), без кольорів ANSI й керівних символів. Логи можуть містити секрети, тому відповідь, як і всі відповіді бота, бачить лише той, хто натиснув.
-- **«Restart»** виконує `RestartContainerCommand` від імені того, хто натиснув: права перевіряє ЦА, неприв'язаний акаунт отримує підказку `/link`. Відповідь бачить лише він: компонент відкладається `DeferLoadingAsync(ephemeral)`, бо звичайний `DeferAsync` компонента зробив би відповідь редагуванням самого сповіщення в каналі.
-- **Поле «Last action»:** успішний restart бот відзначає в самому сповіщенні (`NotificationEmbed.WithRestart`: хто й коли), щоб інші в каналі не перезапускали контейнер удруге. `<@id>` в embed нікого не пінгує, наступний restart замінює рядок, невдале редагування (повідомлення видалено) йде лише в лог.
+- **For which containers:** *Logs* always. *Restart* except for containers that can only be started (`ContainerDetails.system` in `bot.proto`: the `com.container-forest.system` label from the agent's `ContainerInfo.system`, or a system stack, `ContainerNotificationDetails.IsSystem`).
+- **`custom_id`:** `ntf:<rs|lg>:<environment in base64url>:<container name>`; a name that's too long means a notification without buttons. The bot is stateless, so buttons work under old messages too. Ids are `CompactGuid` (shared with `/dashboard`).
+- ***Logs*** (`ContainerLogsCommand`, `GetContainerLogs` in `bot.proto` → `ContainerLogService`, permission `ViewLogs`) shows the end of the log that fits in one message (`ReplyFormatter.WithOutput`), without ANSI colours and control characters. Logs can contain secrets, so the reply, like every bot reply, is visible only to whoever clicked.
+- ***Restart*** runs `RestartContainerCommand` on behalf of whoever clicked: the aggregator checks permissions, and an unlinked account gets a `/link` hint. Only they see the reply: the component is deferred with `DeferLoadingAsync(ephemeral)`, since a plain `DeferAsync` on a component would make the reply an edit of the notification itself in the channel.
+- **The *Last action* field:** the bot marks a successful restart in the notification itself (`NotificationEmbed.WithRestart`: who and when), so others in the channel don't restart the container again. `<@id>` in an embed pings nobody, the next restart replaces the line, and a failed edit (the message was deleted) only goes to the log.

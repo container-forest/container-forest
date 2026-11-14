@@ -1,32 +1,32 @@
-# ADR-0002. Контракти: лише `.proto`-файли, пакети без префікса й версії
+# ADR-0002. Contracts: only `.proto` files, packages without a prefix or version
 
-- Статус: прийнято
-- Дата: 2026-09-29
-- Замінює п. 4 [ADR-0001](0001-solution-structure.md)
+- Status: accepted
+- Date: 2026-09-29
+- Supersedes point 4 of [ADR-0001](0001-solution-structure.md)
 
-## Контекст
+## Context
 
-За ADR-0001 контракти лежали в C#-проєкті `ContainerForest.Contracts` за шляхом `Protos/container_forest/<модуль>/v<N>/`, і з них генерувалися одночасно клієнт і сервер. Під час розширення `agent.proto` для альфи з'ясувалося:
+Under ADR-0001 the contracts lived in the C# project `ContainerForest.Contracts` at `Protos/container_forest/<module>/v<N>/`, generating both client and server from them. Extending `agent.proto` showed that:
 
-- C#-проєкт нічого не додає, крім місця для генерації коду, і прив'язує мовонезалежний контракт до .NET;
-- кожен споживач отримує код, який йому не потрібен: агент — серверний базовий клас, ЦА — клієнта;
-- редактори перевіряють proto-файли правилами Buf (так робить, наприклад, Zed), зокрема `PACKAGE_DIRECTORY_MATCH`: каталог файлу має повторювати назву пакета;
-- префікс `container_forest.` потрібен лише для того, щоб назви не збігалися з чужими proto-файлами в тому самому процесі. У наших процесах, крім власних контрактів, є лише `google.protobuf.*`;
-- версія в пакеті (`.v1`) дає змогу ЦА обслуговувати дві несумісні версії протоколу одночасно. Команда не планує несумісних змін: протокол розширюється лише сумісно.
+- the C# project adds nothing but a place to generate code, and ties a language-independent contract to .NET;
+- every consumer gets code it doesn't need: the agent a server base class, the aggregator a client;
+- editors check proto files with Buf's rules (Zed does, for example), including `PACKAGE_DIRECTORY_MATCH`: a file's directory must follow the package name;
+- the `container_forest.` prefix is only needed so names don't clash with other proto files in the same process. Our processes have nothing besides our own contracts and `google.protobuf.*`;
+- a version in the package (`.v1`) lets the aggregator serve two incompatible versions of the protocol at once. We don't plan incompatible changes: the protocol only grows compatibly.
 
-## Рішення
+## Decision
 
-1. `src/Contracts/` містить лише `.proto`-файли, без проєкту. Каталог повторює назву пакета: `agent/agent.proto`, пізніше `bot/bot.proto`. `src/Contracts` — корінь для імпортів (`ProtoRoot`).
-2. Код генерує кожен споживач сам через `Grpc.Tools`, тільки потрібну йому частину:
-   - `Aggregator.Infrastructure`: повідомлення, серверний базовий клас і клієнт (`GrpcServices="Both"`), а `Api` отримує їх через посилання на `Infrastructure`. Клієнт потрібен інтеграційним тестам, які підключаються до ЦА як агент: згенерувати його окремо в тестовому проєкті не можна, бо ті самі типи з двох збірок конфліктують (доповнено 2026-09-29);
-   - `Agent`: повідомлення й клієнт (`GrpcServices="Client"`);
-   - `DiscordBot`: повідомлення й клієнт `bot.proto` (`GrpcServices="Client"`). Тести бота генерують сервер самі, а бота підключають з `Aliases="bot"` (`extern alias`): так дві копії згенерованих типів не конфліктують, і серверний код не потрапляє в бота (доповнено 2026-09-30).
-3. Пакет — це назва модуля без префікса й версії: `agent`, `bot`. C#-namespace задається через `csharp_namespace`: `ContainerForest.Contracts.<Модуль>`. Шлях gRPC-методу виглядає як `/agent.AgentGateway/Connect`.
-4. Контракти змінюються лише сумісно: нові поля й нові варіанти `oneof`, без перенумерації й видалення. Видалене поле позначається `reserved`. Поки в `main` немає коду, що використовує контракт, він вважається чернеткою і його можна змінювати несумісно.
+1. `src/Contracts/` holds only `.proto` files, with no project. The directory follows the package name: `agent/agent.proto`, later `bot/bot.proto`. `src/Contracts` is the import root (`ProtoRoot`).
+2. Each consumer generates its own code through `Grpc.Tools`, only the part it needs:
+   - `Aggregator.Infrastructure`: messages, the server base class and the client (`GrpcServices="Both"`), with `Api` getting them through its reference to `Infrastructure`. The client is for the integration tests that connect to the aggregator as an agent: generating it separately in the test project doesn't work, since the same types from two assemblies clash (added 2026-09-29);
+   - `Agent`: messages and the client (`GrpcServices="Client"`);
+   - `DiscordBot`: messages and the `bot.proto` client (`GrpcServices="Client"`). The bot's tests generate the server themselves and reference the bot with `Aliases="bot"` (`extern alias`): that way the two copies of the generated types don't clash, and the server code doesn't end up in the bot (added 2026-09-30).
+3. A package is the module's name without a prefix or version: `agent`, `bot`. The C# namespace is set with `csharp_namespace`: `ContainerForest.Contracts.<Module>`. A gRPC method's path looks like `/agent.AgentGateway/Connect`.
+4. Contracts change only compatibly: new fields and new `oneof` cases, no renumbering or removal. A removed field is marked `reserved`. Until `main` has code using a contract, it's a draft and may change incompatibly.
 
-## Наслідки
+## Consequences
 
-- Версії `Google.Protobuf`, `Grpc.Core.Api` і `Grpc.Tools` у кількох проєктах вирівнює `Directory.Packages.props`.
-- Згенеровані типи існують в окремих збірках ЦА й агента. Це нормально: вони живуть у різних процесах і між собою не передаються.
-- Якщо несумісна зміна все ж знадобиться, доведеться одночасно оновити ЦА й усі агенти або тоді ввести новий пакет. Додати версію в назву пакета пізніше коштує стільки ж, скільки зараз.
-- Лінтер Buf (його запускають редактори, наприклад Zed) налаштовано в `buf.yaml` у корені: набір `STANDARD` без `PACKAGE_VERSION_SUFFIX`. Інші свідомі відхилення позначаються коментарем `// buf:lint:ignore <ПРАВИЛО>` з поясненням прямо в `.proto`.
+- `Directory.Packages.props` aligns the versions of `Google.Protobuf`, `Grpc.Core.Api` and `Grpc.Tools` across projects.
+- The generated types exist in separate assemblies of the aggregator and the agent. That's fine: they live in different processes and are never passed between them.
+- If an incompatible change is ever needed, the aggregator and every agent will have to be upgraded at once, or a new package introduced then. Adding a version to the package name later costs as much as it would now.
+- The Buf linter (editors such as Zed run it) is configured in `buf.yaml` at the root: the `STANDARD` set without `PACKAGE_VERSION_SUFFIX`. Other deliberate deviations are marked with a `// buf:lint:ignore <RULE>` comment with an explanation right in the `.proto`.

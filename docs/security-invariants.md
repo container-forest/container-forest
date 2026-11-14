@@ -1,11 +1,11 @@
-Це правила, які не можна порушувати в жодному PR:
+Rules no PR may break:
 
-1. Приватні age-ключі у придатному для читання вигляді існують **лише на ЦА**. Агенти їх ніколи не отримують. Бекап ЦА виносить їх лише зашифрованими на офлайн-ключ, якого на ЦА немає (ADR-0014).
-2. Агент **не відкриває вхідних портів**. Усі з'єднання ініціює агент.
-3. `environmentId` агента визначається з його автентифікації, **ніколи з вмісту повідомлення**.
-4. Права перевіряються **лише на ЦА**. Панель і бот тільки ховають недоступні кнопки.
-5. Агент виконує лише **фіксований набір типізованих команд**. Жодного «виконай довільну shell-команду».
-6. Розшифровані секрети **не логуються**. Логи й аудит маскують значення.
-7. Команди до офлайн-агента **не ставляться в чергу**: вони одразу завершуються помилкою.
-8. Облікові дані агентів, паролі й API-токени користувачів зберігаються лише як хеші.
-9. Токен Discord-бота захищається як адмінський: злам бота дозволяє діяти від імені будь-якого прив'язаного користувача.
+1. Private age keys exist in readable form **only on the aggregator**. Agents never receive them. The aggregator's backup takes them out only encrypted to an offline key the aggregator doesn't have (ADR-0014).
+2. The agent **opens no inbound ports**. The agent initiates every connection.
+3. An agent's `environmentId` comes from its authentication, **never from the content of a message**.
+4. Permissions are checked **only on the aggregator**. The panel and the bot only hide buttons you can't use.
+5. The agent runs only a **fixed set of typed commands**. Never "run an arbitrary shell command".
+6. Decrypted secrets are **never logged**. Logs and the audit log mask values.
+7. Commands to an offline agent are **not queued**: they fail at once.
+8. Agent credentials, user passwords and API tokens are stored only as hashes.
+9. The Discord bot's token is protected like an administrator's: compromising the bot lets you act as any linked user.

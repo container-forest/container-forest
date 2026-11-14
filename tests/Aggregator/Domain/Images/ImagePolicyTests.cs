@@ -11,7 +11,7 @@ public class ImagePolicyTests
     [InlineData("library/nginx", "docker.io/library/nginx")]
     [InlineData("docker.io/nginx", "docker.io/library/nginx")]
     [InlineData("index.docker.io/team/app", "docker.io/team/app")]
-    [InlineData(" gitea.rup.rocks/lepterion/ananasik/ananasik ", "gitea.rup.rocks/lepterion/ananasik/ananasik")]
+    [InlineData(" registry.example.com/team/app/app ", "registry.example.com/team/app/app")]
     [InlineData("localhost:5000/app", "localhost:5000/app")]
     public void Image_names_are_normalized_as_docker_resolves_them(string value, string expected) =>
         Assert.Equal(expected, ImageName.Parse(value).Value);

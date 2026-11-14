@@ -1,29 +1,29 @@
-# Discord-бот: шлюз і меню
+# Discord bot: gateway and menu
 
-Конвенції коду бота — [src/DiscordBot/CLAUDE.md](../../src/DiscordBot/CLAUDE.md), розгортання — [architecture.md](../architecture.md#розгортання-discord-бота), генерація токена — [docs/development.md](../development.md#discord-bot).
+The bot's code conventions: [src/DiscordBot/CLAUDE.md](../../src/DiscordBot/CLAUDE.md); deployment: [installation.md](../installation.md#4-discord-bot-optional); generating the token: [development.md](../development.md#discord-bot).
 
-## Шлюз і токен
+## Gateway and token
 
-- **Контракт:** `src/Contracts/bot/bot.proto` (пакет `bot`), бот лише клієнт. Сервісний токен — у metadata `x-bot-token`, Discord ID користувача — поле кожного запиту. Помилки — коди статусу gRPC, для `UNAUTHENTICATED` причину уточнює трейлер `x-cf-reason` (`invalid-bot-token` / `account-not-linked`).
-- **Токен задається конфігурацією, а не видається ендпоінтом:** він рівносильний адмінському доступу, тож випустити його має лише той, хто має доступ до сервера ЦА, а не будь-яка адмінська сесія в браузері.
-  - ЦА: `CF_BOTGATEWAY__TOKENHASHES__0` (`__1`, …) — SHA-256 токена, 64 hex-символи в нижньому регістрі, як `SecretToken.Hash`; перевірка — `SecretToken.Matches`. Неправильний формат хешу зупиняє старт (`ValidateOnStart`). Без жодного хешу `BotGateway` відхиляє всі виклики (`invalid-bot-token`).
-  - Кілька хешів — для ротації без простою: додати новий → перезапустити ЦА → перевести бота → прибрати старий.
-  - Токени в БД — лише коли знадобиться кілька ботів або ротація з панелі; контракт від цього не зміниться.
-- **`BotGatewayService`** (порт gRPC той самий, що для агентів): кожен виклик від імені користувача кладе його `UserId` у `HttpContext.User`, тож далі працюють ті самі сервіси й перевірки прав, що й для панелі.
-- **`BotGatewayInterceptor`** перекладає винятки на коди статусу й перевіряє токен для всіх видів викликів, включно з потоковими: базовий `Interceptor` пропускає їх без перевірки.
+- **Contract:** `src/Contracts/bot/bot.proto` (package `bot`); the bot is only a client. The service token goes in the `x-bot-token` metadata, and the user's Discord ID is a field of every request. Errors are gRPC status codes; for `UNAUTHENTICATED` the `x-cf-reason` trailer gives the reason (`invalid-bot-token` / `account-not-linked`).
+- **The token is set in configuration, not issued by an endpoint:** it's as powerful as an administrator, so only someone with access to the aggregator's server should create it, not any administrator session in a browser.
+  - Aggregator: `CF_BOTGATEWAY__TOKENHASHES__0` (`__1`, …) holds the token's SHA-256, 64 lowercase hex characters, as `SecretToken.Hash` produces; `SecretToken.Matches` verifies it. A malformed hash stops the start (`ValidateOnStart`). With no hash, `BotGateway` rejects every call (`invalid-bot-token`).
+  - Several hashes allow rotation without downtime: add the new one → restart the aggregator → switch the bot → remove the old one.
+  - Tokens in the database only once several bots or rotation from the panel are needed; the contract won't change.
+- **`BotGatewayService`** (on the same gRPC port as agents): every call made on behalf of a user puts their `UserId` into `HttpContext.User`, so the same services and permission checks as for the panel apply.
+- **`BotGatewayInterceptor`** maps exceptions to status codes and checks the token for every kind of call, streaming ones included: the base `Interceptor` lets those through unchecked.
 
-## Прив'язка акаунта
+## Account linking
 
-Прив'язка Discord-акаунта — доменна сутність `DiscordLink` (таблиця `DiscordLinks`, один запис на користувача, Discord ID унікальний), а не зовнішній логін ASP.NET Identity: бот не залежить від Identity, і прив'язка працює ще до логіну. Основний спосіб — OAuth2 у панелі (ADR-0009); альтернатива — одноразовий код з панелі (`/api/me/discord/link-code`, зберігається лише хеш) і `/link <код>` у боті (`LinkAccount`). Повторна прив'язка того самого Discord-акаунта переносить її на нового користувача.
+A linked Discord account is the domain entity `DiscordLink` (table `DiscordLinks`, one record per user, Discord ID unique), not an ASP.NET Identity external login: the bot doesn't depend on Identity, and linking works before any sign-in. The main way is OAuth2 in the panel (ADR-0009); the alternative is a one-time code from the panel (`/api/me/discord/link-code`, only its hash is stored) and `/link <code>` in the bot (`LinkAccount`). Linking the same Discord account again moves the link to the new user.
 
-## Меню /dashboard
+## The /dashboard menu
 
-Як влаштовано маршрут у `custom_id`, стеження за деплоєм і розмір сторінки, описують коментарі `DashboardRoute` і `DashboardService`. Код: `src/DiscordBot/Dashboard`, `Interactions/DashboardModule.cs`, `DashboardRenderer.cs`.
+How the route is encoded in `custom_id`, how deployments are followed and how big a page is are described in the comments of `DashboardRoute` and `DashboardService`. Code: `src/DiscordBot/Dashboard`, `Interactions/DashboardModule.cs`, `DashboardRenderer.cs`.
 
-- **Повідомлення:** одне ephemeral на Components V2, кожне натискання редагує його на місці (defer → `ModifyOriginalResponseAsync` з `MessageFlags.ComponentsV2`).
-- **Екрани:** середовища → стеки → стек → підтвердження для redeploy і down; restart — без підтвердження, як у панелі.
-- **Невідомий id** (зі старішої версії меню) відкриває список середовищ.
-- **Користувач:** кожне натискання виконується від імені того, хто натиснув; меню ephemeral, тож це той самий користувач.
-- **Кнопки** ховаються за `can_restart`, `can_take_down`, `can_deploy` і вимикаються, поки агент офлайн або дія виконується.
-- **Тести:** логіка (`DashboardService`) не залежить від Discord.Net і тестується із заглушкою `IForestClient`; що шаблон `[ComponentInteraction("dash:*")]` ловить кожен маршрут, перевіряє тест через `InteractionService.SearchComponentCommand`.
-- **Ліміти Discord:** до 40 компонентів і 4000 символів тексту на повідомлення, до 5 кнопок у рядку.
+- **Message:** one ephemeral Components V2 message; every click edits it in place (defer → `ModifyOriginalResponseAsync` with `MessageFlags.ComponentsV2`).
+- **Screens:** environments → stacks → stack → confirmation for redeploy and down; restart without confirmation, as in the panel.
+- **An unknown id** (from an older menu version) opens the list of environments.
+- **User:** every click runs on behalf of whoever clicked; the menu is ephemeral, so that's the same user.
+- **Buttons** are hidden by `can_restart`, `can_take_down` and `can_deploy`, and disabled while the agent is offline or an action is running.
+- **Tests:** the logic (`DashboardService`) doesn't depend on Discord.Net and is tested with an `IForestClient` stub; a test with `InteractionService.SearchComponentCommand` checks that the `[ComponentInteraction("dash:*")]` pattern catches every route.
+- **Discord limits:** up to 40 components and 4000 characters of text per message, up to 5 buttons per row.

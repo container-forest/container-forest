@@ -1,60 +1,60 @@
-# Оновлення образів самою ЦА
+# Image updates by the aggregator
 
-Правила й обґрунтування — в [ADR-0015](../adr/0015-image-updates.md). Тут — де це в коді й деталі, яких там немає. Шляхи відносно `src/Aggregator`.
+Rules and reasoning are in [ADR-0015](../adr/0015-image-updates.md). This note covers where it lives in the code and details the ADR doesn't. Paths are relative to `src/Aggregator`.
 
-## Модель
+## Model
 
-- **Код:** `Domain/Images/` (`ImageName`, `ImagePolicy`, `ImageUpdateRecord`, `ImageTagCacheEntry`, `AggregatorSigningKey`), `Application/Images/`, `Infrastructure/Images/`, контракти — `Api/Contracts/ImageUpdateContracts.cs`.
-- **`ImageName`** нормалізує ім'я так, як його резолвить Docker: `nginx` → `docker.io/library/nginx`, хост — через `RegistryHost`. Політика й сервіс compose збігаються лише за рівністю `ImageName`, не за підрядком. Ім'я зі змінними (`$`) не є `ImageName`.
-- **`ImagePolicy`** — окрема сутність зі `StackId` (каскад зі стеком), до `ImagePolicy.MaxPerStack` на стек, одна на образ (унікальний індекс). Шаблон тегу компілюється з тайм-аутом, має починатися з `^` і закінчуватися на `\z`; для `ImageTagOrder.TagTimestamp` потрібна група `ts`. Мітки часу порівнюються спершу за довжиною, потім як текст (`ImagePolicy.CompareTimestamps`), тож працюють і числа без нулів спереду, і формат `20261109T120000`.
-  - Стан останньої перевірки — `LastCheckedAt`, `LastError`, `LatestTag`, `Warning`. `RecordFailed` каже, чи сповіщати: перша помилка після успішної перевірки, а недоступний registry — лише з третьої поспіль (`RegistryFailures`).
-  - `LastChangedByAdministrator` — чи останню зміну зробив адміністратор системи або середовища (п. 7 ADR).
-  - Поля `Mode` з ADR немає: поки є лише режим коміту, а поле з'явиться разом із режимом PR.
-- **`ImageUpdateRecord`** — запис коміту оновлення: `Commit`, `Parent`, `ComposePath`, зміни (`ImageChange`: сервіс, було, стало; JSON-колонка), причина (`ImageUpdateReason`), хто попросив. Ідентифікатор відомий до коміту, бо його називає трейлер `Forest-Image-Update`. Унікальний за (стек, коміт), каскад зі стеком; зовнішнього ключа на політику немає: її можуть видалити, поки її коміти ще розгорнуті.
-- **`ImageTagCacheEntry`** — кеш тегів (`ImageTagCache`, ключ — образ і тег): digest і `created`, спільний для всіх політик образу, переживає рестарт.
-- **Хук образів** — поля стеку `ImageHookTokenHash` і `ImageHookAllowsDowngrade`, як у хука деплою (`SecretToken`).
-- **Токен запису** — `GitConnection.ProtectedPushToken` і `PushUserName` (`SecretPurpose.GitPushToken`). Зміна префікса на інший хост із будь-яким токеном — 400, як для токена доступу.
+- **Code:** `Domain/Images/` (`ImageName`, `ImagePolicy`, `ImageUpdateRecord`, `ImageTagCacheEntry`, `AggregatorSigningKey`), `Application/Images/`, `Infrastructure/Images/`; contracts in `Api/Contracts/ImageUpdateContracts.cs`.
+- **`ImageName`** normalises a name the way Docker resolves it: `nginx` → `docker.io/library/nginx`, the host through `RegistryHost`. A policy and the compose service match only by `ImageName` equality, not by substring. A name with variables (`$`) isn't an `ImageName`.
+- **`ImagePolicy`** is a separate entity with a `StackId` (cascading with the stack), up to `ImagePolicy.MaxPerStack` per stack, one per image (a unique index). The tag pattern is compiled with a timeout and must start with `^` and end with `\z`; `ImageTagOrder.TagTimestamp` needs a `ts` group. Timestamps are compared by length first, then as text (`ImagePolicy.CompareTimestamps`), so both numbers without leading zeros and the `20261109T120000` format work.
+  - The last check's state is `LastCheckedAt`, `LastError`, `LatestTag`, `Warning`. `RecordFailed` says whether to notify: the first error after a successful check, and for an unreachable registry only from the third in a row (`RegistryFailures`).
+  - `LastChangedByAdministrator`: whether the last change was made by a system or environment administrator (point 7 of the ADR).
+  - The ADR's `Mode` field doesn't exist yet: there's only the commit mode, and the field arrives with the PR mode.
+- **`ImageUpdateRecord`** records an update commit: `Commit`, `Parent`, `ComposePath`, the changes (`ImageChange`: service, from, to; a JSON column), the reason (`ImageUpdateReason`), who asked. Its id is known before the commit because the `Forest-Image-Update` trailer names it. Unique by (stack, commit), cascading with the stack; there's no foreign key to the policy: it may be deleted while its commits are still deployed.
+- **`ImageTagCacheEntry`** caches tags (`ImageTagCache`, keyed by image and tag): the digest and `created`, shared by all policies for an image, surviving restarts.
+- **Image hook:** the stack fields `ImageHookTokenHash` and `ImageHookAllowsDowngrade`, like the deploy hook's (`SecretToken`).
+- **Write token:** `GitConnection.ProtectedPushToken` and `PushUserName` (`SecretPurpose.GitPushToken`). Moving the prefix to another host with any token set is a 400, as for the access token.
 
-## Перевірка й коміт
+## Check and commit
 
-`ImageUpdateService.CheckAsync` під замком стеку (`ImageUpdateLocks`; той самий замок бере зміна й видалення політики):
+`ImageUpdateService.CheckAsync`, under the stack's lock (`ImageUpdateLocks`; changing or deleting a policy takes the same lock):
 
-1. Закріплену політику опитування й хук не чіпають (`Pinned`).
-2. Fetch голови гілки (`GitAccessResolver.ForFetch`), compose-файл стеку з неї, слоти образу — `IComposeImageRewriter.Find`.
-3. Ціль:
-   - без тегу — `ImageTagSelector`: кандидати за шаблоном; для `TagTimestamp` — найбільша мітка, маніфест лише її (digest); для `ImageCreated` — `created` з кешу, невідомі дочитуються до `ImageUpdateOptions.MaxTagReadsPerCheck` з кінця списку тегів. Поки прочитано не все — `Waiting` (`CatalogIncomplete`). Різні образи з однаковим найновішим `created` — помилка політики, а не вибір навмання. Понад `ImageTagSelector.ManyCandidates` кандидатів або 429 — попередження на політиці;
-   - з тегом — шаблон, наявність у registry, напрям за порядком політики. Старіший від хука без дозволу — 409. Запит людини або відкат закріплює образ.
-4. Нічого міняти — `UpToDate`; dry run — `WouldUpdate` без запису (кеш тегів однаково оновлюється).
-5. Агент офлайн — `AgentOfflineException` (інваріант 7). Токен запису — `GitAccessResolver.ForPush`, ніколи не токен читання.
-6. Якщо стек вимагає підписів, голова має бути засвідчена (`CommitEndorsementService` або підтвердження за SHA) і бути нащадком `DeployedCommit`.
-7. `IComposeImageRewriter.Rewrite`, коміт `IGitWriter.CreateCommitAsync` з підписом `ICommitSigner`, запис оновлення в базу **до** push (webhook від власного push може прийти раніше, ніж push поверне керування), `IGitWriter.PushAsync`. `GitPushRejectedException` — fetch, перевірка й зміна заново, до `ImageUpdateService.MaxPushAttempts` разів.
-8. Деплой — як у хука деплою, під `PushDeploymentGate`: деплой у черзі без закріплення або той, що вже йде з цим комітом, бере його сам; інший незавершений — позначка для `PushFollowUpObserver`; інакше `Deployment.QueueFromImageUpdate` — закріплений коміт, `pull: missing`, тригер `ImageUpdate`.
+1. Polling and the hook leave a pinned policy alone (`Pinned`).
+2. Fetch the branch head (`GitAccessResolver.ForFetch`), take the stack's compose file from it, find the image's slots with `IComposeImageRewriter.Find`.
+3. The target:
+   - without a tag, `ImageTagSelector`: candidates matching the pattern; for `TagTimestamp`, the largest timestamp, reading only its manifest (the digest); for `ImageCreated`, `created` from the cache, with unknown ones read up to `ImageUpdateOptions.MaxTagReadsPerCheck` from the end of the tag list. Until everything has been read, `Waiting` (`CatalogIncomplete`). Different images with the same newest `created` are a policy error, not a random pick. More than `ImageTagSelector.ManyCandidates` candidates, or a 429, is a warning on the policy;
+   - with a tag: the pattern, presence in the registry, direction by the policy's order. An older one from the hook without permission is a 409. A request by a person or a rollback pins the image.
+4. Nothing to change: `UpToDate`; a dry run is `WouldUpdate` without writing (the tag cache is updated anyway).
+5. An offline agent: `AgentOfflineException` (invariant 7). The write token is `GitAccessResolver.ForPush`, never the read token.
+6. If the stack requires signatures, the head must be endorsed (`CommitEndorsementService` or approval by SHA) and descend from `DeployedCommit`.
+7. `IComposeImageRewriter.Rewrite`, the commit with `IGitWriter.CreateCommitAsync` signed by `ICommitSigner`, the update record saved to the database **before** the push (the webhook from our own push may arrive before the push returns), `IGitWriter.PushAsync`. On `GitPushRejectedException`, fetch, check and change again, up to `ImageUpdateService.MaxPushAttempts` times.
+8. The deployment works as for the deploy hook, under `PushDeploymentGate`: a queued unpinned deployment, or a running one with this commit, picks it up itself; another unfinished one gets a mark for `PushFollowUpObserver`; otherwise `Deployment.QueueFromImageUpdate`: the pinned commit, `pull: missing`, trigger `ImageUpdate`.
 
-Помилки registry, git і compose-файлу не кидаються далі: політика записує їх (`RecordFailed`), сповіщення — `ImageUpdateFailed`, результат — `Failed` з причиною.
+Registry, git and compose file errors aren't rethrown: the policy records them (`RecordFailed`), the notification is `ImageUpdateFailed`, and the result is `Failed` with a reason.
 
-- **Переписувач** — `YamlComposeImageRewriter`: позиції скалярів YamlDotNet (`Mark.Index`, символи), заміна з кінця, стиль лапок зберігається, після заміни файл читається знову й порівнюються всі образи (`Verify`). Відмова для значень з якорем або аліасом (значення, що стоїть раніше за свій ключ `image`, — аліас: якір завжди раніше), з `<<`, блокового або з тегом YAML, зі змінними. `Apply` застосовує записані зміни для перевірки коміту.
-- **Git** — `LibGit2SharpGitSource` реалізує й `IGitWriter`: дерево з одним новим blob (режим файлу зберігається), `Commit.CreateBuffer`, підпис поза замком клону, `ObjectDatabase.CreateCommitWithSignature`; push через тимчасове посилання `refs/forest/image-update` без `+`, після нього трекінг-гілка клону стає на новий коміт. `NonFastForwardException` і відповіді «fetch first» / «non-fast-forward» — `GitPushRejectedException`, решта — `DeploymentFailedException`.
-- **Ключ ЦА** — `AggregatorSigningKeyService`: створюється під час першого оновлення (`SshKeygenKeyGenerator`, `ssh-keygen -t ed25519`), приватна частина — `SecretPurpose.AggregatorSigningKey`. Підпис — `SshKeygenCommitSigner` (`ssh-keygen -Y sign -n git`, ключ у тимчасовому каталозі 0700 і файлі 0600). Ротація залишає старі ключі з `RetiredAt`. `SigningKeyService` відхиляє відбиток будь-якого з них.
-- **Registry** — `OciRegistryClient` на власному `HttpClient` (без фабрики HTTP-клієнтів: вона потребувала б нового пакета). Анонімно → на 401 токен Bearer з realm (логін середовища йде туди лише на хост самого registry або `auth.docker.io` для Docker Hub) або Basic. Переадресації вручну, `Authorization` лише на початковий хост. `ConnectCallback` перевіряє адреси під час з'єднання й під'єднується саме до перевірених (`GitHostGuard.IsPublic`), тож DNS rebinding не обходить заборону приватних адрес; `ImageUpdateOptions.AllowPrivateRegistries` її знімає. Для індексу `created` береться з першої платформи `linux`, не `unknown`.
+- **Rewriter:** `YamlComposeImageRewriter`: YamlDotNet scalar positions (`Mark.Index`, in characters), replacing from the end, keeping the quoting style; after the replacement the file is read again and every image compared (`Verify`). It refuses values with an anchor or an alias (a value that comes before its `image` key is an alias: the anchor is always earlier), with `<<`, block or YAML-tagged values, and values with variables. `Apply` replays recorded changes to verify a commit.
+- **Git:** `LibGit2SharpGitSource` also implements `IGitWriter`: a tree with one new blob (keeping the file mode), `Commit.CreateBuffer`, signing outside the clone's lock, `ObjectDatabase.CreateCommitWithSignature`; the push goes through a temporary ref `refs/forest/image-update` without `+`, after which the clone's tracking branch moves to the new commit. `NonFastForwardException` and "fetch first" / "non-fast-forward" responses become `GitPushRejectedException`, anything else `DeploymentFailedException`.
+- **The aggregator's key:** `AggregatorSigningKeyService`: created on the first update (`SshKeygenKeyGenerator`, `ssh-keygen -t ed25519`), with the private part under `SecretPurpose.AggregatorSigningKey`. Signing is `SshKeygenCommitSigner` (`ssh-keygen -Y sign -n git`, the key in a temporary 0700 directory and a 0600 file). Rotation keeps old keys with `RetiredAt`. `SigningKeyService` rejects the fingerprint of any of them.
+- **Registry:** `OciRegistryClient` on its own `HttpClient` (no HTTP client factory: that would need a new package). Anonymous first, then on a 401 a Bearer token from the realm (the environment's login goes there only for the registry's own host, or `auth.docker.io` for Docker Hub), or Basic. Redirects are followed by hand, with `Authorization` only for the original host. `ConnectCallback` checks addresses while connecting and connects exactly to the checked ones (`GitHostGuard.IsPublic`), so DNS rebinding can't get around the ban on private addresses; `ImageUpdateOptions.AllowPrivateRegistries` lifts it. For an index, `created` comes from the first `linux` platform, not `unknown`.
 
-## Засвідчення
+## Endorsement
 
-`CommitEndorsementService` винесено з `VerifyCommitStep`: перевірка підпису ADR-0011 і ланцюжок оновлень.
+`CommitEndorsementService` was split out of `VerifyCommitStep`: the ADR-0011 signature check plus the update chain.
 
-- Підпис не дав засвідчення з причиною `Unsigned` або `UnknownKey` (ключ ЦА невідомий навмисно) — шукається запис за (стек, коміт). Далі для кожного запису в ланцюжку, до `CommitEndorsementService.MaxUpdateChain`: `ICommitInspector.DiffAsync` — єдиний батько дорівнює `Parent`, змінено лише `ComposePath` без зміни режиму, а `IComposeImageRewriter.Apply` до батьківського файлу дає рівно новий. Батько підписаний — засвідчено, `SignedBy` — підписант кореня; підтверджений за SHA (`IDeploymentRepository.WasApprovedAsync`) — засвідчено без підписанта; сам має запис — крок далі; інакше `ImageUpdateMismatch`.
-- `CommitEndorsement.ImageUpdate`, `Deployment.ImageUpdateId`, у відповідях — `EndorsementResponse`.
-- **Звільнення від політики compose** (`ComposePolicyStep`): для `ImageUpdate` підписант кореня має адмініструвати середовище, а кожна політика ланцюжка — `LastChangedByAdministrator`. Видалена політика звільнення не дає.
+- If the signature gave no endorsement, with reason `Unsigned` or `UnknownKey` (the aggregator's key is unknown on purpose), a record is looked up by (stack, commit). Then, for each record in the chain, up to `CommitEndorsementService.MaxUpdateChain`: `ICommitInspector.DiffAsync`: the only parent equals `Parent`, only `ComposePath` changed and its mode didn't, and `IComposeImageRewriter.Apply` on the parent's file gives exactly the new one. A signed parent means endorsed, with `SignedBy` the root's signer; one approved by SHA (`IDeploymentRepository.WasApprovedAsync`) means endorsed without a signer; one that has a record of its own means one more step; anything else is `ImageUpdateMismatch`.
+- `CommitEndorsement.ImageUpdate`, `Deployment.ImageUpdateId`; in responses, `EndorsementResponse`.
+- **Exemption from the compose policy** (`ComposePolicyStep`): for `ImageUpdate`, the root's signer must administer the environment, and every policy in the chain must be `LastChangedByAdministrator`. A deleted policy gives no exemption.
 
-## Запуск
+## Running
 
-- **Опитування** — `ImageUpdatePoller` (раз на хвилину з `ImageUpdateScheduler`): секція налаштувань `ImageUpdateSettingsSection` (вмикання, інтервал 1–1440 хв, типово 5), політики з `Poll` без закріплення, стеки з онлайн-агентом, кожна перевірка у власному scope.
-- **Хук** — `ImageHookService`, `POST /api/image-hooks/{stackId}`: однаковий 401 (`WebhookRejectedException`), політики з `AcceptRequests` (усі або за `image`), 404 (`ImageHookNotFoundException`), тег без образу — 400.
-- **Люди** — `ImagePolicyService`: Editor стеку додає, змінює, видаляє, перевіряє, закріплює й відкріплює; dry run — будь-хто, хто бачить стек. Під час збереження політика перевіряється на голові гілки й вимагає токен запису на підключенні.
-- **Аудит:** `ImagePolicyAdded/Changed/Removed`, `ImagePinned/Unpinned`, `ImageHookCreated/Removed`, `GitPushCredentialChanged`, `AggregatorSigningKeyRotated`; перевірка людиною — `DeploymentQueued` з деталями.
-- **CLI:** `forest stack image-policy list|add|change|remove|check|pin|unpin`, `forest stack image-hook create|downgrade|remove`, `forest connection set-push-token|remove-push-token`, `forest system signing-key show|rotate`. Налаштування опитування — лише панель (`/api/settings/**` у CLI немає).
+- **Polling:** `ImageUpdatePoller` (every minute from `ImageUpdateScheduler`): the `ImageUpdateSettingsSection` settings (on/off, an interval of 1–1440 minutes, 5 by default), policies with `Poll` that aren't pinned, stacks with an online agent, each check in its own scope.
+- **Hook:** `ImageHookService`, `POST /api/image-hooks/{stackId}`: the same 401 (`WebhookRejectedException`), policies with `AcceptRequests` (all, or by `image`), 404 (`ImageHookNotFoundException`), a tag without an image is a 400.
+- **People:** `ImagePolicyService`: a stack's Editor adds, changes, removes, checks, pins and unpins; anyone who sees the stack can do a dry run. On save, the policy is checked against the branch head and requires a write token on the connection.
+- **Audit:** `ImagePolicyAdded/Changed/Removed`, `ImagePinned/Unpinned`, `ImageHookCreated/Removed`, `GitPushCredentialChanged`, `AggregatorSigningKeyRotated`; a check by a person is `DeploymentQueued` with details.
+- **CLI:** `forest stack image-policy list|add|change|remove|check|pin|unpin`, `forest stack image-hook create|downgrade|remove`, `forest connection set-push-token|remove-push-token`, `forest system signing-key show|rotate`. Polling settings are panel-only (the CLI has no `/api/settings/**`).
 
-## Тести
+## Tests
 
-- Домен — `ImagePolicyTests`; вибір тегу — `ImageTagSelectorTests`; ланцюжок засвідчення — `VerifyCommitStepTests`; звільнення — `ComposePolicyStepTests`.
-- Інфраструктура: `YamlComposeImageRewriterTests`, `OciRegistryClientTests` (фейковий HTTP), `GitWriterTests` — локальний bare-репозиторій і справжній `ssh-keygen` (без нього пропускаються, у CI падають).
-- API: `ImageUpdateTests` — registry, запис у git і підпис підмінені; коміт, push і деплой із тригером `ImageUpdate` проходять крізь справжній пайплайн.
+- Domain: `ImagePolicyTests`; tag selection: `ImageTagSelectorTests`; the endorsement chain: `VerifyCommitStepTests`; the exemption: `ComposePolicyStepTests`.
+- Infrastructure: `YamlComposeImageRewriterTests`, `OciRegistryClientTests` (fake HTTP), `GitWriterTests` with a local bare repository and a real `ssh-keygen` (skipped without it, failing in CI).
+- API: `ImageUpdateTests`, with the registry, git writes and signing faked; the commit, push and deployment with the `ImageUpdate` trigger go through the real pipeline.

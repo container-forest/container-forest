@@ -2,8 +2,8 @@
   "id": "/",
   "name": "container-forest",
   "short_name": "Forest",
-  "description": "Керування Docker-контейнерами на ваших серверах: стеки, контейнери, деплої з git.",
-  "lang": "uk",
+  "description": "Manage Docker containers on your servers: stacks, containers, deployments from git.",
+  "lang": "en",
   "dir": "ltr",
   "start_url": "/",
   "scope": "/",
@@ -19,8 +19,8 @@
     { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Стеки", "url": "/", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Контейнери", "url": "/containers", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Мій обліковий запис", "url": "/account", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Stacks", "url": "/", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Containers", "url": "/containers", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "My account", "url": "/account", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

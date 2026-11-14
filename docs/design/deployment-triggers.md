@@ -1,39 +1,39 @@
-# Webhook, хук деплою й хук образів
+# Webhooks, deploy hooks and image hooks
 
-Як цим користуватися — в [architecture.md](../architecture.md#деплой-після-push-webhook), webhook організації — в [ADR-0006](../adr/0006-git-connections.md). Шляхи відносно `src/Aggregator`.
+How to use them: [architecture.md](../architecture.md#deploy-on-push-webhook); the organisation webhook: [ADR-0006](../adr/0006-git-connections.md). Paths are relative to `src/Aggregator`.
 
-## Webhook-деплой
+## Webhook deployments
 
-- **Секрети:** на репозиторії (`GitRepository.ProtectedWebhookSecret`, `ISecretProtector` з `SecretPurpose.WebhookSecret`, `POST|DELETE /api/repositories/{id}/webhook`) і на підключенні (`GitConnection.ProtectedWebhookSecret`, `/api/git-connections/{id}/webhook`). Показуються один раз, новий замінює старий.
-- **Вмикання:** `Stack.DeployOnPush` (`PUT /api/stacks/{id}/deploy-on-push`, для системного стеку — 409). Один webhook на репозиторій обслуговує всі стеки, а вирішує той, хто відповідає за стек.
-- **Прийом:** `PushWebhookService`, для організації — `ReceiveForConnectionAsync`: репозиторій шукається за адресою з тіла (`PushEvent.RepositoryUrls`) через `GitUrl.Key`; не знайдено — `Ignored`.
-- **Перевірка.** Запит автентифікує сам секрет. Тіло читається сирим (до 5 MiB, інакше 413), бо підпис покриває точні байти.
-  - Провайдери — ієрархія `GitWebhookProvider` → `HmacWebhookProvider` → `GitHubWebhook`, `GiteaWebhook` (також Forgejo); `GitLabWebhook` порівнює `X-Gitlab-Token` з секретом. Gitea надсилає ще й заголовки GitHub, тому її провайдер питається першим.
-  - Усі порівняння — `CryptographicOperations.FixedTimeEquals` над SHA-256 обох значень (не видає й довжини).
-  - Невідомий репозиторій, репозиторій без секрету, невідомий відправник, неправильний підпис і нечитабельний секрет — однаковий 401 (`WebhookRejectedException`); тіло не JSON — 400 лише після перевірки підпису. Ні тіло, ні підпис не логуються.
-- **Деплой:** `Deployment.QueueFromWebhook` (тригер `Webhook`, без користувача, `pull: missing`) для стеків із тією самою гілкою й `DeployOnPush`. Деплой бере голову гілки, а не `after` з тіла: повторно надіслана стара доставка передеплоїть поточну голову, а не відкотить стек.
-- **Відповідь** (`WebhookResponse`) потрібна для журналу доставок на git-сервері:
+- **Secrets:** on a repository (`GitRepository.ProtectedWebhookSecret`, `ISecretProtector` with `SecretPurpose.WebhookSecret`, `POST|DELETE /api/repositories/{id}/webhook`) and on a connection (`GitConnection.ProtectedWebhookSecret`, `/api/git-connections/{id}/webhook`). Shown once; a new one replaces the old.
+- **Turning it on:** `Stack.DeployOnPush` (`PUT /api/stacks/{id}/deploy-on-push`; 409 for a system stack). One webhook per repository serves all its stacks, and whoever is responsible for a stack decides.
+- **Receiving:** `PushWebhookService`, and `ReceiveForConnectionAsync` for an organisation: the repository is found by the URL in the body (`PushEvent.RepositoryUrls`) through `GitUrl.Key`; not found means `Ignored`.
+- **Verification.** The secret itself authenticates the request. The body is read raw (up to 5 MiB, else 413), since the signature covers the exact bytes.
+  - Providers form a hierarchy `GitWebhookProvider` → `HmacWebhookProvider` → `GitHubWebhook`, `GiteaWebhook` (also Forgejo); `GitLabWebhook` compares `X-Gitlab-Token` with the secret. Gitea also sends GitHub's headers, so its provider is asked first.
+  - Every comparison is `CryptographicOperations.FixedTimeEquals` over the SHA-256 of both values (which doesn't reveal the length either).
+  - An unknown repository, a repository without a secret, an unknown sender, a wrong signature and an unreadable secret all get the same 401 (`WebhookRejectedException`); a body that isn't JSON gets 400 only after the signature check. Neither the body nor the signature is logged.
+- **Deployment:** `Deployment.QueueFromWebhook` (trigger `Webhook`, no user, `pull: missing`) for stacks on the same branch with `DeployOnPush`. The deployment takes the branch head, not `after` from the body: replaying an old delivery redeploys the current head rather than rolling the stack back.
+- **The response** (`WebhookResponse`) is for the git server's delivery log:
 
-  | Результат | Коли |
+  | Result | When |
   |---|---|
-  | `Pong` | `ping` GitHub |
-  | `Ignored` | інші події, теги, видалена гілка, репозиторій не знайдено |
-  | `NotAllowed` | підключення більше не дозволене в середовищі стеку |
-  | `AlreadyDeployed` | стек уже працює на коміті `after` (повторна доставка) |
-  | `AgentOffline` | агент офлайн, нічого не ставиться (інваріант 7) |
-  | `AlreadyQueued` | деплой у черзі: статус `Running` зберігається до fetch, тож він ще візьме цей push |
-  | `AlreadyRunning` | деплой, що вже йде, має той самий коміт |
-  | `AfterRunning` | деплой іде з іншим комітом: після нього `PushFollowUpObserver` поставить новий, якщо агент онлайн і ніхто не поставив свій |
+  | `Pong` | a GitHub `ping` |
+  | `Ignored` | other events, tags, a deleted branch, repository not found |
+  | `NotAllowed` | the connection is no longer allowed in the stack's environment |
+  | `AlreadyDeployed` | the stack already runs commit `after` (a repeated delivery) |
+  | `AgentOffline` | the agent is offline and nothing is queued (invariant 7) |
+  | `AlreadyQueued` | a deployment is queued: its status stays `Running` until the fetch, so it will still pick up this push |
+  | `AlreadyRunning` | the running deployment has the same commit |
+  | `AfterRunning` | a deployment with another commit is running: after it, `PushFollowUpObserver` queues a new one if the agent is online and nobody queued their own |
 
-- **Деплой після поточного:** як `PushDeploymentGate` не губить push, описано в його коментарі. Після рестарту ЦА push треба надіслати повторно з git-сервера (Redeliver).
+- **Deploying after the current one:** how `PushDeploymentGate` avoids losing a push is described in its comment. After an aggregator restart, the push has to be redelivered from the git server.
 
-## Хук деплою
+## Deploy hook
 
-- **Токен:** на стеку, зберігається лише хеш (`Stack.DeployHookTokenHash`, `SecretToken.Hash`, перевірка `AcceptsDeployHook` за сталий час). Створює й видаляє Editor стеку (`POST|DELETE /api/stacks/{id}/deploy-hook`, `StackService`), для системного стеку — 409.
-- **Виклик:** `DeployHookService`, тіло ігнорується: `Deployment.QueueFromDeployHook` (тригер `DeployHook`, без користувача, голова гілки), 202 з `Queued`. Токен передається в заголовку, бо адресу зберігають логи проксі й CI.
-- **Під час іншого деплою:** той, що в черзі й так тягне всі образи, — `AlreadyQueued`; інший незавершений — `AfterRunning`. `PushDeploymentGate` пам'ятає політику pull: `Always` хука не перекривається пізнішим push, а `PushFollowUpObserver` ставить `QueueFromDeployHook` і, якщо між ними хтось поставив деплой без pull, чекає й за ним.
-- **Відмови:** невідомий стек, стек без хука, немає чи неправильний токен — однаковий 401 (`WebhookRejectedException`); офлайн-агент — 503, нічого не ставиться.
+- **Token:** on the stack, only its hash is stored (`Stack.DeployHookTokenHash`, `SecretToken.Hash`, constant-time check in `AcceptsDeployHook`). A stack's Editor creates and deletes it (`POST|DELETE /api/stacks/{id}/deploy-hook`, `StackService`); 409 for a system stack.
+- **Call:** `DeployHookService`; the body is ignored: `Deployment.QueueFromDeployHook` (trigger `DeployHook`, no user, the branch head), 202 with `Queued`. The token goes in a header because proxy and CI logs keep URLs.
+- **During another deployment:** a queued one that pulls all images anyway means `AlreadyQueued`; any other unfinished one means `AfterRunning`. `PushDeploymentGate` remembers the pull policy: a later push doesn't override the hook's `Always`, and `PushFollowUpObserver` queues `QueueFromDeployHook` and, if someone queued a deployment without pull in between, waits for that one too.
+- **Refusals:** an unknown stack, a stack without a hook, and a missing or wrong token all get the same 401 (`WebhookRejectedException`); an offline agent gets 503 and nothing is queued.
 
-## Хук образів
+## Image hook
 
-Хук образів стеку (ADR-0015) просить ЦА перевірити політики образів зараз або оновити образ до конкретного тегу; коміт і деплой робить сама ЦА. Токен — `Stack.ImageHookTokenHash`, як у хука деплою, але окремий: хук деплою перевдеплоює голову гілки, хук образів змінює тег у межах політики. Деталі — в [image-updates.md](image-updates.md).
+A stack's image hook (ADR-0015) asks the aggregator to check the image policies now, or to update an image to a specific tag; the aggregator makes the commit and the deployment itself. The token is `Stack.ImageHookTokenHash`, like the deploy hook's but separate: the deploy hook redeploys the branch head, the image hook changes a tag within the policy. Details in [image-updates.md](image-updates.md).

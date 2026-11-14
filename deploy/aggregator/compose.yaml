@@ -1,4 +1,4 @@
-# The aggregator and the panel of container-forest on one host. See docs/architecture.md, "Розгортання ЦА".
+# The aggregator and the panel of container-forest on one host. See docs/installation.md.
 #
 # Settings come from an .env file next to this one, which is never committed and is readable by root only:
 #   CF_DOMAIN=forest.example.com

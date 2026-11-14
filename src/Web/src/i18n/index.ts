@@ -4,7 +4,7 @@ import { initReactI18next } from "react-i18next";
 import en from "./locales/en";
 import uk from "./locales/uk";
 
-export const languages = ["uk", "en"] as const;
+export const languages = ["en", "uk"] as const;
 
 export type Language = (typeof languages)[number];
 
@@ -14,18 +14,18 @@ export type MessageKey = ParseKeys;
 declare module "i18next" {
   interface CustomTypeOptions {
     defaultNS: "translation";
-    resources: { translation: typeof uk };
+    resources: { translation: typeof en };
   }
 }
 
-// The choice is kept per browser; without one, the browser's language decides, and anything else falls back to Ukrainian.
+// The choice is kept per browser; without one, the browser's language decides, and anything else falls back to English.
 void i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    resources: { uk: { translation: uk }, en: { translation: en } },
+    resources: { en: { translation: en }, uk: { translation: uk } },
     supportedLngs: languages,
-    fallbackLng: "uk",
+    fallbackLng: "en",
     load: "languageOnly",
     // Resources are bundled, so the first render already has them.
     initAsync: false,
@@ -38,7 +38,7 @@ void i18n
     interpolation: { escapeValue: false },
   });
 
-document.documentElement.lang = i18n.resolvedLanguage ?? "uk";
+document.documentElement.lang = i18n.resolvedLanguage ?? "en";
 i18n.on("languageChanged", (language) => {
   document.documentElement.lang = language;
 });

@@ -1,8 +1,6 @@
-/**
- * Ukrainian texts: the source of keys. Every other language must have exactly these keys (see en.ts), and
- * t() accepts only them, so a typo or a missing translation fails the typecheck.
- */
-const uk = {
+import type { Translation } from "./en";
+
+const uk: Translation = {
   app: {
     offline: {
       title: "Немає з'єднання",
@@ -1977,7 +1975,5 @@ const uk = {
     },
   },
 };
-
-export type Translation = typeof uk;
 
 export default uk;

@@ -1,29 +1,29 @@
-# ADR-0004. Каталог стеку не замінюється: файли пакета оновлюються на місці за маніфестом
+# ADR-0004. The stack directory isn't replaced: bundle files are updated in place using a manifest
 
-- Статус: прийнято
-- Дата: 2026-09-30
+- Status: accepted
+- Date: 2026-09-30
 
-## Контекст
+## Context
 
-Початкова схема запису файлів стеку на агенті: пакет пишеться в `<stack>.tmp`, поточний каталог перейменовується на `<stack>.prev`, а `.tmp` — на `<stack>`. Вона атомарна для всього пакета, але ламає поширений сценарій — дані контейнерів у каталозі стеку (`volumes: - ./data:/var/lib/postgresql/data`):
+The original scheme for writing a stack's files on the agent: the bundle is written to `<stack>.tmp`, the current directory is renamed to `<stack>.prev`, and `.tmp` to `<stack>`. It's atomic for the whole bundle, but breaks a common case, container data inside the stack directory (`volumes: - ./data:/var/lib/postgresql/data`):
 
-1. Під час повторного деплою `./data` переїжджає разом із каталогом у `.prev`, а в новому каталозі його немає: у git його немає.
-2. Шлях у конфігурації контейнера не змінився, тому `compose up` **не перестворює** контейнер, і той далі пише в старий inode, тобто вже в `.prev`.
-3. Наступний деплой видаляє `.prev` разом із даними.
+1. On a redeploy, `./data` moves to `.prev` along with the directory, and the new directory doesn't have it: it isn't in git.
+2. The path in the container's configuration hasn't changed, so `compose up` **doesn't recreate** the container, and it keeps writing to the old inode, i.e. into `.prev`.
+3. The next deployment deletes `.prev` along with the data.
 
-Файлові bind-mount'и (`./nginx.conf:/etc/nginx/nginx.conf`) незмінений контейнер теж бачив би в старій версії.
+An unchanged container would also see file bind mounts (`./nginx.conf:/etc/nginx/nginx.conf`) in their old version.
 
-## Рішення
+## Decision
 
-1. Каталог стеку `<StacksDirectory>/<stack>` створюється один раз і більше не переміщується. Агент змінює в ньому лише файли пакета: кожен файл готується в `<stack>.tmp` і перейменовується поверх цільового (атомарно для кожного файлу). Усе інше в каталозі належить контейнерам і не чіпається.
-2. Список файлів останнього пакета — маніфест `<StacksDirectory>/<stack>.manifest.json`. Файли з попереднього маніфесту, яких немає в новому пакеті, видаляються, а каталоги, що після цього стали порожніми, прибираються. Маніфест лежить **поза** каталогом стеку, бо контейнер, який монтує `.`, міг би його переписати й змусити агента видалити чужі файли. Нечитабельний маніфест ігнорується: зайві файли лишаються, але нічого не видаляється навмання.
-3. Перед записом агент перевіряє, що між каталогом стеку й кожним файлом немає символьних посилань і файлів на місці каталогів. Контейнер може створити в змонтованому каталозі посилання на `/`, а агент працює від root. Там, де пакет має файл, а на хості є каталог, деплой відхиляється (`ERROR_CODE_COMMAND_FAILED`) ще до будь-яких змін. Шляхи з маніфесту перевіряються так само перед копіюванням і видаленням.
-4. Попередня версія пакета (лише звичайні файли) копіюється в `<stack>.prev` для відкату; вміст секретів туди не потрапляє.
-5. Секрети в `<SecretsDirectory>/<stack>` на tmpfs замінюються цілим каталогом (`.tmp` → поточний → `.prev`), як і раніше: контейнери туди не пишуть. У каталозі стеку за шляхом секрету лежить символьне посилання на нього.
-6. Порядок: перевірки → підготовка `.tmp` → копія в `.prev` → маніфест з об'єднанням старих і нових файлів → заміна секретів → перейменування файлів → видалення застарілих → остаточний маніфест.
+1. The stack directory `<StacksDirectory>/<stack>` is created once and never moved again. The agent changes only the bundle's files in it: each file is prepared in `<stack>.tmp` and renamed over the target (atomic per file). Everything else in the directory belongs to containers and isn't touched.
+2. The list of the last bundle's files is the manifest `<StacksDirectory>/<stack>.manifest.json`. Files from the previous manifest that aren't in the new bundle are deleted, and directories left empty are removed. The manifest lives **outside** the stack directory, because a container mounting `.` could rewrite it and make the agent delete someone else's files. An unreadable manifest is ignored: extra files stay, but nothing is deleted at random.
+3. Before writing, the agent checks there are no symbolic links between the stack directory and each file, and no files where directories should be. A container can create a link to `/` in a mounted directory, and the agent runs as root. Where the bundle has a file and the host has a directory, the deployment is rejected (`ERROR_CODE_COMMAND_FAILED`) before any change. Paths from the manifest are checked the same way before copying and deleting.
+4. The previous bundle (regular files only) is copied to `<stack>.prev` for rollback; secret content doesn't go there.
+5. Secrets in `<SecretsDirectory>/<stack>` on tmpfs are replaced as a whole directory (`.tmp` → current → `.prev`), as before: containers don't write there. The stack directory holds a symbolic link to each secret at its path.
+6. The order: checks → preparing `.tmp` → the copy in `.prev` → a manifest merging old and new files → replacing secrets → renaming files → deleting stale ones → the final manifest.
 
-## Наслідки
+## Consequences
 
-- Пакет більше не замінюється атомарно цілком: якщо агент упаде посеред перейменувань, каталог міститиме частину нових файлів. Проміжний маніфест з об'єднанням файлів гарантує, що наступний деплой прибере все зайве.
-- Перевірка посилань має вікно між перевіркою й записом (TOCTOU). Щоб ним скористатися, контейнер має підмінити каталог саме під час деплою; повністю це закрив би лише запис через `openat` з `O_NOFOLLOW`, чого .NET напряму не дає.
-- Перевірено вживу на `example-voting-app`: після повторного деплою inode каталогу, контейнери й файли в `data/` лишилися ті самі.
+- The bundle is no longer replaced atomically as a whole: if the agent crashes midway through the renames, the directory holds some of the new files. The intermediate merged manifest guarantees the next deployment cleans up everything extra.
+- The link check has a window between checking and writing (TOCTOU). To use it, a container would have to swap a directory exactly during a deployment; only writing through `openat` with `O_NOFOLLOW`, which .NET doesn't offer directly, would close it completely.
+- Checked live on `example-voting-app`: after a redeploy, the directory's inode, the containers and the files in `data/` stayed the same.

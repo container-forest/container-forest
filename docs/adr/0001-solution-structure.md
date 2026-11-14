@@ -1,26 +1,26 @@
-# ADR-0001. Структура репозиторію і шари ЦА
+# ADR-0001. The repository layout and the aggregator's layers
 
-- Статус: прийнято; п. 4 замінено [ADR-0002](0002-proto-contracts-layout.md)
-- Дата: 2026-09-29
+- Status: accepted; point 4 superseded by [ADR-0002](0002-proto-contracts-layout.md)
+- Date: 2026-09-29
 
-## Контекст
+## Context
 
-У README структура репозиторію була позначена як «не затверджено». Перед тим як писати код, потрібно було вирішити:
+The README marked the repository layout as "not settled". Before writing code we had to decide:
 
-- як розкласти ЦА на проєкти;
-- де лежать контракти і чи потрібен спільний проєкт (SharedKernel);
-- як вебпанель отримує типи HTTP API;
-- де лежать фронтенд і тести.
+- how to split the aggregator into projects;
+- where contracts live and whether a shared project (SharedKernel) is needed;
+- how the web panel gets the HTTP API's types;
+- where the frontend and the tests live.
 
-## Рішення
+## Decision
 
 ```
 ContainerForest.slnx
-Directory.Build.props         спільні властивості .NET-проєктів
-Directory.Packages.props      центральне керування версіями NuGet
+Directory.Build.props         shared properties of .NET projects
+Directory.Packages.props      central NuGet version management
 global.json
 src/
-  Contracts/                  лише .proto (див. ADR-0002)
+  Contracts/                  .proto only (see ADR-0002)
   Aggregator/
     Domain/                   ContainerForest.Aggregator.Domain
     Application/              ContainerForest.Aggregator.Application
@@ -29,39 +29,39 @@ src/
   Agent/                      ContainerForest.Agent
   DiscordBot/                 ContainerForest.DiscordBot
   Web/                        Vite + React + TS
-tests/                        дзеркалить src/, проєкти створюються з першим тестом
+tests/                        mirrors src/; projects are created with their first test
 deploy/
 docs/
 ```
 
-1. **Одна папка верхнього рівня в `src/` відповідає одному окремо розгортаному застосунку.** Виняток — `Contracts` зі спільними `.proto`-файлами. Групи на кшталт `Clients/` не вводимо, бо в них немає спільної збірки, коду чи способу розгортання.
-2. **ЦА ділиться на шари.** Залежності йдуть лише всередину: `Domain ← Application ← Infrastructure ← Api`.
-   - `Domain` не має залежностей.
-   - `Application` містить сценарії, команди, декоратор авторизації, `DeployPipeline`, `IDeployStep` і порти, наприклад канал до агента. На `Contracts` воно не посилається.
-   - `Infrastructure` містить EF Core, LibGit2Sharp, виклик SOPS, `AgentRegistry` і маппінг доменних команд у proto-повідомлення.
-   - `Api` містить REST, SignalR, gRPC-сервіси, фонові сервіси та DI.
-3. **SharedKernel немає.** Домен є лише в ЦА. Агент і бот ділять із ЦА тільки контракти. Агент перевіряє назву стеку й шляхи файлів самостійно, як другий рубіж захисту, тож дубль цих кількох рядків свідомий.
-4. **`Contracts` містить лише `.proto`.** Каталоги повторюють назву пакета: `Protos/container_forest/<модуль>/v<N>/`. Код генерується через `Grpc.Tools` з `GrpcServices="Both"`, щоб усі споживачі мали одну збірку.
-5. **HTTP DTO живуть в `Api`, вебпанель отримує їх через OpenAPI.**
-   - `Microsoft.AspNetCore.OpenApi` описує API.
-   - `Microsoft.Extensions.ApiDescription.Server` під час збірки пише документ у `src/Aggregator/Api/openapi/`. Документ комітиться, тож зміни контракту видно в диффі PR.
-   - `src/Web` генерує з нього типи (`openapi-typescript`) і клієнт (`openapi-fetch`).
-   - Повідомлення SignalR OpenAPI не описує. Для MVP їхні TS-типи пишуться вручну.
-6. **Назва ЦА в коді — `Aggregator`**, як в іменах Docker-образів і в документації.
-7. **Збірка.**
-   - `TargetFramework`, `Nullable` і `ImplicitUsings` задаються один раз у `Directory.Build.props`.
-   - Версії пакетів задаються лише в `Directory.Packages.props`.
-   - Попередження стають помилками тільки в CI (`CI=true`), щоб не заважати локальній роботі.
+1. **One top-level folder in `src/` is one separately deployed application.** The exception is `Contracts`, with the shared `.proto` files. We don't add groups like `Clients/`, since they'd share no assembly, code or way of deploying.
+2. **The aggregator is split into layers.** Dependencies point only inwards: `Domain ← Application ← Infrastructure ← Api`.
+   - `Domain` has no dependencies.
+   - `Application` holds use cases, commands, the authorization decorator, `DeployPipeline`, `IDeployStep` and ports, such as the channel to the agent. It doesn't reference `Contracts`.
+   - `Infrastructure` holds EF Core, LibGit2Sharp, calling SOPS, `AgentRegistry` and mapping domain commands to proto messages.
+   - `Api` holds REST, SignalR, gRPC services, background services and DI.
+3. **No SharedKernel.** The domain exists only in the aggregator. The agent and the bot share only the contracts with it. The agent validates the stack name and file paths itself, as a second line of defence, so duplicating those few lines is deliberate.
+4. **`Contracts` holds only `.proto` files.** Directories follow the package name: `Protos/container_forest/<module>/v<N>/`. Code is generated through `Grpc.Tools` with `GrpcServices="Both"`, so every consumer has one assembly.
+5. **HTTP DTOs live in `Api`, and the web panel gets them through OpenAPI.**
+   - `Microsoft.AspNetCore.OpenApi` describes the API.
+   - `Microsoft.Extensions.ApiDescription.Server` writes the document to `src/Aggregator/Api/openapi/` during the build. The document is committed, so contract changes show in the PR diff.
+   - `src/Web` generates types (`openapi-typescript`) and a client (`openapi-fetch`) from it.
+   - OpenAPI doesn't describe SignalR messages. Their TS types are written by hand for now.
+6. **The aggregator is called `Aggregator` in code**, as in the Docker image names and the documentation.
+7. **Build.**
+   - `TargetFramework`, `Nullable` and `ImplicitUsings` are set once in `Directory.Build.props`.
+   - Package versions are set only in `Directory.Packages.props`.
+   - Warnings become errors only in CI (`CI=true`), so they don't get in the way locally.
 
-## Наслідки
+## Consequences
 
-- Реалізації кроків пайплайну розходяться по шарах. Інтерфейс і `DeployPipeline` лежать в `Application`, а кроки із зовнішніми залежностями (`GitFetchStep`, `SopsDecryptStep`) — в `Infrastructure`.
-- Щоб згенерувати OpenAPI-документ, збірка `Api` запускає застосунок. Тому старт не має вимагати зовнішніх ресурсів. Якщо конфігурація з `ValidateOnStart()` або БД цьому заважатиме, ці перевірки треба буде вимикати для генерації документа.
-- Змінив DTO — перезбери `Api`, закомітить оновлений `openapi/*.json` і перегенеруй клієнт у `src/Web`.
+- The pipeline step implementations spread across layers. The interface and `DeployPipeline` are in `Application`, while steps with external dependencies (`GitFetchStep`, `SopsDecryptStep`) are in `Infrastructure`.
+- To generate the OpenAPI document, the `Api` build runs the application. So starting it must not require external resources. If configuration with `ValidateOnStart()` or the database gets in the way, those checks have to be turned off for document generation.
+- Changed a DTO: rebuild `Api`, commit the updated `openapi/*.json` and regenerate the client in `src/Web`.
 
-## Відкинуті варіанти
+## Rejected options
 
-- **SharedKernel.** Спільного коду, крім контрактів, немає, а порожній проєкт «на виріст» згодом збирає все підряд.
-- **HTTP DTO у `Contracts`.** Їх не використовує жоден .NET-споживач, крім ЦА.
-- **`web/` у корені репозиторію.** Технічно рівноцінний варіант. Обрано `src/Web`, щоб весь код застосунків лежав у `src/`.
-- **Окремі проєкти Presentation і Host для ЦА.** Для такого розміру системи це зайвий рівень.
+- **A SharedKernel.** There's no shared code besides the contracts, and an empty project "for later" ends up collecting everything.
+- **HTTP DTOs in `Contracts`.** No .NET consumer other than the aggregator uses them.
+- **`web/` at the repository root.** Technically equivalent. `src/Web` was chosen so all application code is in `src/`.
+- **Separate Presentation and Host projects for the aggregator.** An extra level for a system of this size.

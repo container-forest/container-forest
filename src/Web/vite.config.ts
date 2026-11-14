@@ -8,7 +8,7 @@ import react from "@vitejs/plugin-react";
 import Icons from "unplugin-icons/vite";
 import { defineConfig, type Plugin, type ProxyOptions, searchForWorkspaceRoot } from "vite";
 
-// The aggregator's REST port in local development (see CONTRIBUTING.md).
+// The aggregator's REST port in local development (see docs/development.md).
 const aggregator = process.env.CF_AGGREGATOR_URL ?? "http://localhost:5080";
 
 // In Development the aggregator accepts X-Dev-User next to the session cookie. Setting CF_DEV_USER makes the

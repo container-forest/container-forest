@@ -1,6 +1,6 @@
 # Discord-бот: шлюз і меню
 
-Конвенції коду бота — [src/DiscordBot/CLAUDE.md](../../src/DiscordBot/CLAUDE.md), розгортання — [architecture.md](../architecture.md#розгортання-discord-бота), генерація токена — [CONTRIBUTING.md](../../CONTRIBUTING.md#локальний-запуск).
+Конвенції коду бота — [src/DiscordBot/CLAUDE.md](../../src/DiscordBot/CLAUDE.md), розгортання — [architecture.md](../architecture.md#розгортання-discord-бота), генерація токена — [docs/development.md](../development.md#discord-bot).
 
 ## Шлюз і токен
 

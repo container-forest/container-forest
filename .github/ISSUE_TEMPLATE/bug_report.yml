@@ -1,0 +1,68 @@
+name: Bug report
+description: Something doesn't work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems: don't open an issue, follow [SECURITY.md](https://github.com/lepterion/container-forest/blob/main/SECURITY.md).
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      multiple: true
+      options:
+        - Aggregator
+        - Agent
+        - Panel
+        - CLI (forest)
+        - Discord bot
+        - Deployment (compose files, images)
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The image tag of the aggregator and agent, and `forest --version` if the CLI is involved.
+      placeholder: "aggregator 0.9.1, agent 0.9.1, forest 0.9.1"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: A minimal compose file or repository layout helps a lot.
+      placeholder: |
+        1. …
+        2. …
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant aggregator, agent or browser console output. Check it for secrets, tokens and host names you'd rather not share first.
+      render: text
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Host OS and architecture, Docker and Compose versions, reverse proxy if not the bundled Caddy.
+      placeholder: "Ubuntu 24.04 arm64, Docker 28.1, Compose 2.36"
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: The logs and files above contain no secrets.
+          required: true

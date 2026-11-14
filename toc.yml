@@ -92,6 +92,8 @@
   items:
   - name: Contributing
     href: CONTRIBUTING.md
+  - name: Code of Conduct
+    href: CODE_OF_CONDUCT.md
   - name: Local setup, CI, releases
     href: docs/development.md
   - name: Implementation status

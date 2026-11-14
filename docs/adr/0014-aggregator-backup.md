@@ -1,38 +1,38 @@
-# ADR-0014. Бекап ЦА: зашифрований архів у S3-сумісному бакеті, уточнення інваріанта 1
+# ADR-0014. Aggregator backup: an encrypted archive in an S3-compatible bucket, refining invariant 1
 
-- Статус: прийнято
-- Дата: 2026-11-06
+- Status: accepted
+- Date: 2026-11-06
 
-## Контекст
+## Context
 
-У томі `/data` лежать база, key ring Data Protection і (зашифровані ним) приватні age-ключі середовищ. Key ring на диску не зашифрований (ADR-0003), тож база разом із ним дає всі збережені секрети. Втрата тому — це втрата цих ключів, а отже й доступу до секретів у репозиторіях, якщо немає резервного ключа. Досі документація лише казала бекапити том, а функції не було.
+The `/data` volume holds the database, the Data Protection key ring and (encrypted with it) the environments' private age keys. The key ring isn't encrypted on disk (ADR-0003), so the database together with it yields every stored secret. Losing the volume means losing those keys, and with them access to the secrets in repositories unless there's a backup key. So far the documentation only said to back up the volume, and there was no feature for it.
 
-База працює у WAL, тому звичайна копія файлів на ходу може бути неузгодженою. Бекап усього диска атомарними знімками цю проблему розв'язує, тому функція має бути необов'язковою.
+The database runs in WAL mode, so a plain copy of the files on the fly may be inconsistent. Backing up the whole disk with atomic snapshots solves this, so the feature must be optional.
 
-Варіанти:
+Options:
 
-1. **Зовнішній cron на хості.** Простий, але ламається мовчки, а тому без сповіщень і не видно в панелі.
-2. **Сам ЦА.** Може зняти узгоджений знімок, показати стан, надіслати сповіщення про збій. Мертвий ЦА нових копій не зробить, але старі лишаються.
-3. **Перехід на PostgreSQL.** Не розв'язує задачі: key ring однаково файли, а копія файлів працюючого кластера теж ненадійна.
+1. **An external cron job on the host.** Simple, but it breaks silently, so without notifications and invisible in the panel.
+2. **The aggregator itself.** It can take a consistent snapshot, show the state and send a failure notification. A dead aggregator makes no new copies, but the old ones remain.
+3. **Moving to PostgreSQL.** Doesn't solve the problem: the key ring is files anyway, and copying the files of a running cluster is unreliable too.
 
-Куди: S3-сумісний бакет в іншого провайдера, ніж хост ЦА (блокування акаунта не має забирати і сервер, і копії). Гірше: через агента на інший хост (нова команда й передавання файлів у стрімі) чи в Gitea (гине разом із хостом ЦА).
+Where to: an S3-compatible bucket at a different provider than the aggregator's host (an account lockout mustn't take both the server and the copies). Worse options: through an agent to another host (a new command and file transfer over the stream) or into Gitea (which dies with the aggregator's host).
 
-## Рішення
+## Decision
 
-1. Бекап робить ЦА. Типово вимкнено; налаштування — секція `Backup` (ADR-0013).
-2. **Архів** — `tar.gz` зі знімком бази (`VACUUM INTO`, потім `PRAGMA integrity_check`) і key ring. Key ring копіюється після бази, тож у ньому є всі ключі значень зі знімка. Git-клони не беруться: їх можна отримати знову.
-3. **Шифрування** — `age` на один отримувач. На ЦА лише публічний ключ, приватний зберігається поза системою. Незашифровані файли існують лише під час запуску, у каталозі `0700` на тому самому томі, що й база.
-4. **Завантаження** — `AWSSDK.S3` на будь-який S3-сумісний сервер (Cloudflare R2, MinIO). Ім'я об'єкта містить час, тож об'єкти не перезаписуються. Запит звичайний, з підписаним хешем файлу: потокове підписування SDK сервер R2 не приймає. HTTPS обов'язковий, HTTP — лише для loopback.
-5. **Розклад.** `BackupScheduler` раз на хвилину перевіряє, чи настав час, за часом останнього запуску з БД. Після збою наступна спроба — за годину. Сповіщення `BackupFailed` — на перший збій серії й далі раз на добу UTC. Один запуск одночасно (`BackupGate`).
-6. **Захист від стирання** — на боці бакета: правило блокування на 30 днів і видалення за життєвим циклом через 90. ЦА нічого не видаляє.
-7. **Перед міграцією БД** ЦА лишає поруч `aggregator.db.before-migration` (знімок, замінюється наступною міграцією), незалежно від налаштувань: міграцію не можна скасувати. Невдала копія старту не зупиняє.
-8. **Інваріант 1 уточнюється:** у придатному для читання вигляді приватні age-ключі є лише на ЦА, а бекап виносить їх зашифрованими на офлайн-ключ. Агенти їх не отримують ні в якому вигляді.
+1. The aggregator makes the backup. Off by default; the settings are the `Backup` section (ADR-0013).
+2. **The archive** is a `tar.gz` with a database snapshot (`VACUUM INTO`, then `PRAGMA integrity_check`) and the key ring. The key ring is copied after the database, so it has every key for the snapshot's values. Git clones aren't included: they can be fetched again.
+3. **Encryption** is `age` to a single recipient. The aggregator has only the public key; the private one is kept outside the system. Unencrypted files exist only during a run, in a `0700` directory on the same volume as the database.
+4. **Upload** is `AWSSDK.S3` to any S3-compatible server (Cloudflare R2, MinIO). The object name contains the time, so objects aren't overwritten. The request is an ordinary one with a signed file hash: R2 doesn't accept the SDK's streaming signing. HTTPS is required; HTTP only for loopback.
+5. **Schedule.** Once a minute `BackupScheduler` checks whether it's time, by the last run's time in the database. After a failure the next attempt is in an hour. A `BackupFailed` notification goes out on the first failure of a series and then once per UTC day. One run at a time (`BackupGate`).
+6. **Protection against deletion** is on the bucket's side: a 30-day lock rule and lifecycle deletion after 90. The aggregator deletes nothing.
+7. **Before a database migration** the aggregator leaves `aggregator.db.before-migration` next to it (a snapshot, replaced by the next migration) regardless of settings: a migration can't be undone. A failed copy doesn't stop the start.
+8. **Invariant 1 is refined:** in readable form the private age keys exist only on the aggregator, and the backup takes them out encrypted to an offline key. Agents never receive them in any form.
 
-## Наслідки
+## Consequences
 
-- Нові залежності: пакет `AWSSDK.S3` і бінарник `age` в образі ЦА (`scripts/install-sops.sh`).
-- Втрата офлайн-ключа робить усі бекапи непотрібними. Ключ читання бакета теж треба тримати поза ЦА: ключ у базі лежить у самому бекапі.
-- Зламаний ЦА може змінити отримувача для майбутніх копій, тому зміна потребує підтвердження й сповіщає (ADR-0013). Уже збережені копії він не прочитає й не зітре.
-- Після відновлення зі старого бекапу повертаються відкликані токени й ролі, яких уже не мало бути, а зареєстровані пізніше агенти мусять реєструватися знову. Це описано в порядку відновлення.
-- Працездатність копії ЦА перевірити не може: він не має приватного ключа. Відновлення треба періодично пробувати вручну.
-- `.env` хоста в архів не входить: ЦА його не читає.
+- New dependencies: the `AWSSDK.S3` package and the `age` binary in the aggregator's image (`scripts/install-sops.sh`).
+- Losing the offline key makes every backup useless. The bucket's read key must also be kept outside the aggregator: the key in the database is inside the backup itself.
+- A compromised aggregator can change the recipient for future copies, so the change needs confirmation and sends a notification (ADR-0013). It can't read or erase copies already stored.
+- Restoring from an old backup brings back revoked tokens and roles that shouldn't exist any more, and agents enrolled later have to enroll again. The restore procedure describes this.
+- The aggregator can't check that a copy works: it has no private key. Try restoring by hand from time to time.
+- The host's `.env` isn't in the archive: the aggregator doesn't read it.

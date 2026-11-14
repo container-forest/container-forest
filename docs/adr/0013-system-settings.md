@@ -1,35 +1,35 @@
-# ADR-0013. Налаштування системи: типізовані секції, пріоритет середовища й підтвердження особи
+# ADR-0013. System settings: typed sections, environment precedence and identity confirmation
 
-- Статус: прийнято
-- Дата: 2026-11-06
+- Status: accepted
+- Date: 2026-11-06
 
-## Контекст
+## Context
 
-Досі все налаштування ЦА задавалося змінними `CF_*` і читалося раз при старті. Для необов'язкових функцій цього замало: бекапу (ADR-0014), згодом зовнішніх провайдерів входу. Їх зручно вмикати з панелі, без доступу до хоста, і вони містять секрети. Водночас частина адміністраторів хоче задавати все через середовище й не давати панелі це змінювати.
+Until now all of the aggregator's configuration was set by `CF_*` variables and read once at start. That's not enough for optional features: backups (ADR-0014), later external sign-in providers. They're convenient to turn on from the panel, without access to the host, and they contain secrets. At the same time, some administrators want to set everything through the environment and not let the panel change it.
 
-Такі налаштування чутливі: хто змінює отримувача бекапу й бакет, той може отримати копію всіх секретів; хто додає провайдера входу, той отримує постійний спосіб увійти. Викрадена сесія не повинна робити це сама.
+Such settings are sensitive: whoever changes the backup's recipient and bucket can get a copy of every secret; whoever adds a sign-in provider gets a permanent way in. A stolen session mustn't be able to do this alone.
 
-Варіанти сховища:
+Storage options:
 
-1. **`IConfigurationProvider` поверх БД.** Значення доходили б до options автоматично, але панель не дізналася б, звідки значення, а розшифрування секрету потребує Data Protection, яка сама налаштовується з конфігурації.
-2. **Вільні пари ключ-значення з API.** Просто, але валідація й права розходяться по клієнтах, а секрети легко повернути в відповіді.
-3. **Типізовані секції зі сховищем у `Application`.** Кожна секція перелічує поля з валідацією, а решта коду отримує типізоване значення.
+1. **An `IConfigurationProvider` over the database.** Values would reach options automatically, but the panel couldn't tell where a value came from, and decrypting a secret needs Data Protection, which itself is configured from configuration.
+2. **Free-form key-value pairs with an API.** Simple, but validation and permissions spread across clients, and secrets are easy to return in a response.
+3. **Typed sections with storage in `Application`.** Each section lists its fields with validation, and the rest of the code gets a typed value.
 
-## Рішення
+## Decision
 
-1. Обрано варіант 3: `SettingsSection` описує поля, `SettingsStore` їх читає й пише, рядок БД `StoredSetting` — одне поле.
-2. **Пріоритет для кожного поля окремо:** змінна середовища → БД → типове значення. Поле зі змінної в панелі заблоковане, а PUT його ігнорує. Некоректне значення змінної не валить старт: функція необов'язкова, тож проблема показується в панелі й у результаті запуску.
-3. **Що не потрапляє в секції:** усе, без чого ЦА не запуститься або що потрібне до читання БД (рядок підключення, каталог key ring, домен). Наявні налаштування масово не переносяться.
-4. **Секрети** зберігаються через `ISecretProtector` (`SecretPurpose.StoredSetting`). API повертає лише `isSet`. Аудит і сповіщення називають поля, а не значення.
-5. **Зміна чутливої секції** потребує адміністратора, сесії (не API-токена) і свіжого підтвердження особи: пароль або passkey дають токен на 5 хвилин (`IdentityConfirmations`), прив'язаний до користувача. Вдала й невдала спроби йдуть в аудит, невдалий пароль рахується в блокування. Вхід через Discord підтвердженням не вважається: повторний OAuth часто проходить без жодної дії людини.
-6. **Сповіщення.** Зміна дає подію `SettingsChanged`. Подія стосується всієї системи, тому `NotificationEvent.EnvironmentId` став необов'язковим; такі події отримують лише правила на всю систему.
-7. Зміни застосовуються без перезапуску: споживач читає секцію щоразу, коли вона йому потрібна. ЦА один, тож синхронізації між екземплярами не треба.
+1. Option 3: `SettingsSection` describes fields, `SettingsStore` reads and writes them, and a `StoredSetting` database row is one field.
+2. **Precedence per field:** environment variable → database → default. A field from a variable is locked in the panel, and a PUT ignores it. An invalid variable value doesn't fail the start: the feature is optional, so the problem is shown in the panel and in the run's result.
+3. **What doesn't go into sections:** anything the aggregator can't start without, or that's needed before reading the database (the connection string, the key ring directory, the domain). Existing settings aren't moved over wholesale.
+4. **Secrets** are stored through `ISecretProtector` (`SecretPurpose.StoredSetting`). The API returns only `isSet`. The audit log and notifications name fields, not values.
+5. **Changing a sensitive section** needs an administrator, a session (not an API token) and a fresh identity confirmation: a password or a passkey gives a 5-minute token (`IdentityConfirmations`) bound to the user. Successful and failed attempts go to the audit log, and a failed password counts towards lockout. Signing in with Discord doesn't count as confirmation: a repeated OAuth often goes through without any action by the person.
+6. **Notifications.** A change produces a `SettingsChanged` event. The event concerns the whole system, so `NotificationEvent.EnvironmentId` became optional; only system-wide rules receive such events.
+7. Changes apply without a restart: a consumer reads the section whenever it needs it. There's one aggregator, so no synchronisation between instances is needed.
 
-## Наслідки
+## Consequences
 
-- Нова секція — новий клас, контракт і екран; сховище й підтвердження не змінюються. Секцію для OIDC треба буде доповнити динамічними схемами автентифікації, бо ASP.NET реєструє їх під час старту.
-- CLI цих налаштувань не змінює: немає сесії. Для автоматизації є змінні середовища.
-- **Додавання passkey** теж потребує підтвердження, інакше викрадена сесія додала б власний ключ і ним підтвердилася. Виняток — акаунт лише з Discord: підтвердити йому нічим, тому перший passkey додається без цього.
-- **Обмеження підтвердження.** Сесія чи токен адміністратора досі можуть скинути пароль (собі чи іншому адміністратору) або створити нового адміністратора, а новим паролем підтвердити дію. Це керування користувачами, в тому числі з CLI, і воно свідомо не змінене. Власник свідомо лишив це так, бо обов'язкове підтвердження зламало б ці команди в CLI: токен підтвердитися не може. Отже, проти викраденої сесії адміністратора підтвердження лише перешкода, а другий рубіж — аудит і сповіщення: нова подія `AccountSecurityChanged` повідомляє про видачу прав адміністратора, створення адміністратора й скидання пароля.
-- Зміна змінних середовища лишається поза аудитом і сповіщеннями: їх бачить лише хост.
-- Адміністратор із входом лише через Discord спершу додає passkey.
+- A new section is a new class, contract and screen; the storage and the confirmation don't change. A section for OIDC will need dynamic authentication schemes, since ASP.NET registers them at start.
+- The CLI doesn't change these settings: it has no session. Environment variables are there for automation.
+- **Adding a passkey** also needs confirmation, otherwise a stolen session could add its own key and confirm with it. The exception is a Discord-only account: it has nothing to confirm with, so its first passkey is added without it.
+- **The confirmation's limits.** An administrator's session or token can still reset a password (their own or another administrator's) or create a new administrator, and then confirm the action with the new password. That's user management, including from the CLI, and it's deliberately unchanged: mandatory confirmation would break those CLI commands, since a token can't confirm itself. So against a stolen administrator session the confirmation is only an obstacle, and the second line of defence is the audit log and notifications: a new `AccountSecurityChanged` event reports granting administrator rights, creating an administrator and resetting a password.
+- Changing environment variables stays outside the audit log and notifications: only the host sees them.
+- An administrator who signs in only with Discord adds a passkey first.

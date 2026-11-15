@@ -51,6 +51,15 @@ public sealed class AgentOptions
     /// <summary>The aggregator drops a connection that is silent for 45 s.</summary>
     public TimeSpan HeartbeatInterval { get; set; } = TimeSpan.FromSeconds(15);
 
+    /// <summary>
+    /// How often the agent sends resource usage (ADR-0018); zero turns metrics off. Container counters come from the
+    /// host's cgroup files under <see cref="HostRoot"/>, or from Docker's stats API where those cannot be read.
+    /// </summary>
+    public TimeSpan MetricsInterval { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>How often the agent asks Docker for its disk usage (docker system df), which is slow on big hosts.</summary>
+    public TimeSpan DiskUsageInterval { get; set; } = TimeSpan.FromMinutes(15);
+
     public string StacksRoot => StacksDirectory ?? Path.Combine(DataDirectory, "stacks");
 
     public static string DefaultDataDirectory() =>
@@ -98,5 +107,7 @@ public sealed class AgentOptions
         && UnmanagedStackRoots.All(IsValidUnmanagedRoot)
         && !string.IsNullOrWhiteSpace(DockerExecutable)
         && ComposeTimeout > TimeSpan.Zero
-        && HeartbeatInterval > TimeSpan.Zero;
+        && HeartbeatInterval > TimeSpan.Zero
+        && (MetricsInterval == TimeSpan.Zero || MetricsInterval >= TimeSpan.FromSeconds(1))
+        && DiskUsageInterval >= TimeSpan.FromMinutes(1);
 }

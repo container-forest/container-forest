@@ -2,6 +2,7 @@ using System.Threading.Channels;
 using ContainerForest.Agent.Commands;
 using ContainerForest.Agent.Compose;
 using ContainerForest.Agent.Docker;
+using ContainerForest.Agent.Metrics;
 using ContainerForest.Agent.Stacks;
 using ContainerForest.Contracts.Agent;
 using Grpc.Core;
@@ -388,4 +389,55 @@ internal sealed class FakeStackFileStore : IStackFileStore
     public void DiscardPreviousSecrets(string stackName) => Calls.Add($"discard-previous-secrets {stackName}");
 
     public void DeleteSecrets(string stackName) => Calls.Add($"delete-secrets {stackName}");
+}
+
+/// <summary>Serves containers and their stats from dictionaries; a missing pid or stats entry is null.</summary>
+internal sealed class FakeMetricsGateway : IDockerMetricsGateway
+{
+    public DockerRuntime Runtime { get; set; } = new("2", "systemd");
+
+    public List<RunningContainer> Running { get; } = [];
+
+    public Dictionary<string, long> Pids { get; } = [];
+
+    public Dictionary<string, ContainerCounters> Stats { get; } = [];
+
+    public DockerDiskUsage? DiskUsage { get; set; }
+
+    public AgentCommandException? Failure { get; set; }
+
+    public int DiskUsageCalls { get; private set; }
+
+    public Task<DockerRuntime> GetRuntimeAsync(CancellationToken cancellationToken) => Result(Runtime);
+
+    public Task<IReadOnlyList<RunningContainer>> ListRunningContainersAsync(CancellationToken cancellationToken) =>
+        Result<IReadOnlyList<RunningContainer>>(Running.ToList());
+
+    public Task<long?> GetPidAsync(string containerId, CancellationToken cancellationToken) =>
+        Result<long?>(Pids.TryGetValue(containerId, out var pid) ? pid : null);
+
+    public Task<ContainerCounters?> ReadStatsAsync(string containerId, CancellationToken cancellationToken) =>
+        Result(Stats.GetValueOrDefault(containerId));
+
+    public Task<DockerDiskUsage?> GetDiskUsageAsync(CancellationToken cancellationToken)
+    {
+        DiskUsageCalls++;
+        return Result(DiskUsage);
+    }
+
+    private Task<T> Result<T>(T value) => Failure is { } failure ? Task.FromException<T>(failure) : Task.FromResult(value);
+}
+
+/// <summary>A clock that moves only when told to, for both wall time and timestamps.</summary>
+internal sealed class SteppedTimeProvider(DateTimeOffset start) : TimeProvider
+{
+    private DateTimeOffset now = start;
+
+    public override DateTimeOffset GetUtcNow() => now;
+
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+    public override long GetTimestamp() => now.UtcTicks;
+
+    public void Advance(TimeSpan by) => now += by;
 }

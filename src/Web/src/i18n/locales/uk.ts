@@ -1837,6 +1837,8 @@ const uk: Translation = {
       AccountSecurityChanged: "Новий адміністратор чи скидання пароля (лише правила на всю систему)",
       ImageUpdateFailed: "Оновлення образу не вдалося",
       ImagePinned: "Образ закріплено чи відкріплено",
+      ResourceUsageHigh: "Використання ресурсів вище порогу",
+      ResourceUsageNormal: "Використання ресурсів знову в нормі",
     },
     severity: {
       Info: "Інформація",

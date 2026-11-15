@@ -4,7 +4,7 @@ Command handlers, Docker and compose. What the agent receives from the aggregato
 
 ## Contract
 
-`src/Contracts/agent/agent.proto` is the single source; don't copy it here. Deferred: statistics for graphs, exec/attach, a separate rehydrate command (for now it's another `DeployStack`).
+`src/Contracts/agent/agent.proto` is the single source; don't copy it here. Resource usage: [metrics](../../docs/design/metrics.md). Deferred: exec/attach, a separate rehydrate command (for now it's another `DeployStack`).
 
 ## Connection and commands
 

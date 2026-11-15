@@ -1839,6 +1839,8 @@ const en = {
       AccountSecurityChanged: "New administrator or password reset (whole-system rules only)",
       ImageUpdateFailed: "Image update failed",
       ImagePinned: "Image pinned or unpinned",
+      ResourceUsageHigh: "Resource usage above a threshold",
+      ResourceUsageNormal: "Resource usage back to normal",
     },
     severity: {
       Info: "Info",

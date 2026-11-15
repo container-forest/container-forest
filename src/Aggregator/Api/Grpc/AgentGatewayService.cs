@@ -1,5 +1,6 @@
 using ContainerForest.Aggregator.Application.Agents;
 using ContainerForest.Aggregator.Application.Deployments;
+using ContainerForest.Aggregator.Application.Metrics;
 using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Domain.Common;
 using ContainerForest.Aggregator.Infrastructure.Agents;
@@ -16,6 +17,7 @@ public sealed class AgentGatewayService(
     ContainerEventCoalescer containerEvents,
     AgentConnectivityWatch connectivity,
     ContainerIncidentWatch containerIncidents,
+    MetricsBuffer metrics,
     IOptions<AgentGatewayOptions> options,
     TimeProvider time,
     ILogger<AgentGatewayService> logger) : AgentGateway.AgentGatewayBase
@@ -58,6 +60,7 @@ public sealed class AgentGatewayService(
 
         var session = new AgentSession(environmentId, responseStream, time.GetUtcNow(), logger);
         registry.Open(session);
+        metrics.SetSource(environmentId, MetricsMapper.ToSource(hello.MetricsSource), hello.MetricsIntervalSeconds);
         connectivity.Connected(environmentId, session.ConnectedAt);
         logger.LogInformation(
             "Agent {AgentVersion} of environment {EnvironmentId} connected (session {SessionId}, Docker {DockerVersion})",
@@ -167,6 +170,9 @@ public sealed class AgentGatewayService(
                 // crashes and failed health checks become notifications for the channels administrators chose.
                 containerEvents.Report(session.EnvironmentId);
                 containerIncidents.Observe(ToObservation(session.EnvironmentId, message.ContainerEvent));
+                break;
+            case AgentMessage.BodyOneofCase.Metrics:
+                metrics.Add(MetricsMapper.ToSnapshot(session.EnvironmentId, message.Metrics, time.GetUtcNow()));
                 break;
             default:
                 logger.LogTrace("Ignoring {MessageType} from environment {EnvironmentId}", message.BodyCase, session.EnvironmentId);

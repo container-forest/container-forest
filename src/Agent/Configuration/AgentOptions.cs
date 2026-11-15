@@ -52,7 +52,7 @@ public sealed class AgentOptions
     public TimeSpan HeartbeatInterval { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>
-    /// How often the agent sends resource usage (ADR-0018); zero turns metrics off. Container counters come from the
+    /// How often the agent sends resource usage (ADR-0017); zero turns metrics off. Container counters come from the
     /// host's cgroup files under <see cref="HostRoot"/>, or from Docker's stats API where those cannot be read.
     /// </summary>
     public TimeSpan MetricsInterval { get; set; } = TimeSpan.FromSeconds(10);

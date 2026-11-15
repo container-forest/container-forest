@@ -18,6 +18,7 @@ public sealed class AgentGatewayService(
     AgentConnectivityWatch connectivity,
     ContainerIncidentWatch containerIncidents,
     MetricsBuffer metrics,
+    ResourceAlertWatch resourceAlerts,
     IOptions<AgentGatewayOptions> options,
     TimeProvider time,
     ILogger<AgentGatewayService> logger) : AgentGateway.AgentGatewayBase
@@ -172,7 +173,9 @@ public sealed class AgentGatewayService(
                 containerIncidents.Observe(ToObservation(session.EnvironmentId, message.ContainerEvent));
                 break;
             case AgentMessage.BodyOneofCase.Metrics:
-                metrics.Add(MetricsMapper.ToSnapshot(session.EnvironmentId, message.Metrics, time.GetUtcNow()));
+                var snapshot = MetricsMapper.ToSnapshot(session.EnvironmentId, message.Metrics, time.GetUtcNow());
+                metrics.Add(snapshot);
+                resourceAlerts.Observe(snapshot);
                 break;
             default:
                 logger.LogTrace("Ignoring {MessageType} from environment {EnvironmentId}", message.BodyCase, session.EnvironmentId);

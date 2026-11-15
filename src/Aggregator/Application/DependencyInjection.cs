@@ -50,6 +50,8 @@ public static class DependencyInjection
         services.AddSingleton<Metrics.MetricsBuffer>();
         services.AddScoped<Metrics.MetricsQueryService>();
         services.AddScoped<Metrics.MetricsSettingsService>();
+        services.AddSingleton<Metrics.ResourceAlertWatch>();
+        services.AddScoped<Metrics.ResourceAlertNotifier>();
         services.AddScoped<NotificationSettingsService>();
         services.AddScoped<RepositoryAccess>();
         services.AddScoped<RepositoryService>();

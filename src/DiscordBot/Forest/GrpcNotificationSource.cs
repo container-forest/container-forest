@@ -127,6 +127,8 @@ public sealed class GrpcNotificationSource(
         Proto.NotificationKind.AccountSecurityChanged => NotificationKind.AccountSecurityChanged,
         Proto.NotificationKind.ImageUpdateFailed => NotificationKind.ImageUpdateFailed,
         Proto.NotificationKind.ImagePinned => NotificationKind.ImagePinned,
+        Proto.NotificationKind.ResourceUsageHigh => NotificationKind.ResourceUsageHigh,
+        Proto.NotificationKind.ResourceUsageNormal => NotificationKind.ResourceUsageNormal,
         _ => NotificationKind.Unknown,
     };
 

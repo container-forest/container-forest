@@ -325,6 +325,9 @@ enum NotificationKind {
   // Image updates of the aggregator (ADR-0015); stack events with stack_id set.
   NOTIFICATION_KIND_IMAGE_UPDATE_FAILED = 11;
   NOTIFICATION_KIND_IMAGE_PINNED = 12;
+  // Resource usage over a threshold of the Metrics settings, and back to normal (ADR-0017); the summary says what.
+  NOTIFICATION_KIND_RESOURCE_USAGE_HIGH = 13;
+  NOTIFICATION_KIND_RESOURCE_USAGE_NORMAL = 14;
 }
 
 enum NotificationSeverity {

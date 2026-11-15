@@ -43,8 +43,18 @@ public enum NotificationEventKinds
     /// <summary>A user or the image hook pinned an image, or unpinned it: automatic updates of it stop or resume.</summary>
     ImagePinned = 1 << 11,
 
+    /// <summary>
+    /// A host's CPU or memory, a disk, or a container's memory against its limit stayed above the threshold of the
+    /// Metrics settings for their alert time (ADR-0017).
+    /// </summary>
+    ResourceUsageHigh = 1 << 12,
+
+    /// <summary>What <see cref="ResourceUsageHigh"/> reported has stayed back under its threshold as long.</summary>
+    ResourceUsageNormal = 1 << 13,
+
     All = DeploymentSucceeded | DeploymentFailed | ContainerDied | ContainerUnhealthy | AgentOffline | AgentOnline
-        | ContainerHealthy | BackupFailed | SettingsChanged | AccountSecurityChanged | ImageUpdateFailed | ImagePinned,
+        | ContainerHealthy | BackupFailed | SettingsChanged | AccountSecurityChanged | ImageUpdateFailed | ImagePinned
+        | ResourceUsageHigh | ResourceUsageNormal,
 }
 
 public enum NotificationSeverity
@@ -74,7 +84,7 @@ public sealed record NotificationEvent(
             or NotificationEventKinds.BackupFailed => NotificationSeverity.Error,
         NotificationEventKinds.ContainerUnhealthy or NotificationEventKinds.SettingsChanged
             or NotificationEventKinds.AccountSecurityChanged or NotificationEventKinds.ImageUpdateFailed
-            or NotificationEventKinds.ImagePinned => NotificationSeverity.Warning,
+            or NotificationEventKinds.ImagePinned or NotificationEventKinds.ResourceUsageHigh => NotificationSeverity.Warning,
         _ => NotificationSeverity.Info,
     };
 

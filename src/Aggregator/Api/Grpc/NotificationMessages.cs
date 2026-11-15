@@ -70,6 +70,8 @@ internal static class NotificationMessages
         NotificationEventKinds.AccountSecurityChanged => NotificationKind.AccountSecurityChanged,
         NotificationEventKinds.ImageUpdateFailed => NotificationKind.ImageUpdateFailed,
         NotificationEventKinds.ImagePinned => NotificationKind.ImagePinned,
+        NotificationEventKinds.ResourceUsageHigh => NotificationKind.ResourceUsageHigh,
+        NotificationEventKinds.ResourceUsageNormal => NotificationKind.ResourceUsageNormal,
         _ => NotificationKind.Unspecified,
     };
 

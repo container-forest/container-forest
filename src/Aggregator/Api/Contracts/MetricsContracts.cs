@@ -68,7 +68,7 @@ public sealed record DeploymentMarkerResponse(Guid Id, DateTimeOffset At, Deploy
 public sealed record ContainerMetricsResponse(
     MetricsWindowResponse Window, ContainerSeriesResponse? Series, IReadOnlyList<DeploymentMarkerResponse> Deployments);
 
-public sealed record VolumeUsageResponse(string Name, ulong SizeBytes);
+public sealed record VolumeUsageResponse(string Name, long SizeBytes);
 
 public sealed record StackMetricsResponse(
     MetricsWindowResponse Window,
@@ -90,7 +90,7 @@ public sealed record EnvironmentMetricsResponse(
     DockerDiskUsageResponse? DiskUsage);
 
 public sealed record DockerDiskUsageResponse(
-    DateTimeOffset At, ulong ImagesBytes, ulong ImagesReclaimableBytes, ulong ContainersBytes, ulong VolumesBytes, ulong BuildCacheBytes);
+    DateTimeOffset At, long ImagesBytes, long ImagesReclaimableBytes, long ContainersBytes, long VolumesBytes, long BuildCacheBytes);
 
 public sealed record CurrentMetricsResponse(
     MetricsSourceKind Source,
@@ -102,16 +102,16 @@ public sealed record CurrentMetricsResponse(
 /// <param name="HasRates">False right after the agent connected: CPU, disk and network are not known yet.</param>
 public sealed record CurrentHostResponse(
     bool HasRates,
-    uint CpuCount,
+    int CpuCount,
     double CpuBusy,
     double CpuSteal,
     double Load1,
     double Load5,
     double Load15,
-    ulong MemoryTotalBytes,
-    ulong MemoryUsedBytes,
-    ulong SwapTotalBytes,
-    ulong SwapUsedBytes,
+    long MemoryTotalBytes,
+    long MemoryUsedBytes,
+    long SwapTotalBytes,
+    long SwapUsedBytes,
     double DiskReadBytesPerSecond,
     double DiskWriteBytesPerSecond,
     double NetworkRxBytesPerSecond,
@@ -119,7 +119,7 @@ public sealed record CurrentHostResponse(
     long UptimeSeconds,
     IReadOnlyList<CurrentFilesystemResponse> Filesystems);
 
-public sealed record CurrentFilesystemResponse(string MountPoint, string Device, string Type, ulong TotalBytes, ulong UsedBytes, ulong AvailableBytes, double UsedRatio);
+public sealed record CurrentFilesystemResponse(string MountPoint, string Device, string Type, long TotalBytes, long UsedBytes, long AvailableBytes, double UsedRatio);
 
 public sealed record CurrentContainerResponse(
     string Id,
@@ -130,15 +130,15 @@ public sealed record CurrentContainerResponse(
     double CpuCores,
     double CpuLimitCores,
     double CpuThrottledRatio,
-    ulong MemoryBytes,
-    ulong MemoryCacheBytes,
-    ulong MemoryLimitBytes,
+    long MemoryBytes,
+    long MemoryCacheBytes,
+    long MemoryLimitBytes,
     double NetworkRxBytesPerSecond,
     double NetworkTxBytesPerSecond,
     bool HostNetwork,
     double BlockReadBytesPerSecond,
     double BlockWriteBytesPerSecond,
-    uint Pids);
+    int Pids);
 
 public sealed record MetricsSettingsResponse(
     SettingTextResponse MinuteRetentionDays,

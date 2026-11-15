@@ -4,6 +4,7 @@ using ContainerForest.Cli.Api.Generated.Api.Environments.Item.AgeKeys;
 using ContainerForest.Cli.Api.Generated.Api.Environments.Item.ComposePolicy;
 using ContainerForest.Cli.Api.Generated.Api.Environments.Item.Containers;
 using ContainerForest.Cli.Api.Generated.Api.Environments.Item.EnrollmentToken;
+using ContainerForest.Cli.Api.Generated.Api.Environments.Item.Metrics;
 using ContainerForest.Cli.Api.Generated.Api.Environments.Item.RegistryCredentials;
 using ContainerForest.Cli.Api.Generated.Api.Environments.Item.RevokeAgent;
 using ContainerForest.Cli.Api.Generated.Api.Environments.Item.RoleAssignments;
@@ -45,6 +46,11 @@ namespace ContainerForest.Cli.Api.Generated.Api.Environments.Item
         public global::ContainerForest.Cli.Api.Generated.Api.Environments.Item.EnrollmentToken.EnrollmentTokenRequestBuilder EnrollmentToken
         {
             get => new global::ContainerForest.Cli.Api.Generated.Api.Environments.Item.EnrollmentToken.EnrollmentTokenRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The metrics property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.Environments.Item.Metrics.MetricsRequestBuilder Metrics
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.Environments.Item.Metrics.MetricsRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>The registryCredentials property</summary>
         public global::ContainerForest.Cli.Api.Generated.Api.Environments.Item.RegistryCredentials.RegistryCredentialsRequestBuilder RegistryCredentials

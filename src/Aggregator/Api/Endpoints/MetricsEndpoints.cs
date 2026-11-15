@@ -82,7 +82,7 @@ internal static class MetricsEndpoints
     private static StackMetricsResponse ToResponse(StackMetrics metrics) => new(
         ToResponse(metrics.Window),
         metrics.Containers.Select(ToResponse).ToList(),
-        metrics.Volumes.Select(v => new VolumeUsageResponse(v.Name, v.SizeBytes)).ToList(),
+        metrics.Volumes.Select(v => new VolumeUsageResponse(v.Name, L(v.SizeBytes))).ToList(),
         ToResponse(metrics.Deployments));
 
     private static EnvironmentMetricsResponse ToResponse(EnvironmentMetrics metrics) => new(
@@ -96,7 +96,7 @@ internal static class MetricsEndpoints
             .ToList(),
         metrics.Stacks.Select(ToResponse).ToList(),
         metrics.DiskUsage is { } d
-            ? new DockerDiskUsageResponse(d.At, d.ImagesBytes, d.ImagesReclaimableBytes, d.ContainersBytes, d.VolumesBytes, d.BuildCacheBytes)
+            ? new DockerDiskUsageResponse(d.At, L(d.ImagesBytes), L(d.ImagesReclaimableBytes), L(d.ContainersBytes), L(d.VolumesBytes), L(d.BuildCacheBytes))
             : null);
 
     private static IReadOnlyList<DeploymentMarkerResponse> ToResponse(IReadOnlyList<DeploymentMarker> markers) =>
@@ -125,15 +125,15 @@ internal static class MetricsEndpoints
         metrics.At,
         metrics.Host is { } h
             ? new CurrentHostResponse(
-                h.HasRates, h.CpuCount, h.CpuBusy, h.CpuSteal, h.Load1, h.Load5, h.Load15, h.MemoryTotalBytes, h.MemoryUsedBytes,
-                h.SwapTotalBytes, h.SwapUsedBytes, h.DiskReadBytesPerSecond, h.DiskWriteBytesPerSecond, h.NetworkRxBytesPerSecond,
+                h.HasRates, (int)h.CpuCount, h.CpuBusy, h.CpuSteal, h.Load1, h.Load5, h.Load15, L(h.MemoryTotalBytes), L(h.MemoryUsedBytes),
+                L(h.SwapTotalBytes), L(h.SwapUsedBytes), h.DiskReadBytesPerSecond, h.DiskWriteBytesPerSecond, h.NetworkRxBytesPerSecond,
                 h.NetworkTxBytesPerSecond, h.UptimeSeconds,
-                h.Filesystems.Select(f => new CurrentFilesystemResponse(f.MountPoint, f.Device, f.Type, f.TotalBytes, f.UsedBytes, f.AvailableBytes, f.UsedRatio)).ToList())
+                h.Filesystems.Select(f => new CurrentFilesystemResponse(f.MountPoint, f.Device, f.Type, L(f.TotalBytes), L(f.UsedBytes), L(f.AvailableBytes), f.UsedRatio)).ToList())
             : null,
         metrics.Containers.Select(c => new CurrentContainerResponse(
             c.Id, c.Name, c.StackName, c.ServiceName, c.HasRates, c.CpuCores, c.CpuLimitCores, c.CpuThrottledRatio,
-            c.MemoryWorkingSetBytes, c.MemoryCacheBytes, c.MemoryLimitBytes, c.NetworkRxBytesPerSecond, c.NetworkTxBytesPerSecond,
-            c.HostNetwork, c.BlockReadBytesPerSecond, c.BlockWriteBytesPerSecond, c.Pids)).ToList());
+            L(c.MemoryWorkingSetBytes), L(c.MemoryCacheBytes), L(c.MemoryLimitBytes), c.NetworkRxBytesPerSecond, c.NetworkTxBytesPerSecond,
+            c.HostNetwork, c.BlockReadBytesPerSecond, c.BlockWriteBytesPerSecond, (int)Math.Min(c.Pids, int.MaxValue))).ToList());
 
     private static MetricsSettingsResponse ToResponse(ResolvedSettings settings)
     {
@@ -153,6 +153,9 @@ internal static class MetricsEndpoints
             Text(MetricsSettingsSection.ContainerMemoryPercentField),
             Text(MetricsSettingsSection.AlertMinutesField));
     }
+
+    // JSON clients read 64-bit unsigned numbers badly (OpenAPI has no format for them); no byte count comes near long.MaxValue.
+    private static long L(ulong value) => (long)Math.Min(value, long.MaxValue);
 
     // Three decimals are plenty for graphs and keep the JSON small.
     private static List<double> Col<T>(IEnumerable<T> points, Func<T, double> value) =>

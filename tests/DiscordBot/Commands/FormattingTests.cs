@@ -89,4 +89,36 @@ public sealed class FormattingTests
     {
         Assert.Contains(@"**my\_env**", ReplyFormatter.Environments([new("1", "my_env", true)]));
     }
+
+    [Fact]
+    public void Stats_ShowTheHostAndTheBusiestContainers()
+    {
+        var stats = new ForestStats(
+            DateTimeOffset.FromUnixTimeSeconds(1_800_000_000),
+            new ForestHostStats(true, 4, 0.5, 1.25, 8UL << 30, 2UL << 30, [new ForestFilesystemStats("/", 100UL << 30, 0.42)]),
+            [
+                new ForestContainerStats("idle-1", "web", true, 0.01, 10UL << 20, 0),
+                new ForestContainerStats("busy-1", "web", true, 1.5, 256UL << 20, 512UL << 20),
+            ]);
+
+        var text = ReplyFormatter.Stats(Prod, null, stats);
+
+        Assert.Equal(
+            """
+            **prod** · <t:1800000000:R>
+            🖥️ CPU 50% of 4 cores · load 1.25
+            🧠 Memory 2.0GiB / 8.0GiB (25%)
+            💾 `/` 42% of 100GiB
+            __2 containers__
+            `busy-1` CPU 150% · 256MiB / 512MiB
+            `idle-1` CPU 1.0% · 10.0MiB
+            """.ReplaceLineEndings("\n"),
+            text);
+    }
+
+    [Fact]
+    public void Stats_WithoutASample_SayWhy()
+    {
+        Assert.Contains("no resource usage in the last hour", ReplyFormatter.Stats(Prod, "web", new ForestStats(null, null, [])));
+    }
 }

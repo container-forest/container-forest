@@ -20,6 +20,7 @@ public sealed class ForestModule(
     UpStackCommand upStack,
     PullStackCommand pullStack,
     LinkCommand link,
+    StatsCommand stats,
     IHostApplicationLifetime lifetime) : InteractionModuleBase<SocketInteractionContext>
 {
     private const string EnvironmentDescription = "Environment name";
@@ -36,6 +37,12 @@ public sealed class ForestModule(
     public Task ContainersAsync(
         [Summary("environment", EnvironmentDescription), Autocomplete(typeof(EnvironmentAutocompleteHandler))] string environment) =>
         containers.ExecuteAsync(Current, environment, lifetime.ApplicationStopping);
+
+    [SlashCommand("stats", "CPU, memory and disks of an environment and its busiest containers")]
+    public Task StatsAsync(
+        [Summary("environment", EnvironmentDescription), Autocomplete(typeof(EnvironmentAutocompleteHandler))] string environment,
+        [Summary("stack", "Only this stack's containers"), Autocomplete(typeof(StackAutocompleteHandler))] string? stack = null) =>
+        stats.ExecuteAsync(Current, new StatsArgs(environment, stack), lifetime.ApplicationStopping);
 
     [SlashCommand("start", "Start a container")]
     public Task StartAsync(

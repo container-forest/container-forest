@@ -98,6 +98,25 @@ public sealed class GrpcForestClient(
         ];
     }
 
+    public async Task<ForestStats> GetStatsAsync(
+        ulong discordUserId, string environmentId, string? stackName, CancellationToken cancellationToken)
+    {
+        var request = new Proto.GetStatsRequest { DiscordUserId = discordUserId, EnvironmentId = environmentId, StackName = stackName ?? "" };
+        var response = await CallAsync(o => gateway.GetStatsAsync(request, o), options.Value.QueryTimeout, cancellationToken);
+        var host = response.Host is { } h
+            ? new ForestHostStats(
+                h.HasRates, h.CpuCount, h.CpuBusyRatio, h.Load1, h.MemoryTotalBytes, h.MemoryUsedBytes,
+                [.. h.Filesystems.Select(f => new ForestFilesystemStats(f.MountPoint, f.TotalBytes, f.UsedRatio))])
+            : null;
+        return new ForestStats(
+            response.SampledUnixMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(response.SampledUnixMs) : null,
+            host,
+            [
+                .. response.Containers.Select(c => new ForestContainerStats(
+                    c.Name, c.StackName.Length > 0 ? c.StackName : null, c.HasRates, c.CpuCores, c.MemoryBytes, c.MemoryLimitBytes)),
+            ]);
+    }
+
     public async Task<IReadOnlyList<ForestStack>> ListStacksAsync(
         ulong discordUserId, string environmentId, CancellationToken cancellationToken)
     {

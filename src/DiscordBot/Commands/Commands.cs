@@ -172,3 +172,25 @@ public sealed class LinkCommand(IForestClient forest, ILogger<LinkCommand> logge
     protected override BotReply Format(string userName, string code) =>
         BotReply.Success($"🔗 Your Discord account is now linked to **{Markdown.Escape(userName)}**.");
 }
+
+/// <param name="Stack">Only this compose project's containers; null for all.</param>
+public sealed record StatsArgs(string Environment, string? Stack = null);
+
+public sealed record StatsResult(ForestEnvironment Environment, string? Stack, ForestStats Stats);
+
+/// <summary>/stats: the host and the busiest containers from the agent's latest resource usage sample (ADR-0017).</summary>
+public sealed class StatsCommand(IForestClient forest, EnvironmentResolver environments, ILogger<StatsCommand> logger)
+    : BotCommand<StatsArgs, StatsResult>(logger)
+{
+    public override string Name => "stats";
+
+    protected override async Task<StatsResult> CallForestAsync(BotUser user, StatsArgs args, CancellationToken cancellationToken)
+    {
+        var environment = await environments.ResolveAsync(user, args.Environment, cancellationToken);
+        var stack = string.IsNullOrWhiteSpace(args.Stack) ? null : args.Stack.Trim();
+        return new StatsResult(environment, stack, await forest.GetStatsAsync(user.Id, environment.Id, stack, cancellationToken));
+    }
+
+    protected override BotReply Format(StatsResult result, StatsArgs args) =>
+        BotReply.Success(ReplyFormatter.Stats(result.Environment, result.Stack, result.Stats));
+}

@@ -119,6 +119,46 @@ public class BotGatewayTests
     }
 
     [Fact]
+    public async Task Linked_admin_gets_the_latest_resource_usage_filtered_by_stack()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        await LinkAsync(app, AggregatorApp.AdminUserName, AliceDiscordId);
+        var environmentId = agent.EnvironmentId.ToString();
+        var request = new GetStatsRequest { DiscordUserId = AliceDiscordId, EnvironmentId = environmentId, StackName = "web" };
+
+        var empty = await app.BotGateway.GetStatsAsync(request, BotHeaders(), cancellationToken: Ct);
+        Assert.Equal(0, empty.SampledUnixMs);
+
+        await agent.SendAsync(new global::ContainerForest.Contracts.Agent.AgentMessage
+        {
+            Metrics = new global::ContainerForest.Contracts.Agent.MetricsSample
+            {
+                TimestampUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                Host = new global::ContainerForest.Contracts.Agent.HostMetrics { CpuCount = 2, MemoryTotalBytes = 1000, MemoryAvailableBytes = 400 },
+                Containers =
+                {
+                    new global::ContainerForest.Contracts.Agent.ContainerMetrics { ContainerId = "a", Name = "web-app-1", StackName = "web", MemoryWorkingSetBytes = 10 },
+                    new global::ContainerForest.Contracts.Agent.ContainerMetrics { ContainerId = "b", Name = "db-1", StackName = "data" },
+                },
+            },
+        });
+
+        GetStatsResponse stats;
+        var attempts = 0;
+        do
+        {
+            await Task.Delay(50, Ct);
+            stats = await app.BotGateway.GetStatsAsync(request, BotHeaders(), cancellationToken: Ct);
+        }
+        while (stats.SampledUnixMs == 0 && ++attempts < 100);
+
+        Assert.Equal(600UL, stats.Host.MemoryUsedBytes);
+        var container = Assert.Single(stats.Containers);
+        Assert.Equal(("web-app-1", 10UL), (container.Name, container.MemoryBytes));
+    }
+
+    [Fact]
     public async Task Viewer_is_denied_and_errors_map_to_status_codes()
     {
         await using var app = new AggregatorApp();

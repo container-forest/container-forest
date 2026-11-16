@@ -5,6 +5,7 @@ import { type CSSProperties, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { containerLogsQuery, environmentsQuery } from "@/api/queries";
 import { ArrowLeftIcon, CopyIcon, DownloadIcon, FilterXIcon, Loader2Icon, RefreshCwIcon, SearchIcon } from "@/components/icons";
+import { ContainerTabs } from "@/components/metrics/container-tabs";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -72,6 +73,7 @@ function ContainerLogsScreen() {
         <h1 className="font-heading mt-2 text-2xl font-semibold break-all">{t("containerLogs.title", { name: containerId })}</h1>
         {environment && <p className="text-muted-foreground mt-1">{t("containerLogs.description", { environment: environment.name })}</p>}
       </div>
+      <ContainerTabs environmentId={environmentId} containerId={containerId} active="logs" />
 
       {environment === undefined ? (
         <p role="alert" className="text-destructive">

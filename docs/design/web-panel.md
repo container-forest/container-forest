@@ -36,6 +36,16 @@ Only what isn't visible from a screen's code. Paths are relative to `src/Web`. S
   - `src/features/container-logs/ansi.ts` parses ANSI colours; the 16 basic ones are the CSS variables `--ansi-0…15`. Without colours, and in search, copying and the downloaded file, escape sequences are stripped.
   - The request isn't retried for 404, 501 (an agent that can't read logs) and 503: otherwise the screen would sit on *Loading* for a long time.
 
+## Resource usage
+
+ADR-0017, [metrics.md](metrics.md). Components are in `src/components/metrics`, logic without React in `src/features/metrics/model.ts`.
+
+- **Where:** the *Metrics* tab of a container (`/containers/$environmentId/$containerId/metrics`, next to *Logs*: `ContainerTabs`; the container is a name, so its history stays readable after it is gone), `StackMetricsCard` on a managed stack's page, `EnvironmentMetricsCard` on an environment's page, and `MetricsSettingsCard` (retention and alert thresholds) on `/environments` for administrators. The range is a search param on the container tab and local state in the cards; `RangePicker` sits above the graphs it scopes.
+- **Queries:** `containerMetricsQuery`, `stackMetricsQuery`, `environmentMetricsQuery`, `currentMetricsQuery` (the disks list), all under the `metrics` key, so container events don't refetch them. They poll: every 10 s for an hour or less (raw samples), every minute for longer ranges.
+- **Graphs** (`MetricChart`): one measure per graph and one axis; 2px lines, a 10% wash for a single series, stacked areas for parts of a whole (host CPU by kind, a stack's containers, an environment's stacks). A crosshair tooltip lists every series, values first. Two or more series get a legend with the latest values. Limits (memory, CPU quota, host total) are a muted reference line, and deployments are vertical lines (red for a failed one). Stacked graphs name the seven busiest series and sum the rest as *Other* (`stackRows`); keys follow the series' names, not their rank, so a container keeps its colour.
+- **Colours:** `seriesColors` (and `--series-1…8` in `styles.css` for legend swatches) are the dataviz reference palette, the same in every panel palette, validated against the card surfaces for colour-vision deficiency. Three light-mode colours are below 3:1 against the surface, which is why the legends carry values and the stack card has a table of its containers.
+- Numbers in the generated types are `number | string` (the OpenAPI document allows both); the model reads every value through `Number`.
+
 ## Environments
 
 - **The enrollment token is shown once:** only the state of the component that got the response holds it (the creation dialog or the *Agent enrollment* section), not the Query cache, the URL or history state. Mutations carrying a token or a registry password have `gcTime: 0` and are reset right after success, so the response and variables don't stay in the mutation cache. The credentials form is cleared after saving.

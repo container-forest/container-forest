@@ -33,6 +33,7 @@ import { ImageHookCard } from "@/components/images/image-hook-card";
 import { ImagePoliciesCard } from "@/components/images/image-policies-card";
 import { DeployHookCard } from "@/components/stacks/deploy-hook-card";
 import { PolicyAllowancesCard } from "@/components/stacks/policy-allowances-card";
+import { StackMetricsCard } from "@/components/metrics/metrics-card";
 import { StackContainersCard } from "@/components/stacks/stack-containers-card";
 import { DeploymentStatusBadge } from "@/components/stacks/deployment-status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -99,6 +100,7 @@ function StackScreen() {
 
       <ActionsCard stack={stack} />
       <StackContainersCard environmentId={stack.environmentId} stackName={stack.name} emptyText={t("stack.containers.empty")} />
+      <StackMetricsCard stackId={stack.id} />
       <SourceCard key={`${stack.repositoryId}/${stack.branch}/${stack.composePath}`} stack={stack} />
       {stack.canDeploy && !stack.isSystem && <EndorsementCard stack={stack} />}
       {!stack.isSystem && (stack.canAdministerEnvironment || stack.policyAllowances.length > 0 || stack.policyUnrestricted) && (

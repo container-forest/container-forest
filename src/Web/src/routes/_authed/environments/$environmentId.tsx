@@ -16,6 +16,7 @@ import { ConfirmAction } from "@/components/confirm-action";
 import { EditEnvironmentDialog } from "@/components/environments/environment-dialogs";
 import { EnrollmentInstructions } from "@/components/environments/enrollment-instructions";
 import { ComposePolicySection } from "@/components/environments/compose-policy-section";
+import { EnvironmentMetricsCard } from "@/components/metrics/metrics-card";
 import { EnvironmentRolesSection } from "@/components/environments/environment-roles";
 import { ErrorText, FieldError } from "@/components/form-messages";
 import { ArrowLeftIcon, KeyIcon, Loader2Icon, LockIcon, Trash2Icon, UnlinkIcon } from "@/components/icons";
@@ -83,6 +84,7 @@ function EnvironmentScreen() {
           </div>
 
           <AgentStatusCard environment={environment} />
+          <EnvironmentMetricsCard environmentId={environment.id} />
           <ComposePolicySection environmentId={environment.id} />
           {/* Administrators and the environment's own administrators (ADR-0012); the aggregator checks again. */}
           {environment.canAdminister && (

@@ -25,4 +25,4 @@ Decision: [ADR-0017](../adr/0017-metrics.md). Aggregator paths are relative to `
 - REST: see the comment at the top of `Api/Contracts/MetricsContracts.cs`. Series are columns (`at[]` plus one array per measure).
 - CLI: `forest container stats [--stack] [--watch]`, `forest env stats [--watch]` (`Commands/StatsCommands.cs`); the series endpoints are left out of the generated client.
 - Bot: `/stats environment [stack]` (`StatsCommand`, `ReplyFormatter.Stats`), backed by `GetStats`.
-- Panel: graphs are not there yet.
+- Panel: graphs of a container (*Metrics* tab), a stack and an environment, and the settings; see [web-panel.md](web-panel.md#resource-usage).

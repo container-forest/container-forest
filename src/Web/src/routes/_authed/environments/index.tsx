@@ -29,6 +29,7 @@ import { rowActionsClass, rowClass, rowLinkClass } from "@/lib/row-link";
 import { cn } from "@/lib/utils";
 import { useLiveStatus } from "@/components/live/hub-provider";
 import { pollingInterval } from "@/features/live/model";
+import { MetricsSettingsCard } from "@/components/metrics/metrics-settings-card";
 
 export const Route = createFileRoute("/_authed/environments/")({
   validateSearch: environmentsSearchSchema,
@@ -172,6 +173,7 @@ function EnvironmentsScreen() {
           </p>
         </>
       )}
+      {me.isAdmin && <MetricsSettingsCard />}
     </div>
   );
 }

@@ -88,6 +88,8 @@ build/
 .next/
 out/
 .vite/
+# TanStack Router plugin's scratch files (route generation)
+.tanstack/
 *.tsbuildinfo
 
 # Coverage

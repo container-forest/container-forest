@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using ContainerForest.DiscordBot.Forest;
 
@@ -44,6 +45,66 @@ public static class ReplyFormatter
         }
 
         return WithinLimit(header, lines, "lines");
+    }
+
+    /// <summary>How many containers /stats lists: the busiest by CPU, then by memory.</summary>
+    public const int StatsContainers = 15;
+
+    public static string Stats(ForestEnvironment environment, string? stack, ForestStats stats)
+    {
+        var title = stack is null ? Markdown.Escape(environment.Name) : $"{Markdown.Escape(environment.Name)} · stack {Markdown.Escape(stack)}";
+        if (stats.SampledAt is null)
+        {
+            return $"**{title}** · no resource usage in the last hour: the agent is offline, too old for metrics, or has them turned off.";
+        }
+
+        var lines = new List<string>();
+        if (stats.Host is { } host && stack is null)
+        {
+            var cpu = host.HasRates ? $"{Percent(host.CpuBusy)} of {host.CpuCount} cores" : "measuring…";
+            lines.Add($"🖥️ CPU {cpu} · load {host.Load1.ToString("0.00", CultureInfo.InvariantCulture)}");
+            lines.Add($"🧠 Memory {Bytes(host.MemoryUsedBytes)} / {Bytes(host.MemoryTotalBytes)} ({Percent(host.MemoryTotalBytes > 0 ? (double)host.MemoryUsedBytes / host.MemoryTotalBytes : 0)})");
+            lines.AddRange(host.Filesystems.Select(f => $"💾 `{Markdown.Escape(f.MountPoint)}` {Percent(f.UsedRatio)} of {Bytes(f.TotalBytes)}"));
+        }
+
+        var busiest = stats.Containers
+            .OrderByDescending(c => c.HasRates ? c.CpuCores : 0)
+            .ThenByDescending(c => c.MemoryBytes)
+            .Take(StatsContainers)
+            .Select(c =>
+            {
+                var cpu = c.HasRates ? Percent(c.CpuCores) : "–";
+                var memory = c.MemoryLimitBytes > 0 ? $"{Bytes(c.MemoryBytes)} / {Bytes(c.MemoryLimitBytes)}" : Bytes(c.MemoryBytes);
+                return $"`{Markdown.Escape(c.Name)}` CPU {cpu} · {memory}";
+            })
+            .ToList();
+        if (busiest.Count > 0)
+        {
+            lines.Add(stats.Containers.Count > busiest.Count
+                ? $"__Busiest {busiest.Count} of {Count(stats.Containers.Count, "container")}__"
+                : $"__{Count(stats.Containers.Count, "container")}__");
+            lines.AddRange(busiest);
+        }
+
+        var header = $"**{title}** · <t:{stats.SampledAt.Value.ToUnixTimeSeconds()}:R>";
+        return lines.Count == 0 ? $"{header}\nNo running containers you can see." : WithinLimit(header, lines, "lines");
+    }
+
+    // CPU of a container is in cores, shown like docker stats: 150% is one and a half cores.
+    private static string Percent(double ratio) => (ratio * 100).ToString(ratio < 0.1 ? "0.0" : "0", CultureInfo.InvariantCulture) + "%";
+
+    private static string Bytes(ulong bytes)
+    {
+        double value = bytes;
+        string[] units = ["B", "KiB", "MiB", "GiB", "TiB"];
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        return value.ToString(unit == 0 || value >= 100 ? "0" : "0.0", CultureInfo.InvariantCulture) + units[unit];
     }
 
     public static string Stacks(ForestEnvironment environment, IReadOnlyList<ForestStack> stacks)

@@ -76,6 +76,7 @@ public static class DependencyInjection
         services.AddSingleton<AutocompleteSource>();
         services.AddSingleton<EnvironmentsCommand>();
         services.AddSingleton<ContainersCommand>();
+        services.AddSingleton<StatsCommand>();
         services.AddSingleton<StartContainerCommand>();
         services.AddSingleton<StopContainerCommand>();
         services.AddSingleton<RestartContainerCommand>();

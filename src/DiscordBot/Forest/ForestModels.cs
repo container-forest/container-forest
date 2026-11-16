@@ -108,3 +108,19 @@ public enum DeploymentStatus
 /// <param name="At">Null for a line Docker gave no time.</param>
 /// <param name="IsStderr">The container wrote it to stderr.</param>
 public sealed record ForestLogLine(DateTimeOffset? At, bool IsStderr, string Text);
+
+/// <summary>The latest resource usage sample of an environment, as far as the user may see it.</summary>
+/// <param name="SampledAt">Null when the agent sent nothing in the last hour.</param>
+/// <param name="Host">Null without a role on the whole environment.</param>
+public sealed record ForestStats(DateTimeOffset? SampledAt, ForestHostStats? Host, IReadOnlyList<ForestContainerStats> Containers);
+
+/// <param name="CpuBusy">Busy share of all cores, 0..1; meaningless without <paramref name="HasRates"/>.</param>
+public sealed record ForestHostStats(
+    bool HasRates, uint CpuCount, double CpuBusy, double Load1, ulong MemoryTotalBytes, ulong MemoryUsedBytes,
+    IReadOnlyList<ForestFilesystemStats> Filesystems);
+
+public sealed record ForestFilesystemStats(string MountPoint, ulong TotalBytes, double UsedRatio);
+
+/// <param name="MemoryLimitBytes">0 = no limit.</param>
+public sealed record ForestContainerStats(
+    string Name, string? StackName, bool HasRates, double CpuCores, ulong MemoryBytes, ulong MemoryLimitBytes);

@@ -47,6 +47,11 @@ public static class DependencyInjection
         services.AddScoped<ContainerCommandService>();
         services.AddScoped<ContainerQueryService>();
         services.AddScoped<ContainerLogService>();
+        services.AddSingleton<Metrics.MetricsBuffer>();
+        services.AddScoped<Metrics.MetricsQueryService>();
+        services.AddScoped<Metrics.MetricsSettingsService>();
+        services.AddSingleton<Metrics.ResourceAlertWatch>();
+        services.AddScoped<Metrics.ResourceAlertNotifier>();
         services.AddScoped<NotificationSettingsService>();
         services.AddScoped<RepositoryAccess>();
         services.AddScoped<RepositoryService>();

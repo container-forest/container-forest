@@ -15,6 +15,7 @@ How the implementation works: classes, rules and non-obvious decisions. The syst
 - [System settings and aggregator backup](backup.md): settings sections, identity confirmation, backup and restore.
 - [Environments, containers and logs](containers.md): environments, container actions, events, logs.
 - [Unmanaged stacks](unmanaged-stacks.md): compose projects started by hand on a host: discovery, operations, permissions.
+- [Metrics](metrics.md): resource usage of containers, stacks and hosts: collection, storage, alerts, clients.
 - [Live updates](live-updates.md): SignalR.
 - [Notifications](notifications.md): notifications and their buttons.
 - [Discord bot: gateway and menu](discord-bot.md): the bot gateway, its token, /dashboard.

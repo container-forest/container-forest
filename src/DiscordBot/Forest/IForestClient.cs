@@ -38,6 +38,9 @@ public interface IForestClient
     Task<IReadOnlyList<ForestLogLine>> GetContainerLogsAsync(
         ulong discordUserId, string environmentId, string container, int tailLines, CancellationToken cancellationToken);
 
+    /// <param name="stackName">Only the containers of this compose project; null for all.</param>
+    Task<ForestStats> GetStatsAsync(ulong discordUserId, string environmentId, string? stackName, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<ForestStack>> ListStacksAsync(ulong discordUserId, string environmentId, CancellationToken cancellationToken);
 
     /// <summary>Returns once docker compose has finished; a failed compose run is a result, not an exception.</summary>

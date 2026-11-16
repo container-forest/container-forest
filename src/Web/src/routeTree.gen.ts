@@ -38,6 +38,7 @@ import { Route as AuthedNotificationsChannelsChannelIdRouteImport } from './rout
 import { Route as AuthedStacksStackIdIndexRouteImport } from './routes/_authed/stacks/$stackId/index'
 import { Route as AuthedStacksStackIdDeploymentsRouteImport } from './routes/_authed/stacks/$stackId/deployments'
 import { Route as AuthedContainersEnvironmentIdContainerIdLogsRouteImport } from './routes/_authed/containers_.$environmentId.$containerId.logs'
+import { Route as AuthedContainersEnvironmentIdContainerIdMetricsRouteImport } from './routes/_authed/containers_.$environmentId.$containerId.metrics'
 import { Route as AuthedStacksUnmanagedEnvironmentIdStackNameRouteImport } from './routes/_authed/stacks/unmanaged.$environmentId.$stackName'
 
 const AuthedRoute = AuthedRouteImport.update({
@@ -194,6 +195,12 @@ const AuthedContainersEnvironmentIdContainerIdLogsRoute =
     path: '/containers/$environmentId/$containerId/logs',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedContainersEnvironmentIdContainerIdMetricsRoute =
+  AuthedContainersEnvironmentIdContainerIdMetricsRouteImport.update({
+    id: '/containers_/$environmentId/$containerId/metrics',
+    path: '/containers/$environmentId/$containerId/metrics',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedStacksUnmanagedEnvironmentIdStackNameRoute =
   AuthedStacksUnmanagedEnvironmentIdStackNameRouteImport.update({
     id: '/stacks/unmanaged/$environmentId/$stackName',
@@ -230,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/notifications/channels/': typeof AuthedNotificationsChannelsIndexRoute
   '/stacks/$stackId/': typeof AuthedStacksStackIdIndexRoute
   '/containers/$environmentId/$containerId/logs': typeof AuthedContainersEnvironmentIdContainerIdLogsRoute
+  '/containers/$environmentId/$containerId/metrics': typeof AuthedContainersEnvironmentIdContainerIdMetricsRoute
   '/stacks/unmanaged/$environmentId/$stackName': typeof AuthedStacksUnmanagedEnvironmentIdStackNameRoute
 }
 export interface FileRoutesByTo {
@@ -260,6 +268,7 @@ export interface FileRoutesByTo {
   '/notifications/channels': typeof AuthedNotificationsChannelsIndexRoute
   '/stacks/$stackId': typeof AuthedStacksStackIdIndexRoute
   '/containers/$environmentId/$containerId/logs': typeof AuthedContainersEnvironmentIdContainerIdLogsRoute
+  '/containers/$environmentId/$containerId/metrics': typeof AuthedContainersEnvironmentIdContainerIdMetricsRoute
   '/stacks/unmanaged/$environmentId/$stackName': typeof AuthedStacksUnmanagedEnvironmentIdStackNameRoute
 }
 export interface FileRoutesById {
@@ -293,6 +302,7 @@ export interface FileRoutesById {
   '/_authed/notifications/channels/': typeof AuthedNotificationsChannelsIndexRoute
   '/_authed/stacks/$stackId/': typeof AuthedStacksStackIdIndexRoute
   '/_authed/containers_/$environmentId/$containerId/logs': typeof AuthedContainersEnvironmentIdContainerIdLogsRoute
+  '/_authed/containers_/$environmentId/$containerId/metrics': typeof AuthedContainersEnvironmentIdContainerIdMetricsRoute
   '/_authed/stacks/unmanaged/$environmentId/$stackName': typeof AuthedStacksUnmanagedEnvironmentIdStackNameRoute
 }
 export interface FileRouteTypes {
@@ -326,6 +336,7 @@ export interface FileRouteTypes {
     | '/notifications/channels/'
     | '/stacks/$stackId/'
     | '/containers/$environmentId/$containerId/logs'
+    | '/containers/$environmentId/$containerId/metrics'
     | '/stacks/unmanaged/$environmentId/$stackName'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -356,6 +367,7 @@ export interface FileRouteTypes {
     | '/notifications/channels'
     | '/stacks/$stackId'
     | '/containers/$environmentId/$containerId/logs'
+    | '/containers/$environmentId/$containerId/metrics'
     | '/stacks/unmanaged/$environmentId/$stackName'
   id:
     | '__root__'
@@ -388,6 +400,7 @@ export interface FileRouteTypes {
     | '/_authed/notifications/channels/'
     | '/_authed/stacks/$stackId/'
     | '/_authed/containers_/$environmentId/$containerId/logs'
+    | '/_authed/containers_/$environmentId/$containerId/metrics'
     | '/_authed/stacks/unmanaged/$environmentId/$stackName'
   fileRoutesById: FileRoutesById
 }
@@ -601,6 +614,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedContainersEnvironmentIdContainerIdLogsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/containers_/$environmentId/$containerId/metrics': {
+      id: '/_authed/containers_/$environmentId/$containerId/metrics'
+      path: '/containers/$environmentId/$containerId/metrics'
+      fullPath: '/containers/$environmentId/$containerId/metrics'
+      preLoaderRoute: typeof AuthedContainersEnvironmentIdContainerIdMetricsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/stacks/unmanaged/$environmentId/$stackName': {
       id: '/_authed/stacks/unmanaged/$environmentId/$stackName'
       path: '/stacks/unmanaged/$environmentId/$stackName'
@@ -657,6 +677,7 @@ interface AuthedRouteChildren {
   AuthedStacksStackIdDeploymentsRoute: typeof AuthedStacksStackIdDeploymentsRoute
   AuthedStacksStackIdIndexRoute: typeof AuthedStacksStackIdIndexRoute
   AuthedContainersEnvironmentIdContainerIdLogsRoute: typeof AuthedContainersEnvironmentIdContainerIdLogsRoute
+  AuthedContainersEnvironmentIdContainerIdMetricsRoute: typeof AuthedContainersEnvironmentIdContainerIdMetricsRoute
   AuthedStacksUnmanagedEnvironmentIdStackNameRoute: typeof AuthedStacksUnmanagedEnvironmentIdStackNameRoute
 }
 
@@ -685,6 +706,8 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedStacksStackIdIndexRoute: AuthedStacksStackIdIndexRoute,
   AuthedContainersEnvironmentIdContainerIdLogsRoute:
     AuthedContainersEnvironmentIdContainerIdLogsRoute,
+  AuthedContainersEnvironmentIdContainerIdMetricsRoute:
+    AuthedContainersEnvironmentIdContainerIdMetricsRoute,
   AuthedStacksUnmanagedEnvironmentIdStackNameRoute:
     AuthedStacksUnmanagedEnvironmentIdStackNameRoute,
 }

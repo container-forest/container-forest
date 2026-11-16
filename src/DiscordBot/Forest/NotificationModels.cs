@@ -43,6 +43,8 @@ public enum NotificationKind
     AccountSecurityChanged,
     ImageUpdateFailed,
     ImagePinned,
+    ResourceUsageHigh,
+    ResourceUsageNormal,
 }
 
 public enum NotificationSeverity

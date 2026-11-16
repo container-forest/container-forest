@@ -44,6 +44,8 @@
     href: docs/design/containers.md
   - name: Unmanaged stacks
     href: docs/design/unmanaged-stacks.md
+  - name: Metrics
+    href: docs/design/metrics.md
   - name: Live updates
     href: docs/design/live-updates.md
   - name: Notifications
@@ -88,6 +90,8 @@
     href: docs/adr/0015-image-updates.md
   - name: 0016 Unmanaged stacks
     href: docs/adr/0016-unmanaged-stacks.md
+  - name: 0017 Metrics
+    href: docs/adr/0017-metrics.md
 - name: Development
   items:
   - name: Contributing

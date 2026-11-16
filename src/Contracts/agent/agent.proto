@@ -66,6 +66,7 @@ message AgentMessage {
     Heartbeat       heartbeat       = 4;
     CommandProgress progress        = 5;
     LogBatch        log_batch       = 6;
+    MetricsSample   metrics         = 7;
   }
 }
 
@@ -75,6 +76,17 @@ message Hello {
   string docker_version = 2;
   string boot_id = 3;
   repeated ContainerInfo snapshot = 4;
+  // How the agent reads resource usage; METRICS_SOURCE_UNSPECIFIED from agents without metrics.
+  MetricsSource metrics_source = 5;
+  // Seconds between MetricsSample messages; 0 when the agent sends none.
+  int32 metrics_interval_seconds = 6;
+}
+
+enum MetricsSource {
+  METRICS_SOURCE_UNSPECIFIED = 0;
+  METRICS_SOURCE_CGROUP_V2 = 1;     // cgroup files of the host, read directly
+  METRICS_SOURCE_DOCKER_STATS = 2;  // Docker's stats API (cgroup v1, or the cgroup files are not reachable)
+  METRICS_SOURCE_DISABLED = 3;      // turned off in the agent's settings
 }
 
 // Sent every 15 seconds.
@@ -346,4 +358,101 @@ enum UnmanagedStackOperation {
   UNMANAGED_STACK_OPERATION_PULL = 2;     // docker compose pull
   UNMANAGED_STACK_OPERATION_RESTART = 3;  // docker compose restart
   UNMANAGED_STACK_OPERATION_DOWN = 4;     // docker compose down; volumes stay
+}
+
+// Resource usage, sent by the agent on its own every metrics_interval_seconds (Hello) while the session lives.
+// Rates are averages over interval_ms, the time since the previous sample, which the agent computes from Docker's and
+// the kernel's cumulative counters; the first sample of a session, and of a container after it (re)started, carries no
+// rates for it (has_rates = false). Samples taken while disconnected are lost.
+message MetricsSample {
+  int64 timestamp_unix_ms = 1;
+  int64 interval_ms = 2;
+  HostMetrics host = 3;
+  repeated ContainerMetrics containers = 4;
+  // Filled every 15 minutes or so: reading it is expensive for the Docker daemon. Absent in other samples.
+  DockerDiskUsage disk_usage = 5;
+}
+
+// Only running containers. stack_name and service_name as in ContainerInfo.
+message ContainerMetrics {
+  string container_id = 1;
+  string name = 2;
+  string stack_name = 3;
+  string service_name = 4;
+  bool has_rates = 5;
+  double cpu_cores = 6;                    // 1.5 = one and a half cores busy on average
+  double cpu_limit_cores = 7;              // 0 = no limit
+  double cpu_throttled_ratio = 8;          // share of the CFS periods in which the container was throttled, 0..1
+  uint64 memory_working_set_bytes = 9;     // usage without inactive page cache, what the OOM killer looks at
+  uint64 memory_cache_bytes = 10;
+  uint64 memory_limit_bytes = 11;          // 0 = no limit
+  double network_rx_bytes_per_second = 12;
+  double network_tx_bytes_per_second = 13;
+  bool host_network = 14;                  // network_mode: host; the network rates are 0, the host's are in HostMetrics
+  double block_read_bytes_per_second = 15;
+  double block_write_bytes_per_second = 16;
+  uint32 pids = 17;
+}
+
+// cpu_*_ratio are shares of all cores together (0..1), so cpu_count * ratio is the cores used.
+message HostMetrics {
+  uint32 cpu_count = 1;
+  bool has_rates = 2;
+  double cpu_user_ratio = 3;               // user + nice
+  double cpu_system_ratio = 4;             // system + irq + softirq
+  double cpu_iowait_ratio = 5;
+  double cpu_steal_ratio = 6;              // time the hypervisor gave to other guests
+  double load1 = 7;
+  double load5 = 8;
+  double load15 = 9;
+  uint64 memory_total_bytes = 10;
+  uint64 memory_available_bytes = 11;
+  uint64 swap_total_bytes = 12;
+  uint64 swap_free_bytes = 13;
+  repeated FilesystemMetrics filesystems = 14;
+  repeated NetworkInterfaceMetrics interfaces = 15;
+  double disk_read_bytes_per_second = 16;  // whole physical disks, partitions are not counted twice
+  double disk_write_bytes_per_second = 17;
+  int64 uptime_seconds = 18;
+}
+
+// A mounted disk file system of the host (no tmpfs, overlay or other virtual ones), one per device.
+message FilesystemMetrics {
+  string mount_point = 1;                  // as on the host, e.g. "/" or "/var/lib/docker"
+  string device = 2;
+  string type = 3;
+  uint64 total_bytes = 4;
+  uint64 available_bytes = 5;              // for unprivileged users, as df shows it
+  uint64 used_bytes = 6;
+}
+
+// The host's interfaces without lo, veth* and Docker's bridges.
+message NetworkInterfaceMetrics {
+  string name = 1;
+  double rx_bytes_per_second = 2;
+  double tx_bytes_per_second = 3;
+}
+
+// docker system df. reclaimable_* is what docker image prune -a / builder prune would free.
+message DockerDiskUsage {
+  uint64 images_bytes = 1;
+  uint64 images_reclaimable_bytes = 2;
+  uint64 containers_bytes = 3;             // writable layers of all containers
+  uint64 volumes_bytes = 4;
+  uint64 build_cache_bytes = 5;
+  repeated ContainerDiskUsage containers = 6;
+  repeated VolumeDiskUsage volumes = 7;
+}
+
+message ContainerDiskUsage {
+  string container_id = 1;
+  string name = 2;
+  uint64 writable_layer_bytes = 3;
+}
+
+// stack_name: the compose project of a named volume (com.docker.compose.project); empty for other volumes.
+message VolumeDiskUsage {
+  string name = 1;
+  string stack_name = 2;
+  uint64 size_bytes = 3;
 }

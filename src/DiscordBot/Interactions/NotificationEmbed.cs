@@ -111,6 +111,8 @@ public static class NotificationEmbed
         NotificationKind.AccountSecurityChanged => "🔐 Account security changed",
         NotificationKind.ImageUpdateFailed => "🧩 Image update failed",
         NotificationKind.ImagePinned => "📌 Image pinned",
+        NotificationKind.ResourceUsageHigh => "📈 Resource usage high",
+        NotificationKind.ResourceUsageNormal => "📉 Resource usage back to normal",
         _ => "Notification",
     };
 

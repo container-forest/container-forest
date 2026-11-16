@@ -77,3 +77,23 @@ public sealed record ContainerNotificationDetails(
         _ => false,
     };
 }
+
+/// <summary>What a resource usage alert measures (ADR-0017).</summary>
+public enum ResourceAlertKind
+{
+    HostCpu,
+    HostMemory,
+    Disk,
+    ContainerMemory,
+}
+
+/// <summary>A threshold of the Metrics settings crossed for the alert time, or left again.</summary>
+/// <param name="Subject">The mount point of a disk or the name of a container; empty for the host's CPU and memory.</param>
+/// <param name="StackName">The compose project of a container; null otherwise.</param>
+/// <param name="Percent">The usage when the event happened, 0..100.</param>
+public sealed record ResourceUsageNotificationDetails(
+    ResourceAlertKind Alert, string Subject, StackName? StackName, double Percent, int ThresholdPercent) : NotificationDetails
+{
+    public override bool Fits(NotificationEventKinds kind) =>
+        kind is NotificationEventKinds.ResourceUsageHigh or NotificationEventKinds.ResourceUsageNormal;
+}

@@ -86,6 +86,64 @@ public sealed class CliEndToEndTests : IDisposable
     }
 
     [Fact]
+    public async Task Container_and_host_usage_come_from_the_latest_sample()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        var token = await CreateTokenAsync(app);
+        await agent.SendAsync(new AgentMessage
+        {
+            Metrics = new MetricsSample
+            {
+                TimestampUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                Host = new HostMetrics
+                {
+                    CpuCount = 4, HasRates = true, CpuUserRatio = 0.5, MemoryTotalBytes = 8L << 30, MemoryAvailableBytes = 6L << 30,
+                    Filesystems = { new FilesystemMetrics { MountPoint = "/", Device = "/dev/sda1", Type = "ext4", TotalBytes = 100L << 30, UsedBytes = 40L << 30, AvailableBytes = 60L << 30 } },
+                },
+                Containers =
+                {
+                    new ContainerMetrics
+                    {
+                        ContainerId = "c1", Name = "web-app-1", StackName = "web", HasRates = true, CpuCores = 1.5,
+                        MemoryWorkingSetBytes = 256L << 20, MemoryLimitBytes = 512L << 20, Pids = 7,
+                    },
+                },
+            },
+        });
+        await WaitForMetricsAsync(app, agent.EnvironmentId);
+
+        var containers = await RunAsync(app, null, "", "--url", "http://localhost", "--token", token, "container", "stats");
+        var host = await RunAsync(app, null, "", "--url", "http://localhost", "--token", token, "env", "stats");
+
+        Assert.True(containers.ExitCode == 0, containers.Error);
+        Assert.Contains("web-app-1", containers.Output);
+        Assert.Contains("150%", containers.Output);
+        Assert.Contains("256MiB / 512MiB", containers.Output);
+        Assert.Contains("50%", containers.Output);
+        Assert.True(host.ExitCode == 0, host.Error);
+        Assert.Contains("50% of 4 cores", host.Output);
+        Assert.Contains("2.0GiB / 8.0GiB", host.Output);
+        Assert.Contains("/dev/sda1", host.Output);
+    }
+
+    private static async Task WaitForMetricsAsync(AggregatorApp app, Guid environmentId)
+    {
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            var current = await app.CreateClient().GetFromJsonAsync<JsonElement>($"/api/environments/{environmentId}/metrics/current", AggregatorApp.Json, Ct);
+            if (current.GetProperty("at").ValueKind == JsonValueKind.String)
+            {
+                return;
+            }
+
+            await Task.Delay(100, Ct);
+        }
+
+        throw new TimeoutException("The aggregator did not take the sample.");
+    }
+
+    [Fact]
     public async Task Deploy_follows_the_deployment_and_prints_its_log()
     {
         await using var app = new AggregatorApp();

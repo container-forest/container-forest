@@ -6,6 +6,7 @@ using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Containers;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
+using ContainerForest.Aggregator.Application.Metrics;
 using ContainerForest.Aggregator.Application.Stacks;
 using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Domain.Common;
@@ -38,6 +39,7 @@ public sealed class BotGatewayService(
     ContainerQueryService containerQueries,
     ContainerCommandService containerCommands,
     ContainerLogService containerLogs,
+    MetricsQueryService metrics,
     StackService stacks,
     StackCommandService stackCommands,
     UnmanagedStackService unmanagedStacks,
@@ -136,6 +138,43 @@ public sealed class BotGatewayService(
             Stderr = line.Stream == LogStream.Stderr,
             Text = line.Text,
         }));
+        return response;
+    }
+
+    public override async Task<GetStatsResponse> GetStats(GetStatsRequest request, ServerCallContext context)
+    {
+        await ActAsAsync(request.DiscordUserId, context);
+        var current = await metrics.GetCurrentAsync(ParseEnvironmentId(request.EnvironmentId), context.CancellationToken);
+
+        var response = new GetStatsResponse { SampledUnixMs = current.At?.ToUnixTimeMilliseconds() ?? 0 };
+        if (current.Host is { } host)
+        {
+            response.Host = new HostStats
+            {
+                HasRates = host.HasRates,
+                CpuCount = host.CpuCount,
+                CpuBusyRatio = host.CpuBusy,
+                Load1 = host.Load1,
+                MemoryTotalBytes = host.MemoryTotalBytes,
+                MemoryUsedBytes = host.MemoryUsedBytes,
+            };
+            response.Host.Filesystems.AddRange(host.Filesystems.Select(f => new FilesystemStats
+            {
+                MountPoint = f.MountPoint, TotalBytes = f.TotalBytes, UsedRatio = f.UsedRatio,
+            }));
+        }
+
+        response.Containers.AddRange(current.Containers
+            .Where(c => request.StackName.Length == 0 || c.StackName == request.StackName)
+            .Select(c => new ContainerStats
+            {
+                Name = c.Name,
+                StackName = c.StackName ?? "",
+                HasRates = c.HasRates,
+                CpuCores = c.CpuCores,
+                MemoryBytes = c.MemoryWorkingSetBytes,
+                MemoryLimitBytes = c.MemoryLimitBytes,
+            }));
         return response;
     }
 

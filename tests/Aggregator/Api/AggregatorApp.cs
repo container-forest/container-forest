@@ -47,6 +47,7 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
     };
 
     private readonly string databasePath = Path.Combine(Path.GetTempPath(), $"cf-test-{Guid.NewGuid():N}.db");
+    private readonly string metricsPath = Path.Combine(Path.GetTempPath(), $"cf-test-metrics-{Guid.NewGuid():N}.db");
     private readonly string keyDirectory = Path.Combine(Path.GetTempPath(), $"cf-test-keys-{Guid.NewGuid():N}");
     private GrpcChannel? channel;
 
@@ -155,6 +156,7 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Development");
         builder.UseSetting("ConnectionStrings:Aggregator", $"Data Source={databasePath}");
+        builder.UseSetting("ConnectionStrings:Metrics", $"Data Source={metricsPath}");
         builder.UseSetting("DataProtection:KeyDirectory", keyDirectory);
         builder.UseSetting("AgentGateway:CommandTimeout", "00:00:05");
         builder.UseSetting("BotGateway:TokenHashes:0", SecretToken.Hash(BotToken));
@@ -183,7 +185,7 @@ internal sealed class AggregatorApp : WebApplicationFactory<Program>
         channel?.Dispose();
         await base.DisposeAsync();
         SqliteConnection.ClearAllPools();
-        foreach (var file in new[] { databasePath, databasePath + "-wal", databasePath + "-shm" })
+        foreach (var file in new[] { databasePath, metricsPath }.SelectMany(p => new[] { p, p + "-wal", p + "-shm" }))
         {
             File.Delete(file);
         }

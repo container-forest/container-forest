@@ -6,6 +6,7 @@ import { hasStatus } from "@/api/client";
 import { usersQuery } from "@/api/queries";
 import { ErrorText } from "@/components/form-messages";
 import { SearchIcon } from "@/components/icons";
+import { useRememberListSearch } from "@/components/navigation/use-remember-list-search";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -33,7 +34,9 @@ export const Route = createFileRoute("/_authed/users/")({
 /** Every user with their type and status; administrators only. */
 function UsersScreen() {
   const { t, i18n } = useTranslation();
-  const { q = "", status = "all" } = Route.useSearch();
+  const search = Route.useSearch();
+  useRememberListSearch("users", search);
+  const { q = "", status = "all" } = search;
   const navigate = useNavigate({ from: Route.fullPath });
   const { data: users } = useSuspenseQuery(usersQuery);
   const now = new Date();

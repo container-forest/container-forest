@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { type ErrorComponentProps, Link, createFileRoute } from "@tanstack/react-router";
+import { type ErrorComponentProps, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -22,7 +22,6 @@ import {
 import { ConfirmAction } from "@/components/confirm-action";
 import { ErrorText, FieldError } from "@/components/form-messages";
 import {
-  ArrowLeftIcon,
   Loader2Icon,
   LockOpenIcon,
   ShieldMinusIcon,
@@ -31,6 +30,7 @@ import {
   UserCheckIcon,
   UserXIcon,
 } from "@/components/icons";
+import { BackLink, useBack } from "@/components/navigation/back-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,12 +43,14 @@ import { UserTokensCard } from "@/components/tokens/user-tokens-card";
 import { GrantRoleForm } from "@/components/users/grant-role-form";
 import { ResetPasswordDialog } from "@/components/users/reset-password-dialog";
 import { UserKindBadge, UserStatusBadge } from "@/components/users/user-badges";
+import { fromSearchSchema, rememberedListSearch } from "@/features/navigation/back";
 import type { MessageKey } from "@/i18n";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { userNamePattern, userStatus } from "@/lib/users";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/users/$userId")({
+  validateSearch: z.object({ from: fromSearchSchema }),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(userQuery(params.userId)),
   component: UserScreen,
   errorComponent: UserLoadError,
@@ -61,14 +63,12 @@ function UserScreen() {
   const { data } = useSuspenseQuery(userQuery(userId));
   const { user, roleAssignments } = data;
   const now = new Date();
+  const back = useBack(Route.useSearch().from, {}, { link: { to: "/users", search: rememberedListSearch("users") ?? {} }, label: t("user.back") });
 
   return (
     <div className="mx-auto grid w-full max-w-3xl gap-6">
       <div className="grid gap-3">
-        <Link to="/users" className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm">
-          <ArrowLeftIcon className="size-4" />
-          {t("user.back")}
-        </Link>
+        <BackLink {...back} />
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-2xl font-semibold">{user.userName}</h1>
           <UserKindBadge user={user} />

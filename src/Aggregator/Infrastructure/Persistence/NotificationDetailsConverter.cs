@@ -16,6 +16,7 @@ internal sealed class NotificationDetailsConverter()
 {
     private const string DeploymentType = "deployment";
     private const string ContainerType = "container";
+    private const string ResourceUsageType = "resource-usage";
 
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 
@@ -34,6 +35,15 @@ internal sealed class NotificationDetailsConverter()
                 ExitCode = c.ExitCode,
                 OutOfMemory = c.OutOfMemory,
                 IsSystem = c.IsSystem,
+            },
+            Options),
+        ResourceUsageNotificationDetails r => JsonSerializer.Serialize(
+            new StoredDetails(ResourceUsageType, null, null, r.StackName?.Value, null, false, null)
+            {
+                Alert = r.Alert.ToString(),
+                Subject = r.Subject,
+                Percent = r.Percent,
+                ThresholdPercent = r.ThresholdPercent,
             },
             Options),
         _ => throw new NotSupportedException($"{details.GetType().Name} cannot be stored yet."),
@@ -60,6 +70,12 @@ internal sealed class NotificationDetailsConverter()
                 stored.ExitCode,
                 stored.OutOfMemory,
                 stored.IsSystem),
+            ResourceUsageType => new ResourceUsageNotificationDetails(
+                Enum.Parse<ResourceAlertKind>(stored.Alert!),
+                stored.Subject ?? "",
+                stored.StackName is null ? null : StackName.Parse(stored.StackName),
+                stored.Percent ?? 0,
+                stored.ThresholdPercent ?? 0),
             _ => throw new InvalidOperationException($"Unknown notification details type '{stored.Type}'."),
         };
     }
@@ -77,6 +93,14 @@ internal sealed class NotificationDetailsConverter()
         public int? ExitCode { get; init; }
 
         public bool OutOfMemory { get; init; }
+
+        public string? Alert { get; init; }
+
+        public string? Subject { get; init; }
+
+        public double? Percent { get; init; }
+
+        public int? ThresholdPercent { get; init; }
 
         public bool IsSystem { get; init; }
     }

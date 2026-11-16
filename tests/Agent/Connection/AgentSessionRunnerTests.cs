@@ -2,6 +2,7 @@ using ContainerForest.Agent.Commands;
 using ContainerForest.Agent.Configuration;
 using ContainerForest.Agent.Connection;
 using ContainerForest.Agent.Enrollment;
+using ContainerForest.Agent.Metrics;
 using ContainerForest.Agent.Platform;
 using ContainerForest.Contracts.Agent;
 using Grpc.Core;
@@ -115,7 +116,10 @@ public class AgentSessionRunnerTests
         {
             ControllerUrl = new Uri("http://localhost:5081"),
             HeartbeatInterval = heartbeat ?? TimeSpan.FromMinutes(1),
+            MetricsInterval = TimeSpan.Zero,
         });
+        var metricsCollector = new MetricsCollector(
+            new FakeMetricsGateway(), options, TimeProvider.System, NullLogger<MetricsCollector>.Instance);
         var dispatcher = new CommandDispatcher(
             [
                 new ListContainersHandler(docker, NullLogger<ListContainersHandler>.Instance),
@@ -125,6 +129,8 @@ public class AgentSessionRunnerTests
         return new AgentSessionRunner(
             dispatcher,
             new ContainerEventForwarder(docker, TimeProvider.System, NullLogger<ContainerEventForwarder>.Instance),
+            metricsCollector,
+            new MetricsForwarder(metricsCollector, options, TimeProvider.System, NullLogger<MetricsForwarder>.Instance),
             docker,
             new StubBootIds(),
             options,

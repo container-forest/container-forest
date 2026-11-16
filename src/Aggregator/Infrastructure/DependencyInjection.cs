@@ -6,6 +6,7 @@ using ContainerForest.Aggregator.Application.Common;
 using ContainerForest.Aggregator.Application.Deployments;
 using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Live;
+using ContainerForest.Aggregator.Application.Metrics;
 using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Application.Registries;
 using ContainerForest.Aggregator.Application.Repositories;
@@ -34,6 +35,15 @@ namespace ContainerForest.Aggregator.Infrastructure;
 public static class DependencyInjection
 {
     public const string ConnectionStringName = "Aggregator";
+    public const string MetricsConnectionStringName = "Metrics";
+
+    /// <summary>metrics.db in the main database's directory, so /data/aggregator.db gets /data/metrics.db.</summary>
+    public static string DefaultMetricsConnectionString(string aggregatorConnectionString)
+    {
+        var database = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(aggregatorConnectionString).DataSource;
+        var directory = string.IsNullOrEmpty(database) || database == ":memory:" ? "" : Path.GetDirectoryName(database) ?? "";
+        return new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder { DataSource = Path.Combine(directory, "metrics.db") }.ConnectionString;
+    }
 
     /// <param name="runHostedServices">
     /// Apply pending migrations when the host starts and run the background workers. Off when the host is
@@ -48,6 +58,9 @@ public static class DependencyInjection
         // The Api replaces it with SignalR; without it nothing is sent.
         services.TryAddSingleton<ILiveUpdates, NullLiveUpdates>();
         services.AddDbContext<AggregatorDbContext>(options => options.UseSqlite(connectionString));
+        // Resource usage lives in a file of its own, next to the database unless configured (ADR-0017).
+        var metricsConnectionString = configuration.GetConnectionString(MetricsConnectionStringName) ?? DefaultMetricsConnectionString(connectionString);
+        services.AddSingleton<IMetricsStore>(new Metrics.SqliteMetricsStore(metricsConnectionString));
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AggregatorDbContext>());
         services.AddScoped<IEnvironmentRepository, EnvironmentRepository>();
         services.AddScoped<IStackRepository, StackRepository>();
@@ -117,6 +130,7 @@ public static class DependencyInjection
             services.AddHostedService<AdminBootstrapper>();
             services.AddHostedService<DeploymentWorker>();
             services.AddHostedService<AuditRetention>();
+            services.AddHostedService<Metrics.MetricsWriter>();
             services.AddHostedService<BackupScheduler>();
             services.AddHostedService<Images.ImageUpdateScheduler>();
         }

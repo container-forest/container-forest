@@ -292,3 +292,72 @@ export const deploymentQuery = (id: string) =>
     queryKey: ["deployments", id],
     queryFn: async ({ signal }) => unwrap(await api.GET("/api/deployments/{id}", { params: { path: { id } }, signal })),
   });
+
+/** Ranges the metrics graphs offer; the aggregator picks raw samples, minutes or hours for each (ADR-0017). */
+export type MetricsRange = "15m" | "1h" | "6h" | "24h" | "7d" | "30d" | "90d";
+
+/** Raw ranges change every agent interval, longer ones once a minute at most. */
+function metricsRefetch(range: MetricsRange): number {
+  return range === "15m" || range === "1h" ? 10_000 : 60_000;
+}
+
+/** One container's usage over a range, with the deployments of its stack as markers. */
+export const containerMetricsQuery = (environmentId: string, container: string, range: MetricsRange) =>
+  queryOptions({
+    queryKey: ["metrics", "environments", environmentId, "containers", container, range],
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await api.GET("/api/environments/{id}/containers/{containerId}/metrics", {
+          params: { path: { id: environmentId, containerId: container }, query: { range } },
+          signal,
+        }),
+      ),
+    refetchInterval: metricsRefetch(range),
+  });
+
+/** A managed stack's containers over a range, its volumes and deployments. */
+export const stackMetricsQuery = (stackId: string, range: MetricsRange) =>
+  queryOptions({
+    queryKey: ["metrics", "stacks", stackId, range],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/stacks/{id}/metrics", { params: { path: { id: stackId }, query: { range } }, signal })),
+    refetchInterval: metricsRefetch(range),
+  });
+
+/** An unmanaged stack's containers over a range (a role on the whole environment); the same shape as a managed stack's. */
+export const unmanagedStackMetricsQuery = (environmentId: string, stackName: string, range: MetricsRange) =>
+  queryOptions({
+    queryKey: ["metrics", "environments", environmentId, "unmanaged-stacks", stackName, range],
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await api.GET("/api/environments/{id}/unmanaged-stacks/{name}/metrics", {
+          params: { path: { id: environmentId, name: stackName }, query: { range } },
+          signal,
+        }),
+      ),
+    refetchInterval: metricsRefetch(range),
+  });
+
+/** The host (with a role on the whole environment) and per-stack sums over a range. */
+export const environmentMetricsQuery = (environmentId: string, range: MetricsRange) =>
+  queryOptions({
+    queryKey: ["metrics", "environments", environmentId, range],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/environments/{id}/metrics", { params: { path: { id: environmentId }, query: { range } }, signal })),
+    refetchInterval: metricsRefetch(range),
+  });
+
+/** The latest sample of an environment: the tables next to the graphs. */
+export const currentMetricsQuery = (environmentId: string) =>
+  queryOptions({
+    queryKey: ["metrics", "environments", environmentId, "current"],
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET("/api/environments/{id}/metrics/current", { params: { path: { id: environmentId } }, signal })),
+    refetchInterval: 10_000,
+  });
+
+/** Retention and alert thresholds of resource usage. Administrators only. */
+export const metricsSettingsQuery = queryOptions({
+  queryKey: ["settings", "metrics"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/settings/metrics", { signal })),
+});

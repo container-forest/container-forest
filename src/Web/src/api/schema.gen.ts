@@ -1668,6 +1668,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/environments/{id}/metrics/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetCurrentMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/environments/{id}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetEnvironmentMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stacks/{id}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetStackMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/environments/{id}/unmanaged-stacks/{name}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetUnmanagedStackMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/environments/{id}/containers/{containerId}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetContainerMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetMetricsSettings"];
+        put: operations["UpdateMetricsSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/notification-channels": {
         parameters: {
             query?: never;
@@ -1995,6 +2091,11 @@ export interface components {
         ContainerLogsResponse: {
             lines: components["schemas"]["ContainerLogLineResponse"][];
         };
+        ContainerMetricsResponse: {
+            window: components["schemas"]["MetricsWindowResponse"];
+            series: null | components["schemas"]["ContainerSeriesResponse"];
+            deployments: components["schemas"]["DeploymentMarkerResponse"][];
+        };
         ContainerResponse: {
             id: string;
             name: string;
@@ -2008,6 +2109,25 @@ export interface components {
             canControl: boolean;
             isSystem: boolean;
             canRemove: boolean;
+        };
+        ContainerSeriesResponse: {
+            name: string;
+            stack: string;
+            service: string;
+            at: (number | string)[];
+            cpu: (number | string)[];
+            cpuMax: (number | string)[];
+            cpuLimit: (number | string)[];
+            cpuThrottled: (number | string)[];
+            memory: (number | string)[];
+            memoryMax: (number | string)[];
+            memoryLimit: (number | string)[];
+            memoryCache: (number | string)[];
+            networkRx: (number | string)[];
+            networkTx: (number | string)[];
+            blockRead: (number | string)[];
+            blockWrite: (number | string)[];
+            pids: (number | string)[];
         };
         /** @enum {unknown} */
         ContainerState: "Unknown" | "Created" | "Running" | "Paused" | "Restarting" | "Removing" | "Exited" | "Dead";
@@ -2076,6 +2196,92 @@ export interface components {
             password: string;
             isAdmin: boolean;
         };
+        CurrentContainerResponse: {
+            id: string;
+            name: string;
+            stack: null | string;
+            service: null | string;
+            hasRates: boolean;
+            /** Format: double */
+            cpuCores: number | string;
+            /** Format: double */
+            cpuLimitCores: number | string;
+            /** Format: double */
+            cpuThrottledRatio: number | string;
+            /** Format: int64 */
+            memoryBytes: number | string;
+            /** Format: int64 */
+            memoryCacheBytes: number | string;
+            /** Format: int64 */
+            memoryLimitBytes: number | string;
+            /** Format: double */
+            networkRxBytesPerSecond: number | string;
+            /** Format: double */
+            networkTxBytesPerSecond: number | string;
+            hostNetwork: boolean;
+            /** Format: double */
+            blockReadBytesPerSecond: number | string;
+            /** Format: double */
+            blockWriteBytesPerSecond: number | string;
+            /** Format: int32 */
+            pids: number | string;
+        };
+        CurrentFilesystemResponse: {
+            mountPoint: string;
+            device: string;
+            type: string;
+            /** Format: int64 */
+            totalBytes: number | string;
+            /** Format: int64 */
+            usedBytes: number | string;
+            /** Format: int64 */
+            availableBytes: number | string;
+            /** Format: double */
+            usedRatio: number | string;
+        };
+        CurrentHostResponse: {
+            hasRates: boolean;
+            /** Format: int32 */
+            cpuCount: number | string;
+            /** Format: double */
+            cpuBusy: number | string;
+            /** Format: double */
+            cpuSteal: number | string;
+            /** Format: double */
+            load1: number | string;
+            /** Format: double */
+            load5: number | string;
+            /** Format: double */
+            load15: number | string;
+            /** Format: int64 */
+            memoryTotalBytes: number | string;
+            /** Format: int64 */
+            memoryUsedBytes: number | string;
+            /** Format: int64 */
+            swapTotalBytes: number | string;
+            /** Format: int64 */
+            swapUsedBytes: number | string;
+            /** Format: double */
+            diskReadBytesPerSecond: number | string;
+            /** Format: double */
+            diskWriteBytesPerSecond: number | string;
+            /** Format: double */
+            networkRxBytesPerSecond: number | string;
+            /** Format: double */
+            networkTxBytesPerSecond: number | string;
+            /** Format: int64 */
+            uptimeSeconds: number | string;
+            filesystems: components["schemas"]["CurrentFilesystemResponse"][];
+        };
+        CurrentMetricsResponse: {
+            source: components["schemas"]["MetricsSourceKind"];
+            /** Format: int32 */
+            intervalSeconds: number | string;
+            /** Format: date-time */
+            at: null | string;
+            host: null | components["schemas"]["CurrentHostResponse"];
+            containers: components["schemas"]["CurrentContainerResponse"][];
+        };
         /** @enum {unknown} */
         DeployHookOutcome: "Queued" | "AlreadyQueued" | "AfterRunning";
         DeployHookResponse: {
@@ -2116,6 +2322,14 @@ export interface components {
             level: components["schemas"]["DeploymentLogLevel"];
             text: string;
         };
+        DeploymentMarkerResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            at: string;
+            status: components["schemas"]["DeploymentStatus"];
+            commit: null | string;
+        };
         DeploymentResponse: {
             /** Format: uuid */
             id: string;
@@ -2155,6 +2369,20 @@ export interface components {
             /** Format: date-time */
             linkedAt: null | string;
         };
+        DockerDiskUsageResponse: {
+            /** Format: date-time */
+            at: string;
+            /** Format: int64 */
+            imagesBytes: number | string;
+            /** Format: int64 */
+            imagesReclaimableBytes: number | string;
+            /** Format: int64 */
+            containersBytes: number | string;
+            /** Format: int64 */
+            volumesBytes: number | string;
+            /** Format: int64 */
+            buildCacheBytes: number | string;
+        };
         /** @enum {unknown} */
         EndorsementProblem: "Unsigned" | "UnsupportedSignature" | "UnknownKey" | "InvalidSignature" | "KeyOutsideScope" | "SignerMayNotDeploy" | "NotDescendant" | "ApprovalOutdated" | "ImageUpdateMismatch" | null;
         EndorsementResponse: {
@@ -2178,6 +2406,16 @@ export interface components {
             enrollmentToken: string;
             /** Format: date-time */
             expiresAt: string;
+        };
+        EnvironmentMetricsResponse: {
+            window: components["schemas"]["MetricsWindowResponse"];
+            source: components["schemas"]["MetricsSourceKind"];
+            /** Format: int32 */
+            intervalSeconds: number | string;
+            host: null | components["schemas"]["HostSeriesResponse"];
+            filesystems: components["schemas"]["FilesystemSeriesResponse"][];
+            stacks: components["schemas"]["ContainerSeriesResponse"][];
+            diskUsage: null | components["schemas"]["DockerDiskUsageResponse"];
         };
         EnvironmentResponse: {
             /** Format: uuid */
@@ -2207,6 +2445,12 @@ export interface components {
             role: components["schemas"]["Role"];
             /** Format: date-time */
             grantedAt: string;
+        };
+        FilesystemSeriesResponse: {
+            mountPoint: string;
+            at: (number | string)[];
+            used: (number | string)[];
+            total: (number | string)[];
         };
         GitAccessTokenRequest: {
             userName: null | string;
@@ -2246,6 +2490,25 @@ export interface components {
             /** Format: uuid */
             stackId: null | string;
             role: components["schemas"]["Role"];
+        };
+        HostSeriesResponse: {
+            at: (number | string)[];
+            cpuCount: (number | string)[];
+            cpuUser: (number | string)[];
+            cpuSystem: (number | string)[];
+            cpuIowait: (number | string)[];
+            cpuSteal: (number | string)[];
+            cpuBusyMax: (number | string)[];
+            load1: (number | string)[];
+            memoryUsed: (number | string)[];
+            memoryUsedMax: (number | string)[];
+            memoryTotal: (number | string)[];
+            swapUsed: (number | string)[];
+            swapTotal: (number | string)[];
+            diskRead: (number | string)[];
+            diskWrite: (number | string)[];
+            networkRx: (number | string)[];
+            networkTx: (number | string)[];
         };
         IdentityConfirmationResponse: {
             token: string;
@@ -2359,6 +2622,29 @@ export interface components {
             id: string;
             userName: string;
             isAdmin: boolean;
+        };
+        /** @enum {unknown} */
+        MetricsResolution: "Raw" | "Minute" | "Hour";
+        MetricsSettingsResponse: {
+            minuteRetentionDays: components["schemas"]["SettingTextResponse"];
+            hourRetentionDays: components["schemas"]["SettingTextResponse"];
+            alertsEnabled: components["schemas"]["SettingTextResponse"];
+            hostCpuPercent: components["schemas"]["SettingTextResponse"];
+            hostMemoryPercent: components["schemas"]["SettingTextResponse"];
+            diskPercent: components["schemas"]["SettingTextResponse"];
+            containerMemoryPercent: components["schemas"]["SettingTextResponse"];
+            alertMinutes: components["schemas"]["SettingTextResponse"];
+        };
+        /** @enum {unknown} */
+        MetricsSourceKind: "Unsupported" | "CgroupV2" | "DockerStats" | "Disabled";
+        MetricsWindowResponse: {
+            resolution: components["schemas"]["MetricsResolution"];
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            /** Format: int64 */
+            stepSeconds: number | string;
         };
         /** @enum {unknown} */
         NotificationChannelKind: "Discord";
@@ -2576,6 +2862,12 @@ export interface components {
             error: null | string;
             output: string[];
         };
+        StackMetricsResponse: {
+            window: components["schemas"]["MetricsWindowResponse"];
+            containers: components["schemas"]["ContainerSeriesResponse"][];
+            volumes: components["schemas"]["VolumeUsageResponse"][];
+            deployments: components["schemas"]["DeploymentMarkerResponse"][];
+        };
         StackPolicyReportResponse: {
             /** Format: uuid */
             stackId: string;
@@ -2666,6 +2958,23 @@ export interface components {
             /** Format: int32 */
             pollingIntervalMinutes: number | string;
         };
+        UpdateMetricsSettingsRequest: {
+            /** Format: int32 */
+            minuteRetentionDays: number | string;
+            /** Format: int32 */
+            hourRetentionDays: number | string;
+            alertsEnabled: boolean;
+            /** Format: int32 */
+            hostCpuPercent: number | string;
+            /** Format: int32 */
+            hostMemoryPercent: number | string;
+            /** Format: int32 */
+            diskPercent: number | string;
+            /** Format: int32 */
+            containerMemoryPercent: number | string;
+            /** Format: int32 */
+            alertMinutes: number | string;
+        };
         UpdateNotificationChannelRequest: {
             name: string;
             discordChannelId: string;
@@ -2699,6 +3008,11 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             lockedOutUntil: null | string;
+        };
+        VolumeUsageResponse: {
+            name: string;
+            /** Format: int64 */
+            sizeBytes: number | string;
         };
         /** @enum {unknown} */
         WebhookOutcome: "Pong" | "Ignored" | "Push";
@@ -10450,6 +10764,413 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImageUpdateSettingsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetCurrentMetrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrentMetricsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetEnvironmentMetrics: {
+        parameters: {
+            query?: {
+                range?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentMetricsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetStackMetrics: {
+        parameters: {
+            query?: {
+                range?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackMetricsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetUnmanagedStackMetrics: {
+        parameters: {
+            query?: {
+                range?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackMetricsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetContainerMetrics: {
+        parameters: {
+            query?: {
+                range?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+                containerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContainerMetricsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetMetricsSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricsSettingsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateMetricsSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMetricsSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricsSettingsResponse"];
                 };
             };
             /** @description Bad Request */

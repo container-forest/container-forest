@@ -4,6 +4,7 @@ using ContainerForest.Agent.Configuration;
 using ContainerForest.Agent.Connection;
 using ContainerForest.Agent.Docker;
 using ContainerForest.Agent.Enrollment;
+using ContainerForest.Agent.Metrics;
 using ContainerForest.Agent.Platform;
 using ContainerForest.Agent.Stacks;
 
@@ -18,14 +19,17 @@ public static class DependencyInjection
             .Validate(
                 o => o.IsValid(),
                 "CF_AGENT__CONTROLLERURL must be an absolute http(s) URL, the data, stacks and secrets directories absolute paths, " +
-                "unmanaged stack roots absolute and outside the agent's own directories, the docker executable set and the compose timeout and heartbeat interval positive.")
+                "unmanaged stack roots absolute and outside the agent's own directories, the docker executable set, the compose timeout and heartbeat interval positive, " +
+                "the metrics interval zero or at least 1 s and the disk usage interval at least 1 minute.")
             .ValidateOnStart();
 
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IBootIdProvider>(sp => OperatingSystem.IsLinux()
             ? new LinuxBootIdProvider()
             : new UptimeBootIdProvider(sp.GetRequiredService<TimeProvider>()));
-        services.AddSingleton<IDockerGateway, DockerDotNetGateway>(_ => new DockerDotNetGateway());
+        services.AddSingleton<DockerDotNetGateway>(_ => new DockerDotNetGateway());
+        services.AddSingleton<IDockerGateway>(sp => sp.GetRequiredService<DockerDotNetGateway>());
+        services.AddSingleton<IDockerMetricsGateway>(sp => sp.GetRequiredService<DockerDotNetGateway>());
 
         services.AddSingleton<IAgentCommandHandler, ListContainersHandler>();
         services.AddSingleton<IAgentCommandHandler, StartContainerHandler>();
@@ -51,6 +55,8 @@ public static class DependencyInjection
         services.AddSingleton<CredentialStore>();
         services.AddSingleton<AgentEnroller>();
         services.AddSingleton<ContainerEventForwarder>();
+        services.AddSingleton<MetricsCollector>();
+        services.AddSingleton<MetricsForwarder>();
         services.AddSingleton<AgentSessionRunner>();
         services.AddHostedService<AgentWorker>();
         return services;

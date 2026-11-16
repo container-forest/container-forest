@@ -55,11 +55,14 @@ export function ContainerTable({
   environmentId,
   containers,
   showStack = true,
+  from,
 }: {
   environmentId: string;
   containers: Container[];
   /** The stack page shows only its own containers; the column would repeat its name. */
   showStack?: boolean;
+  /** The `from` of the container links (`originParam`), so the container's back link returns to this page. */
+  from?: string;
 }) {
   const { t, i18n } = useTranslation();
   const action = useContainerActionMutation(environmentId);
@@ -120,6 +123,7 @@ export function ContainerTable({
               environmentId={environmentId}
               container={container}
               showStack={showStack}
+              from={from}
               busy={action.isPending && action.variables?.containerId === container.id}
               locked={action.isPending}
               language={i18n.resolvedLanguage}
@@ -150,6 +154,7 @@ function ContainerRow({
   environmentId,
   container,
   showStack,
+  from,
   busy,
   locked,
   language,
@@ -158,6 +163,7 @@ function ContainerRow({
   environmentId: string;
   container: Container;
   showStack: boolean;
+  from: string | undefined;
   busy: boolean;
   locked: boolean;
   language: string | undefined;
@@ -176,6 +182,7 @@ function ContainerRow({
           <Link
             to="/containers/$environmentId/$containerId/logs"
             params={{ environmentId, containerId: container.name }}
+            search={{ from }}
             className={rowLinkClass}
           >
             {container.name}

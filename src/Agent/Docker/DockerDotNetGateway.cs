@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text.Json;
 using System.Threading.Channels;
 using ContainerForest.Agent.Commands;
+using ContainerForest.Agent.Metrics;
 using ContainerForest.Contracts.Agent;
 using Docker.DotNet;
 using Docker.DotNet.Models;
@@ -10,7 +11,7 @@ using Docker.DotNet.Models;
 namespace ContainerForest.Agent.Docker;
 
 /// <summary>Adapter from <see cref="IDockerGateway"/> to Docker.DotNet.</summary>
-public sealed class DockerDotNetGateway : IDockerGateway, IDisposable
+public sealed partial class DockerDotNetGateway : IDockerGateway, IDockerMetricsGateway, IDisposable
 {
     /// <summary>Budget for calls that return at once: version, list, start.</summary>
     public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);

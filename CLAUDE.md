@@ -22,6 +22,7 @@ This file is loaded into every session. A component's conventions load on their 
 | System settings, identity confirmation, aggregator backup and restore | [docs/design/backup.md](docs/design/backup.md) |
 | Environments, container actions, logs, container events | [docs/design/containers.md](docs/design/containers.md) |
 | Unmanaged stacks (compose projects started by hand on a host) | [docs/design/unmanaged-stacks.md](docs/design/unmanaged-stacks.md) |
+| Resource usage metrics and alerts | [docs/design/metrics.md](docs/design/metrics.md) |
 | SignalR and live updates | [docs/design/live-updates.md](docs/design/live-updates.md) |
 | Notifications | [docs/design/notifications.md](docs/design/notifications.md) |
 | The bot gateway, the bot token, `/dashboard` | [docs/design/discord-bot.md](docs/design/discord-bot.md) |
@@ -39,7 +40,7 @@ This file is loaded into every session. A component's conventions load on their 
 - Version **0.x** (before 1.0): a minor release may contain breaking changes, and they must be described in the changelog (`feat!:` or `BREAKING CHANGE:`).
 - **In production:** the system (aggregator, panel, agents, bot) runs real production infrastructure. Changes must stay compatible with deployed installations: EF Core migrations without data loss, `.proto` changes only compatible (agents and the bot are upgraded separately from the aggregator), new required settings with defaults.
 - The repository layout is fixed in ADR-0001. CI (GitHub Actions) builds and tests every PR.
-- **Not there yet:** 2FA and OIDC sign-in, live log streaming (`follow`; the tail of a log is read through the aggregator and the agent), rolling back a deployment from the panel (the agent keeps `.prev`, but there is no rollback command), resource graphs, exec/attach.
+- **Not there yet:** 2FA and OIDC sign-in, live log streaming (`follow`; the tail of a log is read through the aggregator and the agent), rolling back a deployment from the panel (the agent keeps `.prev`, but there is no rollback command), exec/attach.
 
 ## Working rules for Claude Code
 

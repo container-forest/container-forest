@@ -49,6 +49,10 @@ service BotGateway {
   // Logs can hold secrets the application printed itself: the bot shows them only to the user who asked.
   rpc GetContainerLogs(GetContainerLogsRequest) returns (GetContainerLogsResponse);
 
+  // The environment's latest resource usage sample (ADR-0017), limited to what the user may see: the host needs a
+  // role on the whole environment, a container one on its stack. NOT_FOUND for an environment the user cannot see.
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+
   // Stacks of an environment the user may see, each with what the user may do with it.
   rpc ListStacks(ListStacksRequest) returns (ListStacksResponse);
 
@@ -192,6 +196,48 @@ message ContainerLogLine {
   string text = 3;
 }
 
+// stack_name: only the containers of this compose project; empty for all.
+message GetStatsRequest {
+  uint64 discord_user_id = 1;
+  string environment_id = 2;
+  string stack_name = 3;
+}
+
+// sampled_unix_ms is 0 when the agent sent nothing in the last hour (offline, too old for metrics, or turned off).
+// host is unset without a role on the whole environment. Containers are the running ones, in name order.
+message GetStatsResponse {
+  int64 sampled_unix_ms = 1;
+  HostStats host = 2;
+  repeated ContainerStats containers = 3;
+}
+
+// cpu_busy_ratio is the busy share of all cores (0..1); has_rates is false right after the agent connected.
+message HostStats {
+  bool has_rates = 1;
+  uint32 cpu_count = 2;
+  double cpu_busy_ratio = 3;
+  double load1 = 4;
+  uint64 memory_total_bytes = 5;
+  uint64 memory_used_bytes = 6;
+  repeated FilesystemStats filesystems = 7;
+}
+
+message FilesystemStats {
+  string mount_point = 1;
+  uint64 total_bytes = 2;
+  double used_ratio = 3;
+}
+
+// cpu_cores: 1.5 = one and a half cores. memory_limit_bytes 0 = no limit.
+message ContainerStats {
+  string name = 1;
+  string stack_name = 2;
+  bool has_rates = 3;
+  double cpu_cores = 4;
+  uint64 memory_bytes = 5;
+  uint64 memory_limit_bytes = 6;
+}
+
 message ListStacksRequest {
   uint64 discord_user_id = 1;
   string environment_id = 2;
@@ -325,6 +371,9 @@ enum NotificationKind {
   // Image updates of the aggregator (ADR-0015); stack events with stack_id set.
   NOTIFICATION_KIND_IMAGE_UPDATE_FAILED = 11;
   NOTIFICATION_KIND_IMAGE_PINNED = 12;
+  // Resource usage over a threshold of the Metrics settings, and back to normal (ADR-0017); the summary says what.
+  NOTIFICATION_KIND_RESOURCE_USAGE_HIGH = 13;
+  NOTIFICATION_KIND_RESOURCE_USAGE_NORMAL = 14;
 }
 
 enum NotificationSeverity {

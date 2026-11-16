@@ -2,6 +2,7 @@ using ContainerForest.Agent.Commands;
 using ContainerForest.Agent.Configuration;
 using ContainerForest.Agent.Docker;
 using ContainerForest.Agent.Enrollment;
+using ContainerForest.Agent.Metrics;
 using ContainerForest.Agent.Platform;
 using ContainerForest.Contracts.Agent;
 using Grpc.Core;
@@ -10,12 +11,14 @@ using Microsoft.Extensions.Options;
 namespace ContainerForest.Agent.Connection;
 
 /// <summary>
-/// One Connect call: Hello first, then heartbeats, container events and command execution until the stream ends.
+/// One Connect call: Hello first, then heartbeats, container events, resource usage and command execution until the stream ends.
 /// Commands run concurrently, so a long stop does not delay other commands or heartbeats.
 /// </summary>
 public sealed class AgentSessionRunner(
     CommandDispatcher dispatcher,
     ContainerEventForwarder containerEvents,
+    MetricsCollector metricsCollector,
+    MetricsForwarder metrics,
     IDockerGateway docker,
     IBootIdProvider bootIds,
     IOptions<AgentOptions> options,
@@ -45,6 +48,7 @@ public sealed class AgentSessionRunner(
 
         var heartbeats = SendHeartbeatsAsync(writer, session);
         var events = containerEvents.RunAsync(writer, session.Token);
+        var samples = metrics.RunAsync(writer, session.Token);
         var commands = new List<Task>();
         try
         {
@@ -63,6 +67,7 @@ public sealed class AgentSessionRunner(
             await session.CancelAsync();
             await heartbeats;
             await events;
+            await samples;
             await Task.WhenAll(commands);
         }
     }
@@ -80,7 +85,15 @@ public sealed class AgentSessionRunner(
             logger.LogWarning("Docker is not available: {Reason}", ex.Message);
         }
 
-        return new Hello { AgentVersion = AgentInfo.Version, DockerVersion = dockerVersion, BootId = bootIds.GetBootId() };
+        var metricsSource = await metricsCollector.DetectSourceAsync(cancellationToken);
+        return new Hello
+        {
+            AgentVersion = AgentInfo.Version,
+            DockerVersion = dockerVersion,
+            BootId = bootIds.GetBootId(),
+            MetricsSource = metricsSource,
+            MetricsIntervalSeconds = metricsSource == MetricsSource.Disabled ? 0 : (int)Math.Ceiling(options.Value.MetricsInterval.TotalSeconds),
+        };
     }
 
     private async Task SendHeartbeatsAsync(AgentStreamWriter writer, CancellationTokenSource session)

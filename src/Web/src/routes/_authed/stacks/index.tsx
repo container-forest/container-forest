@@ -6,6 +6,7 @@ import { environmentsQuery, stacksQuery, unmanagedStacksQuery } from "@/api/quer
 import { isEditorRole } from "@/api/users";
 import { ErrorText } from "@/components/form-messages";
 import { FilterXIcon, Loader2Icon, RefreshCwIcon, SearchIcon } from "@/components/icons";
+import { useRememberListSearch } from "@/components/navigation/use-remember-list-search";
 import { CreateStackDialog } from "@/components/stacks/create-stack-dialog";
 import { UnmanagedStacksSection } from "@/components/stacks/unmanaged-stacks-section";
 import { type StackQuickResult, StackQuickActions } from "@/components/stacks/stack-quick-actions";
@@ -54,6 +55,7 @@ export const Route = createFileRoute("/_authed/stacks/")({
 function StacksScreen() {
   const { t } = useTranslation();
   const search = Route.useSearch();
+  useRememberListSearch("stacks", search);
   const navigate = Route.useNavigate();
   const { me } = Route.useRouteContext();
   const { data: environments } = useSuspenseQuery(environmentsQuery);

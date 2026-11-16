@@ -1,15 +1,18 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { cn } from "cn";
 import { type CSSProperties, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { containerLogsQuery, environmentsQuery } from "@/api/queries";
-import { ArrowLeftIcon, CopyIcon, DownloadIcon, FilterXIcon, Loader2Icon, RefreshCwIcon, SearchIcon } from "@/components/icons";
+import { CopyIcon, DownloadIcon, FilterXIcon, Loader2Icon, RefreshCwIcon, SearchIcon } from "@/components/icons";
+import { ContainerTabs } from "@/components/metrics/container-tabs";
+import { BackLink, useBack } from "@/components/navigation/back-link";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { listSearchFor } from "@/features/navigation/back";
 import type { MessageKey } from "@/i18n";
 import { type AnsiStyle, parseAnsi, stripAnsi } from "@/features/container-logs/ansi";
 import {
@@ -50,6 +53,10 @@ function ContainerLogsScreen() {
   const navigate = Route.useNavigate();
   const { data: environments } = useSuspenseQuery(environmentsQuery);
   const environment = environments.find((e) => e.id === environmentId);
+  const back = useBack(search.from, { environmentId }, {
+    link: { to: "/containers", search: listSearchFor("containers", environmentId) },
+    label: t("containerLogs.back"),
+  });
 
   const setSearch = (patch: Partial<ContainerLogsSearch>) => {
     // Navigating to the same search would only re-run the loader.
@@ -63,15 +70,11 @@ function ContainerLogsScreen() {
   return (
     <div className="grid gap-6">
       <div>
-        <Button asChild variant="ghost" size="sm" className="-ml-2">
-          <Link to="/containers" search={{ environment: environmentId }}>
-            <ArrowLeftIcon data-icon="inline-start" />
-            {t("containerLogs.back")}
-          </Link>
-        </Button>
+        <BackLink {...back} variant="button" />
         <h1 className="font-heading mt-2 text-2xl font-semibold break-all">{t("containerLogs.title", { name: containerId })}</h1>
         {environment && <p className="text-muted-foreground mt-1">{t("containerLogs.description", { environment: environment.name })}</p>}
       </div>
+      <ContainerTabs environmentId={environmentId} containerId={containerId} active="logs" from={search.from} />
 
       {environment === undefined ? (
         <p role="alert" className="text-destructive">

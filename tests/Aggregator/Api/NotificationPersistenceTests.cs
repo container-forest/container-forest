@@ -3,6 +3,7 @@ using ContainerForest.Aggregator.Application.Environments;
 using ContainerForest.Aggregator.Application.Notifications;
 using ContainerForest.Aggregator.Domain.Environments;
 using ContainerForest.Aggregator.Domain.Notifications;
+using ContainerForest.Aggregator.Domain.Stacks;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ContainerForest.Aggregator.Api.Tests;
@@ -57,6 +58,36 @@ public class NotificationPersistenceTests
             Assert.Equal(NotificationEventKinds.AgentOffline, loadedNotification.Kind);
             Assert.Equal(NotificationSeverity.Error, loadedNotification.Severity);
             Assert.Null(loadedNotification.StackId);
+        }
+    }
+
+    [Fact]
+    public async Task Resource_usage_details_round_trip()
+    {
+        await using var app = new AggregatorApp();
+        var environment = DockerEnvironment.Create("prod", isPrivate: false, Now);
+        var channel = NotificationChannel.CreateDiscord("ops", 42, Now);
+        var rule = NotificationRule.ForEverything(channel, NotificationEventKinds.All, Now);
+        var details = new ResourceUsageNotificationDetails(ResourceAlertKind.ContainerMemory, "shop-web-1", StackName.Parse("shop"), 93.5, 90);
+        var notification = Notification.Create(
+            rule, new NotificationEvent(NotificationEventKinds.ResourceUsageHigh, environment.Id, null, Now, details), "high", Now);
+
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            services.GetRequiredService<IEnvironmentRepository>().Add(environment);
+            services.GetRequiredService<INotificationChannelRepository>().Add(channel);
+            services.GetRequiredService<INotificationRuleRepository>().Add(rule);
+            services.GetRequiredService<INotificationRepository>().Add(notification);
+            await services.GetRequiredService<IUnitOfWork>().SaveChangesAsync(Ct);
+        }
+
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var loaded = Assert.Single(await scope.ServiceProvider.GetRequiredService<INotificationRepository>().ListPendingAsync(Ct));
+
+            Assert.Equal(details, loaded.Details);
+            Assert.Equal(NotificationSeverity.Warning, loaded.Severity);
         }
     }
 }

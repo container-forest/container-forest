@@ -3,6 +3,7 @@ import { Area, AreaChart, CartesianGrid, Line, LineChart, ReferenceLine, XAxis, 
 import { type ChartConfig, ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import {
   type ChartRow,
+  binaryTicks,
   type DeploymentMarker,
   formatTooltipTime,
   seriesColors,
@@ -35,6 +36,8 @@ interface MetricChartProps {
   minTop?: number;
   /** Whole-number ticks only, for counts. */
   integer?: boolean;
+  /** Bytes or bytes per second: ticks at round KiB, MiB… steps (`binaryTicks`). */
+  binary?: boolean;
 }
 
 /**
@@ -42,7 +45,7 @@ interface MetricChartProps {
  * is horizontal hairlines only. A crosshair tooltip lists every series at the pointer, and a legend with the latest
  * values sits under the plot for two or more series, so identity and values never depend on colour alone.
  */
-export function MetricChart({ title, rows, series, format, from, to, stacked = false, limit, limitLabel, deployments = [], minTop, integer = false }: MetricChartProps) {
+export function MetricChart({ title, rows, series, format, from, to, stacked = false, limit, limitLabel, deployments = [], minTop, integer = false, binary = false }: MetricChartProps) {
   const { t, i18n } = useTranslation();
   const config: ChartConfig = Object.fromEntries(
     series.map((s) => {
@@ -53,6 +56,12 @@ export function MetricChart({ title, rows, series, format, from, to, stacked = f
   const tick = timeTickFormatter(to - from, i18n.language);
   const latest = rows.at(-1);
   const single = series.length === 1;
+  // The highest point drawn: a stacked graph's top is the sum of its series; a limit line extends the axis too.
+  const dataMax = rows.reduce((top, row) => {
+    const values = series.map((s) => row[s.key] ?? 0);
+    return Math.max(top, stacked ? values.reduce((sum, v) => sum + v, 0) : Math.max(...values));
+  }, limit ?? 0);
+  const ticks = binary ? binaryTicks(dataMax) : undefined;
 
   const plot = (
     <>
@@ -68,12 +77,14 @@ export function MetricChart({ title, rows, series, format, from, to, stacked = f
         minTickGap={48}
       />
       <YAxis
-        tickFormatter={format}
+        // Round binary steps need no decimals: "50 MiB", not "50.0 MiB"; a half step keeps its "1.5 KiB".
+        tickFormatter={ticks ? (value: number) => format(value).replace(/\.0(?= )/, "") : format}
         tickLine={false}
         axisLine={false}
         width={72}
         allowDecimals={!integer}
-        domain={minTop === undefined ? undefined : [0, (dataMax: number) => Math.max(dataMax, minTop)]}
+        ticks={ticks}
+        domain={ticks ? [0, ticks.at(-1)!] : minTop === undefined ? undefined : [0, (top: number) => Math.max(top, minTop)]}
       />
       <ChartTooltip
         cursor={{ strokeWidth: 1 }}

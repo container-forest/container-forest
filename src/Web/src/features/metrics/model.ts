@@ -116,6 +116,27 @@ export function formatBytes(bytes: Num | null | undefined): string {
   return `${value.toFixed(unit === 0 || value >= 100 ? 0 : 1)} ${units[unit]}`;
 }
 
+/**
+ * Value-axis ticks for bytes (or bytes per second) at round binary steps: 1, 2 or 5 times a power of ten of the unit
+ * `formatBytes` will show (B, KiB, MiB…), from 0 to the first step at or above `max`. Recharts' own ticks are round in
+ * decimal, so they read as 47.7 MiB or 5.4 KiB/s. Undefined for no positive value, which keeps Recharts' empty scale.
+ */
+export function binaryTicks(max: number, count = 4): number[] | undefined {
+  if (!(max > 0) || !Number.isFinite(max)) {
+    return undefined;
+  }
+  let unit = 1;
+  while (max / unit >= 1024 && unit < 1024 ** 4) {
+    unit *= 1024;
+  }
+  const raw = max / unit / count;
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  // Below a kibibyte a step is at least 1 B: formatBytes shows whole bytes.
+  const step = Math.max(unit === 1 ? 1 : 0, [1, 2, 5, 10].map((m) => m * magnitude).find((s) => s >= raw)!) * unit;
+  const top = Math.ceil(max / step - 1e-9) * step;
+  return Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step);
+}
+
 export function formatRate(bytesPerSecond: number | null | undefined): string {
   return bytesPerSecond === null || bytesPerSecond === undefined ? "–" : `${formatBytes(bytesPerSecond)}/s`;
 }

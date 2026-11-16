@@ -116,6 +116,7 @@ export function ContainerMetricsView({ environmentId, container, range }: { envi
         title={t("metrics.memory")}
         series={[{ key: "memory", label: t("metrics.memory"), slot: 0 }]}
         format={formatBytes}
+        binary
         limit={last(series.memoryLimit)}
       />
       <MetricChart
@@ -126,6 +127,7 @@ export function ContainerMetricsView({ environmentId, container, range }: { envi
           { key: "tx", label: t("metrics.sent"), slot: 1 },
         ]}
         format={formatRate}
+        binary
       />
       <MetricChart
         {...common}
@@ -135,6 +137,7 @@ export function ContainerMetricsView({ environmentId, container, range }: { envi
           { key: "write", label: t("metrics.written"), slot: 1 },
         ]}
         format={formatRate}
+        binary
       />
       <MetricChart {...common} title={t("metrics.pids")} series={[{ key: "pids", label: t("metrics.pids"), slot: 0 }]} format={formatCount} integer />
     </div>
@@ -154,18 +157,23 @@ function StackedContainers({
   deployments?: Parameters<typeof MetricChart>[0]["deployments"];
 }) {
   const { t } = useTranslation();
-  const chart = (title: string, value: (s: ContainerSeries) => readonly Num[], format: (v: number) => string, minTop?: number) => {
+  const chart = (
+    title: string,
+    value: (s: ContainerSeries) => readonly Num[],
+    format: (v: number) => string,
+    axis: { minTop?: number; binary?: boolean },
+  ) => {
     const { rows, keys } = stackRows(series, value);
     const chartSeries: ChartSeries[] = keys.map((k, i) => ({ key: k.key, label: k.name || t("metrics.other"), slot: i }));
-    return <MetricChart title={title} rows={rows} series={chartSeries} format={format} from={from} to={to} stacked deployments={deployments} minTop={minTop} />;
+    return <MetricChart title={title} rows={rows} series={chartSeries} format={format} from={from} to={to} stacked deployments={deployments} {...axis} />;
   };
   const network = (s: ContainerSeries) => s.networkRx.map((rx, i) => Number(rx) + Number(s.networkTx[i] ?? 0));
   return (
     <div className={grid}>
-      {chart(t("metrics.cpu"), (s) => s.cpu, formatPercent, 1)}
-      {chart(t("metrics.memory"), (s) => s.memory, formatBytes)}
-      {chart(t("metrics.networkTotal"), network, formatRate)}
-      {chart(t("metrics.blockWrite"), (s) => s.blockWrite, formatRate)}
+      {chart(t("metrics.cpu"), (s) => s.cpu, formatPercent, { minTop: 1 })}
+      {chart(t("metrics.memory"), (s) => s.memory, formatBytes, { binary: true })}
+      {chart(t("metrics.networkTotal"), network, formatRate, { binary: true })}
+      {chart(t("metrics.blockWrite"), (s) => s.blockWrite, formatRate, { binary: true })}
     </div>
   );
 }
@@ -317,6 +325,7 @@ export function EnvironmentMetricsView({ environmentId, range }: { environmentId
             from={from}
             to={to}
             format={formatBytes}
+            binary
             limit={last(host.memoryTotal)}
             limitLabel={t("metrics.total")}
             series={[
@@ -330,6 +339,7 @@ export function EnvironmentMetricsView({ environmentId, range }: { environmentId
             from={from}
             to={to}
             format={formatRate}
+            binary
             series={[
               { key: "rx", label: t("metrics.received"), slot: 0 },
               { key: "tx", label: t("metrics.sent"), slot: 1 },
@@ -341,6 +351,7 @@ export function EnvironmentMetricsView({ environmentId, range }: { environmentId
             from={from}
             to={to}
             format={formatRate}
+            binary
             series={[
               { key: "read", label: t("metrics.read"), slot: 0 },
               { key: "write", label: t("metrics.written"), slot: 1 },

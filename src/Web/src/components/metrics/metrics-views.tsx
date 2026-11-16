@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { useTranslation } from "react-i18next";
 import {
@@ -7,6 +7,7 @@ import {
   currentMetricsQuery,
   environmentMetricsQuery,
   stackMetricsQuery,
+  unmanagedStackMetricsQuery,
 } from "@/api/queries";
 import { Loader2Icon } from "@/components/icons";
 import { type ChartSeries, MetricChart } from "@/components/metrics/metric-chart";
@@ -15,6 +16,7 @@ import {
   type ContainerSeries,
   type MetricsWindow,
   type Num,
+  type StackMetrics,
   formatBytes,
   formatCount,
   formatPercent,
@@ -208,8 +210,16 @@ function ContainerTable({ series }: { series: readonly ContainerSeries[] }) {
 
 /** A managed stack: its containers stacked, a table of them, its named volumes. */
 export function StackMetricsView({ stackId, range }: { stackId: string; range: MetricsRange }) {
+  return <StackMetricsBody query={useQuery(stackMetricsQuery(stackId, range))} />;
+}
+
+/** An unmanaged stack (ADR-0016): the same graphs, found by its environment and compose project name. */
+export function UnmanagedStackMetricsView({ environmentId, stackName, range }: { environmentId: string; stackName: string; range: MetricsRange }) {
+  return <StackMetricsBody query={useQuery(unmanagedStackMetricsQuery(environmentId, stackName, range))} />;
+}
+
+function StackMetricsBody({ query }: { query: UseQueryResult<StackMetrics> }) {
   const { t } = useTranslation();
-  const query = useQuery(stackMetricsQuery(stackId, range));
   if (query.isPending) {
     return <Loading />;
   }

@@ -6,6 +6,7 @@ import { useUnmanagedStackActionMutation } from "@/api/unmanaged-stacks";
 import { ConfirmAction } from "@/components/confirm-action";
 import { ErrorText } from "@/components/form-messages";
 import { ArrowLeftIcon, ArrowRightIcon, DownloadIcon, Loader2Icon, PlayIcon, RotateCwIcon, SquareIcon } from "@/components/icons";
+import { UnmanagedStackMetricsCard } from "@/components/metrics/metrics-card";
 import { StackContainersCard } from "@/components/stacks/stack-containers-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,7 @@ function UnmanagedStackScreen() {
         <>
           <ActionsCard environment={environment} stack={stack} />
           <StackContainersCard environmentId={environment.id} stackName={stack.name} emptyText={t("unmanagedStack.noContainers")} />
+          <UnmanagedStackMetricsCard environmentId={environment.id} stackName={stack.name} />
           <FilesCard stack={stack} />
           {me.isAdmin && <HistoryCard environment={environment} stack={stack} />}
         </>

@@ -401,6 +401,7 @@ const en = {
     title: "Resource usage",
     containerTitle: "Resource usage of {{name}}",
     stackDescription: "CPU, memory, network and disk of the stack's containers, the busiest by name. Triangles mark deployments.",
+    unmanagedStackDescription: "CPU, memory, network and disk of the stack's containers, the busiest by name.",
     environmentDescription: "The host's CPU, memory, disks and network, Docker's disk usage and the sums of each stack.",
     range: "Range",
     noData: "No data in this range.",

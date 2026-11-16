@@ -324,6 +324,20 @@ export const stackMetricsQuery = (stackId: string, range: MetricsRange) =>
     refetchInterval: metricsRefetch(range),
   });
 
+/** An unmanaged stack's containers over a range (a role on the whole environment); the same shape as a managed stack's. */
+export const unmanagedStackMetricsQuery = (environmentId: string, stackName: string, range: MetricsRange) =>
+  queryOptions({
+    queryKey: ["metrics", "environments", environmentId, "unmanaged-stacks", stackName, range],
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await api.GET("/api/environments/{id}/unmanaged-stacks/{name}/metrics", {
+          params: { path: { id: environmentId, name: stackName }, query: { range } },
+          signal,
+        }),
+      ),
+    refetchInterval: metricsRefetch(range),
+  });
+
 /** The host (with a role on the whole environment) and per-stack sums over a range. */
 export const environmentMetricsQuery = (environmentId: string, range: MetricsRange) =>
   queryOptions({

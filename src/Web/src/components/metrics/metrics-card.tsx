@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { MetricsRange } from "@/api/queries";
-import { EnvironmentMetricsView, RangePicker, StackMetricsView } from "@/components/metrics/metrics-views";
+import { EnvironmentMetricsView, RangePicker, StackMetricsView, UnmanagedStackMetricsView } from "@/components/metrics/metrics-views";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 function MetricsCard({ description, children }: { description: string; children: (range: MetricsRange) => React.ReactNode }) {
@@ -25,6 +25,16 @@ function MetricsCard({ description, children }: { description: string; children:
 export function StackMetricsCard({ stackId }: { stackId: string }) {
   const { t } = useTranslation();
   return <MetricsCard description={t("metrics.stackDescription")}>{(range) => <StackMetricsView stackId={stackId} range={range} />}</MetricsCard>;
+}
+
+/** An unmanaged stack's resource usage on its page; it has no deployments to mark. */
+export function UnmanagedStackMetricsCard({ environmentId, stackName }: { environmentId: string; stackName: string }) {
+  const { t } = useTranslation();
+  return (
+    <MetricsCard description={t("metrics.unmanagedStackDescription")}>
+      {(range) => <UnmanagedStackMetricsView environmentId={environmentId} stackName={stackName} range={range} />}
+    </MetricsCard>
+  );
 }
 
 /** An environment's host and stacks on its page. */

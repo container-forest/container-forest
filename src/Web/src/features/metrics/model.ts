@@ -7,6 +7,7 @@ export type FilesystemSeries = components["schemas"]["FilesystemSeriesResponse"]
 export type MetricsWindow = components["schemas"]["MetricsWindowResponse"];
 export type DeploymentMarker = components["schemas"]["DeploymentMarkerResponse"];
 export type CurrentMetrics = components["schemas"]["CurrentMetricsResponse"];
+export type StackMetrics = components["schemas"]["StackMetricsResponse"];
 export type MetricsSource = components["schemas"]["MetricsSourceKind"];
 
 export const metricsRanges = ["15m", "1h", "6h", "24h", "7d", "30d", "90d"] as const satisfies readonly MetricsRange[];

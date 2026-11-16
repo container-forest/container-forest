@@ -31,6 +31,10 @@ interface MetricChartProps {
   limit?: number | null;
   limitLabel?: string;
   deployments?: readonly DeploymentMarker[];
+  /** The lowest top of the value axis, e.g. 1 (100 %) for CPU: an all-zero series otherwise gets Recharts' 0…4. */
+  minTop?: number;
+  /** Whole-number ticks only, for counts. */
+  integer?: boolean;
 }
 
 /**
@@ -38,7 +42,7 @@ interface MetricChartProps {
  * is horizontal hairlines only. A crosshair tooltip lists every series at the pointer, and a legend with the latest
  * values sits under the plot for two or more series, so identity and values never depend on colour alone.
  */
-export function MetricChart({ title, rows, series, format, from, to, stacked = false, limit, limitLabel, deployments = [] }: MetricChartProps) {
+export function MetricChart({ title, rows, series, format, from, to, stacked = false, limit, limitLabel, deployments = [], minTop, integer = false }: MetricChartProps) {
   const { t, i18n } = useTranslation();
   const config: ChartConfig = Object.fromEntries(
     series.map((s) => {
@@ -63,7 +67,14 @@ export function MetricChart({ title, rows, series, format, from, to, stacked = f
         axisLine={false}
         minTickGap={48}
       />
-      <YAxis tickFormatter={format} tickLine={false} axisLine={false} width={72} allowDecimals />
+      <YAxis
+        tickFormatter={format}
+        tickLine={false}
+        axisLine={false}
+        width={72}
+        allowDecimals={!integer}
+        domain={minTop === undefined ? undefined : [0, (dataMax: number) => Math.max(dataMax, minTop)]}
+      />
       <ChartTooltip
         cursor={{ strokeWidth: 1 }}
         content={({ active, payload, label }) =>

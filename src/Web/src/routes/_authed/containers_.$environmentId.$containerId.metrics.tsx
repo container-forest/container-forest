@@ -36,7 +36,7 @@ function ContainerMetricsScreen() {
           </Link>
         </Button>
         <h1 className="font-heading mt-2 text-2xl font-semibold break-all">{t("metrics.containerTitle", { name: containerId })}</h1>
-        {environment && <p className="text-muted-foreground mt-1">{t("containerLogs.description", { environment: environment.name })}</p>}
+        {environment && <p className="text-muted-foreground mt-1">{t("metrics.containerDescription", { environment: environment.name })}</p>}
       </div>
       <ContainerTabs environmentId={environmentId} containerId={containerId} active="metrics" />
       {environment === undefined ? (

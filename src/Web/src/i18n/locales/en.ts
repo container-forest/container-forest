@@ -400,6 +400,7 @@ const en = {
   metrics: {
     title: "Resource usage",
     containerTitle: "Resource usage of {{name}}",
+    containerDescription: "Environment {{environment}}. The graphs refresh on their own: every 10 seconds up to an hour, every minute for longer ranges.",
     stackDescription: "CPU, memory, network and disk of the stack's containers, the busiest by name. Triangles mark deployments.",
     unmanagedStackDescription: "CPU, memory, network and disk of the stack's containers, the busiest by name.",
     environmentDescription: "The host's CPU, memory, disks and network, Docker's disk usage and the sums of each stack.",

@@ -107,6 +107,7 @@ export function ContainerMetricsView({ environmentId, container, range }: { envi
         title={t("metrics.cpu")}
         series={[{ key: "cpu", label: t("metrics.cpu"), slot: 0 }]}
         format={formatPercent}
+        minTop={1}
         limit={last(series.cpuLimit)}
         limitLabel={t("metrics.limit")}
       />
@@ -135,7 +136,7 @@ export function ContainerMetricsView({ environmentId, container, range }: { envi
         ]}
         format={formatRate}
       />
-      <MetricChart {...common} title={t("metrics.pids")} series={[{ key: "pids", label: t("metrics.pids"), slot: 0 }]} format={formatCount} />
+      <MetricChart {...common} title={t("metrics.pids")} series={[{ key: "pids", label: t("metrics.pids"), slot: 0 }]} format={formatCount} integer />
     </div>
   );
 }
@@ -153,15 +154,15 @@ function StackedContainers({
   deployments?: Parameters<typeof MetricChart>[0]["deployments"];
 }) {
   const { t } = useTranslation();
-  const chart = (title: string, value: (s: ContainerSeries) => readonly Num[], format: (v: number) => string) => {
+  const chart = (title: string, value: (s: ContainerSeries) => readonly Num[], format: (v: number) => string, minTop?: number) => {
     const { rows, keys } = stackRows(series, value);
     const chartSeries: ChartSeries[] = keys.map((k, i) => ({ key: k.key, label: k.name || t("metrics.other"), slot: i }));
-    return <MetricChart title={title} rows={rows} series={chartSeries} format={format} from={from} to={to} stacked deployments={deployments} />;
+    return <MetricChart title={title} rows={rows} series={chartSeries} format={format} from={from} to={to} stacked deployments={deployments} minTop={minTop} />;
   };
   const network = (s: ContainerSeries) => s.networkRx.map((rx, i) => Number(rx) + Number(s.networkTx[i] ?? 0));
   return (
     <div className={grid}>
-      {chart(t("metrics.cpu"), (s) => s.cpu, formatPercent)}
+      {chart(t("metrics.cpu"), (s) => s.cpu, formatPercent, 1)}
       {chart(t("metrics.memory"), (s) => s.memory, formatBytes)}
       {chart(t("metrics.networkTotal"), network, formatRate)}
       {chart(t("metrics.blockWrite"), (s) => s.blockWrite, formatRate)}
@@ -302,6 +303,7 @@ export function EnvironmentMetricsView({ environmentId, range }: { environmentId
             to={to}
             stacked
             format={formatPercent}
+            minTop={1}
             series={[
               { key: "user", label: t("metrics.cpuUser"), slot: 0 },
               { key: "system", label: t("metrics.cpuSystem"), slot: 1 },

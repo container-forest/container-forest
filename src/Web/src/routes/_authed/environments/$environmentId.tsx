@@ -1,9 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
+import { z } from "zod";
 import {
   useDeleteRegistryCredentialMutation,
   useIssueEnrollmentTokenMutation,
@@ -19,7 +20,8 @@ import { ComposePolicySection } from "@/components/environments/compose-policy-s
 import { EnvironmentMetricsCard } from "@/components/metrics/metrics-card";
 import { EnvironmentRolesSection } from "@/components/environments/environment-roles";
 import { ErrorText, FieldError } from "@/components/form-messages";
-import { ArrowLeftIcon, KeyIcon, Loader2Icon, LockIcon, Trash2Icon, UnlinkIcon } from "@/components/icons";
+import { KeyIcon, Loader2Icon, LockIcon, Trash2Icon, UnlinkIcon } from "@/components/icons";
+import { BackLink, useBack } from "@/components/navigation/back-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,11 +37,13 @@ import {
   statusVariant,
   tokenStateOf,
 } from "@/features/environments/model";
+import { fromSearchSchema, rememberedListSearch } from "@/features/navigation/back";
 import { formatDateTime } from "@/lib/format";
 import { useLiveStatus } from "@/components/live/hub-provider";
 import { pollingInterval } from "@/features/live/model";
 
 export const Route = createFileRoute("/_authed/environments/$environmentId")({
+  validateSearch: z.object({ from: fromSearchSchema }),
   loader: ({ context }) => context.queryClient.ensureQueryData(environmentsQuery),
   component: EnvironmentScreen,
 });
@@ -55,16 +59,15 @@ function EnvironmentScreen() {
   const live = useLiveStatus();
   const environments = useQuery({ ...environmentsQuery, refetchInterval: pollingInterval(live, STATUS_REFRESH_MS) });
   const environment = environments.data?.find((e) => e.id === environmentId);
+  const back = useBack(Route.useSearch().from, { environmentId }, {
+    link: { to: "/environments", search: rememberedListSearch("environments") ?? {} },
+    label: t("environment.back"),
+  });
 
   return (
     <div className="grid gap-6">
       <div>
-        <Button asChild variant="ghost" size="sm" className="-ml-2">
-          <Link to="/environments">
-            <ArrowLeftIcon data-icon="inline-start" />
-            {t("environment.back")}
-          </Link>
-        </Button>
+        <BackLink {...back} variant="button" />
       </div>
 
       {environment === undefined ? (

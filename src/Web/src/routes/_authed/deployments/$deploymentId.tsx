@@ -1,17 +1,20 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { type ErrorComponentProps, Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { type ErrorComponentProps, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { z } from "zod";
 import { hasStatus } from "@/api/client";
 import { deploymentQuery, stackQuery } from "@/api/queries";
 import { useApproveCommitMutation } from "@/api/stacks";
 import { ConfirmAction } from "@/components/confirm-action";
 import { ErrorText } from "@/components/form-messages";
-import { ArrowLeftIcon, Loader2Icon, PlayIcon } from "@/components/icons";
+import { Loader2Icon, PlayIcon } from "@/components/icons";
+import { BackLink, useBack } from "@/components/navigation/back-link";
 import { DeploymentStatusBadge } from "@/components/stacks/deployment-status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { fromSearchSchema } from "@/features/navigation/back";
 import {
   DEPLOYMENT_POLL_MS,
   type DeploymentDetails,
@@ -30,6 +33,7 @@ import { useLiveStatus } from "@/components/live/hub-provider";
 import { pollingInterval } from "@/features/live/model";
 
 export const Route = createFileRoute("/_authed/deployments/$deploymentId")({
+  validateSearch: z.object({ from: fromSearchSchema }),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(deploymentQuery(params.deploymentId)),
   component: DeploymentScreen,
   errorComponent: DeploymentLoadError,
@@ -47,20 +51,17 @@ function DeploymentScreen() {
       query.state.data && !isFinished(query.state.data.status) ? pollingInterval(live, DEPLOYMENT_POLL_MS) : false,
   });
   const stack = useQuery(stackQuery(deployment.stackId));
+  const back = useBack(Route.useSearch().from, { stackId: deployment.stackId }, {
+    link: { to: "/stacks/$stackId/deployments", params: { stackId: deployment.stackId } },
+    label: t("deployment.back", { name: stack.data?.name ?? "…" }),
+  });
   const language = i18n.resolvedLanguage;
   const seconds = durationSeconds(deployment, new Date());
 
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-6">
       <div className="grid gap-3">
-        <Link
-          to="/stacks/$stackId/deployments"
-          params={{ stackId: deployment.stackId }}
-          className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm"
-        >
-          <ArrowLeftIcon className="size-4" />
-          {t("deployment.back", { name: stack.data?.name ?? "…" })}
-        </Link>
+        <BackLink {...back} />
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-2xl font-semibold">
             {t("deployment.title", { date: formatDateTime(deployment.queuedAt, language) })}
@@ -137,6 +138,8 @@ function EndorsementRows({ deployment }: { deployment: DeploymentDetails }) {
 function ApproveCommit({ deployment, stack }: { deployment: DeploymentDetails; stack: Stack }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  // The new deployment keeps this one's back link.
+  const { from } = Route.useSearch();
   const approve = useApproveCommitMutation(stack.id);
   const commit = deployment.commit ?? "";
   const error = approve.error ? describeError(approve.error) : undefined;
@@ -153,7 +156,7 @@ function ApproveCommit({ deployment, stack }: { deployment: DeploymentDetails; s
           onConfirm={() =>
             approve.mutate(
               { commit, pull: deployment.pullPolicy === "Always" },
-              { onSuccess: (next) => void navigate({ to: "/deployments/$deploymentId", params: { deploymentId: next.id } }) },
+              { onSuccess: (next) => void navigate({ to: "/deployments/$deploymentId", params: { deploymentId: next.id }, search: { from } }) },
             )
           }
         >

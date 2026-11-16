@@ -1,18 +1,21 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { z } from "zod";
 import { auditQuery, environmentsQuery, unmanagedStacksQuery } from "@/api/queries";
 import { useUnmanagedStackActionMutation } from "@/api/unmanaged-stacks";
 import { ConfirmAction } from "@/components/confirm-action";
 import { ErrorText } from "@/components/form-messages";
-import { ArrowLeftIcon, ArrowRightIcon, DownloadIcon, Loader2Icon, PlayIcon, RotateCwIcon, SquareIcon } from "@/components/icons";
+import { ArrowRightIcon, DownloadIcon, Loader2Icon, PlayIcon, RotateCwIcon, SquareIcon } from "@/components/icons";
 import { UnmanagedStackMetricsCard } from "@/components/metrics/metrics-card";
+import { BackLink, useBack } from "@/components/navigation/back-link";
 import { StackContainersCard } from "@/components/stacks/stack-containers-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { isKnownAction, isKnownChannel, outcomeVariant } from "@/features/audit/model";
 import type { Environment } from "@/features/containers/model";
+import { fromSearchSchema, listSearchFor, originParam } from "@/features/navigation/back";
 import { describeError } from "@/features/stacks/model";
 import {
   UNMANAGED_HISTORY_SIZE,
@@ -30,6 +33,7 @@ import {
 import { formatDateTime } from "@/lib/format";
 
 export const Route = createFileRoute("/_authed/stacks/unmanaged/$environmentId/$stackName")({
+  validateSearch: z.object({ from: fromSearchSchema }),
   loader: ({ context }) => context.queryClient.ensureQueryData(environmentsQuery),
   component: UnmanagedStackScreen,
 });
@@ -48,18 +52,15 @@ function UnmanagedStackScreen() {
   const environment = environments.find((e) => e.id === environmentId);
   const stacks = useQuery({ ...unmanagedStacksQuery(environmentId), enabled: environment?.isOnline === true });
   const stack = stacks.data?.find((s) => s.name === stackName);
+  const back = useBack(Route.useSearch().from, { environmentId }, {
+    link: { to: "/stacks", search: listSearchFor("stacks", environmentId) },
+    label: t("stack.back"),
+  });
 
   return (
     <div className="mx-auto grid w-full max-w-4xl gap-6">
       <div className="grid gap-3">
-        <Link
-          to="/stacks"
-          search={{ environment: environmentId }}
-          className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm"
-        >
-          <ArrowLeftIcon className="size-4" />
-          {t("stack.back")}
-        </Link>
+        <BackLink {...back} />
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-2xl font-semibold break-all">{stackName}</h1>
           <Badge variant="secondary">{t("unmanagedStack.badge")}</Badge>
@@ -89,7 +90,12 @@ function UnmanagedStackScreen() {
       ) : (
         <>
           <ActionsCard environment={environment} stack={stack} />
-          <StackContainersCard environmentId={environment.id} stackName={stack.name} emptyText={t("unmanagedStack.noContainers")} />
+          <StackContainersCard
+            environmentId={environment.id}
+            stackName={stack.name}
+            emptyText={t("unmanagedStack.noContainers")}
+            from={originParam({ kind: "unmanaged", stackName: stack.name })}
+          />
           <UnmanagedStackMetricsCard environmentId={environment.id} stackName={stack.name} />
           <FilesCard stack={stack} />
           {me.isAdmin && <HistoryCard environment={environment} stack={stack} />}

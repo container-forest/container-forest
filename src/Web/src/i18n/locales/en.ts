@@ -963,6 +963,11 @@ const en = {
     copied: "Copied",
     failed: "Could not copy",
   },
+  navigation: {
+    backTo: "Back to {{name}}",
+    backToStack: "Back to the stack",
+    backToAudit: "Back to the audit log",
+  },
   discord: {
     oauth: {
       title: "Link with Discord",

@@ -156,33 +156,37 @@ export function pageRange(page: number, pageSize: number, total: number) {
  * Where the entry's target lives in the panel, if it still can: a removed object's page answers "not found", which
  * is fine for a log. Files, tokens and failed sign-ins of unknown names have no page.
  */
-export type TargetLink =
+export type TargetLink = (
   | { to: "/users/$userId"; params: { userId: string } }
   | { to: "/environments/$environmentId"; params: { environmentId: string } }
   | { to: "/stacks/$stackId"; params: { stackId: string } }
   | { to: "/stacks/unmanaged/$environmentId/$stackName"; params: { environmentId: string; stackName: string } }
-  | { to: "/containers/$environmentId/$containerId/logs"; params: { environmentId: string; containerId: string } };
+  | { to: "/containers/$environmentId/$containerId/logs"; params: { environmentId: string; containerId: string } }
+) & { search: { from: "audit" } };
+
+/** The target's page opened from the log: its back link returns to the log with the same filters. */
+const fromAudit = { search: { from: "audit" } } as const;
 
 export function targetLink(entry: AuditEntry): TargetLink | undefined {
   switch (entry.targetKind) {
     case "User":
       return entry.targetId && looksLikeGuid(entry.targetId)
-        ? { to: "/users/$userId", params: { userId: entry.targetId } }
+        ? { to: "/users/$userId", params: { userId: entry.targetId }, ...fromAudit }
         : undefined;
     case "Environment":
-      return entry.environmentId ? { to: "/environments/$environmentId", params: { environmentId: entry.environmentId } } : undefined;
+      return entry.environmentId ? { to: "/environments/$environmentId", params: { environmentId: entry.environmentId }, ...fromAudit } : undefined;
     case "Stack":
       if (entry.stackId) {
-        return { to: "/stacks/$stackId", params: { stackId: entry.stackId } };
+        return { to: "/stacks/$stackId", params: { stackId: entry.stackId }, ...fromAudit };
       }
 
       // An unmanaged stack (ADR-0016) has no id; the compose project name on its environment is its address.
       return entry.environmentId && entry.targetName && entry.action.startsWith("UnmanagedStack")
-        ? { to: "/stacks/unmanaged/$environmentId/$stackName", params: { environmentId: entry.environmentId, stackName: entry.targetName } }
+        ? { to: "/stacks/unmanaged/$environmentId/$stackName", params: { environmentId: entry.environmentId, stackName: entry.targetName }, ...fromAudit }
         : undefined;
     case "Container":
       return entry.environmentId && entry.targetName
-        ? { to: "/containers/$environmentId/$containerId/logs", params: { environmentId: entry.environmentId, containerId: entry.targetName } }
+        ? { to: "/containers/$environmentId/$containerId/logs", params: { environmentId: entry.environmentId, containerId: entry.targetName }, ...fromAudit }
         : undefined;
     default:
       return undefined;

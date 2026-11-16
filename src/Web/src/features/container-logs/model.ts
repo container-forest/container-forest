@@ -3,6 +3,7 @@ import { ApiError } from "@/api/client";
 import type { components } from "@/api/schema.gen";
 import { stripAnsi } from "@/features/container-logs/ansi";
 import { describeError } from "@/features/containers/model";
+import { fromSearchSchema } from "@/features/navigation/back";
 import type { MessageKey } from "@/i18n";
 
 // What the container logs screen shows, without React: URL state, joining newer lines, filters, copy text, errors.
@@ -33,6 +34,8 @@ export const containerLogsSearchSchema = z.object({
   wrap: z.boolean().optional().catch(undefined),
   time: z.boolean().optional().catch(undefined),
   color: z.boolean().optional().catch(undefined),
+  /** The stack page or audit log the container was opened from, for the back link. */
+  from: fromSearchSchema,
 });
 
 export type ContainerLogsSearch = z.infer<typeof containerLogsSearchSchema>;

@@ -3,6 +3,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { containersQuery, environmentsQuery } from "@/api/queries";
 import { FilterXIcon, Loader2Icon, RefreshCwIcon, SearchIcon } from "@/components/icons";
+import { useRememberListSearch } from "@/components/navigation/use-remember-list-search";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +49,7 @@ export const Route = createFileRoute("/_authed/containers")({
 function ContainersScreen() {
   const { t } = useTranslation();
   const search = Route.useSearch();
+  useRememberListSearch("containers", search);
   const navigate = Route.useNavigate();
   const { data: environments } = useSuspenseQuery(environmentsQuery);
   const environment = environments.find((e) => e.id === search.environment);

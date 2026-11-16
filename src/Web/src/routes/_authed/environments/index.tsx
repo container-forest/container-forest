@@ -5,6 +5,7 @@ import { environmentsQuery } from "@/api/queries";
 import { CreateEnvironmentDialog, EditEnvironmentDialog } from "@/components/environments/environment-dialogs";
 import { ErrorText } from "@/components/form-messages";
 import { FilterXIcon, LockIcon, Loader2Icon, RefreshCwIcon, SearchIcon } from "@/components/icons";
+import { useRememberListSearch } from "@/components/navigation/use-remember-list-search";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,7 @@ function EnvironmentsScreen() {
   const { t, i18n } = useTranslation();
   const { me } = Route.useRouteContext();
   const search = Route.useSearch();
+  useRememberListSearch("environments", search);
   const navigate = Route.useNavigate();
   const live = useLiveStatus();
   const environments = useQuery({ ...environmentsQuery, refetchInterval: pollingInterval(live, STATUS_REFRESH_MS) });

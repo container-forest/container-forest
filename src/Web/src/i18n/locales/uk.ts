@@ -961,6 +961,11 @@ const uk: Translation = {
     copied: "Скопійовано",
     failed: "Не вдалося скопіювати",
   },
+  navigation: {
+    backTo: "До {{name}}",
+    backToStack: "До стеку",
+    backToAudit: "До журналу аудиту",
+  },
   discord: {
     oauth: {
       title: "Прив'язати через Discord",

@@ -4,6 +4,7 @@ import { type ErrorComponentProps, Link, createFileRoute, useNavigate } from "@t
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
+import { z } from "zod";
 import { hasStatus } from "@/api/client";
 import { containersQuery, deploymentsQuery, repositoriesQuery, stackQuery } from "@/api/queries";
 import {
@@ -20,7 +21,6 @@ import {
 import { ConfirmAction } from "@/components/confirm-action";
 import { ErrorText, FieldError } from "@/components/form-messages";
 import {
-  ArrowLeftIcon,
   ArrowRightIcon,
   Loader2Icon,
   PlayIcon,
@@ -31,6 +31,7 @@ import {
 } from "@/components/icons";
 import { ImageHookCard } from "@/components/images/image-hook-card";
 import { ImagePoliciesCard } from "@/components/images/image-policies-card";
+import { BackLink, useBack } from "@/components/navigation/back-link";
 import { DeployHookCard } from "@/components/stacks/deploy-hook-card";
 import { PolicyAllowancesCard } from "@/components/stacks/policy-allowances-card";
 import { StackMetricsCard } from "@/components/metrics/metrics-card";
@@ -43,6 +44,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { fromSearchSchema, listSearchFor, originParam } from "@/features/navigation/back";
 import {
   DEPLOYMENT_POLL_MS,
   type Stack,
@@ -65,6 +67,7 @@ import { pollingInterval } from "@/features/live/model";
 const RECENT_DEPLOYMENTS = 5;
 
 export const Route = createFileRoute("/_authed/stacks/$stackId/")({
+  validateSearch: z.object({ from: fromSearchSchema }),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(stackQuery(params.stackId)),
   component: StackScreen,
   errorComponent: StackLoadError,
@@ -75,18 +78,15 @@ function StackScreen() {
   const { t, i18n } = useTranslation();
   const { stackId } = Route.useParams();
   const { data: stack } = useSuspenseQuery(stackQuery(stackId));
+  const back = useBack(Route.useSearch().from, { environmentId: stack.environmentId }, {
+    link: { to: "/stacks", search: listSearchFor("stacks", stack.environmentId) },
+    label: t("stack.back"),
+  });
 
   return (
     <div className="mx-auto grid w-full max-w-4xl gap-6">
       <div className="grid gap-3">
-        <Link
-          to="/stacks"
-          search={{ environment: stack.environmentId }}
-          className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-sm"
-        >
-          <ArrowLeftIcon className="size-4" />
-          {t("stack.back")}
-        </Link>
+        <BackLink {...back} />
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-2xl font-semibold">{stack.name}</h1>
           {stack.isSystem && <Badge variant="outline">{t("stacks.system")}</Badge>}
@@ -99,7 +99,12 @@ function StackScreen() {
       </div>
 
       <ActionsCard stack={stack} />
-      <StackContainersCard environmentId={stack.environmentId} stackName={stack.name} emptyText={t("stack.containers.empty")} />
+      <StackContainersCard
+        environmentId={stack.environmentId}
+        stackName={stack.name}
+        emptyText={t("stack.containers.empty")}
+        from={originParam({ kind: "stack", stackId: stack.id })}
+      />
       <StackMetricsCard stackId={stack.id} />
       <SourceCard key={`${stack.repositoryId}/${stack.branch}/${stack.composePath}`} stack={stack} />
       {stack.canDeploy && !stack.isSystem && <EndorsementCard stack={stack} />}
@@ -134,7 +139,12 @@ function ActionsCard({ stack }: { stack: Stack }) {
     setResult(undefined);
     action.reset();
     deploy.mutate(pull, {
-      onSuccess: (deployment) => void navigate({ to: "/deployments/$deploymentId", params: { deploymentId: deployment.id } }),
+      onSuccess: (deployment) =>
+        void navigate({
+          to: "/deployments/$deploymentId",
+          params: { deploymentId: deployment.id },
+          search: { from: originParam({ kind: "stack", stackId: stack.id }) },
+        }),
     });
   };
 
@@ -558,7 +568,12 @@ function RecentDeploymentsCard({ stack }: { stack: Stack }) {
             {recent.map((deployment) => (
               <li key={deployment.id} className={cn("flex flex-wrap items-center gap-3 rounded-md px-2 py-1.5 text-sm", rowClass)}>
                 <DeploymentStatusBadge status={deployment.status} />
-                <Link to="/deployments/$deploymentId" params={{ deploymentId: deployment.id }} className={rowLinkClass}>
+                <Link
+                  to="/deployments/$deploymentId"
+                  params={{ deploymentId: deployment.id }}
+                  search={{ from: originParam({ kind: "stack", stackId: stack.id }) }}
+                  className={rowLinkClass}
+                >
                   {formatDateTime(deployment.queuedAt, i18n.resolvedLanguage)}
                 </Link>
                 {deployment.commit && <span className="text-muted-foreground font-mono">{shortCommit(deployment.commit)}</span>}

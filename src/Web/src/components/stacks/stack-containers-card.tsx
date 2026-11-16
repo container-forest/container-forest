@@ -20,9 +20,12 @@ export function StackContainersCard({
   environmentId,
   stackName,
   emptyText,
+  from,
 }: {
   environmentId: string;
   stackName: string;
+  /** This page as the containers' origin (`originParam`), for their back link. */
+  from: string;
   /** Why a stack of this kind has no containers. */
   emptyText: string;
 }) {
@@ -59,7 +62,7 @@ export function StackContainersCard({
         ) : own.length === 0 ? (
           <p className="text-muted-foreground text-sm">{emptyText}</p>
         ) : (
-          <ContainerTable environmentId={environmentId} containers={own} showStack={false} />
+          <ContainerTable environmentId={environmentId} containers={own} showStack={false} from={from} />
         )}
       </CardContent>
     </Card>

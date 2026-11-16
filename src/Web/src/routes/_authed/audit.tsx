@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { auditQuery, environmentsQuery, usersQuery } from "@/api/queries";
 import { ErrorText } from "@/components/form-messages";
 import { ChevronLeftIcon, ChevronRightIcon, FilterXIcon, Loader2Icon, RefreshCwIcon, SearchIcon } from "@/components/icons";
+import { useRememberListSearch } from "@/components/navigation/use-remember-list-search";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,7 @@ export const Route = createFileRoute("/_authed/audit")({
 function AuditScreen() {
   const { t } = useTranslation();
   const search = Route.useSearch();
+  useRememberListSearch("audit", search);
   const navigate = Route.useNavigate();
   // The previous page stays on screen while the next one loads, so the table does not jump.
   const log = useQuery({ ...auditQuery(auditQueryOf(search)), placeholderData: keepPreviousData });

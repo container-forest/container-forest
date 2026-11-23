@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.1](https://github.com/lepterion/container-forest/compare/v0.10.0...v0.10.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **web:** keep byte axis labels below 1000 of a unit ([a0d3d4b](https://github.com/lepterion/container-forest/commit/a0d3d4b761b6dae34381cce668d33cb57f56cc62))
+* **web:** keep byte axis labels below 1000 of a unit ([6544296](https://github.com/lepterion/container-forest/commit/6544296c8b926d4609aeb5c4cae50f29212981e2))
+
 ## [0.10.0](https://github.com/lepterion/container-forest/compare/v0.9.0...v0.10.0) (2026-11-16)
 
 

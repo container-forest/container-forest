@@ -2,7 +2,7 @@
   "id": "/",
   "name": "container-forest",
   "short_name": "Forest",
-  "description": "GitOps for Docker Compose across several servers: web panel, CLI and Discord bot, with SOPS-encrypted secrets in git.",
+  "description": "GitOps for Docker Compose across several servers, with a web panel, CLI, Discord bot and SOPS-encrypted secrets in git.",
   "lang": "en",
   "dir": "ltr",
   "start_url": "/",

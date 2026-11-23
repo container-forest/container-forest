@@ -13,7 +13,7 @@
       { "files": ["api/**.yml", "api/index.md"] },
       { "files": ["index.md", "toc.yml", "README.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "CLAUDE.md", "src/**/CLAUDE.md", "docs/**.md"] }
     ],
-    "resource": [{ "files": ["deploy/**", ".editorconfig", ".github/workflows/*.yml"] }],
+    "resource": [{ "files": ["deploy/**", "docs/images/**", ".editorconfig", ".github/workflows/*.yml"] }],
     "output": "_site",
     "template": ["default", "modern"],
     "globalMetadata": {

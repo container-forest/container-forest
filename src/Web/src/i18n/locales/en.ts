@@ -249,7 +249,7 @@ const en = {
   },
   login: {
     title: "Sign in",
-    description: "container-forest: manage containers on your servers.",
+    description: "container-forest: GitOps for Docker Compose across your servers.",
     userName: "User name",
     password: "Password",
     rememberMe: "Remember me",

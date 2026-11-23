@@ -2,7 +2,7 @@
   "id": "/",
   "name": "container-forest",
   "short_name": "Forest",
-  "description": "Manage Docker containers on your servers: stacks, containers, deployments from git.",
+  "description": "GitOps for Docker Compose across several servers: web panel, CLI and Discord bot, with SOPS-encrypted secrets in git.",
   "lang": "en",
   "dir": "ltr",
   "start_url": "/",

@@ -118,8 +118,9 @@ export function formatBytes(bytes: Num | null | undefined): string {
 
 /**
  * Value-axis ticks for bytes (or bytes per second) at round binary steps: 1, 2 or 5 times a power of ten of the unit
- * `formatBytes` will show (B, KiB, MiB…), from 0 to the first step at or above `max`. Recharts' own ticks are round in
- * decimal, so they read as 47.7 MiB or 5.4 KiB/s. Undefined for no positive value, which keeps Recharts' empty scale.
+ * `formatBytes` will show (B, KiB, MiB…), from 0 to the first step at or above `max`, or in quarters up to 1024 of the
+ * unit when that would pass 999 of it. Recharts' own ticks are round in decimal, so they read as 47.7 MiB or 5.4 KiB/s.
+ * Undefined for no positive value, which keeps Recharts' empty scale.
  */
 export function binaryTicks(max: number, count = 4): number[] | undefined {
   if (!(max > 0) || !Number.isFinite(max)) {
@@ -132,8 +133,13 @@ export function binaryTicks(max: number, count = 4): number[] | undefined {
   const raw = max / unit / count;
   const magnitude = 10 ** Math.floor(Math.log10(raw));
   // Below a kibibyte a step is at least 1 B: formatBytes shows whole bytes.
-  const step = Math.max(unit === 1 ? 1 : 0, [1, 2, 5, 10].map((m) => m * magnitude).find((s) => s >= raw)!) * unit;
-  const top = Math.ceil(max / step - 1e-9) * step;
+  let step = Math.max(unit === 1 ? 1 : 0, [1, 2, 5, 10].map((m) => m * magnitude).find((s) => s >= raw)!) * unit;
+  let top = Math.ceil(max / step - 1e-9) * step;
+  // Steps past 999 of a unit read as "1000 KiB/s", too wide for the axis: go up to 1024 of it (1 MiB) in quarters.
+  if (top / unit > 999 && max / unit <= 1024) {
+    step = 256 * unit;
+    top = 1024 * unit;
+  }
   return Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step);
 }
 

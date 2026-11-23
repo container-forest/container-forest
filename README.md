@@ -73,7 +73,7 @@ The same pages and actions on a phone.
   <img alt="The stack list on a phone" src="docs/images/mobile-forest-light.webp" width="300">
 </picture>
 
-Five colour themes, each light and dark; the screenshots above use the default, *forest*. The falling leaves are the seasonal backdrop: butterflies and poplar fluff in spring and summer, leaves in autumn, snow in winter, or rain all year if you choose it. It can be turned off.
+Five colour themes, each light and dark; the screenshots above use the default, *forest*. The falling leaves are the seasonal backdrop: young leaves in spring, butterflies and poplar fluff in summer, falling leaves in autumn, snow in winter, or rain all year if you choose it. It can be turned off.
 
 <table>
 <tr>

@@ -247,7 +247,7 @@ const uk: Translation = {
   },
   login: {
     title: "Вхід",
-    description: "container-forest: керування контейнерами на ваших серверах.",
+    description: "container-forest: GitOps для Docker Compose на ваших серверах.",
     userName: "Ім'я користувача",
     password: "Пароль",
     rememberMe: "Запам'ятати мене",

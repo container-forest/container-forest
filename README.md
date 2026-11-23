@@ -1,6 +1,6 @@
 # container-forest
 
-Manage Docker Compose stacks on several servers from one web panel, a CLI and a Discord bot. Stack configuration lives in git; secrets live there too, encrypted with SOPS, and are decrypted only by the central service.
+container-forest is GitOps for Docker Compose across several servers. Push to git and your stacks deploy. You can manage them from a web panel, a CLI or Discord. Secrets live in the same repository, encrypted with SOPS, and only the central service can decrypt them. No Kubernetes, Swarm or other orchestrator needed, just Docker on each server.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/stacks-forest-dark.webp">

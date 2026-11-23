@@ -77,13 +77,13 @@ Five colour themes, each light and dark; the screenshots above use the default, 
 
 <table>
 <tr>
-<td align="center"><img alt="The stack list in the forest theme" src="docs/images/theme-forest.webp"><br><em>forest</em></td>
-<td align="center"><img alt="The stack list in the meadow theme" src="docs/images/theme-meadow.webp"><br><em>meadow</em></td>
-<td align="center"><img alt="The stack list in the lilac theme" src="docs/images/theme-lilac.webp"><br><em>lilac</em></td>
+<td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/theme-forest-dark.webp"><img alt="The stack list in the forest theme" src="docs/images/theme-forest-light.webp"></picture><br><em>forest</em></td>
+<td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/theme-meadow-dark.webp"><img alt="The stack list in the meadow theme" src="docs/images/theme-meadow-light.webp"></picture><br><em>meadow</em></td>
+<td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/theme-lilac-dark.webp"><img alt="The stack list in the lilac theme" src="docs/images/theme-lilac-light.webp"></picture><br><em>lilac</em></td>
 </tr>
 <tr>
-<td align="center"><img alt="The stack list in the lake theme" src="docs/images/theme-lake.webp"><br><em>lake</em></td>
-<td align="center"><img alt="The stack list in the sunset theme" src="docs/images/theme-sunset.webp"><br><em>sunset</em></td>
+<td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/theme-lake-dark.webp"><img alt="The stack list in the lake theme" src="docs/images/theme-lake-light.webp"></picture><br><em>lake</em></td>
+<td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/theme-sunset-dark.webp"><img alt="The stack list in the sunset theme" src="docs/images/theme-sunset-light.webp"></picture><br><em>sunset</em></td>
 <td></td>
 </tr>
 </table>

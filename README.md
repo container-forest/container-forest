@@ -2,6 +2,11 @@
 
 Manage Docker Compose stacks on several servers from one web panel, a CLI and a Discord bot. Stack configuration lives in git; secrets live there too, encrypted with SOPS, and are decrypted only by the central service.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/stacks-forest-dark.webp">
+  <img alt="Stacks of an environment in the panel: the git source, the deployed commit, your access and quick actions for each stack" src="docs/images/stacks-forest-light.webp">
+</picture>
+
 > **Pre-1.0.** container-forest runs real production infrastructure successfully. Until 1.0, a minor release may include breaking changes; the [changelog](CHANGELOG.md) lists them.
 
 ## Who it is for
@@ -17,6 +22,7 @@ Small setups: one to a handful of servers with plain Docker Compose, no Kubernet
 
 - **Agents.** One per server, enrolled with a one-time token. Agents connect out to the central service, so servers need no open ports and can sit behind NAT.
 - **Containers.** State and logs of every container; start, stop, restart.
+- **Resource usage.** CPU, memory, network, disk and process graphs for containers, stacks and servers, alerts on high usage, and the same numbers in the CLI and the bot.
 - **GitOps deployments.** Deploy a stack from a public or private git repository by hand, on push (webhook) or from CI (deploy hook). Every deployment records the commit it came from. Optionally require signed commits.
 - **Secrets in git.** SOPS with a separate age key per server (or per stack). With the `forest` git filter you edit secrets in plain text in your clone and commit them encrypted.
 - **Explicit operations.** `restart`, `redeploy`, `redeploy with pull` and `down` are separate actions, not one "update" button.
@@ -28,7 +34,51 @@ Small setups: one to a handful of servers with plain Docker Compose, no Kubernet
 - **Panel.** English and Ukrainian, live updates, works on a phone, installable as a PWA.
 - **Backups** of the central service to S3-compatible storage, encrypted to an offline key.
 
-Not there yet: 2FA and OIDC sign-in, rolling back a deployment from the panel, resource graphs, live log streaming, a container shell.
+Not there yet: 2FA and OIDC sign-in, rolling back a deployment from the panel, live log streaming, a container shell.
+
+## Screenshots
+
+A stack: where it comes from, what you can do with it, its containers.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/stack-forest-dark.webp">
+  <img alt="A stack page with the Deploy, Deploy and pull images, Restart and Down actions and the stack containers" src="docs/images/stack-forest-light.webp">
+</picture>
+
+A deployment started by a git push, with its commit and log.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/deployment-forest-dark.webp">
+  <img alt="A finished webhook deployment: commit, start and finish time, duration and the deployment log" src="docs/images/deployment-forest-light.webp">
+</picture>
+
+A container's resource usage over a week; triangles mark deployments.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/metrics-forest-dark.webp">
+  <img alt="CPU, memory, network, disk I/O and process graphs of a container over seven days" src="docs/images/metrics-forest-light.webp">
+</picture>
+
+Roles on a whole server or on a single stack.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/user-forest-dark.webp">
+  <img alt="A user page with a role on an environment and a form to grant a role on an environment or a stack" src="docs/images/user-forest-light.webp">
+</picture>
+
+The same pages and actions on a phone.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/mobile-forest-dark.webp">
+  <img alt="The stack list on a phone" src="docs/images/mobile-forest-light.webp" width="300">
+</picture>
+
+Several colour themes, each light and dark. The screenshots above use the default, *forest*; this is *lake*.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/stacks-lake-dark.webp">
+  <img alt="The stack list in the lake theme" src="docs/images/stacks-lake-light.webp">
+</picture>
 
 ## How it compares
 

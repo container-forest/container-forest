@@ -84,7 +84,7 @@ Five colour themes, each light and dark; the screenshots above use the default, 
 <tr>
 <td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/theme-lake-dark.webp"><img alt="The stack list in the lake theme" src="docs/images/theme-lake-light.webp"></picture><br><em>lake</em></td>
 <td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/theme-sunset-dark.webp"><img alt="The stack list in the sunset theme" src="docs/images/theme-sunset-light.webp"></picture><br><em>sunset</em></td>
-<td></td>
+<td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/theme-picker-dark.webp"><img alt="The Appearance page: the seasonal backdrop settings and the colour theme picker" src="docs/images/theme-picker-light.webp"></picture><br><em>Appearance</em></td>
 </tr>
 </table>
 

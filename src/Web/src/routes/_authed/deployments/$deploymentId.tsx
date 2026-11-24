@@ -5,10 +5,10 @@ import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { hasStatus } from "@/api/client";
 import { deploymentQuery, stackQuery } from "@/api/queries";
-import { useApproveCommitMutation } from "@/api/stacks";
+import { useApproveCommitMutation, useRollbackStackMutation } from "@/api/stacks";
 import { ConfirmAction } from "@/components/confirm-action";
 import { ErrorText } from "@/components/form-messages";
-import { Loader2Icon, PlayIcon } from "@/components/icons";
+import { Loader2Icon, PlayIcon, UndoIcon } from "@/components/icons";
 import { BackLink, useBack } from "@/components/navigation/back-link";
 import { DeploymentStatusBadge } from "@/components/stacks/deployment-status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import {
   type DeploymentLogLine,
   type Stack,
   canApproveCommit,
+  canRollbackTo,
   describeError,
   durationSeconds,
   isFinished,
@@ -98,6 +99,7 @@ function DeploymentScreen() {
           {stack.data && canApproveCommit(deployment, stack.data) && (
             <ApproveCommit deployment={deployment} stack={stack.data} />
           )}
+          {stack.data && canRollbackTo(deployment, stack.data) && <Rollback deployment={deployment} stack={stack.data} />}
         </CardContent>
       </Card>
 
@@ -132,8 +134,52 @@ function EndorsementRows({ deployment }: { deployment: DeploymentDetails }) {
 }
 
 /**
+ * Deploys the commit of an earlier successful deployment again, as a rollback: the stack is then held at it, so automatic
+ * deployments do not bring back what was rolled back.
+ */
+function Rollback({ deployment, stack }: { deployment: DeploymentDetails; stack: Stack }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { from } = Route.useSearch();
+  const rollback = useRollbackStackMutation(stack.id);
+  const commit = deployment.commit ?? "";
+  const error = rollback.error ? describeError(rollback.error) : undefined;
+
+  return (
+    <div className="mt-4 grid gap-2">
+      <div>
+        <ConfirmAction
+          variant="outline"
+          title={t("deployment.rollback.title", { name: stack.name, commit: shortCommit(commit) })}
+          description={t("deployment.rollback.description", { commit: shortCommit(commit) })}
+          confirmLabel={t("deployment.rollback.action")}
+          disabled={rollback.isPending}
+          onConfirm={() =>
+            rollback.mutate(
+              { commit },
+              { onSuccess: (next) => void navigate({ to: "/deployments/$deploymentId", params: { deploymentId: next.id }, search: { from } }) },
+            )
+          }
+        >
+          {rollback.isPending ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : <UndoIcon data-icon="inline-start" />}
+          {t("deployment.rollback.action")}
+        </ConfirmAction>
+      </div>
+      <div aria-live="polite">
+        {error && (
+          <ErrorText>
+            {t("deployment.rollback.failed")} {t(error.key)} {error.detail}
+          </ErrorText>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Deploys the rejected commit unsigned, approved by its full SHA: the person vouches for the content instead of a
- * signature. If the branch has moved on, the new deployment fails rather than deploying something else.
+ * signature. If the branch has moved on, the new deployment fails rather than deploying something else. A rejected
+ * rollback is retried as a rollback with the approval.
  */
 function ApproveCommit({ deployment, stack }: { deployment: DeploymentDetails; stack: Stack }) {
   const { t } = useTranslation();
@@ -141,26 +187,39 @@ function ApproveCommit({ deployment, stack }: { deployment: DeploymentDetails; s
   // The new deployment keeps this one's back link.
   const { from } = Route.useSearch();
   const approve = useApproveCommitMutation(stack.id);
+  const rollback = useRollbackStackMutation(stack.id);
+  const isRollback = deployment.trigger === "Rollback";
   const commit = deployment.commit ?? "";
-  const error = approve.error ? describeError(approve.error) : undefined;
+  const failure = approve.error ?? rollback.error;
+  const error = failure ? describeError(failure) : undefined;
+  const pending = approve.isPending || rollback.isPending;
+  const onSuccess = (next: DeploymentDetails) =>
+    void navigate({ to: "/deployments/$deploymentId", params: { deploymentId: next.id }, search: { from } });
 
   return (
     <div className="mt-4 grid gap-2">
       <div>
         <ConfirmAction
           variant="outline"
-          title={t("deployment.endorsement.approve.title", { commit: shortCommit(commit) })}
-          description={t("deployment.endorsement.approve.description", { sha: commit })}
+          title={
+            isRollback
+              ? t("deployment.endorsement.approve.rollbackTitle", { commit: shortCommit(commit) })
+              : t("deployment.endorsement.approve.title", { commit: shortCommit(commit) })
+          }
+          description={
+            isRollback
+              ? t("deployment.endorsement.approve.rollbackDescription", { sha: commit })
+              : t("deployment.endorsement.approve.description", { sha: commit })
+          }
           confirmLabel={t("deployment.endorsement.approve.action")}
-          disabled={approve.isPending}
+          disabled={pending}
           onConfirm={() =>
-            approve.mutate(
-              { commit, pull: deployment.pullPolicy === "Always" },
-              { onSuccess: (next) => void navigate({ to: "/deployments/$deploymentId", params: { deploymentId: next.id }, search: { from } }) },
-            )
+            isRollback
+              ? rollback.mutate({ commit, approve: true }, { onSuccess })
+              : approve.mutate({ commit, pull: deployment.pullPolicy === "Always" }, { onSuccess })
           }
         >
-          {approve.isPending ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : <PlayIcon data-icon="inline-start" />}
+          {pending ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : <PlayIcon data-icon="inline-start" />}
           {t("deployment.endorsement.approve.action")}
         </ConfirmAction>
       </div>

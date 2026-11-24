@@ -35,6 +35,10 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 //   GET  /api/stacks/{id}/deployments            -> DeploymentResponse[] (newest first, at most 50)
 //   POST /api/stacks/{id}/deployments            -> 202 DeploymentDetailsResponse; Editor; queued, see the deployment for the outcome;
 //                                                  approveCommit deploys that unsigned commit to a stack requiring signed ones
+//   POST /api/stacks/{id}/rollback               -> 202 DeploymentDetailsResponse; Editor; deploys a commit the stack deployed
+//                                                  successfully before (400 for any other), then holds the stack at it
+//   DELETE /api/stacks/{id}/hold                 -> StackResponse; Editor; pushes, the deploy hook and image updates deploy
+//                                                  the stack again; nothing is deployed now
 //   GET  /api/deployments/{id}                   -> DeploymentDetailsResponse with the log
 //
 // A stack or deployment the user may not see is 404, the same as a missing one. Restart and down answer 200
@@ -114,6 +118,11 @@ public sealed record ChangeStackSourceRequest(Guid RepositoryId, string Branch, 
 /// <param name="PolicyUnrestricted">The compose policy does not limit the stack: its Editors are root on the host (ADR-0012).</param>
 /// <param name="HasImageHook">CI can ask for the stack's image policies to be checked now (ADR-0015).</param>
 /// <param name="ImageHookAllowsDowngrade">The image hook may ask for an older tag, which pins the image there.</param>
+/// <param name="HeldCommit">
+/// The commit a rollback deployed: pushes, the deploy hook and image updates do not deploy the stack until someone deploys
+/// the branch by hand or releases the hold. Null when the stack is not held.
+/// </param>
+/// <param name="HeldSince">When that rollback finished.</param>
 public sealed record StackResponse(
     Guid Id,
     Guid EnvironmentId,
@@ -137,7 +146,9 @@ public sealed record StackResponse(
     bool CanAdministerEnvironment,
     bool PolicyUnrestricted,
     bool HasImageHook = false,
-    bool ImageHookAllowsDowngrade = false);
+    bool ImageHookAllowsDowngrade = false,
+    string? HeldCommit = null,
+    DateTimeOffset? HeldSince = null);
 
 /// <param name="AllowDowngrade">The hook may ask for a tag older than the deployed one; the image is then pinned there.</param>
 public sealed record ImageHookRequest(bool AllowDowngrade);
@@ -163,6 +174,10 @@ public sealed record StackCommandResponse(bool Succeeded, string? Error, IReadOn
 /// while it is still the branch head; omitted to deploy only an endorsed commit.
 /// </param>
 public sealed record DeployRequest(bool Pull, string? ApproveCommit = null);
+
+/// <param name="Commit">The full SHA of a commit the stack deployed successfully before.</param>
+/// <param name="Approve">For a stack that requires signed commits: deploy the commit even if nobody's signature endorses it.</param>
+public sealed record RollbackRequest(string Commit, bool Approve = false);
 
 /// <summary>Who endorsed the deployed content (ADR-0011).</summary>
 /// <param name="Status">NotChecked when the stack does not require signed commits.</param>

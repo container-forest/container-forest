@@ -197,9 +197,48 @@ public class StackTests
         Assert.Throws<DomainConflictException>(() => stack.RecordDeployment(foreign, withSecrets: false));
     }
 
-    private static Deployment SucceededDeployment(Stack stack, CommitSha commit, DateTimeOffset finishedAt)
+    [Fact]
+    public void Rollback_holds_the_stack_at_its_commit()
     {
-        var deployment = Deployment.QueueFromWebhook(stack.Id, Now);
+        var stack = Stack(EnvironmentId.New());
+        stack.RecordDeployment(SucceededDeployment(stack, CommitB, Now), withSecrets: false);
+
+        stack.RecordDeployment(Succeed(Deployment.QueueRollback(stack.Id, UserId.New(), CommitA, Now), CommitA, Now.AddMinutes(1)), withSecrets: false);
+
+        Assert.Equal((CommitA, CommitA, Now.AddMinutes(1)), (stack.DeployedCommit, stack.HeldCommit, stack.HeldSince));
+        Assert.True(stack.IsHeld);
+    }
+
+    [Fact]
+    public void Deploying_the_branch_by_hand_releases_the_hold_and_rehydration_keeps_it()
+    {
+        var stack = Stack(EnvironmentId.New());
+        stack.RecordDeployment(Succeed(Deployment.QueueRollback(stack.Id, UserId.New(), CommitA, Now), CommitA, Now), withSecrets: true);
+
+        stack.RecordDeployment(Succeed(Deployment.QueueRehydrate(stack.Id, CommitA, Now), CommitA, Now.AddMinutes(1)), withSecrets: true);
+        Assert.Equal(CommitA, stack.HeldCommit);
+
+        stack.RecordDeployment(
+            Succeed(Deployment.QueueManual(stack.Id, UserId.New(), ImagePullPolicy.Missing, Now), CommitB, Now.AddMinutes(2)), withSecrets: true);
+        Assert.Equal((null, null, false), (stack.HeldCommit, stack.HeldSince, stack.IsHeld));
+    }
+
+    [Fact]
+    public void Releasing_the_hold_keeps_the_deployed_commit()
+    {
+        var stack = Stack(EnvironmentId.New());
+        stack.RecordDeployment(Succeed(Deployment.QueueRollback(stack.Id, UserId.New(), CommitA, Now), CommitA, Now), withSecrets: false);
+
+        stack.ReleaseHold();
+
+        Assert.Equal((CommitA, false), (stack.DeployedCommit, stack.IsHeld));
+    }
+
+    private static Deployment SucceededDeployment(Stack stack, CommitSha commit, DateTimeOffset finishedAt) =>
+        Succeed(Deployment.QueueFromWebhook(stack.Id, Now), commit, finishedAt);
+
+    private static Deployment Succeed(Deployment deployment, CommitSha commit, DateTimeOffset finishedAt)
+    {
         deployment.Start(Now);
         deployment.ResolveCommit(commit);
         deployment.Succeed(finishedAt);

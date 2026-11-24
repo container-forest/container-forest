@@ -215,6 +215,38 @@ public class PushWebhookServiceTests
     }
 
     [Fact]
+    public async Task Push_to_a_held_stack_deploys_nothing()
+    {
+        var web = AddStack("web");
+        Hold(web, Commit);
+
+        var result = await service.ReceiveAsync(repository.Id, Push("main"), Ct);
+
+        Assert.Equal(PushStackOutcome.Held, Assert.Single(result.Stacks).Outcome);
+        Assert.Empty(deployments.All);
+    }
+
+    [Fact]
+    public async Task Push_during_a_rollback_is_not_deployed_after_it()
+    {
+        var web = AddStack("web");
+        var rollback = Deployment.QueueRollback(web.Id, UserId.New(), Commit, Now);
+        rollback.Start(Now);
+        deployments.Add(rollback);
+
+        var result = await service.ReceiveAsync(repository.Id, Push("main"), Ct);
+        Assert.Equal(PushStackOutcome.AfterRunning, Assert.Single(result.Stacks).Outcome);
+
+        rollback.ResolveCommit(Commit);
+        rollback.Succeed(Now);
+        web.RecordDeployment(rollback, withSecrets: false);
+        await FollowUp().DeploymentFinishedAsync(Outcome(rollback, web), Ct);
+
+        Assert.Single(deployments.All);
+        Assert.Empty(queue.Queued);
+    }
+
+    [Fact]
     public async Task Gitea_and_GitLab_pushes_are_accepted()
     {
         AddStack("web");

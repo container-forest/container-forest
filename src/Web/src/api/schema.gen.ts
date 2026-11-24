@@ -1492,6 +1492,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/stacks/{id}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RollbackStack"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stacks/{id}/hold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["ReleaseStackHold"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/deployments/{id}": {
         parameters: {
             query?: never;
@@ -1935,7 +1967,7 @@ export interface components {
             secrets: boolean;
         };
         /** @enum {unknown} */
-        AuditAction: "SignedIn" | "SignInFailed" | "SignedOut" | "PasswordChanged" | "DiscordLinked" | "DiscordUnlinked" | "UserCreated" | "UserRenamed" | "UserDeactivated" | "UserActivated" | "AdminGranted" | "AdminRevoked" | "PasswordReset" | "UserUnlocked" | "RoleGranted" | "RoleChanged" | "RoleRevoked" | "ApiTokenCreated" | "ApiTokenRevoked" | "SigningKeyAdded" | "SigningKeyChanged" | "SigningKeyRemoved" | "EnvironmentCreated" | "EnvironmentUpdated" | "ComposePolicyChanged" | "EnvironmentRemoved" | "EnrollmentTokenIssued" | "AgentRevoked" | "StackCreated" | "StackRemoved" | "StackSourceChanged" | "DeployHookCreated" | "DeployHookRemoved" | "StackRestarted" | "StackTakenDown" | "StackEndorsementChanged" | "StackPolicyAllowancesChanged" | "StackPolicyUnrestrictedChanged" | "ImagePolicyAdded" | "ImagePolicyChanged" | "ImagePolicyRemoved" | "ImagePinned" | "ImageUnpinned" | "ImageHookCreated" | "ImageHookRemoved" | "UnmanagedStackStarted" | "UnmanagedStackPulled" | "UnmanagedStackRestarted" | "UnmanagedStackTakenDown" | "DeploymentQueued" | "ContainerStarted" | "ContainerStopped" | "ContainerRestarted" | "ContainerRemoved" | "SecretsDecrypted" | "IdentityConfirmed" | "SettingsChanged" | "BackupRequested" | "GitPushCredentialChanged" | "AggregatorSigningKeyRotated";
+        AuditAction: "SignedIn" | "SignInFailed" | "SignedOut" | "PasswordChanged" | "DiscordLinked" | "DiscordUnlinked" | "UserCreated" | "UserRenamed" | "UserDeactivated" | "UserActivated" | "AdminGranted" | "AdminRevoked" | "PasswordReset" | "UserUnlocked" | "RoleGranted" | "RoleChanged" | "RoleRevoked" | "ApiTokenCreated" | "ApiTokenRevoked" | "SigningKeyAdded" | "SigningKeyChanged" | "SigningKeyRemoved" | "EnvironmentCreated" | "EnvironmentUpdated" | "ComposePolicyChanged" | "EnvironmentRemoved" | "EnrollmentTokenIssued" | "AgentRevoked" | "StackCreated" | "StackRemoved" | "StackSourceChanged" | "DeployHookCreated" | "DeployHookRemoved" | "StackRestarted" | "StackTakenDown" | "StackEndorsementChanged" | "StackPolicyAllowancesChanged" | "StackPolicyUnrestrictedChanged" | "StackHoldReleased" | "ImagePolicyAdded" | "ImagePolicyChanged" | "ImagePolicyRemoved" | "ImagePinned" | "ImageUnpinned" | "ImageHookCreated" | "ImageHookRemoved" | "UnmanagedStackStarted" | "UnmanagedStackPulled" | "UnmanagedStackRestarted" | "UnmanagedStackTakenDown" | "DeploymentQueued" | "ContainerStarted" | "ContainerStopped" | "ContainerRestarted" | "ContainerRemoved" | "SecretsDecrypted" | "IdentityConfirmed" | "SettingsChanged" | "BackupRequested" | "GitPushCredentialChanged" | "AggregatorSigningKeyRotated";
         /** @enum {unknown} */
         AuditCategory: "Account" | "Users" | "Tokens" | "Environments" | "Stacks" | "Deployments" | "Containers" | "Secrets" | "System";
         /** @enum {unknown} */
@@ -2350,7 +2382,7 @@ export interface components {
         /** @enum {unknown} */
         DeploymentStatus: "Queued" | "Running" | "Succeeded" | "Failed" | "Cancelled";
         /** @enum {unknown} */
-        DeploymentTrigger: "Manual" | "Webhook" | "Rehydrate" | "DeployHook" | "ImageUpdate";
+        DeploymentTrigger: "Manual" | "Webhook" | "Rehydrate" | "DeployHook" | "ImageUpdate" | "Rollback";
         DeployOnPushRequest: {
             enabled: boolean;
         };
@@ -2573,7 +2605,7 @@ export interface components {
         /** @enum {unknown} */
         ImageTagOrder: "ImageCreated" | "TagTimestamp";
         /** @enum {unknown} */
-        ImageUpdateOutcome: "UpToDate" | "WouldUpdate" | "Updated" | "Pinned" | "Waiting" | "Failed";
+        ImageUpdateOutcome: "UpToDate" | "WouldUpdate" | "Updated" | "Pinned" | "Held" | "Waiting" | "Failed";
         /** @enum {unknown} */
         ImageUpdateReason: "Policy" | "Hook" | "User";
         ImageUpdateRecordResponse: {
@@ -2735,7 +2767,7 @@ export interface components {
             instance?: null | string;
         };
         /** @enum {unknown} */
-        PushStackOutcome: "Queued" | "AlreadyQueued" | "AfterRunning" | "AlreadyRunning" | "AlreadyDeployed" | "AgentOffline" | "NotAllowed";
+        PushStackOutcome: "Queued" | "AlreadyQueued" | "AfterRunning" | "AlreadyRunning" | "AlreadyDeployed" | "AgentOffline" | "NotAllowed" | "Held";
         RegistryCredentialResponse: {
             /** Format: uuid */
             id: string;
@@ -2798,6 +2830,11 @@ export interface components {
         };
         /** @enum {unknown} */
         RoleScope: "Environment" | "Stack";
+        RollbackRequest: {
+            commit: string;
+            /** @default false */
+            approve: boolean;
+        };
         SetAdminRequest: {
             isAdmin: boolean;
         };
@@ -2908,6 +2945,9 @@ export interface components {
             hasImageHook: boolean;
             /** @default false */
             imageHookAllowsDowngrade: boolean;
+            heldCommit?: null | string;
+            /** Format: date-time */
+            heldSince?: null | string;
         };
         StartCliAuthorizationRequest: {
             clientName: string;
@@ -9976,6 +10016,135 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RollbackStack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RollbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeploymentDetailsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ReleaseStackHold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

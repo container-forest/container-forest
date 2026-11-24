@@ -60,6 +60,13 @@ public sealed partial class DeployHookService(
             throw new WebhookRejectedException();
         }
 
+        if (stack.HeldCommit is { } held)
+        {
+            // A conflict rather than a quiet success, so the CI job that called the hook shows that nothing was deployed.
+            throw new DomainConflictException(
+                $"Stack '{stack.Name}' is held at commit {held.Short} after a rollback; deploy its branch by hand or release the hold first.");
+        }
+
         using var _ = await gate.EnterAsync(cancellationToken);
 
         // Under the gate, as for pushes: PushFollowUpObserver takes what is marked here after the deployment's

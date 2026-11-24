@@ -31,7 +31,7 @@ Through `IAuditTrail`:
 - **Sign-in and your own account:** password, passkey and Discord sign-in (a failed one with the name given and the reason), sign-out, changing your own password, linking and unlinking Discord.
 - **Users:** every `UserManagementService` action (the action is `UserAccountAction.AuditAction`), creating and revoking API tokens.
 - **Environments:** creation, changes and deletion, enrollment tokens, revoking the agent.
-- **Stacks:** creation, deletion and source changes, the deploy hook, restart and down, manual deployments (panel, bot, CLI).
+- **Stacks:** creation, deletion and source changes, the deploy hook, restart and down, manual deployments (panel, bot, CLI), rollbacks (`DeploymentQueued` with "Rollback to …") and releasing a hold (`StackHoldReleased`).
 - **Containers:** start/stop/restart (the `AuditedCommand` decorator around `AuthorizedCommand`, so refusals too).
 - **Secrets:** SOPS decryption for the git filter.
 - **System:** identity confirmation, settings changes (field names only, no values), manual backups.

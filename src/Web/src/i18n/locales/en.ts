@@ -1162,6 +1162,15 @@ const en = {
       empty: "No containers: the stack is not deployed yet or was taken down.",
     },
     deployedAt: "Commit {{commit}} deployed {{date}}.",
+    hold: {
+      title: "Held at {{commit}} after a rollback",
+      description:
+        "Since {{date}}, pushes, the deploy hook and image updates leave the stack alone. Deploying the branch ends the hold; releasing it lets the next push deploy.",
+      release: "Release the hold",
+      confirmTitle: "Release the hold on {{name}}?",
+      confirmDescription: "Nothing is deployed now. The next push, deploy hook call or image update deploys the head of the branch.",
+      failed: "Could not release the hold.",
+    },
     notFound: "Stack not found.",
     loadFailed: "Could not load the stack.",
     actions: {
@@ -1328,6 +1337,7 @@ const en = {
       WouldUpdate: "Would update to {{tag}}.",
       Updated: "Updated from {{current}} to {{tag}}; the deployment is queued.",
       Pinned: "The image is pinned; automatic updates are held.",
+      Held: "The stack is held after a rollback; updates wait until its branch is deployed or the hold is released.",
       Waiting: "Nothing to update yet.",
       Failed: "The check failed.",
     },
@@ -1434,6 +1444,7 @@ const en = {
       Rehydrate: "Secret rehydration",
       DeployHook: "Deploy hook",
       ImageUpdate: "Image update",
+      Rollback: "Rollback",
     },
     withPull: "with image pull",
     duration: "{{minutes}} min {{seconds}} s",
@@ -1474,7 +1485,17 @@ const en = {
         description:
           "You endorse the content instead of a signature: check commit {{sha}} in the repository. If the branch moves on meanwhile, nothing is deployed.",
         failed: "Could not start the deployment.",
+        rollbackTitle: "Roll back to unsigned commit {{commit}}?",
+        rollbackDescription:
+          "You endorse the content instead of a signature: check commit {{sha}} in the repository. The stack is then held at it.",
       },
+    },
+    rollback: {
+      action: "Roll back to this commit",
+      title: "Roll back {{name}} to {{commit}}?",
+      description:
+        "The stack's files and images go back to commit {{commit}}. Until someone deploys the branch again or releases the hold, pushes, the deploy hook and image updates do not deploy the stack.",
+      failed: "Could not start the rollback.",
     },
     log: {
       title: "Log",
@@ -1870,6 +1891,7 @@ const en = {
       DeployHookCreated: "Created deploy hook",
       DeployHookRemoved: "Removed deploy hook",
       StackEndorsementChanged: "Changed stack endorsement",
+      StackHoldReleased: "Released stack hold",
       StackRestarted: "Restarted stack",
       StackTakenDown: "Took stack down",
       DeploymentQueued: "Started deployment",

@@ -7,9 +7,19 @@ Aggregator paths are relative to `src/Aggregator`.
 - **Steps:** `IDeployStep`s are registered in `AddApplication` in execution order: `GitFetchStep` (for a pinned deployment, its commit rather than the branch head) → `VerifyCommitStep` → `SopsDecryptStep` → `ValidateComposeStep` → `BuildBundleStep` → `ResolveRegistryAuthStep` → `ComposePolicyStep` → `SendToAgentStep`. A new stage is a new class and a registration line; `DeployPipeline` doesn't change.
 - **Between steps:** results are passed through `DeployContext`. `DeploymentFailedException` is an error the user sees; other exceptions hide behind "Internal error" and go to the aggregator's log.
 - **Queue:** a deployment is only queued (`IDeploymentQueue`, 202 Accepted); `DeploymentWorker` runs it in its own DI scope, up to `Deployments:MaxConcurrentDeployments` in parallel.
-- **Pinned deployments** (`Deployment.IsPinned`): rehydrate and image updates (`QueueFromImageUpdate`, trigger `ImageUpdate`, ADR-0015) deploy their own commit, not the branch head; both, like the webhook and the deploy hook, are automatic (`IsAutomatic`).
+- **Pinned deployments** (`Deployment.IsPinned`): rehydrate, image updates (`QueueFromImageUpdate`, trigger `ImageUpdate`, ADR-0015) and rollbacks (`QueueRollback`, trigger `Rollback`, ADR-0018) deploy their own commit, not the branch head. Rehydrate and image updates, like the webhook and the deploy hook, are automatic (`IsAutomatic`); a rollback, like a manual deployment, is by hand (`IsByHand`).
 - **Limits:** one unfinished deployment per stack (409). Nothing is queued for an offline agent (503). After an aggregator restart, unfinished deployments are marked Failed rather than resumed.
 - **Log:** `DeploymentLogLine` rows in the `DeploymentLogLines` table, up to 5000 lines. Compose output from the agent is collected during the step and copied into the log after it: `Deployment` isn't thread-safe, and the progress callback runs on the gRPC read loop.
+
+## Rollback and hold
+
+ADR-0018. `DeploymentService.RollbackAsync`, `POST /api/stacks/{id}/rollback` (`RollbackRequest`: the full SHA, `approve`), `forest stack rollback <stack> --to <sha or prefix> [--approve]`, *Roll back to this commit* on a successful deployment's screen.
+
+- **Which commit:** only one a deployment of this stack deployed successfully (`IDeploymentRepository.HasSucceededAsync`), otherwise 400. The role is a redeploy's (Editor); an offline agent, a system stack and an unfinished deployment are refused as for a manual deployment.
+- **Checks:** the whole pipeline. `VerifyCommitStep` evaluates the endorsement again; the commit not descending from the deployed one is only an info line. With `approve` the deployment's `ApprovedCommit` is the commit itself (`RecordApprovedUnsigned` accepts it for a rollback), and a rejected rollback's screen offers approving it as a rollback again.
+- **Hold:** `Stack.RecordDeployment` of a successful rollback sets `HeldCommit` and `HeldSince`; a successful manual deployment clears them, rehydration keeps them. While held, `PushWebhookService` answers `Held` for the stack, and `PushFollowUpObserver` drops a push or hook call that arrived during the rollback; `DeployHookService` throws a conflict (409); `ImageUpdateService.CheckAsync` returns `Held` for the poller, the hook and *Check now*, and a conflict for pinning a tag, except for a dry run.
+- **Releasing:** `StackService.ReleaseHoldAsync`, `DELETE /api/stacks/{id}/hold` (Editor, audit `StackHoldReleased`), `forest stack release-hold`, the hold card on the stack's screen. Nothing is deployed.
+- **What doesn't change:** the agent gets an ordinary `DeployStack`; `.prev` isn't used.
 
 ## Registry credentials
 

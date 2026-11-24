@@ -24,6 +24,10 @@ namespace ContainerForest.Cli.Api.Generated.Models
         #pragma warning disable CS1591
         Pinned,
         #pragma warning restore CS1591
+        [EnumMember(Value = "Held")]
+        #pragma warning disable CS1591
+        Held,
+        #pragma warning restore CS1591
         [EnumMember(Value = "Waiting")]
         #pragma warning disable CS1591
         Waiting,

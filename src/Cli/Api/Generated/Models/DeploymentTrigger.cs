@@ -28,5 +28,9 @@ namespace ContainerForest.Cli.Api.Generated.Models
         #pragma warning disable CS1591
         ImageUpdate,
         #pragma warning restore CS1591
+        [EnumMember(Value = "Rollback")]
+        #pragma warning disable CS1591
+        Rollback,
+        #pragma warning restore CS1591
     }
 }

@@ -114,6 +114,9 @@ public interface IDeploymentRepository : IRepository<Deployment, DeploymentId>
     /// <summary>True when a deployment of the stack ran the commit as approved unsigned by its SHA (ADR-0011).</summary>
     Task<bool> WasApprovedAsync(StackId stackId, CommitSha commit, CancellationToken cancellationToken);
 
+    /// <summary>True when a deployment of the stack deployed the commit successfully: only such a commit is rolled back to.</summary>
+    Task<bool> HasSucceededAsync(StackId stackId, CommitSha commit, CancellationToken cancellationToken);
+
     /// <summary>Newest first, without logs.</summary>
     Task<IReadOnlyList<DeploymentSummary>> ListByStackAsync(StackId stackId, int limit, CancellationToken cancellationToken);
 }

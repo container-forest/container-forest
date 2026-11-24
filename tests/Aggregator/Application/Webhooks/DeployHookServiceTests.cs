@@ -59,6 +59,18 @@ public class DeployHookServiceTests
     }
 
     [Fact]
+    public async Task Held_stack_refuses_the_call()
+    {
+        Hold(web, Commit);
+
+        var error = await Assert.ThrowsAsync<DomainConflictException>(() => service.ReceiveAsync(web.Id, Token, Ct));
+
+        Assert.Contains("rollback", error.Message, StringComparison.Ordinal);
+        Assert.Empty(deployments.All);
+        Assert.Empty(queue.Queued);
+    }
+
+    [Fact]
     public async Task Offline_agent_gets_nothing_queued()
     {
         agents.Online = false;

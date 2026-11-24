@@ -1130,6 +1130,13 @@ namespace ContainerForest.Aggregator.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("EnvironmentId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("HeldCommit")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("HeldSince")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("ImageHookAllowsDowngrade")
                         .HasColumnType("INTEGER");
 

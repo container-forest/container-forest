@@ -50,6 +50,7 @@ public enum AuditAction
     StackEndorsementChanged,
     StackPolicyAllowancesChanged,
     StackPolicyUnrestrictedChanged,
+    StackHoldReleased,
     ImagePolicyAdded,
     ImagePolicyChanged,
     ImagePolicyRemoved,
@@ -126,7 +127,7 @@ public static class AuditActions
         AuditAction.StackCreated or AuditAction.StackRemoved or AuditAction.StackSourceChanged or AuditAction.DeployHookCreated
             or AuditAction.DeployHookRemoved or AuditAction.StackRestarted or AuditAction.StackTakenDown
             or AuditAction.StackEndorsementChanged or AuditAction.StackPolicyAllowancesChanged
-            or AuditAction.StackPolicyUnrestrictedChanged or AuditAction.ImagePolicyAdded or AuditAction.ImagePolicyChanged
+            or AuditAction.StackPolicyUnrestrictedChanged or AuditAction.StackHoldReleased or AuditAction.ImagePolicyAdded or AuditAction.ImagePolicyChanged
             or AuditAction.ImagePolicyRemoved or AuditAction.ImagePinned or AuditAction.ImageUnpinned
             or AuditAction.ImageHookCreated or AuditAction.ImageHookRemoved or AuditAction.UnmanagedStackStarted
             or AuditAction.UnmanagedStackPulled or AuditAction.UnmanagedStackRestarted

@@ -218,6 +218,33 @@ export function useApproveCommitMutation(stackId: string) {
   });
 }
 
+/**
+ * Deploys a commit the stack deployed successfully before; once it succeeds, the stack is held there. With approve, a
+ * stack that requires signed commits takes the commit unsigned. The answer is the queued deployment.
+ */
+export function useRollbackStackMutation(stackId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ commit, approve = false }: { commit: string; approve?: boolean }) =>
+      unwrap(await api.POST("/api/stacks/{id}/rollback", { params: { path: { id: stackId } }, body: { commit, approve } })),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: deploymentsQuery(stackId).queryKey }),
+  });
+}
+
+/** Lets pushes, the deploy hook and image updates deploy a stack held after a rollback; the answer is the stack. */
+export function useReleaseHoldMutation(stackId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => unwrap(await api.DELETE("/api/stacks/{id}/hold", { params: { path: { id: stackId } } })),
+    onSuccess: (stack) => {
+      queryClient.setQueryData(stackQuery(stackId).queryKey, stack);
+      return queryClient.invalidateQueries({ queryKey: stacksQuery(stack.environmentId).queryKey });
+    },
+  });
+}
+
 export interface StackActionVariables {
   action: StackAction;
   /** Seconds Docker waits for each container; undefined leaves the aggregator's default. */

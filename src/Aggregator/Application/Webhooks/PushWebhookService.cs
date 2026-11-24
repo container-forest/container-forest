@@ -51,6 +51,9 @@ public enum PushStackOutcome
 
     /// <summary>The stack's environment may no longer deploy from the repository's connection (ADR-0006).</summary>
     NotAllowed,
+
+    /// <summary>The stack is held at the commit of a rollback; pushes do not deploy it until someone deploys the branch.</summary>
+    Held,
 }
 
 /// <param name="DeploymentId">The queued deployment, for <see cref="PushStackOutcome.Queued"/>.</param>
@@ -212,6 +215,11 @@ public sealed partial class PushWebhookService(
     private async Task<(PushStackOutcome Outcome, Deployment? Deployment)> DeployAsync(
         Stack stack, CommitSha pushed, CancellationToken cancellationToken)
     {
+        if (stack.IsHeld)
+        {
+            return (PushStackOutcome.Held, null);
+        }
+
         using var _ = await gate.EnterAsync(cancellationToken);
 
         // The running deployment's outcome is saved before the gate hears about it, so this read and the
@@ -280,6 +288,13 @@ public sealed partial class PushFollowUpObserver(
                 return;
             }
 
+            // A rollback that ran meanwhile holds the stack: the push or hook call must not undo it.
+            if (stack.IsHeld)
+            {
+                LogHeld(stack.Name.Value);
+                return;
+            }
+
             // Someone deployed in between: that deployment started after the push and fetches its commit. It pulls
             // the hook's new images only if it pulls them all; otherwise the hook waits for it in turn.
             if (await deployments.FindUnfinishedAsync(stack.Id, cancellationToken) is { } next)
@@ -313,6 +328,9 @@ public sealed partial class PushFollowUpObserver(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "A push or deploy hook call for stack {Stack} arrived during its deployment, but the agent is now offline; it is not deployed")]
     private partial void LogAgentOffline(string stack);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "A push or deploy hook call for stack {Stack} arrived during a rollback, which now holds the stack; it is not deployed")]
+    private partial void LogHeld(string stack);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Could not queue the deployment of a push or deploy hook call for stack {Stack}")]
     private partial void LogFailed(Exception exception, string stack);

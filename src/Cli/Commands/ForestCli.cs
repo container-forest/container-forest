@@ -71,6 +71,8 @@ internal static class ForestCli
                 new StackSetSourceCommand(),
                 new StackRemoveCommand(),
                 new StackDeployCommand(),
+                new StackRollbackCommand(),
+                new StackReleaseHoldCommand(),
                 new StackControlCommand(StackAction.Restart, "Restart the stack's containers (compose restart, Operator)."),
                 new StackControlCommand(StackAction.Down, "Stop and remove the stack's containers (compose down, Editor)."),
                 new StackSwitchCommand("deploy-on-push", "Deploy after a push to the branch (Editor).", (api, id, on, ct) => api.SetDeployOnPushAsync(id, on, ct)),

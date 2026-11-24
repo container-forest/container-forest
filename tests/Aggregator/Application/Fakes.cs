@@ -227,6 +227,9 @@ internal sealed class InMemoryDeployments : InMemoryRepository<Deployment, Deplo
         Task.FromResult(Items.Any(d => d.StackId == stackId && d.Commit == commit
             && d.Endorsement == CommitEndorsement.ApprovedUnsigned && d.Status == DeploymentStatus.Succeeded));
 
+    public Task<bool> HasSucceededAsync(StackId stackId, CommitSha commit, CancellationToken cancellationToken) =>
+        Task.FromResult(Items.Any(d => d.StackId == stackId && d.Commit == commit && d.Status == DeploymentStatus.Succeeded));
+
     public Task<IReadOnlyList<DeploymentSummary>> ListByStackAsync(StackId stackId, int limit, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<DeploymentSummary>>(Items
             .Where(d => d.StackId == stackId)

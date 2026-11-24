@@ -228,7 +228,9 @@ internal sealed class StubGitSource : IGitSource
         CancellationToken cancellationToken)
     {
         ReadCommits.Add(commit.Value);
-        return Task.FromResult(Snapshot!);
+
+        // The files of every commit are the snapshot's, but they are read at the commit asked for, as git reads them.
+        return Task.FromResult(Snapshot! with { Commit = commit });
     }
 }
 

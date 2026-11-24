@@ -25,6 +25,12 @@ public enum DeploymentTrigger
 
     /// <summary>The aggregator committed a new image tag (ADR-0015) and deploys exactly that commit.</summary>
     ImageUpdate,
+
+    /// <summary>
+    /// A user deploys a commit the stack ran before, not the branch head. Once it succeeds, the stack is held at it:
+    /// pushes, the deploy hook and image updates leave it alone until someone deploys the branch again.
+    /// </summary>
+    Rollback,
 }
 
 /// <summary>Whether someone who may deploy the stack endorsed the deployed content (ADR-0011).</summary>
@@ -140,7 +146,7 @@ public sealed class Deployment : Entity<DeploymentId>
 
     public DeploymentTrigger Trigger { get; private init; }
 
-    /// <summary>User who started a manual deployment; null when no user did (webhook, deploy hook, rehydration).</summary>
+    /// <summary>User who started a manual deployment or a rollback; null when no user did (webhook, deploy hook, rehydration).</summary>
     public UserId? RequestedBy { get; private init; }
 
     public ImagePullPolicy PullPolicy { get; private init; }
@@ -229,8 +235,32 @@ public sealed class Deployment : Entity<DeploymentId>
             ImageUpdateId = recordId,
         };
 
+    /// <summary>
+    /// Deploys <paramref name="commit"/>, one the stack ran before, instead of the branch head. Images are pulled only
+    /// when missing: the commit names the images it ran with.
+    /// </summary>
+    /// <param name="approvedCommit">The commit itself, when the user approves it unsigned for a stack that requires signed commits.</param>
+    /// <exception cref="DomainValidationException">An approved commit other than the one rolled back to.</exception>
+    public static Deployment QueueRollback(
+        StackId stackId, UserId requestedBy, CommitSha commit, DateTimeOffset now, CommitSha? approvedCommit = null)
+    {
+        if (approvedCommit is not null && approvedCommit != commit)
+        {
+            throw new DomainValidationException(
+                $"A rollback to {commit.Short} can approve only that commit, not {approvedCommit.Short}.");
+        }
+
+        return new(DeploymentId.New(), stackId, DeploymentTrigger.Rollback, requestedBy, ImagePullPolicy.Missing, now, approvedCommit)
+        {
+            Commit = commit,
+        };
+    }
+
     /// <summary>True when the deployment must use <see cref="Commit"/> instead of the branch head.</summary>
-    public bool IsPinned => Trigger is DeploymentTrigger.Rehydrate or DeploymentTrigger.ImageUpdate;
+    public bool IsPinned => Trigger is DeploymentTrigger.Rehydrate or DeploymentTrigger.ImageUpdate or DeploymentTrigger.Rollback;
+
+    /// <summary>True for deployments a user started by hand.</summary>
+    public bool IsByHand => Trigger is DeploymentTrigger.Manual or DeploymentTrigger.Rollback;
 
     public void Start(DateTimeOffset now)
     {
@@ -279,7 +309,7 @@ public sealed class Deployment : Entity<DeploymentId>
     public void RecordApprovedUnsigned(EndorsementProblem problem)
     {
         EnsureStatus(DeploymentStatus.Running);
-        if (Trigger != DeploymentTrigger.Manual || ApprovedCommit is null || ApprovedCommit != Commit)
+        if (!IsByHand || ApprovedCommit is null || ApprovedCommit != Commit)
         {
             throw new DomainConflictException($"Deployment {Id} did not approve commit {Commit?.Short}.");
         }

@@ -57,6 +57,17 @@ internal static class DeployFixtures
         return context;
     }
 
+    /// <summary>Records a successful rollback of the stack to <paramref name="commit"/>, which holds the stack there.</summary>
+    public static Deployment Hold(Stack stack, CommitSha commit)
+    {
+        var rollback = Deployment.QueueRollback(stack.Id, UserId.New(), commit, Now);
+        rollback.Start(Now);
+        rollback.ResolveCommit(commit);
+        rollback.Succeed(Now);
+        stack.RecordDeployment(rollback, withSecrets: false);
+        return rollback;
+    }
+
     public static SourceFile File(string path, string content = "", bool executable = false) =>
         new(StackFilePath.Parse(path), Encoding.UTF8.GetBytes(content), executable);
 

@@ -56,6 +56,18 @@ public sealed partial class ForestApi
                 new DeployRequest { Pull = pull, ApproveCommit = approveCommit }, cancellationToken: cancellationToken),
             "queued deployment");
 
+    /// <summary>Queues a deployment of a commit the stack deployed before; the stack is then held at it.</summary>
+    public async Task<DeploymentDetailsResponse> RollbackAsync(
+        Guid stackId, string commit, bool approve, CancellationToken cancellationToken) =>
+        Required(
+            await Api.Stacks[stackId].Rollback.PostAsync(
+                new RollbackRequest { Commit = commit, Approve = approve }, cancellationToken: cancellationToken),
+            "queued deployment");
+
+    /// <summary>Lets pushes, the deploy hook and image updates deploy a stack held after a rollback.</summary>
+    public async Task<StackResponse> ReleaseHoldAsync(Guid stackId, CancellationToken cancellationToken) =>
+        Required(await Api.Stacks[stackId].Hold.DeleteAsync(cancellationToken: cancellationToken), "stack");
+
     /// <summary>Runs compose restart or down and returns its output; waits as long as compose does.</summary>
     public async Task<StackCommandResponse> ControlStackAsync(
         Guid stackId, StackAction action, int? timeoutSeconds, CancellationToken cancellationToken)

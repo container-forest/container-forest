@@ -62,6 +62,18 @@ public sealed class Stack : Entity<StackId>
     public bool DeployedWithSecrets { get; private set; }
 
     /// <summary>
+    /// The commit a rollback deployed: while set, pushes, the deploy hook and image updates do not deploy the stack,
+    /// so an automatic deployment does not bring back what was rolled back. Deploying the branch by hand or
+    /// <see cref="ReleaseHold"/> ends it. Null when the stack is not held.
+    /// </summary>
+    public CommitSha? HeldCommit { get; private set; }
+
+    /// <summary>When the rollback that holds the stack finished; null when the stack is not held.</summary>
+    public DateTimeOffset? HeldSince { get; private set; }
+
+    public bool IsHeld => HeldCommit is not null;
+
+    /// <summary>
     /// A push to <see cref="Branch"/> deploys the stack, when its repository has a webhook. Off by default: whoever
     /// set the stack up decides whether the branch is ready to go live on every push.
     /// </summary>
@@ -309,6 +321,29 @@ public sealed class Stack : Entity<StackId>
         DeployedAt = deployment.FinishedAt;
         DeployedWithSecrets = withSecrets;
         DeployedComposeFacts = composeFacts ?? DeployedComposeFacts;
+        switch (deployment.Trigger)
+        {
+            case DeploymentTrigger.Rollback:
+                HeldCommit = deployment.Commit;
+                HeldSince = deployment.FinishedAt;
+                break;
+
+            // Deploying the branch by hand is the way back from a rollback. Rehydration redeploys the held commit,
+            // and automatic deployments do not start while the stack is held.
+            case DeploymentTrigger.Manual:
+                ReleaseHold();
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Lets pushes, the deploy hook and image updates deploy the stack again; the next one deploys the branch head.
+    /// Nothing is deployed now.
+    /// </summary>
+    public void ReleaseHold()
+    {
+        HeldCommit = null;
+        HeldSince = null;
     }
 
     /// <summary>

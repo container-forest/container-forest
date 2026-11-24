@@ -8596,6 +8596,168 @@
         }
       }
     },
+    "/api/stacks/{id}/rollback": {
+      "post": {
+        "tags": [
+          "Stacks"
+        ],
+        "operationId": "RollbackStack",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RollbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentDetailsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stacks/{id}/hold": {
+      "delete": {
+        "tags": [
+          "Stacks"
+        ],
+        "operationId": "ReleaseStackHold",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StackResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/deployments/{id}": {
       "get": {
         "tags": [
@@ -11055,6 +11217,7 @@
           "StackEndorsementChanged",
           "StackPolicyAllowancesChanged",
           "StackPolicyUnrestrictedChanged",
+          "StackHoldReleased",
           "ImagePolicyAdded",
           "ImagePolicyChanged",
           "ImagePolicyRemoved",
@@ -12934,7 +13097,8 @@
           "Webhook",
           "Rehydrate",
           "DeployHook",
-          "ImageUpdate"
+          "ImageUpdate",
+          "Rollback"
         ]
       },
       "DeployOnPushRequest": {
@@ -14005,6 +14169,7 @@
           "WouldUpdate",
           "Updated",
           "Pinned",
+          "Held",
           "Waiting",
           "Failed"
         ]
@@ -14637,7 +14802,8 @@
           "AlreadyRunning",
           "AlreadyDeployed",
           "AgentOffline",
-          "NotAllowed"
+          "NotAllowed",
+          "Held"
         ]
       },
       "RegistryCredentialResponse": {
@@ -14860,6 +15026,21 @@
           "Environment",
           "Stack"
         ]
+      },
+      "RollbackRequest": {
+        "required": [
+          "commit"
+        ],
+        "type": "object",
+        "properties": {
+          "commit": {
+            "type": "string"
+          },
+          "approve": {
+            "type": "boolean",
+            "default": false
+          }
+        }
       },
       "SetAdminRequest": {
         "required": [
@@ -15307,6 +15488,19 @@
           "imageHookAllowsDowngrade": {
             "type": "boolean",
             "default": false
+          },
+          "heldCommit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "heldSince": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },

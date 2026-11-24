@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0](https://github.com/container-forest/container-forest/compare/v0.11.1...v0.12.0) (2026-11-24)
+
+
+### Features
+
+* optionally require two-factor authentication for all users ([c0685e8](https://github.com/container-forest/container-forest/commit/c0685e897cc3fdcbbb37bdda3137b1a9f487e99b))
+* optionally require two-factor authentication for all users ([396b316](https://github.com/container-forest/container-forest/commit/396b316d6b70710a03f376e7538d8deef43404b5))
+
 ## [0.11.1](https://github.com/container-forest/container-forest/compare/v0.11.0...v0.11.1) (2026-11-24)
 
 

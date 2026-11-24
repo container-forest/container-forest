@@ -38,10 +38,10 @@ internal sealed class UserListCommand() : ForestCommand("list", "List users (adm
             users,
             items =>
             {
-                var table = new Table("NAME", "ADMIN", "STATUS", "CREATED");
+                var table = new Table("NAME", "ADMIN", "2FA", "STATUS", "CREATED");
                 foreach (var u in items)
                 {
-                    table.AddRow(u.UserName, CliOutput.YesNo(u.IsAdmin), UserCommand.Status(u, now), CliOutput.Time(u.CreatedAt));
+                    table.AddRow(u.UserName, CliOutput.YesNo(u.IsAdmin), CliOutput.YesNo(u.TwoFactorEnabled), UserCommand.Status(u, now), CliOutput.Time(u.CreatedAt));
                 }
 
                 return table;
@@ -67,6 +67,7 @@ internal sealed class UserShowCommand() : UserCommand("show", "Show a user and t
             ("Name", u.UserName),
             ("Id", u.Id?.ToString()),
             ("Administrator", CliOutput.YesNo(u.IsAdmin)),
+            ("Two-factor", CliOutput.YesNo(u.TwoFactorEnabled)),
             ("Status", Status(u, context.Host.Time.GetUtcNow())),
             ("Created", CliOutput.Time(u.CreatedAt)),
         ]);
@@ -171,6 +172,22 @@ internal sealed class UserUnlockCommand() : UserCommand("unlock", "Lift a lockou
     {
         await context.Api.UnlockUserAsync(user.Id!.Value, context.CancellationToken);
         context.Output.Done($"User {user.UserName} unlocked.");
+        return ExitCodes.Ok;
+    }
+}
+
+internal sealed class UserResetTwoFactorCommand()
+    : UserCommand("reset-two-factor", "Turn off a user's two-factor authentication, e.g. after a lost phone; ends their sessions (administrators).")
+{
+    private readonly Option<bool> yes = Confirmation.Option();
+
+    protected override void ConfigureUser(Command command) => command.Add(yes);
+
+    protected override async Task<int> ExecuteAsync(CommandContext context, UserResponse user)
+    {
+        Confirmation.Require(context, yes, $"turn off two-factor authentication of {user.UserName}; their password alone will sign them in");
+        await context.Api.ResetUserTwoFactorAsync(user.Id!.Value, context.CancellationToken);
+        context.Output.Done($"Two-factor authentication of {user.UserName} is off; they can set it up again in the panel.");
         return ExitCodes.Ok;
     }
 }

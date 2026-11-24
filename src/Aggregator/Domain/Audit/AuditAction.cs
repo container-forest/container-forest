@@ -10,6 +10,9 @@ public enum AuditAction
     PasswordChanged,
     DiscordLinked,
     DiscordUnlinked,
+    TwoFactorEnabled,
+    TwoFactorDisabled,
+    RecoveryCodesGenerated,
 
     // Users: an administrator's changes to other users.
     UserCreated,
@@ -20,6 +23,7 @@ public enum AuditAction
     AdminRevoked,
     PasswordReset,
     UserUnlocked,
+    TwoFactorReset,
     RoleGranted,
     RoleChanged,
     RoleRevoked,
@@ -116,9 +120,11 @@ public static class AuditActions
     public static AuditCategory CategoryOf(AuditAction action) => action switch
     {
         AuditAction.SignedIn or AuditAction.SignInFailed or AuditAction.SignedOut or AuditAction.PasswordChanged
-            or AuditAction.DiscordLinked or AuditAction.DiscordUnlinked => AuditCategory.Account,
+            or AuditAction.DiscordLinked or AuditAction.DiscordUnlinked or AuditAction.TwoFactorEnabled
+            or AuditAction.TwoFactorDisabled or AuditAction.RecoveryCodesGenerated => AuditCategory.Account,
         AuditAction.UserCreated or AuditAction.UserRenamed or AuditAction.UserDeactivated or AuditAction.UserActivated
             or AuditAction.AdminGranted or AuditAction.AdminRevoked or AuditAction.PasswordReset or AuditAction.UserUnlocked
+            or AuditAction.TwoFactorReset
             or AuditAction.RoleGranted or AuditAction.RoleChanged or AuditAction.RoleRevoked => AuditCategory.Users,
         AuditAction.ApiTokenCreated or AuditAction.ApiTokenRevoked or AuditAction.SigningKeyAdded
             or AuditAction.SigningKeyChanged or AuditAction.SigningKeyRemoved => AuditCategory.Tokens,

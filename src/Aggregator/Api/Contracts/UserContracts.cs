@@ -31,7 +31,8 @@ public sealed record UserResponse(
     bool IsAdmin,
     bool IsActive,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? LockedOutUntil);
+    DateTimeOffset? LockedOutUntil,
+    bool TwoFactorEnabled = false);
 
 /// <param name="RoleAssignments">Ordered by environment name, then stack name.</param>
 public sealed record UserDetailsResponse(UserResponse User, IReadOnlyList<RoleAssignmentResponse> RoleAssignments);

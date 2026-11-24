@@ -36,6 +36,18 @@ export const signInMethodsQuery = queryOptions({
   staleTime: Infinity,
 });
 
+/** The signed-in user's two-factor authentication (ADR-0019). */
+export const twoFactorQuery = queryOptions({
+  queryKey: ["me", "two-factor"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/me/two-factor", { signal })),
+});
+
+/** Whether administrators must have two-factor authentication. Administrators only. */
+export const signInSettingsQuery = queryOptions({
+  queryKey: ["settings", "sign-in"],
+  queryFn: async ({ signal }) => unwrap(await api.GET("/api/settings/sign-in", { signal })),
+});
+
 /** The signed-in user's passkeys, oldest first. */
 export const passkeysQuery = queryOptions({
   queryKey: ["me", "passkeys"],

@@ -100,6 +100,11 @@ internal sealed class FakeAccountStore : IAccountStore
     public Task<IReadOnlyDictionary<UserId, DateTimeOffset>> ListLockoutsAsync(DateTimeOffset now, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyDictionary<UserId, DateTimeOffset>>(Lockouts.Where(l => l.Value > now).ToDictionary());
 
+    public HashSet<UserId> TwoFactor { get; } = [];
+
+    public Task<IReadOnlySet<UserId>> ListTwoFactorAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlySet<UserId>>(TwoFactor);
+
     private static void Validate(string password)
     {
         if (password.Length < MinPasswordLength)

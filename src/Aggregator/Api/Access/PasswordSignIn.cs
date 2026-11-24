@@ -8,12 +8,22 @@ using Microsoft.AspNetCore.Identity;
 
 namespace ContainerForest.Aggregator.Api.Access;
 
+/// <summary>The outcome of a password: a session, the second step (ADR-0019), or nothing.</summary>
+/// <param name="User">The signed-in user; null unless the sign-in is complete.</param>
+internal sealed record PasswordSignInResult(User? User, bool TwoFactorRequired)
+{
+    public static readonly PasswordSignInResult Failed = new(null, false);
+
+    public static readonly PasswordSignInResult NeedsCode = new(null, true);
+}
+
 /// <summary>
 /// Signs users in and out with a user name and password, and changes the signed-in user's password. Every attempt is
 /// recorded in the audit log, failed sign-ins with the name they gave.
 /// </summary>
 internal sealed class PasswordSignIn(
     SignInManager<AccountUser> signInManager,
+    TwoFactorSignIn twoFactor,
     IUserRepository users,
     CurrentActor currentActor,
     ICurrentUser currentUser,
@@ -33,10 +43,11 @@ internal sealed class PasswordSignIn(
     /// session cookie otherwise. Failed checks count towards the lockout.
     /// </summary>
     /// <returns>
-    /// The signed-in user, or null when the name is unknown, the password is wrong, the account is locked out or
-    /// the user is deactivated. Callers answer all of these the same way, so a response does not reveal which.
+    /// The signed-in user; that a code is needed next, for an account with two-factor authentication; or neither when
+    /// the name is unknown, the password is wrong, the account is locked out or the user is deactivated. Callers answer
+    /// all of these the same way, so a response does not reveal which.
     /// </returns>
-    public async Task<User?> SignInAsync(string userName, string password, bool rememberMe, CancellationToken cancellationToken)
+    public async Task<PasswordSignInResult> SignInAsync(string userName, string password, bool rememberMe, CancellationToken cancellationToken)
     {
         var account = await Accounts.FindByNameAsync(userName);
         if (account is null)
@@ -45,7 +56,7 @@ internal sealed class PasswordSignIn(
             decoyHash ??= Accounts.PasswordHasher.HashPassword(DecoyAccount, Guid.NewGuid().ToString());
             Accounts.PasswordHasher.VerifyHashedPassword(DecoyAccount, decoyHash, password);
             await RecordFailureAsync(null, userName, "Unknown user name.", cancellationToken);
-            return null;
+            return PasswordSignInResult.Failed;
         }
 
         var check = await signInManager.CheckPasswordSignInAsync(account, password, lockoutOnFailure: true);
@@ -56,12 +67,20 @@ internal sealed class PasswordSignIn(
                 : !check.Succeeded ? "Wrong password."
                 : "User is deactivated.";
             await RecordFailureAsync(UserId.From(account.Id), user?.UserName ?? userName, reason, cancellationToken);
-            return null;
+            return PasswordSignInResult.Failed;
         }
 
-        await signInManager.SignInAsync(account, isPersistent: rememberMe);
+        // A right password alone does not reset the lockout counter of such an account (Identity): wrong codes and wrong
+        // passwords add up until the code is right.
+        if (account.TwoFactorEnabled)
+        {
+            await twoFactor.BeginAsync(account, rememberMe, SignInMethods.Password);
+            return PasswordSignInResult.NeedsCode;
+        }
+
+        await signInManager.SignInAsync(account, isPersistent: rememberMe, authenticationMethod: SignInMethods.Password);
         await RecordSignInAsync(audit, user, "Password", cancellationToken);
-        return user;
+        return new PasswordSignInResult(user, false);
     }
 
     public async Task SignOutAsync(CancellationToken cancellationToken)

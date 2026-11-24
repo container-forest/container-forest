@@ -40,7 +40,7 @@ This file is loaded into every session. A component's conventions load on their 
 - Version **0.x** (before 1.0): a minor release may contain breaking changes, and they must be described in the changelog (`feat!:` or `BREAKING CHANGE:`).
 - **In production:** the system (aggregator, panel, agents, bot) runs real production infrastructure. Changes must stay compatible with deployed installations: EF Core migrations without data loss, `.proto` changes only compatible (agents and the bot are upgraded separately from the aggregator), new required settings with defaults.
 - The repository layout is fixed in ADR-0001. CI (GitHub Actions) builds and tests every PR.
-- **Not there yet:** 2FA and OIDC sign-in, live log streaming (`follow`; the tail of a log is read through the aggregator and the agent), exec/attach.
+- **Not there yet:** OIDC sign-in, live log streaming (`follow`; the tail of a log is read through the aggregator and the agent), exec/attach.
 
 ## Working rules for Claude Code
 

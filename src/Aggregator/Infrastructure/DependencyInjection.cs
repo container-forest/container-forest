@@ -91,6 +91,8 @@ public static class DependencyInjection
         // Accounts for signing in; the Api adds the sign-in manager and the session cookie.
         services.AddIdentityCore<AccountUser>(AccountPolicy.Configure)
             .AddEntityFrameworkStores<AggregatorDbContext>()
+            .AddUserStore<ProtectedAccountStore>()
+            .AddTokenProvider<TotpAuthenticator>(TotpAuthenticator.ProviderName)
             .AddPasswordValidator<MaximumLengthRule>()
             .AddPasswordValidator<RepetitiveOrSequentialRule>()
             .AddPasswordValidator<ContextWordsRule>();

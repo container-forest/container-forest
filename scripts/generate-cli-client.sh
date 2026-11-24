@@ -5,9 +5,9 @@ set -eu
 cd "$(dirname "$0")/.."
 
 # Left out: endpoints the CLI never calls. Webhooks, deploy hooks and image hooks are for git servers and CI; signing in with a
-# password, passkeys, one's own signing keys (ADR-0011), the Discord link and the approval of a CLI login need a
-# session in the panel, which the CLI never has. So do the system's settings, which also ask for a fresh password or
-# passkey (ADR-0013). Resource usage series are for the panel's graphs; the CLI shows only the current usage.
+# password, passkeys, one's own signing keys (ADR-0011) and two-factor authentication (ADR-0019), the Discord link and the
+# approval of a CLI login need a session in the panel, which the CLI never has. So do the system's settings, which also
+# ask for a fresh password or passkey (ADR-0013). Resource usage series are for the panel's graphs; the CLI shows only the current usage.
 dotnet kiota generate \
   --language CSharp \
   --openapi src/Aggregator/Api/openapi/ContainerForest.Aggregator.Api.json \
@@ -29,6 +29,8 @@ dotnet kiota generate \
   --exclude-path "/api/environments/{id}/containers/{containerId}/metrics" \
   --exclude-path "/api/me/discord" \
   --exclude-path "/api/me/passkeys" \
+  --exclude-path "/api/me/two-factor" \
+  --exclude-path "/api/me/two-factor/**" \
   --exclude-path "/api/me/signing-keys" \
   --exclude-path "/api/me/signing-keys/**" \
   --exclude-path "/api/me/passkeys/**" \

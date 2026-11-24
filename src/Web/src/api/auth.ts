@@ -5,17 +5,42 @@ import type { components } from "./schema.gen";
 
 export type LoginRequest = components["schemas"]["LoginRequest"];
 
+export type Me = components["schemas"]["MeResponse"];
+
+/** A password either signs in, or (with two-factor on, ADR-0019) asks for the code next. */
+export type LoginResult = { kind: "signedIn"; me: Me } | { kind: "twoFactor" };
+
 export type ChangePasswordRequest = components["schemas"]["ChangePasswordRequest"];
 
 /**
  * Signs in with a password; the aggregator sets the cf_session cookie. Whatever was cached belonged to whoever
- * was signed in before, so it is dropped and the new user is cached as `me`.
+ * was signed in before, so it is dropped and the new user is cached as `me`. A 202 means the password was right and
+ * the account wants the code of its authenticator app: the aggregator keeps that step in the cf_2fa cookie.
  */
 export function useLoginMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (request: LoginRequest) => unwrap(await api.POST("/api/auth/login", { body: request })),
+    mutationFn: async (request: LoginRequest): Promise<LoginResult> => {
+      const result = await api.POST("/api/auth/login", { body: request });
+      const body = unwrap(result);
+      return result.response.status === 202 ? { kind: "twoFactor" } : { kind: "signedIn", me: body as Me };
+    },
+    onSuccess: (result) => {
+      if (result.kind === "signedIn") {
+        queryClient.removeQueries();
+        queryClient.setQueryData(meQuery.queryKey, result.me);
+      }
+    },
+  });
+}
+
+/** The second step: a code of the app, or a recovery code. */
+export function useTwoFactorLoginMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (code: string) => unwrap(await api.POST("/api/auth/login/two-factor", { body: { code } })),
     onSuccess: (me) => {
       queryClient.removeQueries();
       queryClient.setQueryData(meQuery.queryKey, me);

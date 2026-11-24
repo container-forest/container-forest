@@ -1,3 +1,4 @@
+using ContainerForest.Aggregator.Api.Access;
 using ContainerForest.Aggregator.Api.Contracts;
 using ContainerForest.Aggregator.Application.Access;
 
@@ -7,11 +8,8 @@ internal static class MeEndpoints
 {
     public static IEndpointRouteBuilder MapMeEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/me", async (CurrentActor currentActor, CancellationToken ct) =>
-            {
-                var user = await currentActor.GetAsync(ct);
-                return new MeResponse(user.Id.Value, user.UserName, user.IsAdmin);
-            })
+        app.MapGet("/api/me", async (CurrentActor currentActor, MeService me, CancellationToken ct) =>
+                await me.DescribeAsync((await currentActor.GetAsync(ct)).User, ct))
             .WithName("GetMe")
             .WithTags("Account")
             .ProducesProblem(StatusCodes.Status401Unauthorized)

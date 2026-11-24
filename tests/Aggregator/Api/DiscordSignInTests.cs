@@ -110,14 +110,19 @@ public class DiscordSignInTests
         await HttpAssert.StatusAsync(HttpStatusCode.NotFound, login);
     }
 
-    private static AggregatorApp DiscordApp() => new()
+    /// <param name="services">More test services, e.g. a clock for two-factor tests.</param>
+    internal static AggregatorApp DiscordApp(Action<IServiceCollection>? services = null) => new()
     {
         Customize = builder =>
         {
             builder.UseSetting("DiscordAuth:ClientId", "client-id");
             builder.UseSetting("DiscordAuth:ClientSecret", "client-secret");
-            builder.ConfigureTestServices(services => services.Configure<DiscordAuthenticationOptions>(
-                DiscordAuthenticationDefaults.AuthenticationScheme, options => options.BackchannelHttpHandler = new FakeDiscord()));
+            builder.ConfigureTestServices(collection =>
+            {
+                collection.Configure<DiscordAuthenticationOptions>(
+                    DiscordAuthenticationDefaults.AuthenticationScheme, options => options.BackchannelHttpHandler = new FakeDiscord());
+                services?.Invoke(collection);
+            });
         },
     };
 
@@ -125,7 +130,7 @@ public class DiscordSignInTests
     /// Starts at <paramref name="start"/>, plays Discord (approves at once), follows the aggregator's redirects and
     /// returns where its continue page sends the browser.
     /// </summary>
-    private static async Task<string> DiscordRoundTripAsync(HttpClient browser, string start)
+    internal static async Task<string> DiscordRoundTripAsync(HttpClient browser, string start)
     {
         var challenge = await browser.GetAsync(start, Ct);
         Assert.Equal(HttpStatusCode.Redirect, challenge.StatusCode);
@@ -144,7 +149,7 @@ public class DiscordSignInTests
         return WebUtility.HtmlDecode(html[start_..html.IndexOf('"', start_)]);
     }
 
-    private static async Task LinkWithCodeAsync(AggregatorApp app, string userName)
+    internal static async Task LinkWithCodeAsync(AggregatorApp app, string userName)
     {
         var code = await (await app.CreateClientAs(userName).PostAsync("/api/me/discord/link-code", null, Ct))
             .Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct);

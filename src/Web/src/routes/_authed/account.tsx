@@ -10,6 +10,7 @@ import { Loader2Icon } from "@/components/icons";
 import { PasskeysCard } from "@/components/passkeys/passkeys-card";
 import { InstallCard } from "@/components/pwa/install-card";
 import { SigningKeysCard } from "@/components/signing-keys/signing-keys-card";
+import { TwoFactorCard } from "@/components/two-factor/two-factor-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,7 +37,10 @@ type ChangePasswordForm = z.infer<typeof changePasswordSchema>;
 
 const emptyForm: ChangePasswordForm = { currentPassword: "", newPassword: "", confirmPassword: "" };
 
-/** The signed-in user's own account: changing the password, passkeys, the look of the panel, installing it as an app. */
+/**
+ * The signed-in user's own account: changing the password, two-factor authentication, passkeys, installing the panel
+ * as an app. An administrator who must set up two-factor first (ADR-0019) is sent here and sees it at the top.
+ */
 function AccountScreen() {
   const { t } = useTranslation();
   const { me } = Route.useRouteContext();
@@ -116,6 +120,8 @@ function AccountScreen() {
           </form>
         </CardContent>
       </Card>
+
+      <TwoFactorCard />
 
       <PasskeysCard />
 

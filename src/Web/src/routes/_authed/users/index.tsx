@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CreateUserDialog } from "@/components/users/create-user-dialog";
-import { UserKindBadge, UserStatusBadge } from "@/components/users/user-badges";
+import { UserKindBadge, UserStatusBadge, UserTwoFactorBadge } from "@/components/users/user-badges";
+import { SignInSettingsCard } from "@/components/two-factor/sign-in-settings-card";
 import { formatDate } from "@/lib/format";
 import { rowClass, rowLinkClass } from "@/lib/row-link";
 import { cn } from "@/lib/utils";
@@ -93,6 +94,8 @@ function UsersScreen() {
         </div>
       </div>
 
+      <SignInSettingsCard />
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -118,7 +121,10 @@ function UsersScreen() {
                   </Link>
                 </TableCell>
                 <TableCell>
-                  <UserKindBadge user={user} />
+                  <div className="flex flex-wrap gap-1">
+                    <UserKindBadge user={user} />
+                    <UserTwoFactorBadge user={user} />
+                  </div>
                 </TableCell>
                 <TableCell>
                   <UserStatusBadge user={user} now={now} />

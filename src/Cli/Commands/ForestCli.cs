@@ -135,6 +135,7 @@ internal static class ForestCli
                 new UserSetAdminCommand(),
                 new UserResetPasswordCommand(),
                 new UserUnlockCommand(),
+                new UserResetTwoFactorCommand(),
                 new CommandGroup("role", "Roles on environments and stacks.",
                     new RoleGrantCommand(),
                     new RoleChangeCommand(),

@@ -52,6 +52,7 @@ var app = builder.Build();
 app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseReadOnlyTokens();
+app.UseTwoFactorEnrollment();
 app.UseAuthorization();
 app.UseRateLimiter();
 
@@ -62,6 +63,7 @@ app.MapAuthEndpoints();
 app.MapPasskeyEndpoints();
 app.MapDiscordAuthEndpoints();
 app.MapMeEndpoints();
+app.MapTwoFactorEndpoints();
 app.MapApiTokenEndpoints();
 app.MapSigningKeyEndpoints();
 app.MapCliAuthorizationEndpoints();

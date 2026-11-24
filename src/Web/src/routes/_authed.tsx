@@ -18,8 +18,9 @@ import { ConnectionError } from "@/components/layout/connection-error";
  */
 export const Route = createFileRoute("/_authed")({
   beforeLoad: async ({ context, location }) => {
+    let me;
     try {
-      return { me: await context.queryClient.ensureQueryData(meQuery) };
+      me = await context.queryClient.ensureQueryData(meQuery);
     } catch (error) {
       if (isUnauthorized(error)) {
         throw redirect({ to: "/login", search: { redirect: location.href } });
@@ -27,6 +28,13 @@ export const Route = createFileRoute("/_authed")({
 
       throw error;
     }
+
+    // An administrator who must set up two-factor first (ADR-0019): the aggregator refuses everything else anyway.
+    if (me.twoFactorSetupRequired && location.pathname !== "/account") {
+      throw redirect({ to: "/account" });
+    }
+
+    return { me };
   },
   component: AuthedLayout,
   // Without /api/me nothing below can show; a lost connection gets its own screen, not a blank one.

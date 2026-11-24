@@ -32,4 +32,7 @@ public interface IAccountStore
 
     /// <summary>Accounts locked out at <paramref name="now"/>, with the end of their lockout.</summary>
     Task<IReadOnlyDictionary<UserId, DateTimeOffset>> ListLockoutsAsync(DateTimeOffset now, CancellationToken cancellationToken);
+
+    /// <summary>Accounts whose password sign-in asks for an authenticator code (ADR-0019).</summary>
+    Task<IReadOnlySet<UserId>> ListTwoFactorAsync(CancellationToken cancellationToken);
 }

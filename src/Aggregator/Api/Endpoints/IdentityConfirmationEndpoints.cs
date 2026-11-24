@@ -19,7 +19,7 @@ internal static class IdentityConfirmationEndpoints
 
         confirm.MapPost("/password", async Task<Results<Ok<IdentityConfirmationResponse>, ProblemHttpResult>> (
                 ConfirmWithPasswordRequest request, IdentityConfirmer confirmer, CancellationToken ct) =>
-                Respond(await confirmer.WithPasswordAsync(request.Password, ct), "The password was not accepted."))
+                Respond(await confirmer.WithPasswordAsync(request.Password, request.Code, ct), "The password or the code was not accepted."))
             .WithName("ConfirmIdentityWithPassword");
 
         confirm.MapPost("/passkey/options", async (IdentityConfirmer confirmer, CancellationToken ct) =>

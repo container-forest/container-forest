@@ -39,6 +39,7 @@ docker compose up -d
 | `CF_DISCORDAUTH__CLIENTID`, `CF_DISCORDAUTH__CLIENTSECRET` | no | Sign-in and account linking with Discord: the OAuth2 client of a Discord application (the bot's will do) with the redirect `https://<CF_DOMAIN>/api/auth/discord/callback`. The client secret is as sensitive as the bot token. |
 | `CF_BACKUP__*` | no | Fixes a backup setting so the panel can't change it. See [Backups](#5-backups). |
 | `CF_SIGNIN__REQUIRETWOFACTORFORADMINISTRATORS` | no | `true`: an administrator's password sign-in needs the code of an authenticator app; one who signs in with a password alone can only set the app up. A passkey signs in without a code. Otherwise *Users* has the switch. |
+| `CF_SIGNIN__REQUIRETWOFACTORFORALLUSERS` | no | `true`: the same as above for every user, administrator or not. |
 | `CF_SIGNIN__REQUIRETWOFACTORAFTERDISCORD` | no | `true`: a Discord sign-in counts as a password and asks for the app's code. Off by default. |
 
 The whole file is passed to the aggregator, so a variable that isn't in it stays unset.

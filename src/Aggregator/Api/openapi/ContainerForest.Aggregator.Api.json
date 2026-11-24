@@ -15793,6 +15793,10 @@
               "null",
               "string"
             ]
+          },
+          "requireTwoFactorForAllUsers": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -15801,7 +15805,9 @@
           "requireTwoFactorForAdministrators",
           "locked",
           "requireTwoFactorAfterDiscord",
-          "discordLocked"
+          "discordLocked",
+          "requireTwoFactorForAllUsers",
+          "allUsersLocked"
         ],
         "type": "object",
         "properties": {
@@ -15815,6 +15821,12 @@
             "type": "boolean"
           },
           "discordLocked": {
+            "type": "boolean"
+          },
+          "requireTwoFactorForAllUsers": {
+            "type": "boolean"
+          },
+          "allUsersLocked": {
             "type": "boolean"
           }
         }

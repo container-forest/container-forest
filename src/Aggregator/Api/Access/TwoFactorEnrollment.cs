@@ -3,7 +3,7 @@ using ContainerForest.Aggregator.Application.Access;
 namespace ContainerForest.Aggregator.Api.Access;
 
 /// <summary>
-/// When the system requires two-factor of administrators (ADR-0019), an administrator's session signed in with one
+/// When the system requires two-factor of administrators or of every user (ADR-0019), a session signed in with one
 /// factor (<see cref="TwoFactorManagement.RequiresSetupAsync"/>) can only set up the app: every other request is 403
 /// with code <c>TwoFactorSetupRequired</c>. Only sessions: an API token is a credential of its own, and the bot acts for the user
 /// through its own token.
@@ -31,7 +31,7 @@ internal static class TwoFactorEnrollment
                 await Results.Problem(
                         statusCode: StatusCodes.Status403Forbidden,
                         title: "Two-factor authentication required",
-                        detail: "Administrators must use an authenticator app with their password: set one up, or sign in with a passkey.",
+                        detail: "Signing in with a password needs an authenticator app here: set one up, or sign in with a passkey.",
                         extensions: new Dictionary<string, object?> { ["code"] = ProblemCode })
                     .ExecuteAsync(context);
                 return;

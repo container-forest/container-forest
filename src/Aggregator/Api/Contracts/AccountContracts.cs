@@ -56,12 +56,20 @@ public sealed record RecoveryCodesResponse(IReadOnlyList<string> Codes)
 /// <summary>Body of <c>PUT /api/settings/sign-in</c>, the whole section; the change needs a fresh identity confirmation.</summary>
 /// <param name="RequireTwoFactorForAdministrators">An administrator's password (or Discord) sign-in needs the app's code.</param>
 /// <param name="RequireTwoFactorAfterDiscord">A Discord sign-in asks for the code of an account with an authenticator app.</param>
-public sealed record SignInSettingsRequest(bool RequireTwoFactorForAdministrators, bool RequireTwoFactorAfterDiscord, string? Confirmation);
+/// <param name="RequireTwoFactorForAllUsers">The same as for administrators, for every user.</param>
+public sealed record SignInSettingsRequest(
+    bool RequireTwoFactorForAdministrators, bool RequireTwoFactorAfterDiscord, string? Confirmation, bool RequireTwoFactorForAllUsers = false);
 
 /// <param name="Locked">Set by <c>CF_SIGNIN__REQUIRETWOFACTORFORADMINISTRATORS</c>; the panel cannot change it.</param>
 /// <param name="DiscordLocked">Set by <c>CF_SIGNIN__REQUIRETWOFACTORAFTERDISCORD</c>.</param>
+/// <param name="AllUsersLocked">Set by <c>CF_SIGNIN__REQUIRETWOFACTORFORALLUSERS</c>.</param>
 public sealed record SignInSettingsResponse(
-    bool RequireTwoFactorForAdministrators, bool Locked, bool RequireTwoFactorAfterDiscord, bool DiscordLocked);
+    bool RequireTwoFactorForAdministrators,
+    bool Locked,
+    bool RequireTwoFactorAfterDiscord,
+    bool DiscordLocked,
+    bool RequireTwoFactorForAllUsers,
+    bool AllUsersLocked);
 
 /// <summary>
 /// Body of <c>POST /api/auth/password</c>: the signed-in user changes their own password and answers 204.

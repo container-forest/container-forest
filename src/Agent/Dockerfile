@@ -18,7 +18,7 @@ RUN dotnet publish src/Agent/ContainerForest.Agent.csproj \
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0
 LABEL org.opencontainers.image.title="container-forest-agent" \
-      org.opencontainers.image.source="https://github.com/lepterion/container-forest"
+      org.opencontainers.image.source="https://github.com/container-forest/container-forest"
 
 # Stacks are deployed with the docker CLI and its compose plugin, which talk to the host's daemon through the socket.
 # Only the client is installed: the daemon is the host's. Packages come from Docker's apt repository, because

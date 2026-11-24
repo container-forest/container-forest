@@ -23,7 +23,7 @@ Internet :443 → container-forest-web (Caddy)
 
 ```sh
 mkdir -p /srv/container-forest && cd /srv/container-forest
-curl -fsSLO https://raw.githubusercontent.com/lepterion/container-forest/main/deploy/aggregator/compose.yaml
+curl -fsSLO https://raw.githubusercontent.com/container-forest/container-forest/main/deploy/aggregator/compose.yaml
 touch .env && chmod 600 .env
 $EDITOR .env
 docker compose up -d
@@ -151,7 +151,7 @@ docker compose pull && docker compose up -d
 - `:latest` is always the last release. To upgrade only when you choose, pin `:X.Y.Z` instead.
 - Read the [changelog](../CHANGELOG.md) first: it says which components changed, and before 1.0 a minor release may contain breaking changes.
 - The aggregator migrates its database on start and keeps `aggregator.db.before-migration` in its volume until the next migration.
-- The CLI: download the new binary from the [releases](https://github.com/lepterion/container-forest/releases).
+- The CLI: download the new binary from the [releases](https://github.com/container-forest/container-forest/releases).
 
 ## Troubleshooting
 

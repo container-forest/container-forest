@@ -8,7 +8,7 @@ Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT
 
 - **Report a bug.** Open an issue with what you did, what you expected, what happened, the version (`forest --version`, or the image tag) and relevant logs. Logs can contain secrets: check before pasting.
 - **Suggest a feature.** Open an issue describing the problem first, not only the solution. container-forest deliberately stays small (plain Docker and Compose, see the README), so some ideas will get a "no, but…".
-- **Fix something.** Issues labelled [`good first issue`](https://github.com/lepterion/container-forest/labels/good%20first%20issue) are a good start. For anything bigger than a small fix, comment on the issue or open one before writing a lot of code, so we can agree on the approach.
+- **Fix something.** Issues labelled [`good first issue`](https://github.com/container-forest/container-forest/labels/good%20first%20issue) are a good start. For anything bigger than a small fix, comment on the issue or open one before writing a lot of code, so we can agree on the approach.
 - **Improve the docs.** Typos, unclear steps and missing explanations are worth a PR on their own.
 
 Security problems: don't open a public issue, follow [SECURITY.md](SECURITY.md).

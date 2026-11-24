@@ -146,7 +146,7 @@ You need a host with Docker and a DNS name pointing to it (ports 80 and 443 reac
 
    ```sh
    mkdir -p /srv/container-forest && cd /srv/container-forest
-   curl -fsSLO https://raw.githubusercontent.com/lepterion/container-forest/main/deploy/aggregator/compose.yaml
+   curl -fsSLO https://raw.githubusercontent.com/container-forest/container-forest/main/deploy/aggregator/compose.yaml
    cat > .env <<'EOF'
    CF_DOMAIN=forest.example.com
    CF_BOOTSTRAP__ADMINUSERNAME=admin
@@ -162,7 +162,7 @@ You need a host with Docker and a DNS name pointing to it (ports 80 and 443 reac
 
 3. **Deploy a stack.** Add a git repository (for a private one, first add a git connection with a read-only token), then create a stack on the environment: repository, branch and path to `compose.yaml`. Press *Deploy*, or turn on deploy on push.
 
-4. **Optional:** install the CLI from the [latest release](https://github.com/lepterion/container-forest/releases/latest) (`forest-linux-x64`, `forest-linux-arm64`, `forest-osx-arm64`, `forest-win-x64.exe`) and run `forest login https://forest.example.com`. To use the Discord bot, see [deploy/discord-bot/compose.yaml](deploy/discord-bot/compose.yaml).
+4. **Optional:** install the CLI from the [latest release](https://github.com/container-forest/container-forest/releases/latest) (`forest-linux-x64`, `forest-linux-arm64`, `forest-osx-arm64`, `forest-win-x64.exe`) and run `forest login https://forest.example.com`. To use the Discord bot, see [deploy/discord-bot/compose.yaml](deploy/discord-bot/compose.yaml).
 
 The full guide, including SOPS secrets, backups and upgrades: [docs/installation.md](docs/installation.md).
 
@@ -172,7 +172,7 @@ The full guide, including SOPS secrets, backups and upgrades: [docs/installation
 - [Architecture](docs/architecture.md): components, protocols, the permission model, failure behaviour.
 - [Security invariants](docs/security-invariants.md): the rules every change must keep.
 - [Design notes](docs/design/README.md) and [ADRs](docs/adr/README.md): how each subsystem works and why.
-- [API reference](https://lepterion.github.io/container-forest/): generated from the code comments.
+- [API reference](https://container-forest.github.io/container-forest/): generated from the code comments.
 
 ## Development process
 

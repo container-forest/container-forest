@@ -7,7 +7,7 @@
 # Both are as powerful as an administrator's password (security invariant 9): keep .env readable by root only.
 services:
   container-forest-discord-bot:
-    image: ghcr.io/lepterion/container-forest-discord-bot:latest
+    image: ghcr.io/container-forest/container-forest-discord-bot:latest
     restart: unless-stopped
     environment:
       CF_BOT__CONTROLLERURL: https://forest.example.com   # CF_DOMAIN of deploy/aggregator

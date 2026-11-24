@@ -1,7 +1,7 @@
 name: Images
 
 # Builds the four Docker images. Pull requests only check that they build (amd64). Every push to main publishes
-# them to GitHub Container Registry as ghcr.io/lepterion/container-forest-<name>, for amd64 and arm64, tagged "main"
+# them to GitHub Container Registry as ghcr.io/container-forest/container-forest-<name>, for amd64 and arm64, tagged "main"
 # and with the commit's SHA. A release (workflow Release calls this one with its version) tags them X.Y.Z, X.Y and
 # "latest": "latest" is always the last release, never an unreleased main. The deploy/ examples pull "latest";
 # pin X.Y.Z to stay on one release.
@@ -72,7 +72,7 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ inputs.version }}
-          IMAGE: ghcr.io/lepterion/container-forest-${{ matrix.name }}
+          IMAGE: ghcr.io/container-forest/container-forest-${{ matrix.name }}
         run: |
           {
             echo "list<<EOF"

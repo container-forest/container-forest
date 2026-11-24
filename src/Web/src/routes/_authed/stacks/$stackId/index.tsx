@@ -11,6 +11,7 @@ import {
   useChangeStackSourceMutation,
   useDeployStackMutation,
   useForgetStack,
+  useReleaseHoldMutation,
   useRemoveStackMutation,
   useSetDeployOnPushMutation,
   useSetRequireImageDigestsMutation,
@@ -28,6 +29,7 @@ import {
   RotateCwIcon,
   SquareIcon,
   Trash2Icon,
+  UndoIcon,
 } from "@/components/icons";
 import { ImageHookCard } from "@/components/images/image-hook-card";
 import { ImagePoliciesCard } from "@/components/images/image-policies-card";
@@ -98,6 +100,7 @@ function StackScreen() {
         </p>
       </div>
 
+      {stack.heldCommit && <HoldCard stack={stack} heldCommit={stack.heldCommit} />}
       <ActionsCard stack={stack} />
       <StackContainersCard
         environmentId={stack.environmentId}
@@ -119,6 +122,53 @@ function StackScreen() {
       <RecentDeploymentsCard stack={stack} />
       {stack.canRemove && <RemoveStackCard stack={stack} />}
     </div>
+  );
+}
+
+/**
+ * The stack runs the commit of a rollback, and automatic deployments leave it alone; deploying the branch or releasing
+ * the hold ends it.
+ */
+function HoldCard({ stack, heldCommit }: { stack: Stack; heldCommit: string }) {
+  const { t, i18n } = useTranslation();
+  const release = useReleaseHoldMutation(stack.id);
+  const error = release.error ? describeError(release.error) : undefined;
+
+  return (
+    <Card className="border-amber-500/50">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <UndoIcon className="size-5 text-amber-600 dark:text-amber-400" />
+          {t("stack.hold.title", { commit: shortCommit(heldCommit) })}
+        </CardTitle>
+        <CardDescription>
+          {t("stack.hold.description", { date: stack.heldSince ? formatDateTime(stack.heldSince, i18n.resolvedLanguage) : "—" })}
+        </CardDescription>
+      </CardHeader>
+      {stack.canDeploy && (
+        <CardContent className="grid gap-2">
+          <div>
+            <ConfirmAction
+              title={t("stack.hold.confirmTitle", { name: stack.name })}
+              description={t("stack.hold.confirmDescription")}
+              confirmLabel={t("stack.hold.release")}
+              disabled={release.isPending}
+              onConfirm={() => release.mutate()}
+            >
+              {release.isPending && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
+              {t("stack.hold.release")}
+            </ConfirmAction>
+          </div>
+          <div aria-live="polite">
+            {error && (
+              <ErrorText>
+                {t("stack.hold.failed")} {t(error.key)} {error.detail}
+              </ErrorText>
+            )}
+          </div>
+        </CardContent>
+      )}
+    </Card>
   );
 }
 

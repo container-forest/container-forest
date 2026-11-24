@@ -252,8 +252,25 @@ export function describeError(error: unknown): { key: MessageKey; detail?: strin
 }
 
 /**
+ * Whether the user may roll the stack back to the deployment's commit: one the stack deployed successfully, other than
+ * the one it runs now. The aggregator checks the same and the role.
+ */
+export function canRollbackTo(
+  deployment: Pick<DeploymentDetails, "status" | "commit">,
+  stack: Pick<Stack, "canDeploy" | "isSystem" | "deployedCommit">,
+): boolean {
+  return (
+    deployment.status === "Succeeded" &&
+    deployment.commit != null &&
+    deployment.commit !== stack.deployedCommit &&
+    stack.canDeploy &&
+    !stack.isSystem
+  );
+}
+
+/**
  * Whether the deployment stopped because its commit was not endorsed (ADR-0011) and the user may approve that commit:
- * a new manual deployment then deploys it unsigned, if it is still the branch head.
+ * a new manual deployment then deploys it unsigned, if it is still the branch head; a rollback is retried approved.
  */
 export function canApproveCommit(
   deployment: Pick<DeploymentDetails, "status" | "commit" | "endorsement">,

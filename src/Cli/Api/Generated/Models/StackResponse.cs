@@ -56,6 +56,16 @@ namespace ContainerForest.Cli.Api.Generated.Models
         public bool? HasDeployHook { get; set; }
         /// <summary>The hasImageHook property</summary>
         public bool? HasImageHook { get; set; }
+        /// <summary>The heldCommit property</summary>
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
+#nullable enable
+        public string? HeldCommit { get; set; }
+#nullable restore
+#else
+        public string HeldCommit { get; set; }
+#endif
+        /// <summary>The heldSince property</summary>
+        public DateTimeOffset? HeldSince { get; set; }
         /// <summary>The id property</summary>
         public Guid? Id { get; set; }
         /// <summary>The imageHookAllowsDowngrade property</summary>
@@ -135,6 +145,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
                 { "environmentId", n => { EnvironmentId = n.GetGuidValue(); } },
                 { "hasDeployHook", n => { HasDeployHook = n.GetBoolValue(); } },
                 { "hasImageHook", n => { HasImageHook = n.GetBoolValue(); } },
+                { "heldCommit", n => { HeldCommit = n.GetStringValue(); } },
+                { "heldSince", n => { HeldSince = n.GetDateTimeOffsetValue(); } },
                 { "id", n => { Id = n.GetGuidValue(); } },
                 { "imageHookAllowsDowngrade", n => { ImageHookAllowsDowngrade = n.GetBoolValue(); } },
                 { "isSystem", n => { IsSystem = n.GetBoolValue(); } },
@@ -167,6 +179,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
             writer.WriteGuidValue("environmentId", EnvironmentId);
             writer.WriteBoolValue("hasDeployHook", HasDeployHook);
             writer.WriteBoolValue("hasImageHook", HasImageHook);
+            writer.WriteStringValue("heldCommit", HeldCommit);
+            writer.WriteDateTimeOffsetValue("heldSince", HeldSince);
             writer.WriteGuidValue("id", Id);
             writer.WriteBoolValue("imageHookAllowsDowngrade", ImageHookAllowsDowngrade);
             writer.WriteBoolValue("isSystem", IsSystem);

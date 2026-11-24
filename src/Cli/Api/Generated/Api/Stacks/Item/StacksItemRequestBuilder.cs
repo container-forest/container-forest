@@ -4,6 +4,7 @@ using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.DeployHook;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.DeployOnPush;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Deployments;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Down;
+using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Hold;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.ImageHook;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.ImagePolicies;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.PolicyAllowances;
@@ -12,6 +13,7 @@ using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.RequireImageDigests;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.RequireSignedCommits;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Restart;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.RestartOnFileChange;
+using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Rollback;
 using ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Source;
 using ContainerForest.Cli.Api.Generated.Models;
 using Microsoft.Kiota.Abstractions.Extensions;
@@ -49,6 +51,11 @@ namespace ContainerForest.Cli.Api.Generated.Api.Stacks.Item
         public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Down.DownRequestBuilder Down
         {
             get => new global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Down.DownRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The hold property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Hold.HoldRequestBuilder Hold
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Hold.HoldRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>The imageHook property</summary>
         public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.ImageHook.ImageHookRequestBuilder ImageHook
@@ -89,6 +96,11 @@ namespace ContainerForest.Cli.Api.Generated.Api.Stacks.Item
         public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.RestartOnFileChange.RestartOnFileChangeRequestBuilder RestartOnFileChange
         {
             get => new global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.RestartOnFileChange.RestartOnFileChangeRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The rollback property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Rollback.RollbackRequestBuilder Rollback
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Rollback.RollbackRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>The source property</summary>
         public global::ContainerForest.Cli.Api.Generated.Api.Stacks.Item.Source.SourceRequestBuilder Source

@@ -50,7 +50,9 @@ public sealed record StackSummary(
     bool CanAdministerEnvironment,
     bool PolicyUnrestricted = false,
     bool HasImageHook = false,
-    bool ImageHookAllowsDowngrade = false);
+    bool ImageHookAllowsDowngrade = false,
+    CommitSha? HeldCommit = null,
+    DateTimeOffset? HeldSince = null);
 
 /// <summary>
 /// Stacks as the current user sees them; adding and removing stacks (Editor on the environment) and changing their
@@ -231,6 +233,24 @@ public sealed class StackService(
     public Task<StackSummary> SetRequireImageDigestsAsync(StackId stackId, bool enabled, CancellationToken cancellationToken) =>
         SetEndorsementAsync(stackId, enabled ? "Require image digests: on" : "Require image digests: off",
             stack => stack.SetRequireImageDigests(enabled), cancellationToken);
+
+    /// <summary>
+    /// Ends the hold of a rollback (<see cref="Stack.ReleaseHold"/>); the same role as deploying, recorded in the audit
+    /// log. Nothing is deployed now: the next push, deploy hook call or image update deploys the branch head.
+    /// </summary>
+    public Task<StackSummary> ReleaseHoldAsync(StackId stackId, CancellationToken cancellationToken)
+    {
+        var draft = new AuditDraft(AuditAction.StackHoldReleased);
+        return audit.RunAsync(draft, async () =>
+        {
+            var (actor, stack, environment, assignments) = await LoadDeployableAsync(stackId, cancellationToken);
+            draft.Target = new StackAuditTarget(stack.Id, stack.Name.Value, stack.EnvironmentId);
+            draft.Details = stack.HeldCommit is { } held ? $"Held at {held.Short}" : "Not held";
+            stack.ReleaseHold();
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Summarize(actor, environment, stack, assignments, await RepositoryNamesAsync(cancellationToken));
+        }, cancellationToken);
+    }
 
     private Task<StackSummary> SetEndorsementAsync(
         StackId stackId, string details, Action<Stack> change, CancellationToken cancellationToken)
@@ -447,7 +467,9 @@ public sealed class StackService(
         EnvironmentAdministration.CanAdminister(actor, environment, assignments),
         stack.PolicyUnrestricted,
         stack.HasImageHook,
-        stack.ImageHookAllowsDowngrade);
+        stack.ImageHookAllowsDowngrade,
+        stack.HeldCommit,
+        stack.HeldSince);
 
     /// <summary>
     /// The repository, if stacks of the environment may deploy from it (ADR-0006). One that may not is reported as

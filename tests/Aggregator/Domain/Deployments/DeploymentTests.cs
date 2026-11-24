@@ -38,6 +38,32 @@ public class DeploymentTests
     }
 
     [Fact]
+    public void Rollback_is_pinned_by_hand_and_pulls_missing_images()
+    {
+        var user = UserId.New();
+        var deployment = Deployment.QueueRollback(StackId.New(), user, Commit, Now);
+
+        Assert.Equal(
+            (DeploymentTrigger.Rollback, Commit, true, true, false, user, ImagePullPolicy.Missing),
+            (deployment.Trigger, deployment.Commit, deployment.IsPinned, deployment.IsByHand, deployment.IsAutomatic,
+                deployment.RequestedBy, deployment.PullPolicy));
+    }
+
+    [Fact]
+    public void Rollback_approves_only_its_own_commit()
+    {
+        Assert.Throws<DomainValidationException>(() =>
+            Deployment.QueueRollback(StackId.New(), UserId.New(), Commit, Now, CommitSha.Parse(new string('b', 40))));
+
+        var deployment = Deployment.QueueRollback(StackId.New(), UserId.New(), Commit, Now, Commit);
+        deployment.Start(Now);
+        deployment.ResolveCommit(Commit);
+        deployment.RecordApprovedUnsigned(EndorsementProblem.Unsigned);
+
+        Assert.Equal(CommitEndorsement.ApprovedUnsigned, deployment.Endorsement);
+    }
+
+    [Fact]
     public void Manual_deployment_is_not_pinned() =>
         Assert.False(Deployment.QueueManual(StackId.New(), UserId.New(), ImagePullPolicy.Missing, Now).IsPinned);
 

@@ -144,6 +144,77 @@ public class DeploymentServiceTests
         Assert.Equal([newer.Id, older.Id], history.Select(d => d.Id));
     }
 
+    [Fact]
+    public async Task Editor_rolls_back_to_a_commit_the_stack_deployed_before()
+    {
+        Grant(Role.Editor);
+        var old = AddSucceeded(CommitSha.Parse(new string('a', 40)));
+
+        var deployment = await service.RollbackAsync(stack.Id, old, approve: false, Ct);
+
+        Assert.Equal(
+            (DeploymentTrigger.Rollback, old, alice.Id, (CommitSha?)null),
+            (deployment.Trigger, deployment.Commit, deployment.RequestedBy, deployment.ApprovedCommit));
+        Assert.Equal([deployment.Id], queue.Queued);
+    }
+
+    [Fact]
+    public async Task Rollback_with_approval_approves_its_commit()
+    {
+        Grant(Role.Editor);
+        var old = AddSucceeded(CommitSha.Parse(new string('a', 40)));
+
+        var deployment = await service.RollbackAsync(stack.Id, old, approve: true, Ct);
+
+        Assert.Equal(old, deployment.ApprovedCommit);
+    }
+
+    [Fact]
+    public async Task Rollback_only_to_a_commit_that_succeeded_on_this_stack()
+    {
+        Grant(Role.Editor);
+        var failed = Deployment.QueueManual(stack.Id, alice.Id, ImagePullPolicy.Missing, Now);
+        failed.Start(Now);
+        failed.ResolveCommit(CommitSha.Parse(new string('b', 40)));
+        failed.Fail("boom", Now);
+        deployments.Add(failed);
+        var other = AddStack("db");
+        var elsewhere = Deployment.QueueManual(other.Id, alice.Id, ImagePullPolicy.Missing, Now);
+        elsewhere.Start(Now);
+        elsewhere.ResolveCommit(CommitSha.Parse(new string('c', 40)));
+        elsewhere.Succeed(Now);
+        deployments.Add(elsewhere);
+
+        await Assert.ThrowsAsync<DomainValidationException>(() =>
+            service.RollbackAsync(stack.Id, CommitSha.Parse(new string('b', 40)), approve: false, Ct));
+        await Assert.ThrowsAsync<DomainValidationException>(() =>
+            service.RollbackAsync(stack.Id, CommitSha.Parse(new string('c', 40)), approve: false, Ct));
+        Assert.Empty(queue.Queued);
+    }
+
+    [Fact]
+    public async Task Operator_may_not_roll_back_and_an_offline_agent_queues_nothing()
+    {
+        var old = AddSucceeded(CommitSha.Parse(new string('a', 40)));
+        Grant(Role.Operator);
+        await Assert.ThrowsAsync<AccessDeniedException>(() => service.RollbackAsync(stack.Id, old, approve: false, Ct));
+
+        Grant(Role.Editor);
+        agent.Online = false;
+        await Assert.ThrowsAsync<AgentOfflineException>(() => service.RollbackAsync(stack.Id, old, approve: false, Ct));
+        Assert.Empty(queue.Queued);
+    }
+
+    private CommitSha AddSucceeded(CommitSha commit)
+    {
+        var deployment = Deployment.QueueManual(stack.Id, alice.Id, ImagePullPolicy.Missing, Now.AddHours(-1));
+        deployment.Start(Now.AddHours(-1));
+        deployment.ResolveCommit(commit);
+        deployment.Succeed(Now.AddHours(-1));
+        deployments.Add(deployment);
+        return commit;
+    }
+
     private void Grant(Role role) => roleAssignments.Add(RoleAssignment.ForEnvironment(alice.Id, environment.Id, role, Now));
 
     private Stack AddStack(string name, bool isSystem = false)

@@ -43,6 +43,7 @@ internal sealed class StackShowCommand() : StackCommand("show", "Show a stack: i
             ("Compose file", s.ComposePath),
             ("Deployed commit", s.DeployedCommit),
             ("Deployed at", s.DeployedAt is null ? "not deployed" : CliOutput.Time(s.DeployedAt)),
+            ("Held", s.HeldCommit is null ? "no" : $"at {CliOutput.ShortCommit(s.HeldCommit)} since {CliOutput.Time(s.HeldSince)} (rollback)"),
             ("Deploy on push", CliOutput.YesNo(s.DeployOnPush)),
             ("Restart on file change", CliOutput.YesNo(s.RestartOnFileChange)),
             ("Deploy hook", CliOutput.YesNo(s.HasDeployHook)),
@@ -142,8 +143,99 @@ internal sealed class StackDeployCommand() : StackCommand("deploy", "Deploy the 
     protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment, StackResponse stack)
     {
         var queued = await context.Api.DeployAsync(stack.Id!.Value, context.Value(pull), context.CancellationToken, context.Value(approve));
+        if (stack.HeldCommit is not null)
+        {
+            context.Output.Note($"{stack.Name} is held at {CliOutput.ShortCommit(stack.HeldCommit)} after a rollback; deploying the branch releases the hold.");
+        }
+
+        return await StackDeployment.FollowAsync(context, stack, queued, context.Value(noWait));
+    }
+}
+
+/// <summary>
+/// <c>forest stack rollback NAME --to SHA</c>: deploys a commit the stack deployed successfully before and holds the
+/// stack at it, so pushes, the deploy hook and image updates leave it alone until the branch is deployed again.
+/// </summary>
+internal sealed class StackRollbackCommand()
+    : StackCommand("rollback", "Deploy a commit the stack ran before and hold it there (Editor); 'deploy' returns to the branch.")
+{
+    private readonly Option<string> to = new("--to")
+    {
+        Description = "The commit to roll back to: a full SHA or a prefix of at least 7 characters, from 'forest deployment list'.",
+        Required = true,
+    };
+
+    private readonly Option<bool> approve = new("--approve")
+    {
+        Description = "For a stack that requires signed commits: roll back to the commit even if no signature endorses it.",
+    };
+
+    private readonly Option<bool> noWait = new("--no-wait") { Description = "Only queue the deployment and print its id." };
+
+    protected override void ConfigureStack(Command command)
+    {
+        command.Add(to);
+        command.Add(approve);
+        command.Add(noWait);
+    }
+
+    protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment, StackResponse stack)
+    {
+        var commit = await ResolveAsync(context, stack, context.Value(to)!.Trim());
+        var queued = await context.Api.RollbackAsync(stack.Id!.Value, commit, context.Value(approve), context.CancellationToken);
+        return await StackDeployment.FollowAsync(context, stack, queued, context.Value(noWait));
+    }
+
+    /// <summary>The full SHA of the stack's successful deployments that starts with <paramref name="prefix"/>.</summary>
+    internal static async Task<string> ResolveAsync(CommandContext context, StackResponse stack, string prefix)
+    {
+        if (prefix.Length < 7 || !prefix.All(char.IsAsciiHexDigit))
+        {
+            throw new CliException($"'{prefix}' is not a commit SHA or a prefix of at least 7 characters.");
+        }
+
+        var deployments = await context.Api.ListDeploymentsAsync(stack.Id!.Value, context.CancellationToken);
+        var matches = deployments
+            .Where(d => d.Status == DeploymentStatus.Succeeded && d.Commit is not null
+                && d.Commit.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Select(d => d.Commit!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        return matches switch
+        {
+            [var single] => single,
+            [] => throw new CliException(
+                $"None of the recent successful deployments of {stack.Name} deployed a commit starting with {prefix}; see 'forest deployment list {stack.Name}'."),
+            _ => throw new CliException($"Commit prefix {prefix} is ambiguous: {string.Join(", ", matches.Select(CliOutput.ShortCommit))}."),
+        };
+    }
+}
+
+/// <summary><c>forest stack release-hold NAME</c>: lets automatic deployments deploy a stack held after a rollback.</summary>
+internal sealed class StackReleaseHoldCommand()
+    : StackCommand("release-hold", "Let pushes, the deploy hook and image updates deploy a stack held after a rollback (Editor).")
+{
+    protected override async Task<int> ExecuteAsync(CommandContext context, EnvironmentResponse environment, StackResponse stack)
+    {
+        if (stack.HeldCommit is null)
+        {
+            context.Output.Done($"{stack.Name} is not held.");
+            return ExitCodes.Ok;
+        }
+
+        await context.Api.ReleaseHoldAsync(stack.Id!.Value, context.CancellationToken);
+        context.Output.Done($"{stack.Name} is no longer held; the next push, deploy hook call or image update deploys its branch.");
+        return ExitCodes.Ok;
+    }
+}
+
+/// <summary>Prints a queued deployment's id, or follows it to the end, for deploy and rollback.</summary>
+internal static class StackDeployment
+{
+    public static async Task<int> FollowAsync(CommandContext context, StackResponse stack, DeploymentDetailsResponse queued, bool noWait)
+    {
         var id = queued.Id!.Value;
-        if (context.Value(noWait))
+        if (noWait)
         {
             if (context.Output.IsJson)
             {

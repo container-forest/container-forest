@@ -255,6 +255,69 @@ public class DeploymentTests
             alice.PostAsJsonAsync("/api/repositories", new { name = "mine", url = "https://git.example.com/mine.git" }, Ct));
     }
 
+    [Fact]
+    public async Task Rollback_deploys_an_earlier_commit_and_holds_the_stack_until_released()
+    {
+        const string newer = "fedcba9876543210fedcba9876543210fedcba98";
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        app.Git.Snapshot = Snapshot(("compose.yaml", "services:\n  web:\n    image: nginx:1.27\n"));
+        var stack = await CreateStackAsync(app, agent, "compose.yaml");
+        var client = app.CreateClient();
+        await DeployAsync(app, agent, await QueueAsync(app, stack.Id));
+        app.Git.Snapshot = app.Git.Snapshot with { Commit = CommitSha.Parse(newer) };
+        await DeployAsync(app, agent, await QueueAsync(app, stack.Id));
+
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.BadRequest,
+            client.PostAsJsonAsync($"/api/stacks/{stack.Id}/rollback", new { commit = new string('9', 40) }, Ct));
+        var response = await client.PostAsJsonAsync($"/api/stacks/{stack.Id}/rollback", new { commit = Sha }, Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.Accepted, response);
+        var queued = (await response.Content.ReadFromJsonAsync<DeploymentView>(AggregatorApp.Json, Ct))!;
+
+        var command = await agent.ReceiveAsync();
+        Assert.Equal(Sha, command.DeployStack.CommitSha);
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
+        var rollback = await WaitUntilFinishedAsync(app, queued.Id);
+        Assert.Equal(("Succeeded", "Rollback", Sha), (rollback.Status, rollback.Trigger, rollback.Commit));
+        Assert.Equal(Sha, app.Git.ReadCommits[^1]);
+
+        var held = await client.GetFromJsonAsync<StackView>($"/api/stacks/{stack.Id}", AggregatorApp.Json, Ct);
+        Assert.Equal((Sha, Sha), (held!.DeployedCommit, held.HeldCommit));
+        Assert.NotNull(held.HeldSince);
+
+        var released = await client.DeleteAsync($"/api/stacks/{stack.Id}/hold", Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, released);
+        var view = (await released.Content.ReadFromJsonAsync<StackView>(AggregatorApp.Json, Ct))!;
+        Assert.Equal((Sha, null, null), (view.DeployedCommit, view.HeldCommit, view.HeldSince));
+    }
+
+    [Fact]
+    public async Task Deploying_the_branch_after_a_rollback_releases_the_hold()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        app.Git.Snapshot = Snapshot(("compose.yaml", "services:\n  web:\n    image: nginx:1.27\n"));
+        var stack = await CreateStackAsync(app, agent, "compose.yaml");
+        var client = app.CreateClient();
+        await DeployAsync(app, agent, await QueueAsync(app, stack.Id));
+        var response = await client.PostAsJsonAsync($"/api/stacks/{stack.Id}/rollback", new { commit = Sha }, Ct);
+        await DeployAsync(app, agent, (await response.Content.ReadFromJsonAsync<DeploymentView>(AggregatorApp.Json, Ct))!);
+        Assert.Equal(Sha, (await client.GetFromJsonAsync<StackView>($"/api/stacks/{stack.Id}", AggregatorApp.Json, Ct))!.HeldCommit);
+
+        await DeployAsync(app, agent, await QueueAsync(app, stack.Id));
+
+        Assert.Null((await client.GetFromJsonAsync<StackView>($"/api/stacks/{stack.Id}", AggregatorApp.Json, Ct))!.HeldCommit);
+    }
+
+    /// <summary>The agent deploys the queued deployment successfully.</summary>
+    private static async Task DeployAsync(AggregatorApp app, FakeAgent agent, DeploymentView queued)
+    {
+        var command = await agent.ReceiveAsync();
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
+        Assert.Equal("Succeeded", (await WaitUntilFinishedAsync(app, queued.Id)).Status);
+    }
+
     /// <summary>A Discord channel that receives every event of the environment.</summary>
     private static async Task SubscribeChannelAsync(AggregatorApp app, EnvironmentId environmentId)
     {
@@ -334,9 +397,9 @@ public class DeploymentTests
 
     private sealed record IdView(Guid Id);
 
-    private sealed record StackView(Guid Id, string Name, string? DeployedCommit);
+    private sealed record StackView(Guid Id, string Name, string? DeployedCommit, string? HeldCommit = null, DateTimeOffset? HeldSince = null);
 
-    private sealed record DeploymentView(Guid Id, string Status, string? Commit, string? Error, LogLineView[] Log);
+    private sealed record DeploymentView(Guid Id, string Status, string? Commit, string? Error, LogLineView[] Log, string? Trigger = null);
 
     private sealed record LogLineView(string Level, string Text);
 }

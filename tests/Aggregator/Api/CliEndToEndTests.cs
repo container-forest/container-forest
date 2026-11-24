@@ -164,6 +164,38 @@ public sealed class CliEndToEndTests : IDisposable
     }
 
     [Fact]
+    public async Task Rollback_takes_a_commit_prefix_from_the_history_and_release_hold_ends_the_hold()
+    {
+        await using var app = new AggregatorApp();
+        await using var agent = await app.EnrollAndConnectAsync();
+        await CreateStackAsync(app, agent);
+        var token = await CreateTokenAsync(app);
+        string[] connection = ["--url", "http://localhost", "--token", token];
+
+        var deploying = RunAsync(app, null, "", [.. connection, "stack", "deploy", "web"]);
+        var first = await agent.ReceiveAsync();
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = first.RequestId } });
+        Assert.Equal(0, (await deploying).ExitCode);
+
+        var unknown = await RunAsync(app, null, "", [.. connection, "stack", "rollback", "web", "--to", "fffffff"]);
+        Assert.Equal(1, unknown.ExitCode);
+        Assert.Contains("None of the recent successful deployments", unknown.Error);
+
+        var rollingBack = RunAsync(app, null, "", [.. connection, "stack", "rollback", "web", "--to", "0123456"]);
+        var command = await agent.ReceiveAsync();
+        Assert.Equal("0123456789abcdef0123456789abcdef01234567", command.DeployStack.CommitSha);
+        await agent.SendAsync(new AgentMessage { Result = new CommandResult { RequestId = command.RequestId } });
+        Assert.Equal(0, (await rollingBack).ExitCode);
+
+        var shown = await RunAsync(app, null, "", [.. connection, "stack", "show", "web"]);
+        Assert.Contains("at 0123456789ab since", shown.Output);
+
+        var released = await RunAsync(app, null, "", [.. connection, "stack", "release-hold", "web"]);
+        Assert.Equal(0, released.ExitCode);
+        Assert.Contains("no longer held", released.Output);
+    }
+
+    [Fact]
     public async Task Read_only_token_cannot_deploy()
     {
         await using var app = new AggregatorApp();

@@ -219,6 +219,24 @@ internal static class StackEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
+        api.MapPost(
+                "/stacks/{id:guid}/rollback",
+                async (Guid id, RollbackRequest request, DeploymentService service, CancellationToken ct) =>
+                {
+                    var deployment = await service.RollbackAsync(StackId.From(id), CommitSha.Parse(request.Commit), request.Approve, ct);
+                    return TypedResults.Accepted($"/api/deployments/{deployment.Id}", ToDetails(deployment));
+                })
+            .WithName("RollbackStack")
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+
+        api.MapDelete(
+                "/stacks/{id:guid}/hold",
+                async (Guid id, StackService service, CancellationToken ct) =>
+                    ToResponse(await service.ReleaseHoldAsync(StackId.From(id), ct)))
+            .WithName("ReleaseStackHold");
+
         api.MapGet("/deployments/{id:guid}", async (Guid id, DeploymentService service, CancellationToken ct) =>
                 ToDetails(await service.GetAsync(DeploymentId.From(id), ct)))
             .WithName("GetDeployment");
@@ -280,7 +298,9 @@ internal static class StackEndpoints
         s.CanAdministerEnvironment,
         s.PolicyUnrestricted,
         s.HasImageHook,
-        s.ImageHookAllowsDowngrade);
+        s.ImageHookAllowsDowngrade,
+        s.HeldCommit?.Value,
+        s.HeldSince);
 
     private static DeploymentDetailsResponse ToDetails(Deployment d) => new(
         d.Id.Value,

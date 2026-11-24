@@ -19,7 +19,7 @@ Rules and reasoning are in [ADR-0015](../adr/0015-image-updates.md). This note c
 
 `ImageUpdateService.CheckAsync`, under the stack's lock (`ImageUpdateLocks`; changing or deleting a policy takes the same lock):
 
-1. Polling and the hook leave a pinned policy alone (`Pinned`).
+1. Polling and the hook leave a pinned policy alone (`Pinned`), and a stack held after a rollback (`Held`, ADR-0018); so does *Check now*; pinning a tag on a held stack is a 409, and a dry run still answers.
 2. Fetch the branch head (`GitAccessResolver.ForFetch`), take the stack's compose file from it, find the image's slots with `IComposeImageRewriter.Find`.
 3. The target:
    - without a tag, `ImageTagSelector`: candidates matching the pattern; for `TagTimestamp`, the largest timestamp, reading only its manifest (the digest); for `ImageCreated`, `created` from the cache, with unknown ones read up to `ImageUpdateOptions.MaxTagReadsPerCheck` from the end of the tag list. Until everything has been read, `Waiting` (`CatalogIncomplete`). Different images with the same newest `created` are a policy error, not a random pick. More than `ImageTagSelector.ManyCandidates` candidates, or a 429, is a warning on the policy;

@@ -114,6 +114,73 @@ public class ImageUpdateTests
     }
 
     [Fact]
+    public async Task Held_stack_is_left_alone_until_the_hold_is_released()
+    {
+        var (app, registry, writer) = Create();
+        await using var __ = app;
+        await using var agent = await app.EnrollAndConnectAsync();
+        var stack = await SetUpAsync(app, agent);
+        registry.Tags["main-2222222"] = DateTimeOffset.UnixEpoch.AddDays(2);
+        var token = await CreateHookAsync(app, stack.Id, allowDowngrade: false);
+        var client = app.CreateClient();
+        await HttpAssert.StatusAsync(HttpStatusCode.Accepted, client.PostAsJsonAsync($"/api/stacks/{stack.Id}/deployments", new { pull = false }, Ct));
+        await (await agent.ReceiveAsync()).RespondAsync(agent);
+        await WaitUntilDeployedAsync(app, stack.Id);
+        await HttpAssert.StatusAsync(HttpStatusCode.Accepted, client.PostAsJsonAsync($"/api/stacks/{stack.Id}/rollback", new { commit = Head }, Ct));
+        await (await agent.ReceiveAsync()).RespondAsync(agent);
+        await WaitUntilHeldAsync(app, stack.Id, held: true);
+        var policy = (await client.GetFromJsonAsync<PolicyListView>($"/api/stacks/{stack.Id}/image-policies", AggregatorApp.Json, Ct))!.Policies.Single();
+
+        var hooked = await Hook(app, stack.Id, token, new { image = Image });
+        Assert.Equal("Held", Assert.Single((await hooked.Content.ReadFromJsonAsync<ResultView[]>(AggregatorApp.Json, Ct))!).Outcome);
+        var checkedNow = await client.PostAsync($"/api/image-policies/{policy.Id}/check", null, Ct);
+        Assert.Equal("Held", (await checkedNow.Content.ReadFromJsonAsync<ResultView>(AggregatorApp.Json, Ct))!.Outcome);
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.Conflict, client.PostAsJsonAsync($"/api/image-policies/{policy.Id}/pin", new { tag = "main-2222222" }, Ct));
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, client.PostAsync($"/api/image-policies/{policy.Id}/check?dryRun=true", null, Ct));
+        Assert.Empty(writer.Commits);
+
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, client.DeleteAsync($"/api/stacks/{stack.Id}/hold", Ct));
+        var updated = await Hook(app, stack.Id, token, new { image = Image });
+        Assert.Equal("Updated", Assert.Single((await updated.Content.ReadFromJsonAsync<ResultView[]>(AggregatorApp.Json, Ct))!).Outcome);
+        await (await agent.ReceiveAsync()).RespondAsync(agent);
+    }
+
+    private static async Task WaitUntilDeployedAsync(AggregatorApp app, Guid stackId)
+    {
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            var view = await app.CreateClient().GetFromJsonAsync<HoldView>($"/api/stacks/{stackId}", AggregatorApp.Json, Ct);
+            if (view!.DeployedCommit is not null)
+            {
+                return;
+            }
+
+            await Task.Delay(50, Ct);
+        }
+
+        Assert.Fail("The stack was not deployed.");
+    }
+
+    private static async Task WaitUntilHeldAsync(AggregatorApp app, Guid stackId, bool held)
+    {
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            var view = await app.CreateClient().GetFromJsonAsync<HoldView>($"/api/stacks/{stackId}", AggregatorApp.Json, Ct);
+            if ((view!.HeldCommit is not null) == held)
+            {
+                return;
+            }
+
+            await Task.Delay(50, Ct);
+        }
+
+        Assert.Fail($"The stack's hold is not {held}.");
+    }
+
+    private sealed record HoldView(string? DeployedCommit, string? HeldCommit);
+
+    [Fact]
     public async Task Dry_run_says_what_would_change_and_commits_nothing()
     {
         var (app, registry, writer) = Create();

@@ -34,7 +34,7 @@ Small setups: one to a handful of servers with plain Docker Compose, no Kubernet
 - **Panel.** English and Ukrainian, live updates, works on a phone, installable as a PWA.
 - **Backups** of the central service to S3-compatible storage, encrypted to an offline key.
 
-Not there yet: 2FA and OIDC sign-in, rolling back a deployment from the panel, live log streaming, a container shell.
+Not there yet: 2FA and OIDC sign-in, live log streaming, a container shell.
 
 ## Screenshots
 

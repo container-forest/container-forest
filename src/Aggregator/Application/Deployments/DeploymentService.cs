@@ -59,6 +59,23 @@ public sealed class DeploymentService(
         CancellationToken cancellationToken)
     {
         var operation = pullPolicy == ImagePullPolicy.Always ? StackOperation.RedeployWithPull : StackOperation.Redeploy;
+        await EnsureCanQueueAsync(actor, stack, environment, assignments, operation, cancellationToken);
+        var deployment = Deployment.QueueManual(stack.Id, actor.Id, pullPolicy, time.GetUtcNow(), approvedCommit);
+        deployments.Add(deployment);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        queue.Enqueue(deployment.Id);
+        return deployment;
+    }
+
+    private async Task EnsureCanQueueAsync(
+        Actor actor,
+        Stack stack,
+        DockerEnvironment environment,
+        IReadOnlyList<RoleAssignment> assignments,
+        StackOperation operation,
+        CancellationToken cancellationToken)
+    {
         if (!AccessPolicy.CanPerform(actor, environment, stack, assignments, operation))
         {
             throw new AccessDeniedException($"Deploying stack '{stack.Name}' requires the Editor role.");
@@ -80,13 +97,43 @@ public sealed class DeploymentService(
         {
             throw new DomainConflictException($"Stack '{stack.Name}' already has a deployment in progress.");
         }
+    }
 
-        var deployment = Deployment.QueueManual(stack.Id, actor.Id, pullPolicy, time.GetUtcNow(), approvedCommit);
-        deployments.Add(deployment);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+    /// <summary>
+    /// Queues a deployment of <paramref name="commit"/>, a commit the stack deployed successfully before, instead of the
+    /// branch head; the same role as a redeploy. Once it succeeds, the stack is held at the commit
+    /// (<see cref="Stack.HeldCommit"/>) until someone deploys the branch again.
+    /// </summary>
+    /// <param name="approve">
+    /// For a stack that requires signed commits: the user approves the commit unsigned, as they would by its SHA for a
+    /// deployment of the branch (ADR-0011).
+    /// </param>
+    /// <exception cref="DomainValidationException">The stack never deployed the commit successfully.</exception>
+    /// <exception cref="AgentOfflineException">The agent is offline; nothing is queued (invariant 7).</exception>
+    public async Task<Deployment> RollbackAsync(StackId stackId, CommitSha commit, bool approve, CancellationToken cancellationToken)
+    {
+        var (actor, stack, environment, assignments) = await LoadVisibleStackAsync(stackId, cancellationToken);
+        var draft = new AuditDraft(AuditAction.DeploymentQueued, new StackAuditTarget(stack.Id, stack.Name.Value, environment.Id))
+        {
+            Details = approve ? $"Rollback to {commit.Short}; approved unsigned" : $"Rollback to {commit.Short}",
+        };
+        return await audit.RunAsync(draft, async () =>
+        {
+            await EnsureCanQueueAsync(actor, stack, environment, assignments, StackOperation.Redeploy, cancellationToken);
+            if (!await deployments.HasSucceededAsync(stack.Id, commit, cancellationToken))
+            {
+                // Any other commit would be content nobody ever deployed here, perhaps not even on the stack's branch.
+                throw new DomainValidationException(
+                    $"Stack '{stack.Name}' never deployed commit {commit.Short} successfully; only such a commit can be rolled back to.");
+            }
 
-        queue.Enqueue(deployment.Id);
-        return deployment;
+            var deployment = Deployment.QueueRollback(stack.Id, actor.Id, commit, time.GetUtcNow(), approve ? commit : null);
+            deployments.Add(deployment);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            queue.Enqueue(deployment.Id);
+            return deployment;
+        }, cancellationToken);
     }
 
     /// <summary>The stack's latest deployments, newest first.</summary>

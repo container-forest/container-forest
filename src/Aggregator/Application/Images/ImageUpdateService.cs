@@ -58,6 +58,9 @@ public enum ImageUpdateOutcome
     /// <summary>The image is pinned; automatic updates and the hook leave it alone.</summary>
     Pinned,
 
+    /// <summary>The stack is held at the commit of a rollback; automatic updates and the hook leave it alone.</summary>
+    Held,
+
     /// <summary>
     /// Nothing to do yet: not every candidate's creation time is read (the next checks read the rest), or no tag
     /// matches the pattern.
@@ -123,7 +126,9 @@ public sealed partial class ImageUpdateService(
 
     /// <exception cref="NotFoundException">No such policy.</exception>
     /// <exception cref="DomainValidationException">The requested tag does not match the pattern or is not in the registry.</exception>
-    /// <exception cref="DomainConflictException">The hook asks for an older tag without being allowed to.</exception>
+    /// <exception cref="DomainConflictException">
+    /// The hook asks for an older tag without being allowed to, or a user pins a tag of a held stack.
+    /// </exception>
     /// <exception cref="AgentOfflineException">The stack's agent is offline; nothing is committed (invariant 7).</exception>
     public async Task<ImageUpdateResult> CheckAsync(ImagePolicyId policyId, ImageUpdateRequest request, CancellationToken cancellationToken)
     {
@@ -136,6 +141,16 @@ public sealed partial class ImageUpdateService(
         }
 
         var context = await LoadAsync(policy, cancellationToken);
+        if (context.Stack.HeldCommit is { } held && !request.DryRun)
+        {
+            // An update commits on the branch head and deploys it, which would undo the rollback.
+            var detail = $"Stack '{context.Stack.Name}' is held at commit {held.Short} after a rollback; " +
+                "deploy its branch by hand or release the hold to resume updates.";
+            return request.Source == ImageUpdateSource.User
+                ? throw new DomainConflictException(detail)
+                : new ImageUpdateResult(policy.Id, policy.Image, ImageUpdateOutcome.Held, Detail: detail);
+        }
+
         try
         {
             return await CheckAsync(context, request, cancellationToken);

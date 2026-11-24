@@ -19,6 +19,7 @@ How to use them: [architecture.md](../architecture.md#deploy-on-push-webhook); t
   | `Pong` | a GitHub `ping` |
   | `Ignored` | other events, tags, a deleted branch, repository not found |
   | `NotAllowed` | the connection is no longer allowed in the stack's environment |
+  | `Held` | the stack is held after a rollback (ADR-0018) and isn't deployed |
   | `AlreadyDeployed` | the stack already runs commit `after` (a repeated delivery) |
   | `AgentOffline` | the agent is offline and nothing is queued (invariant 7) |
   | `AlreadyQueued` | a deployment is queued: its status stays `Running` until the fetch, so it will still pick up this push |
@@ -32,7 +33,7 @@ How to use them: [architecture.md](../architecture.md#deploy-on-push-webhook); t
 - **Token:** on the stack, only its hash is stored (`Stack.DeployHookTokenHash`, `SecretToken.Hash`, constant-time check in `AcceptsDeployHook`). A stack's Editor creates and deletes it (`POST|DELETE /api/stacks/{id}/deploy-hook`, `StackService`); 409 for a system stack.
 - **Call:** `DeployHookService`; the body is ignored: `Deployment.QueueFromDeployHook` (trigger `DeployHook`, no user, the branch head), 202 with `Queued`. The token goes in a header because proxy and CI logs keep URLs.
 - **During another deployment:** a queued one that pulls all images anyway means `AlreadyQueued`; any other unfinished one means `AfterRunning`. `PushDeploymentGate` remembers the pull policy: a later push doesn't override the hook's `Always`, and `PushFollowUpObserver` queues `QueueFromDeployHook` and, if someone queued a deployment without pull in between, waits for that one too.
-- **Refusals:** an unknown stack, a stack without a hook, and a missing or wrong token all get the same 401 (`WebhookRejectedException`); an offline agent gets 503 and nothing is queued.
+- **Refusals:** an unknown stack, a stack without a hook, and a missing or wrong token all get the same 401 (`WebhookRejectedException`); an offline agent gets 503 and nothing is queued; a stack held after a rollback (ADR-0018) gets 409.
 
 ## Image hook
 

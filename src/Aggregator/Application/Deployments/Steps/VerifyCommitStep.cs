@@ -45,6 +45,10 @@ public sealed class VerifyCommitStep(CommitEndorsementService endorsements) : ID
                 detail = $"commit {commit.Short} does not descend from the deployed commit {stack.DeployedCommit!.Short} " +
                     "(the branch was rewritten, or the stack's source changed)";
             }
+            else if (deployment.Trigger == DeploymentTrigger.Rollback)
+            {
+                context.Info($"Rolling back from {stack.DeployedCommit!.Short} to the earlier commit {commit.Short}.");
+            }
             else
             {
                 context.Warn(
@@ -73,10 +77,15 @@ public sealed class VerifyCommitStep(CommitEndorsementService endorsements) : ID
         }
 
         deployment.RecordRejected(problem.Value);
-        var hint = deployment.Trigger == DeploymentTrigger.Manual
-            ? $" To deploy it unsigned, approve commit {commit.Value} in the panel (or 'forest stack deploy --approve {commit.Value}'); " +
-                "otherwise push a commit signed by someone who may deploy the stack."
-            : " Push a commit signed by someone who may deploy the stack, or deploy it by hand.";
+        var hint = deployment.Trigger switch
+        {
+            DeploymentTrigger.Manual =>
+                $" To deploy it unsigned, approve commit {commit.Value} in the panel (or 'forest stack deploy --approve {commit.Value}'); " +
+                "otherwise push a commit signed by someone who may deploy the stack.",
+            DeploymentTrigger.Rollback =>
+                $" To roll back to it unsigned, approve it in the panel (or 'forest stack rollback --to {commit.Value} --approve').",
+            _ => " Push a commit signed by someone who may deploy the stack, or deploy it by hand.",
+        };
         throw new DeploymentFailedException($"The stack requires signed commits: {detail}.{hint}");
     }
 

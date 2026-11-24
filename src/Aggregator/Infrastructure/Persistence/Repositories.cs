@@ -189,6 +189,9 @@ internal sealed class DeploymentRepository(AggregatorDbContext db)
                 && d.Status == DeploymentStatus.Succeeded,
             cancellationToken);
 
+    public Task<bool> HasSucceededAsync(StackId stackId, CommitSha commit, CancellationToken cancellationToken) =>
+        Set.AnyAsync(d => d.StackId == stackId && d.Commit == commit && d.Status == DeploymentStatus.Succeeded, cancellationToken);
+
     // The projection leaves the log out of the query.
     public async Task<IReadOnlyList<DeploymentSummary>> ListByStackAsync(
         StackId stackId, int limit, CancellationToken cancellationToken) =>

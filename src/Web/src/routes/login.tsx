@@ -32,6 +32,8 @@ const searchSchema = z.object({
     .catch(undefined),
   // Set by the aggregator when a Discord sign-in did not work out (ADR-0009).
   error: z.literal("discord").optional().catch(undefined),
+  // Set by the aggregator after a Discord sign-in that asks for the code of the app (ADR-0019).
+  step: z.literal("code").optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/login")({
@@ -52,7 +54,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 function LoginScreen() {
   const { t } = useTranslation();
-  const { redirect, error: signInError } = Route.useSearch();
+  const { redirect, error: signInError, step: startStep } = Route.useSearch();
   const navigate = useNavigate();
   const login = useLoginMutation();
   const queryClient = useQueryClient();
@@ -64,7 +66,7 @@ function LoginScreen() {
   const discordHref = `/api/auth/discord/login?redirect=${encodeURIComponent(redirect ?? "/")}`;
   const autofill = useRef<AbortController | null>(null);
   // After the right password of an account with two-factor on, the form gives way to the code (ADR-0019).
-  const [step, setStep] = useState<"password" | "code">("password");
+  const [step, setStep] = useState<"password" | "code">(startStep ?? "password");
   const {
     register,
     control,
@@ -96,7 +98,7 @@ function LoginScreen() {
   // Passkeys in the user name field's autofill: the browser's ceremony has to be waiting before the field is
   // focused, so it starts with the page rather than on a click, and stops when the page goes.
   useEffect(() => {
-    if (!offerPasskeys) {
+    if (!offerPasskeys || step === "code") {
       return;
     }
 
@@ -117,7 +119,7 @@ function LoginScreen() {
       }
     })();
     return () => controller.abort();
-  }, [offerPasskeys, getValues, navigate, queryClient, redirect]);
+  }, [offerPasskeys, step, getValues, navigate, queryClient, redirect]);
 
   const onPasskey = () => {
     // A browser runs one ceremony at a time: the waiting autofill one gives way to the button's.
@@ -146,6 +148,9 @@ function LoginScreen() {
               onBack={() => {
                 login.reset();
                 setStep("password");
+                if (startStep) {
+                  void navigate({ to: "/login", search: { redirect }, replace: true });
+                }
               }}
             />
           ) : (

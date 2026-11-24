@@ -68,7 +68,7 @@ export function useUpdateSignInSettingsMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (body: { requireTwoFactorForAdministrators: boolean; confirmation: string }) =>
+    mutationFn: async (body: { requireTwoFactorForAdministrators: boolean; requireTwoFactorAfterDiscord: boolean; confirmation: string }) =>
       unwrap(await api.PUT("/api/settings/sign-in", { body })),
     onSuccess: (settings) => {
       queryClient.setQueryData(signInSettingsQuery.queryKey, settings);

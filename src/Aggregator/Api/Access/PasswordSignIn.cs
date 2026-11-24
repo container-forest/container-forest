@@ -74,11 +74,11 @@ internal sealed class PasswordSignIn(
         // passwords add up until the code is right.
         if (account.TwoFactorEnabled)
         {
-            await twoFactor.BeginAsync(account, rememberMe);
+            await twoFactor.BeginAsync(account, rememberMe, SignInMethods.Password);
             return PasswordSignInResult.NeedsCode;
         }
 
-        await signInManager.SignInAsync(account, isPersistent: rememberMe, authenticationMethod: "pwd");
+        await signInManager.SignInAsync(account, isPersistent: rememberMe, authenticationMethod: SignInMethods.Password);
         await RecordSignInAsync(audit, user, "Password", cancellationToken);
         return new PasswordSignInResult(user, false);
     }

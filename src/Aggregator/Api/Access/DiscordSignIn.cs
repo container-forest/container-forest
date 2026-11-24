@@ -34,7 +34,13 @@ internal sealed class DiscordAuthOptions
 /// protected by Data Protection, in the OAuth state.
 /// </remarks>
 internal sealed class DiscordSignIn(
-    SignInManager<AccountUser> signInManager, DiscordLinkService links, CurrentActor currentActor, IAuditTrail audit, ILogger<DiscordSignIn> logger)
+    SignInManager<AccountUser> signInManager,
+    DiscordLinkService links,
+    CurrentActor currentActor,
+    SignInSettingsService signInSettings,
+    TwoFactorSignIn twoFactor,
+    IAuditTrail audit,
+    ILogger<DiscordSignIn> logger)
 {
     public const string Scheme = DiscordAuthenticationDefaults.AuthenticationScheme;
     public const string CallbackPath = "/api/auth/discord/callback";
@@ -47,6 +53,9 @@ internal sealed class DiscordSignIn(
     private const string Link = "link";
 
     public const string LoginFailedPath = "/login?error=discord";
+
+    /// <summary>The sign-in screen at its code step, after a Discord sign-in that counts as a password.</summary>
+    public const string TwoFactorPath = "/login?step=code";
     public const string LinkedPath = "/discord?linked=discord";
     public const string LinkFailedPath = "/discord?error=discord";
 
@@ -178,7 +187,14 @@ internal sealed class DiscordSignIn(
             return LoginFailedPath;
         }
 
-        await signInManager.SignInAsync(account, isPersistent: false, authenticationMethod: Scheme);
+        // Counted as a password (ADR-0019): the code of the app comes next, on the sign-in screen.
+        if (account.TwoFactorEnabled && (await signInSettings.CurrentAsync(cancellationToken)).RequireTwoFactorAfterDiscord)
+        {
+            await twoFactor.BeginAsync(account, rememberMe: false, SignInMethods.Discord);
+            return $"{TwoFactorPath}&redirect={Uri.EscapeDataString(SafePath(redirect))}";
+        }
+
+        await signInManager.SignInAsync(account, isPersistent: false, authenticationMethod: SignInMethods.Discord);
         await PasswordSignIn.RecordSignInAsync(audit, user, $"Discord: {discordName}", cancellationToken);
         return SafePath(redirect);
     }

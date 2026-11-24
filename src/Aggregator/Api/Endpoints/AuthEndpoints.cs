@@ -40,7 +40,7 @@ internal static class AuthEndpoints
                 var result = await signIn.SignInAsync(request.UserName, request.Password, request.RememberMe, ct);
                 return result switch
                 {
-                    { User: { } user } => TypedResults.Ok(await me.DescribeAsync(user, ct)),
+                    { User: { } user } => TypedResults.Ok(await me.DescribeAsync(user, ct, SignInMethods.Password)),
                     { TwoFactorRequired: true } => TypedResults.Accepted((string?)null, new TwoFactorChallengeResponse(TwoFactorSignIn.Lifetime.TotalSeconds)),
                     _ => TypedResults.Problem(
                         statusCode: StatusCodes.Status401Unauthorized,
@@ -62,7 +62,7 @@ internal static class AuthEndpoints
                         statusCode: StatusCodes.Status401Unauthorized,
                         title: "Unauthorized",
                         detail: "Wrong code, or the sign-in expired: enter the password again.")
-                    : TypedResults.Ok(await me.DescribeAsync(user, ct));
+                    : TypedResults.Ok(await me.DescribeAsync(user, ct, SignInMethods.TwoFactor));
             })
             .WithName("LoginTwoFactor")
             .RequireRateLimiting(SignInPolicy)

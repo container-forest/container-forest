@@ -113,10 +113,10 @@ internal sealed class TwoFactorManagement(
         {
             var (user, account) = await SignedInAsync(cancellationToken);
             confirmations.Require(confirmation, user.Id);
-            if (user.IsAdmin && (await settings.CurrentAsync(cancellationToken)).RequireTwoFactorForAdministrators
-                && (await Accounts.GetPasskeysAsync(account)).Count == 0)
+            if (await IsRequiredAsync(user, account, cancellationToken))
             {
-                throw new DomainConflictException("Administrators must have two-factor authentication or a passkey; add a passkey first.");
+                throw new DomainConflictException(
+                    "Administrators must use an authenticator app with their password; add a passkey first to turn it off.");
             }
 
             await DisableAsync(account);
@@ -152,24 +152,49 @@ internal sealed class TwoFactorManagement(
         await Accounts.FindByIdAsync(userId.Value.ToString()) is { TwoFactorEnabled: true };
 
     /// <summary>
-    /// True when the system requires two-factor of this user and they have neither an app nor a passkey: their session
-    /// may then only set one up (<see cref="TwoFactorEnrollment"/>).
+    /// True when the system requires two-factor of administrators and this administrator's session was signed in with
+    /// one factor: a password alone or, when Discord counts as a password, Discord without the code. Such a session may
+    /// only set up the app (<see cref="TwoFactorEnrollment"/>). A passkey sign-in is two factors; so is a password with
+    /// the code.
     /// </summary>
-    public async Task<bool> RequiresSetupAsync(User user, CancellationToken cancellationToken)
+    /// <param name="method">How the session was signed in (<see cref="SignInMethods"/>); null for a request without a session.</param>
+    public async Task<bool> RequiresSetupAsync(User user, string? method, CancellationToken cancellationToken)
     {
-        if (!user.IsAdmin || !(await settings.CurrentAsync(cancellationToken)).RequireTwoFactorForAdministrators)
+        if (method is null or SignInMethods.TwoFactor or SignInMethods.Passkey || !user.IsAdmin)
         {
             return false;
         }
 
+        var current = await settings.CurrentAsync(cancellationToken);
+        if (!current.RequireTwoFactorForAdministrators || (method == SignInMethods.Discord && !current.RequireTwoFactorAfterDiscord))
+        {
+            return false;
+        }
+
+        // Set up during this session: the code was given then.
         var account = await Accounts.FindByIdAsync(user.Id.Value.ToString());
-        return account is not null && !account.TwoFactorEnabled && (await Accounts.GetPasskeysAsync(account)).Count == 0;
+        if (account is null || account.TwoFactorEnabled)
+        {
+            return false;
+        }
+
+        // A session from before the method was kept: as before, a passkey on the account is enough.
+        return method != SignInMethods.Unknown || (await Accounts.GetPasskeysAsync(account)).Count == 0;
     }
 
     private async Task<TwoFactorStatus> StatusAsync(User user, AccountUser account, CancellationToken cancellationToken) => new(
         account.TwoFactorEnabled,
         account.TwoFactorEnabled ? await Accounts.CountRecoveryCodesAsync(account) : 0,
-        user.IsAdmin && (await settings.CurrentAsync(cancellationToken)).RequireTwoFactorForAdministrators);
+        await IsRequiredAsync(user, account, cancellationToken));
+
+    /// <summary>
+    /// An administrator under the requirement who has no passkey: without the app they could only sign in to a limited
+    /// session, so the app cannot be turned off. With a passkey they can, and then sign in with the passkey.
+    /// </summary>
+    private async Task<bool> IsRequiredAsync(User user, AccountUser account, CancellationToken cancellationToken) =>
+        user.IsAdmin
+        && (await settings.CurrentAsync(cancellationToken)).RequireTwoFactorForAdministrators
+        && (await Accounts.GetPasskeysAsync(account)).Count == 0;
 
     private async Task<IReadOnlyList<string>> NewRecoveryCodesAsync(AccountUser account) =>
         [.. await Accounts.GenerateNewTwoFactorRecoveryCodesAsync(account, RecoveryCodeCount) ?? []];

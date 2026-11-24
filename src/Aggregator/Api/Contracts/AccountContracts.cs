@@ -53,11 +53,15 @@ public sealed record RecoveryCodesResponse(IReadOnlyList<string> Codes)
     public override string ToString() => nameof(RecoveryCodesResponse);
 }
 
-/// <summary>Body of <c>PUT /api/settings/sign-in</c>; the change needs a fresh identity confirmation.</summary>
-public sealed record SignInSettingsRequest(bool RequireTwoFactorForAdministrators, string? Confirmation);
+/// <summary>Body of <c>PUT /api/settings/sign-in</c>, the whole section; the change needs a fresh identity confirmation.</summary>
+/// <param name="RequireTwoFactorForAdministrators">An administrator's password (or Discord) sign-in needs the app's code.</param>
+/// <param name="RequireTwoFactorAfterDiscord">A Discord sign-in asks for the code of an account with an authenticator app.</param>
+public sealed record SignInSettingsRequest(bool RequireTwoFactorForAdministrators, bool RequireTwoFactorAfterDiscord, string? Confirmation);
 
 /// <param name="Locked">Set by <c>CF_SIGNIN__REQUIRETWOFACTORFORADMINISTRATORS</c>; the panel cannot change it.</param>
-public sealed record SignInSettingsResponse(bool RequireTwoFactorForAdministrators, bool Locked);
+/// <param name="DiscordLocked">Set by <c>CF_SIGNIN__REQUIRETWOFACTORAFTERDISCORD</c>.</param>
+public sealed record SignInSettingsResponse(
+    bool RequireTwoFactorForAdministrators, bool Locked, bool RequireTwoFactorAfterDiscord, bool DiscordLocked);
 
 /// <summary>
 /// Body of <c>POST /api/auth/password</c>: the signed-in user changes their own password and answers 204.

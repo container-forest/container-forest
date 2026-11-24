@@ -15777,11 +15777,15 @@
       "SignInSettingsRequest": {
         "required": [
           "requireTwoFactorForAdministrators",
+          "requireTwoFactorAfterDiscord",
           "confirmation"
         ],
         "type": "object",
         "properties": {
           "requireTwoFactorForAdministrators": {
+            "type": "boolean"
+          },
+          "requireTwoFactorAfterDiscord": {
             "type": "boolean"
           },
           "confirmation": {
@@ -15795,7 +15799,9 @@
       "SignInSettingsResponse": {
         "required": [
           "requireTwoFactorForAdministrators",
-          "locked"
+          "locked",
+          "requireTwoFactorAfterDiscord",
+          "discordLocked"
         ],
         "type": "object",
         "properties": {
@@ -15803,6 +15809,12 @@
             "type": "boolean"
           },
           "locked": {
+            "type": "boolean"
+          },
+          "requireTwoFactorAfterDiscord": {
+            "type": "boolean"
+          },
+          "discordLocked": {
             "type": "boolean"
           }
         }

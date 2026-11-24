@@ -38,7 +38,24 @@ internal static class AuthenticationSetup
 
         // Check the security stamp on every request: a password change or a deactivation must end the user's
         // other sessions right away, not after the default 30 minutes. The price is a lookup per request.
-        services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.Zero);
+        services.Configure<SecurityStampValidatorOptions>(options =>
+        {
+            options.ValidationInterval = TimeSpan.Zero;
+
+            // The validator rebuilds the principal on every request and drops how the session was signed in, which the
+            // requirement for administrators depends on (ADR-0019, SignInMethods).
+            options.OnRefreshingPrincipal = context =>
+            {
+                if (context.CurrentPrincipal?.FindFirst(System.Security.Claims.ClaimTypes.AuthenticationMethod) is { } method
+                    && context.NewPrincipal?.Identity is System.Security.Claims.ClaimsIdentity identity
+                    && !identity.HasClaim(c => c.Type == method.Type))
+                {
+                    identity.AddClaim(new System.Security.Claims.Claim(method.Type, method.Value));
+                }
+
+                return Task.CompletedTask;
+            };
+        });
 
         var authentication = services.AddAuthentication(DefaultScheme);
         authentication.AddIdentityCookies();

@@ -3020,11 +3020,14 @@ export interface components {
         };
         SignInSettingsRequest: {
             requireTwoFactorForAdministrators: boolean;
+            requireTwoFactorAfterDiscord: boolean;
             confirmation: null | string;
         };
         SignInSettingsResponse: {
             requireTwoFactorForAdministrators: boolean;
             locked: boolean;
+            requireTwoFactorAfterDiscord: boolean;
+            discordLocked: boolean;
         };
         SopsContentResponse: {
             /** Format: byte */

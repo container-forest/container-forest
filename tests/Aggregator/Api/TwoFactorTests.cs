@@ -173,7 +173,8 @@ public class TwoFactorTests
         await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, root.PutAsJsonAsync("/api/settings/sign-in", new { requireTwoFactorForAdministrators = true }, Ct));
         var confirmation = await ConfirmAsync(root);
         await HttpAssert.StatusAsync(
-            HttpStatusCode.OK, root.PutAsJsonAsync("/api/settings/sign-in", new { requireTwoFactorForAdministrators = true, confirmation }, Ct));
+            HttpStatusCode.OK,
+            root.PutAsJsonAsync("/api/settings/sign-in", new { requireTwoFactorForAdministrators = true, requireTwoFactorAfterDiscord = false, confirmation }, Ct));
 
         var blocked = await root.GetAsync("/api/environments", Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, blocked);
@@ -190,6 +191,110 @@ public class TwoFactorTests
         time.Advance();
         var disable = await root.PostAsJsonAsync("/api/me/two-factor/disable", new { confirmation = await ConfirmAsync(root, Code(await KeyAsync(app, "root"))) }, Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.Conflict, disable);
+    }
+
+    [Fact]
+    public async Task Required_for_administrators_a_password_needs_the_code_even_with_a_passkey()
+    {
+        await using var app = App();
+        await app.CreateUserAsync("root", isAdmin: true);
+        using var authenticator = new FakeAuthenticator();
+        var root = await SignedInAsync(app, "root", origin: true);
+        await AddPasskeyAsync(root, authenticator);
+        await RequireAsync(root, administrators: true, discord: false);
+
+        // A password alone is one factor, passkey or not; the limit lasts across requests (the session keeps its method).
+        var password = await SignedInAsync(app, "root", origin: true);
+        for (var request = 0; request < 3; request++)
+        {
+            await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, password.GetAsync("/api/environments", Ct));
+        }
+
+        var me = await password.GetFromJsonAsync<JsonElement>("/api/me", AggregatorApp.Json, Ct);
+        Assert.True(me.GetProperty("twoFactorSetupRequired").GetBoolean());
+
+        // The passkey is two factors.
+        var passkey = Browser(app, origin: true);
+        var options = await passkey.PostAsync("/api/auth/passkey/options", null, Ct);
+        var credential = authenticator.Get(await options.Content.ReadAsStringAsync(Ct));
+        var login = await passkey.PostAsJsonAsync("/api/auth/passkey/login", new { credential, rememberMe = false }, Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, login);
+        Assert.False((await login.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct)).GetProperty("twoFactorSetupRequired").GetBoolean());
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, passkey.GetAsync("/api/environments", Ct));
+
+        // With a passkey the app may be turned off: the passkey still signs in.
+        var key = await EnableAsync(password);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, password.GetAsync("/api/environments", Ct));
+        time.Advance();
+        var status = await password.GetFromJsonAsync<JsonElement>("/api/me/two-factor", AggregatorApp.Json, Ct);
+        Assert.False(status.GetProperty("required").GetBoolean());
+        var confirmation = await ConfirmAsync(password, Code(key));
+        await HttpAssert.StatusAsync(HttpStatusCode.NoContent, password.PostAsJsonAsync("/api/me/two-factor/disable", new { confirmation }, Ct));
+    }
+
+    [Fact]
+    public async Task Discord_does_not_ask_for_the_code_unless_the_setting_says_so()
+    {
+        await using var app = DiscordSignInTests.DiscordApp(services => services.Replace(ServiceDescriptor.Singleton<TimeProvider>(time)));
+        await DiscordSignInTests.LinkWithCodeAsync(app, AggregatorApp.AdminUserName);
+        var admin = await SignedInAsync(app, AggregatorApp.AdminUserName, AggregatorApp.AdminPassword);
+        var key = await EnableAsync(admin, AggregatorApp.AdminPassword);
+        time.Advance();
+
+        // Off by default: Discord signs in on its own.
+        var plain = Browser(app);
+        Assert.Equal("/stacks", await DiscordSignInTests.DiscordRoundTripAsync(plain, "/api/auth/discord/login?redirect=%2Fstacks"));
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, plain.GetAsync("/api/environments", Ct));
+
+        await RequireAsync(admin, administrators: false, discord: true, AggregatorApp.AdminPassword, Code(key));
+        time.Advance();
+
+        var browser = Browser(app);
+        var next = await DiscordSignInTests.DiscordRoundTripAsync(browser, "/api/auth/discord/login?redirect=%2Fstacks");
+        Assert.Equal("/login?step=code&redirect=%2Fstacks", next);
+        await HttpAssert.StatusAsync(HttpStatusCode.Unauthorized, browser.GetAsync("/api/me", Ct));
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, browser.PostAsJsonAsync("/api/auth/login/two-factor", new { code = Code(key) }, Ct));
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, browser.GetAsync("/api/environments", Ct));
+        Assert.Contains("Discord and an authenticator app", await app.CreateClient().GetStringAsync("/api/audit", Ct), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Discord_counted_as_a_password_limits_an_administrator_without_the_app()
+    {
+        await using var app = DiscordSignInTests.DiscordApp(services => services.Replace(ServiceDescriptor.Singleton<TimeProvider>(time)));
+        await DiscordSignInTests.LinkWithCodeAsync(app, AggregatorApp.AdminUserName);
+        // Through the dev header, which the requirement does not limit: a password session of this administrator would be.
+        var admin = app.CreateClient();
+        await RequireAsync(admin, administrators: true, discord: false, AggregatorApp.AdminPassword);
+
+        var unlimited = Browser(app);
+        await DiscordSignInTests.DiscordRoundTripAsync(unlimited, "/api/auth/discord/login");
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, unlimited.GetAsync("/api/environments", Ct));
+
+        await RequireAsync(admin, administrators: true, discord: true, AggregatorApp.AdminPassword);
+        var limited = Browser(app);
+        await DiscordSignInTests.DiscordRoundTripAsync(limited, "/api/auth/discord/login");
+        await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, limited.GetAsync("/api/environments", Ct));
+    }
+
+    private static async Task RequireAsync(HttpClient browser, bool administrators, bool discord, string password = Password, string? code = null)
+    {
+        var confirmation = await ConfirmAsync(browser, code, password);
+        await HttpAssert.StatusAsync(
+            HttpStatusCode.OK,
+            browser.PutAsJsonAsync(
+                "/api/settings/sign-in",
+                new { requireTwoFactorForAdministrators = administrators, requireTwoFactorAfterDiscord = discord, confirmation },
+                Ct));
+    }
+
+    private static async Task AddPasskeyAsync(HttpClient browser, FakeAuthenticator authenticator)
+    {
+        var options = await browser.PostAsync("/api/me/passkeys/options", null, Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, options);
+        var credential = authenticator.Create(await options.Content.ReadAsStringAsync(Ct));
+        var added = await browser.PostAsJsonAsync("/api/me/passkeys", new { credential, name = "Laptop", confirmation = await ConfirmAsync(browser) }, Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.Created, added);
     }
 
     private AggregatorApp App() => new()
@@ -212,16 +317,16 @@ public class TwoFactorTests
         return (key, codes);
     }
 
-    private async Task<string> EnableAsync(HttpClient browser)
+    private async Task<string> EnableAsync(HttpClient browser, string password = Password)
     {
-        var key = await BeginAsync(browser);
+        var key = await BeginAsync(browser, password);
         await HttpAssert.StatusAsync(HttpStatusCode.OK, browser.PostAsJsonAsync("/api/me/two-factor/enable", new { code = Code(key) }, Ct));
         return key;
     }
 
-    private static async Task<string> BeginAsync(HttpClient browser)
+    private static async Task<string> BeginAsync(HttpClient browser, string password = Password)
     {
-        var setup = await browser.PostAsJsonAsync("/api/me/two-factor/setup", new { confirmation = await ConfirmAsync(browser) }, Ct);
+        var setup = await browser.PostAsJsonAsync("/api/me/two-factor/setup", new { confirmation = await ConfirmAsync(browser, null, password) }, Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.OK, setup);
         var body = await setup.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct);
         Assert.StartsWith("otpauth://totp/container-forest:", body.GetProperty("uri").GetString(), StringComparison.Ordinal);
@@ -236,24 +341,37 @@ public class TwoFactorTests
         return (await accounts.GetAuthenticatorKeyAsync((await accounts.FindByNameAsync(userName))!))!;
     }
 
-    private static async Task<string> ConfirmAsync(HttpClient browser, string? code = null)
+    private static async Task<string> ConfirmAsync(HttpClient browser, string? code = null, string password = Password)
     {
-        var confirmed = await browser.PostAsJsonAsync("/api/auth/confirm/password", new { password = Password, code }, Ct);
+        var confirmed = await browser.PostAsJsonAsync("/api/auth/confirm/password", new { password, code }, Ct);
         await HttpAssert.StatusAsync(HttpStatusCode.OK, confirmed);
         return (await confirmed.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct)).GetProperty("token").GetString()!;
     }
 
-    private static HttpClient Browser(AggregatorApp app) => app.CreateBrowserClient();
-
-    private static async Task<HttpClient> SignedInAsync(AggregatorApp app, string userName)
+    /// <param name="origin">With the Origin header that passkey requests need.</param>
+    private static HttpClient Browser(AggregatorApp app, bool origin = false)
     {
-        var browser = Browser(app);
-        await HttpAssert.StatusAsync(HttpStatusCode.OK, LoginAsync(browser, userName));
+        var browser = app.CreateBrowserClient();
+        if (origin)
+        {
+            browser.DefaultRequestHeaders.Add("Origin", "http://localhost");
+        }
+
         return browser;
     }
 
-    private static Task<HttpResponseMessage> LoginAsync(HttpClient browser, string userName) =>
-        browser.PostAsJsonAsync("/api/auth/login", new { userName, password = Password, rememberMe = false }, Ct);
+    private static async Task<HttpClient> SignedInAsync(AggregatorApp app, string userName, string password = Password, bool origin = false)
+    {
+        var browser = Browser(app, origin);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, LoginAsync(browser, userName, password));
+        return browser;
+    }
+
+    private static async Task<HttpClient> SignedInAsync(AggregatorApp app, string userName, bool origin) =>
+        await SignedInAsync(app, userName, Password, origin);
+
+    private static Task<HttpResponseMessage> LoginAsync(HttpClient browser, string userName, string password = Password) =>
+        browser.PostAsJsonAsync("/api/auth/login", new { userName, password, rememberMe = false }, Ct);
 
     /// <summary>The real clock, moved forward by the test: a code can be used once per 30-second step.</summary>
     private sealed class MovableTime : TimeProvider

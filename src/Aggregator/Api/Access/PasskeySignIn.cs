@@ -64,7 +64,7 @@ internal sealed class PasskeySignIn(SignInManager<AccountUser> signInManager, IU
             return null;
         }
 
-        await signInManager.SignInAsync(assertion.User, isPersistent: rememberMe, authenticationMethod: "passkey");
+        await signInManager.SignInAsync(assertion.User, isPersistent: rememberMe, authenticationMethod: SignInMethods.Passkey);
         await PasswordSignIn.RecordSignInAsync(audit, user, "Passkey", cancellationToken);
         return user;
     }

@@ -18,9 +18,9 @@ internal enum SecondFactor
 }
 
 /// <summary>
-/// The second step of a password sign-in for an account with two-factor authentication (ADR-0019). The password step
-/// leaves its result in the <c>cf_2fa</c> cookie: the user, their security stamp and <i>Remember me</i>, protected with
-/// Data Protection, for <see cref="Lifetime"/>. Identity's own two-factor cookie is not used: it also carries the
+/// The second step of a password sign-in for an account with two-factor authentication (ADR-0019), and of a Discord
+/// sign-in when it counts as a password. The first step leaves its result in the <c>cf_2fa</c> cookie: the user, their
+/// security stamp, <i>Remember me</i> and the first factor, protected with Data Protection, for <see cref="Lifetime"/>. Identity's own two-factor cookie is not used: it also carries the
 /// challenge of a passkey sign-in (ADR-0009), and the sign-in screen asks for one as soon as it opens.
 /// </summary>
 internal sealed class TwoFactorSignIn(
@@ -40,13 +40,14 @@ internal sealed class TwoFactorSignIn(
 
     private HttpContext Http => httpContext.HttpContext ?? throw new InvalidOperationException("No request.");
 
-    /// <summary>Remembers that the password of <paramref name="account"/> was right; the code comes next.</summary>
-    public async Task BeginAsync(AccountUser account, bool rememberMe)
+    /// <summary>Remembers that the first factor of <paramref name="account"/> was right; the code comes next.</summary>
+    /// <param name="firstFactor"><see cref="SignInMethods.Password"/> or <see cref="SignInMethods.Discord"/>, for the audit log.</param>
+    public async Task BeginAsync(AccountUser account, bool rememberMe, string firstFactor)
     {
         var stamp = await Accounts.GetSecurityStampAsync(account);
         var expires = time.GetUtcNow() + Lifetime;
         var payload = string.Create(
-            CultureInfo.InvariantCulture, $"{account.Id}|{stamp}|{(rememberMe ? 1 : 0)}|{expires.ToUnixTimeSeconds()}");
+            CultureInfo.InvariantCulture, $"{account.Id}|{stamp}|{(rememberMe ? 1 : 0)}|{expires.ToUnixTimeSeconds()}|{firstFactor}");
         Http.Response.Cookies.Append(CookieName, protector.Protect(SecretPurpose.TwoFactorSignIn, payload), CookieOptions(expires));
     }
 
@@ -60,7 +61,7 @@ internal sealed class TwoFactorSignIn(
     /// </returns>
     public async Task<User?> CompleteAsync(string code, CancellationToken cancellationToken)
     {
-        if (await PendingAsync() is not var (account, rememberMe))
+        if (await PendingAsync() is not var (account, rememberMe, firstFactor))
         {
             return null;
         }
@@ -82,10 +83,11 @@ internal sealed class TwoFactorSignIn(
 
         Http.Response.Cookies.Delete(CookieName, CookieOptions(time.GetUtcNow()));
         await Accounts.ResetAccessFailedCountAsync(account);
-        await signInManager.SignInAsync(account, isPersistent: rememberMe, authenticationMethod: "mfa");
+        await signInManager.SignInAsync(account, isPersistent: rememberMe, authenticationMethod: SignInMethods.TwoFactor);
+        var first = firstFactor == SignInMethods.Discord ? "Discord" : "Password";
         var details = factor == SecondFactor.RecoveryCode
-            ? $"Password and a recovery code; {await Accounts.CountRecoveryCodesAsync(account)} left"
-            : "Password and an authenticator app";
+            ? $"{first} and a recovery code; {await Accounts.CountRecoveryCodesAsync(account)} left"
+            : $"{first} and an authenticator app";
         await PasswordSignIn.RecordSignInAsync(audit, user, details, cancellationToken);
         return user;
     }
@@ -106,7 +108,7 @@ internal sealed class TwoFactorSignIn(
             : null;
     }
 
-    private async Task<(AccountUser Account, bool RememberMe)?> PendingAsync()
+    private async Task<(AccountUser Account, bool RememberMe, string FirstFactor)?> PendingAsync()
     {
         if (!Http.Request.Cookies.TryGetValue(CookieName, out var cookie) || string.IsNullOrEmpty(cookie))
         {
@@ -124,7 +126,7 @@ internal sealed class TwoFactorSignIn(
         }
 
         var parts = payload.Split('|');
-        if (parts.Length != 4
+        if (parts.Length != 5
             || !long.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out var expires)
             || time.GetUtcNow().ToUnixTimeSeconds() >= expires
             || await Accounts.FindByIdAsync(parts[0]) is not { TwoFactorEnabled: true } account
@@ -134,7 +136,7 @@ internal sealed class TwoFactorSignIn(
             return null;
         }
 
-        return (account, parts[2] == "1");
+        return (account, parts[2] == "1", parts[4]);
     }
 
     private CookieOptions CookieOptions(DateTimeOffset expires) => new()

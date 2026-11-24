@@ -25,7 +25,7 @@ internal static class PasskeyEndpoints
                 var user = await signIn.SignInAsync(request.Credential, request.RememberMe, ct);
                 return user is null
                     ? TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Unauthorized", detail: "The passkey was not accepted.")
-                    : TypedResults.Ok(await me.DescribeAsync(user, ct));
+                    : TypedResults.Ok(await me.DescribeAsync(user, ct, SignInMethods.Passkey));
             })
             .WithName("PasskeyLogin")
             .ProducesProblem(StatusCodes.Status401Unauthorized);

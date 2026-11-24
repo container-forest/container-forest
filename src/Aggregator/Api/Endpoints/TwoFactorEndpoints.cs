@@ -80,7 +80,8 @@ internal static class TwoFactorEndpoints
             .WithName("GetSignInSettings");
 
         settings.MapPut("/", async (SignInSettingsRequest request, SignInSettingsService service, CancellationToken ct) =>
-                ToResponse(await service.UpdateAsync(request.RequireTwoFactorForAdministrators, request.Confirmation, ct)))
+                ToResponse(await service.UpdateAsync(
+                    new SignInSettings(request.RequireTwoFactorForAdministrators, request.RequireTwoFactorAfterDiscord), request.Confirmation, ct)))
             .WithName("UpdateSignInSettings")
             .ProducesProblem(StatusCodes.Status400BadRequest);
 
@@ -92,7 +93,8 @@ internal static class TwoFactorEndpoints
 
     private static SignInSettingsResponse ToResponse(Application.Settings.ResolvedSettings settings)
     {
-        var field = settings[SignInSettingsSection.RequireTwoFactorForAdministratorsField];
-        return new SignInSettingsResponse(field.Value == "true", field.IsLocked);
+        var administrators = settings[SignInSettingsSection.RequireTwoFactorForAdministratorsField];
+        var discord = settings[SignInSettingsSection.RequireTwoFactorAfterDiscordField];
+        return new SignInSettingsResponse(administrators.Value == "true", administrators.IsLocked, discord.Value == "true", discord.IsLocked);
     }
 }

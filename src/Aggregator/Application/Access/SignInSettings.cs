@@ -8,12 +8,14 @@ using ContainerForest.Aggregator.Domain.Notifications;
 namespace ContainerForest.Aggregator.Application.Access;
 
 /// <summary>
-/// How people sign in (ADR-0019), set from the panel or with <c>CF_SIGNIN__REQUIRETWOFACTORFORADMINISTRATORS</c>.
+/// How people sign in (ADR-0019), set from the panel or with <c>CF_SIGNIN__REQUIRETWOFACTORFORADMINISTRATORS</c> and
+/// <c>CF_SIGNIN__REQUIRETWOFACTORAFTERDISCORD</c>.
 /// </summary>
 public sealed class SignInSettingsSection : SettingsSection
 {
     public const string SectionName = "SignIn";
     public const string RequireTwoFactorForAdministratorsField = "RequireTwoFactorForAdministrators";
+    public const string RequireTwoFactorAfterDiscordField = "RequireTwoFactorAfterDiscord";
 
     public static readonly SignInSettingsSection Instance = new();
 
@@ -22,6 +24,7 @@ public sealed class SignInSettingsSection : SettingsSection
     public override IReadOnlyList<SettingField> Fields { get; } =
     [
         new(RequireTwoFactorForAdministratorsField, Default: "false", Normalize: NormalizeFlag),
+        new(RequireTwoFactorAfterDiscordField, Default: "false", Normalize: NormalizeFlag),
     ];
 
     private static string NormalizeFlag(string value) =>
@@ -32,12 +35,18 @@ public sealed class SignInSettingsSection : SettingsSection
 
 /// <summary>The typed view of <see cref="SignInSettingsSection"/>.</summary>
 /// <param name="RequireTwoFactorForAdministrators">
-/// An administrator with neither an authenticator app nor a passkey gets a session that can only set one up.
+/// An administrator who signed in with a password alone (or through Discord, with <paramref name="RequireTwoFactorAfterDiscord"/>)
+/// gets a session that can only set up an authenticator app. A passkey sign-in is two factors already.
 /// </param>
-public sealed record SignInSettings(bool RequireTwoFactorForAdministrators)
+/// <param name="RequireTwoFactorAfterDiscord">
+/// A Discord sign-in counts as a password: an account with an authenticator app is asked for its code. Off by default:
+/// Discord's own two-factor protects the account.
+/// </param>
+public sealed record SignInSettings(bool RequireTwoFactorForAdministrators, bool RequireTwoFactorAfterDiscord = false)
 {
-    public static SignInSettings From(ResolvedSettings settings) =>
-        new(settings[SignInSettingsSection.RequireTwoFactorForAdministratorsField].Value == "true");
+    public static SignInSettings From(ResolvedSettings settings) => new(
+        settings[SignInSettingsSection.RequireTwoFactorForAdministratorsField].Value == "true",
+        settings[SignInSettingsSection.RequireTwoFactorAfterDiscordField].Value == "true");
 }
 
 /// <summary>
@@ -64,23 +73,27 @@ public sealed class SignInSettingsService(
     }
 
     /// <exception cref="IdentityConfirmationRequiredException">The confirmation is missing or not valid.</exception>
-    public Task<ResolvedSettings> UpdateAsync(bool requireTwoFactorForAdministrators, string? confirmation, CancellationToken cancellationToken)
+    public Task<ResolvedSettings> UpdateAsync(SignInSettings settings, string? confirmation, CancellationToken cancellationToken)
     {
         var draft = new AuditDraft(AuditAction.SettingsChanged, new SettingsAuditTarget(Section.Name));
         return audit.RunAsync(draft, async () =>
         {
             var actor = await currentActor.GetAdministratorAsync(cancellationToken);
             confirmations.Require(confirmation, actor.Id);
-            var value = requireTwoFactorForAdministrators ? "true" : "false";
-            var changed = await store.SaveAsync(
-                Section, new Dictionary<string, string?> { [SignInSettingsSection.RequireTwoFactorForAdministratorsField] = value }, cancellationToken);
+            var changes = new Dictionary<string, string?>
+            {
+                [SignInSettingsSection.RequireTwoFactorForAdministratorsField] = settings.RequireTwoFactorForAdministrators ? "true" : "false",
+                [SignInSettingsSection.RequireTwoFactorAfterDiscordField] = settings.RequireTwoFactorAfterDiscord ? "true" : "false",
+            };
+            var changed = await store.SaveAsync(Section, changes, cancellationToken);
             draft.Details = changed.Count > 0 ? $"Changed: {string.Join(", ", changed)}" : "Nothing changed";
             if (changed.Count > 0)
             {
                 await notifier.NotifyAsync(
                     NotificationEventKinds.AccountSecurityChanged,
-                    $"Two-factor authentication for administrators is {(requireTwoFactorForAdministrators ? "required" : "no longer required")}, " +
-                    $"changed by {actor.User.UserName}");
+                    $"Sign-in settings changed by {actor.User.UserName}: " +
+                    $"two-factor for administrators {(settings.RequireTwoFactorForAdministrators ? "required" : "not required")}, " +
+                    $"code after Discord {(settings.RequireTwoFactorAfterDiscord ? "required" : "not required")}");
             }
 
             return await store.ResolveAsync(Section, cancellationToken);

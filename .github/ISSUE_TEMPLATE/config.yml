@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/lepterion/container-forest/security/advisories/new
+    url: https://github.com/container-forest/container-forest/security/advisories/new
     about: Report it privately, not in a public issue.
   - name: Documentation
-    url: https://lepterion.github.io/container-forest/
+    url: https://container-forest.github.io/container-forest/
     about: Installation, configuration and design docs.

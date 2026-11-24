@@ -30,7 +30,7 @@ RUN /tmp/install-sops.sh /tools "$TARGETARCH"
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 LABEL org.opencontainers.image.title="container-forest-aggregator" \
-      org.opencontainers.image.source="https://github.com/lepterion/container-forest"
+      org.opencontainers.image.source="https://github.com/container-forest/container-forest"
 
 # The content root must be the application directory, or appsettings.json is not found.
 WORKDIR /app

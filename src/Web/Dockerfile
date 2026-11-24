@@ -15,7 +15,7 @@ RUN npm run build
 # TLS certificate itself.
 FROM caddy:2-alpine
 LABEL org.opencontainers.image.title="container-forest-web" \
-      org.opencontainers.image.source="https://github.com/lepterion/container-forest"
+      org.opencontainers.image.source="https://github.com/container-forest/container-forest"
 COPY src/Web/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /repo/src/Web/dist /srv
 # Plain HTTP on 8080 unless CF_SITE_ADDRESS names a domain (then 80 and 443); variables and defaults are in the Caddyfile.

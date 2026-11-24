@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.1](https://github.com/container-forest/container-forest/compare/v0.11.0...v0.11.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **deploy:** publish images as ghcr.io/container-forest/&lt;name&gt; ([92975cf](https://github.com/container-forest/container-forest/commit/92975cf8db1bd45e0cb5e95b203912681486498b))
+* **deploy:** publish images as ghcr.io/container-forest/&lt;name&gt; ([d169542](https://github.com/container-forest/container-forest/commit/d169542260efc858400c6b31abbf21cfde49380e))
+
 ## [0.11.0](https://github.com/container-forest/container-forest/compare/v0.10.1...v0.11.0) (2026-11-24)
 
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.0](https://github.com/container-forest/container-forest/compare/v0.10.1...v0.11.0) (2026-11-24)
+
+
+### Features
+
+* require the code with an administrator's password, Discord optional ([ee0a8a5](https://github.com/container-forest/container-forest/commit/ee0a8a57764b800e9915b08623b6bac970969909))
+* roll back a stack to a commit it deployed before ([e07486e](https://github.com/container-forest/container-forest/commit/e07486e25555d09df47504bfd0052ee7161ca994))
+* roll back a stack to a commit it deployed before ([857ee38](https://github.com/container-forest/container-forest/commit/857ee3821a5e4ca1c9831099cb9a95593b79f44e))
+* two-factor authentication with an authenticator app ([c2547da](https://github.com/container-forest/container-forest/commit/c2547dabd291dfbbd29817704444df3e10bac10c))
+* two-factor authentication with an authenticator app ([4d42a73](https://github.com/container-forest/container-forest/commit/4d42a738b786485f04f30d08dfcef3b1e7b0f472))
+
 ## [0.10.1](https://github.com/lepterion/container-forest/compare/v0.10.0...v0.10.1) (2026-11-23)
 
 

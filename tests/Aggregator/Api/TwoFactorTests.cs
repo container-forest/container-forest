@@ -277,15 +277,43 @@ public class TwoFactorTests
         await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, limited.GetAsync("/api/environments", Ct));
     }
 
-    private static async Task RequireAsync(HttpClient browser, bool administrators, bool discord, string password = Password, string? code = null)
+    [Fact]
+    public async Task Required_for_all_users_limits_anyone_signed_in_with_a_password_alone()
+    {
+        await using var app = App();
+        await app.CreateUserAsync("alice", isAdmin: false);
+        var alice = await SignedInAsync(app, "alice");
+
+        // Required for administrators only: alice is not one.
+        await RequireAsync(app.CreateClient(), administrators: true, discord: false, AggregatorApp.AdminPassword);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, alice.GetAsync("/api/environments", Ct));
+
+        await RequireAsync(app.CreateClient(), administrators: false, discord: false, AggregatorApp.AdminPassword, allUsers: true);
+        var blocked = await alice.GetAsync("/api/environments", Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.Forbidden, blocked);
+        Assert.Contains("TwoFactorSetupRequired", await blocked.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
+        var status = await alice.GetFromJsonAsync<JsonElement>("/api/me/two-factor", AggregatorApp.Json, Ct);
+        Assert.True(status.GetProperty("required").GetBoolean());
+
+        var key = await EnableAsync(alice);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, alice.GetAsync("/api/environments", Ct));
+        time.Advance();
+        var signedIn = Browser(app);
+        await HttpAssert.StatusAsync(HttpStatusCode.Accepted, LoginAsync(signedIn, "alice"));
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, signedIn.PostAsJsonAsync("/api/auth/login/two-factor", new { code = Code(key) }, Ct));
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, signedIn.GetAsync("/api/environments", Ct));
+    }
+
+    private static async Task RequireAsync(
+        HttpClient browser, bool administrators, bool discord, string password = Password, string? code = null, bool allUsers = false)
     {
         var confirmation = await ConfirmAsync(browser, code, password);
-        await HttpAssert.StatusAsync(
-            HttpStatusCode.OK,
-            browser.PutAsJsonAsync(
-                "/api/settings/sign-in",
-                new { requireTwoFactorForAdministrators = administrators, requireTwoFactorAfterDiscord = discord, confirmation },
-                Ct));
+        var updated = await browser.PutAsJsonAsync(
+            "/api/settings/sign-in",
+            new { requireTwoFactorForAdministrators = administrators, requireTwoFactorAfterDiscord = discord, requireTwoFactorForAllUsers = allUsers, confirmation },
+            Ct);
+        await HttpAssert.StatusAsync(HttpStatusCode.OK, updated);
+        Assert.Equal(allUsers, (await updated.Content.ReadFromJsonAsync<JsonElement>(AggregatorApp.Json, Ct)).GetProperty("requireTwoFactorForAllUsers").GetBoolean());
     }
 
     private static async Task AddPasskeyAsync(HttpClient browser, FakeAuthenticator authenticator)

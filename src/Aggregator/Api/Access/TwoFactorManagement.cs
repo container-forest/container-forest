@@ -116,7 +116,7 @@ internal sealed class TwoFactorManagement(
             if (await IsRequiredAsync(user, account, cancellationToken))
             {
                 throw new DomainConflictException(
-                    "Administrators must use an authenticator app with their password; add a passkey first to turn it off.");
+                    "The system requires an authenticator app with a password; add a passkey first to turn it off.");
             }
 
             await DisableAsync(account);
@@ -152,7 +152,7 @@ internal sealed class TwoFactorManagement(
         await Accounts.FindByIdAsync(userId.Value.ToString()) is { TwoFactorEnabled: true };
 
     /// <summary>
-    /// True when the system requires two-factor of administrators and this administrator's session was signed in with
+    /// True when the system requires two-factor of this user (every user, or administrators) and their session was signed in with
     /// one factor: a password alone or, when Discord counts as a password, Discord without the code. Such a session may
     /// only set up the app (<see cref="TwoFactorEnrollment"/>). A passkey sign-in is two factors; so is a password with
     /// the code.
@@ -160,13 +160,13 @@ internal sealed class TwoFactorManagement(
     /// <param name="method">How the session was signed in (<see cref="SignInMethods"/>); null for a request without a session.</param>
     public async Task<bool> RequiresSetupAsync(User user, string? method, CancellationToken cancellationToken)
     {
-        if (method is null or SignInMethods.TwoFactor or SignInMethods.Passkey || !user.IsAdmin)
+        if (method is null or SignInMethods.TwoFactor or SignInMethods.Passkey)
         {
             return false;
         }
 
         var current = await settings.CurrentAsync(cancellationToken);
-        if (!current.RequireTwoFactorForAdministrators || (method == SignInMethods.Discord && !current.RequireTwoFactorAfterDiscord))
+        if (!current.RequiresTwoFactorOf(user) || (method == SignInMethods.Discord && !current.RequireTwoFactorAfterDiscord))
         {
             return false;
         }
@@ -188,12 +188,11 @@ internal sealed class TwoFactorManagement(
         await IsRequiredAsync(user, account, cancellationToken));
 
     /// <summary>
-    /// An administrator under the requirement who has no passkey: without the app they could only sign in to a limited
+    /// A user under the requirement who has no passkey: without the app they could only sign in to a limited
     /// session, so the app cannot be turned off. With a passkey they can, and then sign in with the passkey.
     /// </summary>
     private async Task<bool> IsRequiredAsync(User user, AccountUser account, CancellationToken cancellationToken) =>
-        user.IsAdmin
-        && (await settings.CurrentAsync(cancellationToken)).RequireTwoFactorForAdministrators
+        (await settings.CurrentAsync(cancellationToken)).RequiresTwoFactorOf(user)
         && (await Accounts.GetPasskeysAsync(account)).Count == 0;
 
     private async Task<IReadOnlyList<string>> NewRecoveryCodesAsync(AccountUser account) =>

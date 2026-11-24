@@ -12,11 +12,12 @@ import { describeError } from "@/features/stacks/model";
 
 interface SignInSettings {
   requireTwoFactorForAdministrators: boolean;
+  requireTwoFactorForAllUsers: boolean;
   requireTwoFactorAfterDiscord: boolean;
 }
 
 /**
- * How people sign in (ADR-0019): whether an administrator's password needs the app's code, and whether a Discord
+ * How people sign in (ADR-0019): whether a password needs the app's code (of administrators, or of everyone), and whether a Discord
  * sign-in counts as a password. A change asks for a fresh confirmation; a value set in the aggregator's environment is
  * shown locked.
  */
@@ -36,6 +37,7 @@ export function SignInSettingsCard() {
     update.reset();
     setPending({
       requireTwoFactorForAdministrators: shown.requireTwoFactorForAdministrators,
+      requireTwoFactorForAllUsers: shown.requireTwoFactorForAllUsers,
       requireTwoFactorAfterDiscord: shown.requireTwoFactorAfterDiscord,
       ...next,
     });
@@ -60,6 +62,20 @@ export function SignInSettingsCard() {
           </div>
           <p className="text-muted-foreground text-sm">
             {settings.data.locked ? t("signInSettings.locked", { name: "CF_SIGNIN__REQUIRETWOFACTORFORADMINISTRATORS" }) : t("signInSettings.requireHint")}
+          </p>
+        </div>
+        <div className="grid gap-2">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="require-two-factor-all"
+              checked={shown.requireTwoFactorForAllUsers}
+              disabled={settings.data.allUsersLocked || update.isPending}
+              onCheckedChange={(next) => change({ requireTwoFactorForAllUsers: next })}
+            />
+            <Label htmlFor="require-two-factor-all">{t("signInSettings.allUsersLabel")}</Label>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            {settings.data.allUsersLocked ? t("signInSettings.locked", { name: "CF_SIGNIN__REQUIRETWOFACTORFORALLUSERS" }) : t("signInSettings.allUsersHint")}
           </p>
         </div>
         <div className="grid gap-2">

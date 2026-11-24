@@ -63,12 +63,17 @@ export function useResetUserTwoFactorMutation(userId: string) {
   });
 }
 
-/** Saves whether administrators must have two-factor; the request carries a fresh identity confirmation. */
+/** Saves who must have two-factor and whether Discord counts as a password; the request carries a fresh identity confirmation. */
 export function useUpdateSignInSettingsMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (body: { requireTwoFactorForAdministrators: boolean; requireTwoFactorAfterDiscord: boolean; confirmation: string }) =>
+    mutationFn: async (body: {
+      requireTwoFactorForAdministrators: boolean;
+      requireTwoFactorForAllUsers: boolean;
+      requireTwoFactorAfterDiscord: boolean;
+      confirmation: string;
+    }) =>
       unwrap(await api.PUT("/api/settings/sign-in", { body })),
     onSuccess: (settings) => {
       queryClient.setQueryData(signInSettingsQuery.queryKey, settings);

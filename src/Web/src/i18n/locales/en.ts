@@ -885,8 +885,8 @@ const en = {
     setUp: "Set up an authenticator app",
     newCodes: "New recovery codes",
     disable: "Turn off",
-    requiredHint: "Administrators must have it to sign in with a password; add a passkey to be able to turn it off.",
-    requiredNotice: "Administrators must enter the code of an authenticator app after the password. Set up the app, or sign out and sign in with a passkey.",
+    requiredHint: "It's required to sign in with a password; add a passkey to be able to turn it off.",
+    requiredNotice: "Signing in with a password needs the code of an authenticator app here. Set up the app, or sign out and sign in with a passkey.",
     confirm: "Two-factor authentication changes how you sign in.",
     confirmDisable: "Turning two-factor off lets your password alone sign you in.",
     failed: "That didn't work.",
@@ -926,9 +926,11 @@ const en = {
     requireLabel: "Require two-factor authentication for administrators",
     requireHint:
       "An administrator's password must come with the code of an authenticator app; one who signs in with a password alone can only set the app up. A passkey signs in without a code. API tokens and the bot are not affected.",
+    allUsersLabel: "Require two-factor authentication for all users",
+    allUsersHint: "The same for everyone, administrator or not: a password alone gives a session that can only set up the app.",
     discordLabel: "Ask for the code after Discord sign-in",
     discordHint:
-      "Discord counts as a password: an account with an authenticator app enters its code, and the requirement for administrators covers Discord too. Off: Discord's own two-factor protects the account.",
+      "Discord counts as a password: an account with an authenticator app enters its code, and the requirements above cover Discord too. Off: Discord's own two-factor protects the account.",
     locked: "Set in the aggregator's environment ({{name}}); it can't be changed here.",
     confirm: "This changes sign-in for every administrator.",
     failed: "Could not save the setting.",

@@ -9,13 +9,14 @@ namespace ContainerForest.Aggregator.Application.Access;
 
 /// <summary>
 /// How people sign in (ADR-0019), set from the panel or with <c>CF_SIGNIN__REQUIRETWOFACTORFORADMINISTRATORS</c> and
-/// <c>CF_SIGNIN__REQUIRETWOFACTORAFTERDISCORD</c>.
+/// <c>CF_SIGNIN__REQUIRETWOFACTORAFTERDISCORD</c>, <c>CF_SIGNIN__REQUIRETWOFACTORFORALLUSERS</c>.
 /// </summary>
 public sealed class SignInSettingsSection : SettingsSection
 {
     public const string SectionName = "SignIn";
     public const string RequireTwoFactorForAdministratorsField = "RequireTwoFactorForAdministrators";
     public const string RequireTwoFactorAfterDiscordField = "RequireTwoFactorAfterDiscord";
+    public const string RequireTwoFactorForAllUsersField = "RequireTwoFactorForAllUsers";
 
     public static readonly SignInSettingsSection Instance = new();
 
@@ -25,6 +26,7 @@ public sealed class SignInSettingsSection : SettingsSection
     [
         new(RequireTwoFactorForAdministratorsField, Default: "false", Normalize: NormalizeFlag),
         new(RequireTwoFactorAfterDiscordField, Default: "false", Normalize: NormalizeFlag),
+        new(RequireTwoFactorForAllUsersField, Default: "false", Normalize: NormalizeFlag),
     ];
 
     private static string NormalizeFlag(string value) =>
@@ -42,11 +44,18 @@ public sealed class SignInSettingsSection : SettingsSection
 /// A Discord sign-in counts as a password: an account with an authenticator app is asked for its code. Off by default:
 /// Discord's own two-factor protects the account.
 /// </param>
-public sealed record SignInSettings(bool RequireTwoFactorForAdministrators, bool RequireTwoFactorAfterDiscord = false)
+/// <param name="RequireTwoFactorForAllUsers">The same requirement for every user, administrator or not.</param>
+public sealed record SignInSettings(
+    bool RequireTwoFactorForAdministrators, bool RequireTwoFactorAfterDiscord = false, bool RequireTwoFactorForAllUsers = false)
 {
     public static SignInSettings From(ResolvedSettings settings) => new(
         settings[SignInSettingsSection.RequireTwoFactorForAdministratorsField].Value == "true",
-        settings[SignInSettingsSection.RequireTwoFactorAfterDiscordField].Value == "true");
+        settings[SignInSettingsSection.RequireTwoFactorAfterDiscordField].Value == "true",
+        settings[SignInSettingsSection.RequireTwoFactorForAllUsersField].Value == "true");
+
+    /// <summary>Whether the requirement covers this user: every user, or administrators.</summary>
+    public bool RequiresTwoFactorOf(Domain.Access.User user) =>
+        RequireTwoFactorForAllUsers || (RequireTwoFactorForAdministrators && user.IsAdmin);
 }
 
 /// <summary>
@@ -84,6 +93,7 @@ public sealed class SignInSettingsService(
             {
                 [SignInSettingsSection.RequireTwoFactorForAdministratorsField] = settings.RequireTwoFactorForAdministrators ? "true" : "false",
                 [SignInSettingsSection.RequireTwoFactorAfterDiscordField] = settings.RequireTwoFactorAfterDiscord ? "true" : "false",
+                [SignInSettingsSection.RequireTwoFactorForAllUsersField] = settings.RequireTwoFactorForAllUsers ? "true" : "false",
             };
             var changed = await store.SaveAsync(Section, changes, cancellationToken);
             draft.Details = changed.Count > 0 ? $"Changed: {string.Join(", ", changed)}" : "Nothing changed";
@@ -93,6 +103,7 @@ public sealed class SignInSettingsService(
                     NotificationEventKinds.AccountSecurityChanged,
                     $"Sign-in settings changed by {actor.User.UserName}: " +
                     $"two-factor for administrators {(settings.RequireTwoFactorForAdministrators ? "required" : "not required")}, " +
+                    $"for all users {(settings.RequireTwoFactorForAllUsers ? "required" : "not required")}, " +
                     $"code after Discord {(settings.RequireTwoFactorAfterDiscord ? "required" : "not required")}");
             }
 

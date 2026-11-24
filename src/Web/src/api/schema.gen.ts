@@ -3022,12 +3022,16 @@ export interface components {
             requireTwoFactorForAdministrators: boolean;
             requireTwoFactorAfterDiscord: boolean;
             confirmation: null | string;
+            /** @default false */
+            requireTwoFactorForAllUsers: boolean;
         };
         SignInSettingsResponse: {
             requireTwoFactorForAdministrators: boolean;
             locked: boolean;
             requireTwoFactorAfterDiscord: boolean;
             discordLocked: boolean;
+            requireTwoFactorForAllUsers: boolean;
+            allUsersLocked: boolean;
         };
         SopsContentResponse: {
             /** Format: byte */

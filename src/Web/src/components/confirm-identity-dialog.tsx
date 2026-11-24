@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useConfirmWithPasskeyMutation, useConfirmWithPasswordMutation } from "@/api/backup";
 import { hasStatus } from "@/api/client";
+import { meQuery } from "@/api/queries";
 import { ErrorText } from "@/components/form-messages";
 import { Loader2Icon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -28,6 +30,9 @@ export function ConfirmIdentityDialog({
 }) {
   const { t } = useTranslation();
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  // With two-factor on, a password alone confirms nothing: the code of the app goes with it (ADR-0019).
+  const needsCode = useQuery(meQuery).data?.twoFactorEnabled === true;
   const withPassword = useConfirmWithPasswordMutation();
   const withPasskey = useConfirmWithPasskeyMutation();
   const pending = withPassword.isPending || withPasskey.isPending;
@@ -36,6 +41,7 @@ export function ConfirmIdentityDialog({
   const change = (next: boolean) => {
     if (!next) {
       setPassword("");
+      setCode("");
       withPassword.reset();
       withPasskey.reset();
     }
@@ -51,7 +57,7 @@ export function ConfirmIdentityDialog({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     withPasskey.reset();
-    withPassword.mutate(password, { onSuccess: confirmed });
+    withPassword.mutate({ password, code: needsCode ? code : undefined }, { onSuccess: confirmed });
   };
 
   return (
@@ -72,6 +78,19 @@ export function ConfirmIdentityDialog({
               onChange={(event) => setPassword(event.target.value)}
             />
           </div>
+          {needsCode && (
+            <div className="grid gap-2">
+              <Label htmlFor="confirm-code">{t("twoFactor.code")}</Label>
+              <Input
+                id="confirm-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={7}
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+              />
+            </div>
+          )}
           {error &&
             (hasStatus(error, 429) ? (
               <ErrorText>{t("login.errors.tooManyAttempts")}</ErrorText>
@@ -93,7 +112,7 @@ export function ConfirmIdentityDialog({
                 {t("backup.confirm.passkey")}
               </Button>
             )}
-            <Button type="submit" disabled={pending || password.length === 0}>
+            <Button type="submit" disabled={pending || password.length === 0 || (needsCode && code.trim().length === 0)}>
               {withPassword.isPending && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
               {t("backup.confirm.submit")}
             </Button>

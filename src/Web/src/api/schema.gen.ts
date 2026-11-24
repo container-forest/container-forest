@@ -20,6 +20,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/users/{id}/two-factor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["ResetUserTwoFactor"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/audit": {
         parameters: {
             query?: never;
@@ -158,6 +174,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["Login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/login/two-factor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["LoginTwoFactor"];
         delete?: never;
         options?: never;
         head?: never;
@@ -335,6 +367,102 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["RemoveUserPasskey"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/two-factor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetTwoFactor"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/two-factor/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["BeginTwoFactorSetup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/two-factor/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["EnableTwoFactor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/two-factor/recovery-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RegenerateRecoveryCodes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/two-factor/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["DisableTwoFactor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/sign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetSignInSettings"];
+        put: operations["UpdateSignInSettings"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1967,7 +2095,7 @@ export interface components {
             secrets: boolean;
         };
         /** @enum {unknown} */
-        AuditAction: "SignedIn" | "SignInFailed" | "SignedOut" | "PasswordChanged" | "DiscordLinked" | "DiscordUnlinked" | "UserCreated" | "UserRenamed" | "UserDeactivated" | "UserActivated" | "AdminGranted" | "AdminRevoked" | "PasswordReset" | "UserUnlocked" | "RoleGranted" | "RoleChanged" | "RoleRevoked" | "ApiTokenCreated" | "ApiTokenRevoked" | "SigningKeyAdded" | "SigningKeyChanged" | "SigningKeyRemoved" | "EnvironmentCreated" | "EnvironmentUpdated" | "ComposePolicyChanged" | "EnvironmentRemoved" | "EnrollmentTokenIssued" | "AgentRevoked" | "StackCreated" | "StackRemoved" | "StackSourceChanged" | "DeployHookCreated" | "DeployHookRemoved" | "StackRestarted" | "StackTakenDown" | "StackEndorsementChanged" | "StackPolicyAllowancesChanged" | "StackPolicyUnrestrictedChanged" | "StackHoldReleased" | "ImagePolicyAdded" | "ImagePolicyChanged" | "ImagePolicyRemoved" | "ImagePinned" | "ImageUnpinned" | "ImageHookCreated" | "ImageHookRemoved" | "UnmanagedStackStarted" | "UnmanagedStackPulled" | "UnmanagedStackRestarted" | "UnmanagedStackTakenDown" | "DeploymentQueued" | "ContainerStarted" | "ContainerStopped" | "ContainerRestarted" | "ContainerRemoved" | "SecretsDecrypted" | "IdentityConfirmed" | "SettingsChanged" | "BackupRequested" | "GitPushCredentialChanged" | "AggregatorSigningKeyRotated";
+        AuditAction: "SignedIn" | "SignInFailed" | "SignedOut" | "PasswordChanged" | "DiscordLinked" | "DiscordUnlinked" | "TwoFactorEnabled" | "TwoFactorDisabled" | "RecoveryCodesGenerated" | "UserCreated" | "UserRenamed" | "UserDeactivated" | "UserActivated" | "AdminGranted" | "AdminRevoked" | "PasswordReset" | "UserUnlocked" | "TwoFactorReset" | "RoleGranted" | "RoleChanged" | "RoleRevoked" | "ApiTokenCreated" | "ApiTokenRevoked" | "SigningKeyAdded" | "SigningKeyChanged" | "SigningKeyRemoved" | "EnvironmentCreated" | "EnvironmentUpdated" | "ComposePolicyChanged" | "EnvironmentRemoved" | "EnrollmentTokenIssued" | "AgentRevoked" | "StackCreated" | "StackRemoved" | "StackSourceChanged" | "DeployHookCreated" | "DeployHookRemoved" | "StackRestarted" | "StackTakenDown" | "StackEndorsementChanged" | "StackPolicyAllowancesChanged" | "StackPolicyUnrestrictedChanged" | "StackHoldReleased" | "ImagePolicyAdded" | "ImagePolicyChanged" | "ImagePolicyRemoved" | "ImagePinned" | "ImageUnpinned" | "ImageHookCreated" | "ImageHookRemoved" | "UnmanagedStackStarted" | "UnmanagedStackPulled" | "UnmanagedStackRestarted" | "UnmanagedStackTakenDown" | "DeploymentQueued" | "ContainerStarted" | "ContainerStopped" | "ContainerRestarted" | "ContainerRemoved" | "SecretsDecrypted" | "IdentityConfirmed" | "SettingsChanged" | "BackupRequested" | "GitPushCredentialChanged" | "AggregatorSigningKeyRotated";
         /** @enum {unknown} */
         AuditCategory: "Account" | "Users" | "Tokens" | "Environments" | "Stacks" | "Deployments" | "Containers" | "Secrets" | "System";
         /** @enum {unknown} */
@@ -2113,6 +2241,7 @@ export interface components {
         };
         ConfirmWithPasswordRequest: {
             password: string;
+            code?: null | string;
         };
         ContainerLogLineResponse: {
             /** Format: date-time */
@@ -2415,6 +2544,9 @@ export interface components {
             /** Format: int64 */
             buildCacheBytes: number | string;
         };
+        EnableTwoFactorRequest: {
+            code: string;
+        };
         /** @enum {unknown} */
         EndorsementProblem: "Unsigned" | "UnsupportedSignature" | "UnknownKey" | "InvalidSignature" | "KeyOutsideScope" | "SignerMayNotDeploy" | "NotDescendant" | "ApprovalOutdated" | "ImageUpdateMismatch" | null;
         EndorsementResponse: {
@@ -2654,6 +2786,10 @@ export interface components {
             id: string;
             userName: string;
             isAdmin: boolean;
+            /** @default false */
+            twoFactorEnabled: boolean;
+            /** @default false */
+            twoFactorSetupRequired: boolean;
         };
         /** @enum {unknown} */
         MetricsResolution: "Raw" | "Minute" | "Hour";
@@ -2768,6 +2904,9 @@ export interface components {
         };
         /** @enum {unknown} */
         PushStackOutcome: "Queued" | "AlreadyQueued" | "AfterRunning" | "AlreadyRunning" | "AlreadyDeployed" | "AgentOffline" | "NotAllowed" | "Held";
+        RecoveryCodesResponse: {
+            codes: string[];
+        };
         RegistryCredentialResponse: {
             /** Format: uuid */
             id: string;
@@ -2879,6 +3018,14 @@ export interface components {
             passkey: boolean;
             discord: boolean;
         };
+        SignInSettingsRequest: {
+            requireTwoFactorForAdministrators: boolean;
+            confirmation: null | string;
+        };
+        SignInSettingsResponse: {
+            requireTwoFactorForAdministrators: boolean;
+            locked: boolean;
+        };
         SopsContentResponse: {
             /** Format: byte */
             content: string;
@@ -2954,6 +3101,26 @@ export interface components {
             hostName: string;
             /** @default false */
             secrets: boolean;
+        };
+        TwoFactorChallengeResponse: {
+            /** Format: double */
+            expiresInSeconds: number | string;
+        };
+        TwoFactorConfirmationRequest: {
+            confirmation: null | string;
+        };
+        TwoFactorLoginRequest: {
+            code: string;
+        };
+        TwoFactorSetupResponse: {
+            sharedKey: string;
+            uri: string;
+        };
+        TwoFactorStatusResponse: {
+            enabled: boolean;
+            /** Format: int32 */
+            recoveryCodesLeft: number | string;
+            required: boolean;
         };
         UnmanagedStackResponse: {
             name: string;
@@ -3048,6 +3215,8 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             lockedOutUntil: null | string;
+            /** @default false */
+            twoFactorEnabled: boolean;
         };
         VolumeUsageResponse: {
             name: string;
@@ -3114,6 +3283,53 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ResetUserTwoFactor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3561,6 +3777,57 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwoFactorChallengeResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    LoginTwoFactor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TwoFactorLoginRequest"];
             };
         };
         responses: {
@@ -4109,6 +4376,353 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetTwoFactor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwoFactorStatusResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    BeginTwoFactorSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TwoFactorConfirmationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwoFactorSetupResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    EnableTwoFactor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnableTwoFactorRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryCodesResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RegenerateRecoveryCodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TwoFactorConfirmationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryCodesResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DisableTwoFactor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TwoFactorConfirmationRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetSignInSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignInSettingsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateSignInSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignInSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignInSettingsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

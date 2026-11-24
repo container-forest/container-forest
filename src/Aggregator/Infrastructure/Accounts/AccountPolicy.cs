@@ -26,6 +26,9 @@ public static class AccountPolicy
         options.Lockout.MaxFailedAccessAttempts = MaxFailedSignIns;
         options.Lockout.DefaultLockoutTimeSpan = LockoutDuration;
 
+        // Authenticator app codes are checked by our provider, which refuses a code that was already used.
+        options.Tokens.AuthenticatorTokenProvider = TotpAuthenticator.ProviderName;
+
         // Version 3 adds the passkeys table (AspNetUserPasskeys).
         options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
     }

@@ -127,7 +127,8 @@ internal static class UserEndpoints
         summary.User.IsAdmin,
         summary.User.IsActive,
         summary.User.CreatedAt,
-        summary.LockedOutUntil);
+        summary.LockedOutUntil,
+        summary.TwoFactorEnabled);
 
     private static RoleAssignmentResponse ToResponse(RoleAssignmentView view) => new(
         view.Id.Value,

@@ -38,10 +38,11 @@ docker compose up -d
 | `CF_BOTGATEWAY__TOKENHASHES__0` | with the bot | SHA-256 of the bot's service token, never the token itself. See [Discord bot](#4-discord-bot-optional). |
 | `CF_DISCORDAUTH__CLIENTID`, `CF_DISCORDAUTH__CLIENTSECRET` | no | Sign-in and account linking with Discord: the OAuth2 client of a Discord application (the bot's will do) with the redirect `https://<CF_DOMAIN>/api/auth/discord/callback`. The client secret is as sensitive as the bot token. |
 | `CF_BACKUP__*` | no | Fixes a backup setting so the panel can't change it. See [Backups](#5-backups). |
+| `CF_SIGNIN__REQUIRETWOFACTORFORADMINISTRATORS` | no | `true`: every administrator must have an authenticator app or a passkey; one with neither can only set one up after signing in. Otherwise *Users* has the switch. |
 
 The whole file is passed to the aggregator, so a variable that isn't in it stays unset.
 
-Open `https://<CF_DOMAIN>`, sign in as the first administrator, then remove the `CF_BOOTSTRAP__*` lines and run `docker compose up -d` again. Add passkeys under *Account*.
+Open `https://<CF_DOMAIN>`, sign in as the first administrator, then remove the `CF_BOOTSTRAP__*` lines and run `docker compose up -d` again. Add passkeys or an authenticator app under *Account*.
 
 ### Data
 

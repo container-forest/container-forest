@@ -37,7 +37,7 @@ How container-forest relates to other self-hosted Docker managers, as of autumn 
 
 ## Where it falls short
 
-Maturity, the number of features, Swarm and Kubernetes, image builds, 2FA and OIDC (not yet), a container console, and the size of the community.
+Maturity, the number of features, Swarm and Kubernetes, image builds, OIDC (not yet), a container console, and the size of the community.
 
 ## Sources
 

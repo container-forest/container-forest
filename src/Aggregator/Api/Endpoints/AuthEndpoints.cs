@@ -34,18 +34,37 @@ internal static class AuthEndpoints
     {
         var group = app.MapGroup("/api/auth").WithTags("Account");
 
-        group.MapPost("/login", async Task<Results<Ok<MeResponse>, ProblemHttpResult>> (
-                LoginRequest request, PasswordSignIn signIn, CancellationToken ct) =>
+        group.MapPost("/login", async Task<Results<Ok<MeResponse>, Accepted<TwoFactorChallengeResponse>, ProblemHttpResult>> (
+                LoginRequest request, PasswordSignIn signIn, MeService me, CancellationToken ct) =>
             {
-                var user = await signIn.SignInAsync(request.UserName, request.Password, request.RememberMe, ct);
+                var result = await signIn.SignInAsync(request.UserName, request.Password, request.RememberMe, ct);
+                return result switch
+                {
+                    { User: { } user } => TypedResults.Ok(await me.DescribeAsync(user, ct)),
+                    { TwoFactorRequired: true } => TypedResults.Accepted((string?)null, new TwoFactorChallengeResponse(TwoFactorSignIn.Lifetime.TotalSeconds)),
+                    _ => TypedResults.Problem(
+                        statusCode: StatusCodes.Status401Unauthorized,
+                        title: "Unauthorized",
+                        detail: "Wrong user name or password."),
+                };
+            })
+            .WithName("Login")
+            .RequireRateLimiting(SignInPolicy)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
+
+        group.MapPost("/login/two-factor", async Task<Results<Ok<MeResponse>, ProblemHttpResult>> (
+                TwoFactorLoginRequest request, TwoFactorSignIn signIn, MeService me, CancellationToken ct) =>
+            {
+                var user = await signIn.CompleteAsync(request.Code, ct);
                 return user is null
                     ? TypedResults.Problem(
                         statusCode: StatusCodes.Status401Unauthorized,
                         title: "Unauthorized",
-                        detail: "Wrong user name or password.")
-                    : TypedResults.Ok(new MeResponse(user.Id.Value, user.UserName, user.IsAdmin));
+                        detail: "Wrong code, or the sign-in expired: enter the password again.")
+                    : TypedResults.Ok(await me.DescribeAsync(user, ct));
             })
-            .WithName("Login")
+            .WithName("LoginTwoFactor")
             .RequireRateLimiting(SignInPolicy)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);

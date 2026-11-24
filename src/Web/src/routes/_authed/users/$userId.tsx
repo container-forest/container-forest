@@ -42,7 +42,8 @@ import { UserSigningKeysCard } from "@/components/signing-keys/user-signing-keys
 import { UserTokensCard } from "@/components/tokens/user-tokens-card";
 import { GrantRoleForm } from "@/components/users/grant-role-form";
 import { ResetPasswordDialog } from "@/components/users/reset-password-dialog";
-import { UserKindBadge, UserStatusBadge } from "@/components/users/user-badges";
+import { UserKindBadge, UserStatusBadge, UserTwoFactorBadge } from "@/components/users/user-badges";
+import { UserTwoFactorCard } from "@/components/two-factor/user-two-factor-card";
 import { fromSearchSchema, rememberedListSearch } from "@/features/navigation/back";
 import type { MessageKey } from "@/i18n";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -72,6 +73,7 @@ function UserScreen() {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-2xl font-semibold">{user.userName}</h1>
           <UserKindBadge user={user} />
+          <UserTwoFactorBadge user={user} />
           <UserStatusBadge user={user} now={now} />
         </div>
         <p className="text-muted-foreground text-sm">
@@ -83,6 +85,7 @@ function UserScreen() {
       <RenameCard key={user.userName} user={user} />
       <AccessCard user={user} />
       <RolesCard user={user} assignments={roleAssignments} />
+      {user.twoFactorEnabled && <UserTwoFactorCard user={user} />}
       <UserPasskeysCard userId={user.id} />
       <UserSigningKeysCard userId={user.id} />
       <UserTokensCard userId={user.id} />

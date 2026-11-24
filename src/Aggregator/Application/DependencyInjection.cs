@@ -102,6 +102,7 @@ public static class DependencyInjection
         services.AddScoped<Images.ImagePolicyService>();
         services.AddScoped<Images.ImageHookService>();
         services.AddScoped<Images.ImageUpdateSettingsService>();
+        services.AddScoped<Access.SignInSettingsService>();
         services.AddSingleton<Images.ImageUpdatePoller>();
         return services;
     }

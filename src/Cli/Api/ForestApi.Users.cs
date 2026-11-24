@@ -74,6 +74,10 @@ public sealed partial class ForestApi
     public async Task<IReadOnlyList<PasskeyResponse>> ListUserPasskeysAsync(Guid userId, CancellationToken cancellationToken) =>
         await Api.Users[userId].Passkeys.GetAsync(cancellationToken: cancellationToken) ?? [];
 
+    /// <summary>Turns off the user's two-factor authentication, e.g. after a lost phone (ADR-0019).</summary>
+    public Task ResetUserTwoFactorAsync(Guid userId, CancellationToken cancellationToken) =>
+        Api.Users[userId].TwoFactor.DeleteAsync(cancellationToken: cancellationToken);
+
     public Task RemoveUserPasskeyAsync(Guid userId, string passkeyId, CancellationToken cancellationToken) =>
         Api.Users[userId].Passkeys[passkeyId].DeleteAsync(cancellationToken: cancellationToken);
 

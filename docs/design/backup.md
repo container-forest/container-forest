@@ -18,6 +18,7 @@ Decisions: [ADR-0013](../adr/0013-system-settings.md) and [ADR-0014](../adr/0014
 - `POST /api/auth/confirm/password`, `POST /api/auth/confirm/passkey/options`, `POST /api/auth/confirm/passkey`.
 - A failure is a 403, not a 401: the session is intact, and a 401 would send the panel to the sign-in screen.
 - The audit log records `IdentityConfirmed` with the outcome.
+- With two-factor on (ADR-0019), `POST /api/auth/confirm/password` also takes `code`, the current code of the app; without it the password confirms nothing. Two-factor setup, turning it off, new recovery codes and the `SignIn` section need a confirmation too.
 - The same confirmation is needed for `POST /api/me/passkeys` if the account has a password or a passkey (`PasskeyManagement.NeedsConfirmationAsync`). The panel learns this from `GET /api/me/passkeys/needs-confirmation`.
 - **Deliberately left open:** an administrator can reset a password or create an administrator and confirm the action with it. The `AccountSecurityChanged` event reports this; see [ADR-0013](../adr/0013-system-settings.md).
 

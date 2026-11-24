@@ -20,12 +20,12 @@ internal static class PasskeyEndpoints
             .Produces(StatusCodes.Status200OK, contentType: "application/json");
 
         auth.MapPost("/passkey/login", async Task<Results<Ok<MeResponse>, ProblemHttpResult>> (
-                PasskeyLoginRequest request, PasskeySignIn signIn, CancellationToken ct) =>
+                PasskeyLoginRequest request, PasskeySignIn signIn, MeService me, CancellationToken ct) =>
             {
                 var user = await signIn.SignInAsync(request.Credential, request.RememberMe, ct);
                 return user is null
                     ? TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Unauthorized", detail: "The passkey was not accepted.")
-                    : TypedResults.Ok(new MeResponse(user.Id.Value, user.UserName, user.IsAdmin));
+                    : TypedResults.Ok(await me.DescribeAsync(user, ct));
             })
             .WithName("PasskeyLogin")
             .ProducesProblem(StatusCodes.Status401Unauthorized);

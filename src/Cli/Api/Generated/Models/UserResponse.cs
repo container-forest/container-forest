@@ -24,6 +24,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
         public bool? IsAdmin { get; set; }
         /// <summary>The lockedOutUntil property</summary>
         public DateTimeOffset? LockedOutUntil { get; set; }
+        /// <summary>The twoFactorEnabled property</summary>
+        public bool? TwoFactorEnabled { get; set; }
         /// <summary>The userName property</summary>
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
 #nullable enable
@@ -38,6 +40,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
         public UserResponse()
         {
             AdditionalData = new Dictionary<string, object>();
+            TwoFactorEnabled = false;
         }
         /// <summary>
         /// Creates a new instance of the appropriate class based on discriminator value
@@ -62,6 +65,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
                 { "isActive", n => { IsActive = n.GetBoolValue(); } },
                 { "isAdmin", n => { IsAdmin = n.GetBoolValue(); } },
                 { "lockedOutUntil", n => { LockedOutUntil = n.GetDateTimeOffsetValue(); } },
+                { "twoFactorEnabled", n => { TwoFactorEnabled = n.GetBoolValue(); } },
                 { "userName", n => { UserName = n.GetStringValue(); } },
             };
         }
@@ -77,6 +81,7 @@ namespace ContainerForest.Cli.Api.Generated.Models
             writer.WriteBoolValue("isActive", IsActive);
             writer.WriteBoolValue("isAdmin", IsAdmin);
             writer.WriteDateTimeOffsetValue("lockedOutUntil", LockedOutUntil);
+            writer.WriteBoolValue("twoFactorEnabled", TwoFactorEnabled);
             writer.WriteStringValue("userName", UserName);
             writer.WriteAdditionalData(AdditionalData);
         }

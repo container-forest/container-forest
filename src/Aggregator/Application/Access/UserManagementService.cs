@@ -12,7 +12,8 @@ using ContainerForest.Aggregator.Domain.Stacks;
 namespace ContainerForest.Aggregator.Application.Access;
 
 /// <param name="LockedOutUntil">Set while the account is locked after too many failed sign-ins.</param>
-public sealed record UserSummary(User User, DateTimeOffset? LockedOutUntil);
+/// <param name="TwoFactorEnabled">A password sign-in asks for an authenticator code (ADR-0019).</param>
+public sealed record UserSummary(User User, DateTimeOffset? LockedOutUntil, bool TwoFactorEnabled = false);
 
 /// <param name="StackId">Null for a role on the whole environment.</param>
 public sealed record RoleAssignmentView(
@@ -47,8 +48,9 @@ public sealed class UserManagementService(
     {
         await currentActor.GetAdministratorAsync(cancellationToken);
         var lockouts = await accounts.ListLockoutsAsync(time.GetUtcNow(), cancellationToken);
+        var twoFactor = await accounts.ListTwoFactorAsync(cancellationToken);
         return (await users.ListAsync(cancellationToken))
-            .Select(user => new UserSummary(user, lockouts.TryGetValue(user.Id, out var until) ? until : null))
+            .Select(user => new UserSummary(user, lockouts.TryGetValue(user.Id, out var until) ? until : null, twoFactor.Contains(user.Id)))
             .ToList();
     }
 
@@ -262,7 +264,8 @@ public sealed class UserManagementService(
     private async Task<UserSummary> SummarizeAsync(User user, CancellationToken cancellationToken)
     {
         var lockouts = await accounts.ListLockoutsAsync(time.GetUtcNow(), cancellationToken);
-        return new UserSummary(user, lockouts.TryGetValue(user.Id, out var until) ? until : null);
+        var twoFactor = await accounts.ListTwoFactorAsync(cancellationToken);
+        return new UserSummary(user, lockouts.TryGetValue(user.Id, out var until) ? until : null, twoFactor.Contains(user.Id));
     }
 
     /// <summary>An assignment of another user is as unknown as a missing one.</summary>

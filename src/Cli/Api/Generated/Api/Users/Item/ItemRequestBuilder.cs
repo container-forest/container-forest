@@ -8,6 +8,7 @@ using ContainerForest.Cli.Api.Generated.Api.Users.Item.Password;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.RoleAssignments;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.SigningKeys;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.Tokens;
+using ContainerForest.Cli.Api.Generated.Api.Users.Item.TwoFactor;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.Unlock;
 using ContainerForest.Cli.Api.Generated.Api.Users.Item.UserName;
 using ContainerForest.Cli.Api.Generated.Models;
@@ -66,6 +67,11 @@ namespace ContainerForest.Cli.Api.Generated.Api.Users.Item
         public global::ContainerForest.Cli.Api.Generated.Api.Users.Item.Tokens.TokensRequestBuilder Tokens
         {
             get => new global::ContainerForest.Cli.Api.Generated.Api.Users.Item.Tokens.TokensRequestBuilder(PathParameters, RequestAdapter);
+        }
+        /// <summary>The twoFactor property</summary>
+        public global::ContainerForest.Cli.Api.Generated.Api.Users.Item.TwoFactor.TwoFactorRequestBuilder TwoFactor
+        {
+            get => new global::ContainerForest.Cli.Api.Generated.Api.Users.Item.TwoFactor.TwoFactorRequestBuilder(PathParameters, RequestAdapter);
         }
         /// <summary>The unlock property</summary>
         public global::ContainerForest.Cli.Api.Generated.Api.Users.Item.Unlock.UnlockRequestBuilder Unlock

@@ -22,8 +22,9 @@ internal sealed class IdentityConfirmer(
 {
     private UserManager<AccountUser> Accounts => signInManager.UserManager;
 
-    /// <returns>The confirmation; null when the password is wrong or the account is locked out.</returns>
-    public async Task<IssuedConfirmation?> WithPasswordAsync(string password, CancellationToken cancellationToken)
+    /// <param name="code">With two-factor on (ADR-0019), the current code of the authenticator app: a password alone signs nobody in, so it confirms nothing either.</param>
+    /// <returns>The confirmation; null when the password or the code is wrong, or the account is locked out.</returns>
+    public async Task<IssuedConfirmation?> WithPasswordAsync(string password, string? code, CancellationToken cancellationToken)
     {
         var user = await currentActor.GetSignedInUserAsync(cancellationToken);
         var account = await Accounts.FindByIdAsync(user.Id.Value.ToString());
@@ -31,6 +32,21 @@ internal sealed class IdentityConfirmer(
         {
             await RecordAsync(user, AuditOutcome.Failed, "Password. Check failed.", cancellationToken);
             return null;
+        }
+
+        if (account.TwoFactorEnabled)
+        {
+            if (code is null || !TotpAuthenticator.TryParseCode(code, out var totp)
+                || !await Accounts.VerifyTwoFactorTokenAsync(account, Accounts.Options.Tokens.AuthenticatorTokenProvider, totp))
+            {
+                await Accounts.AccessFailedAsync(account);
+                await RecordAsync(user, AuditOutcome.Failed, "Password and code. Code check failed.", cancellationToken);
+                return null;
+            }
+
+            await Accounts.ResetAccessFailedCountAsync(account);
+            await RecordAsync(user, AuditOutcome.Succeeded, "Password and an authenticator app", cancellationToken);
+            return confirmations.Issue(user.Id);
         }
 
         await RecordAsync(user, AuditOutcome.Succeeded, "Password", cancellationToken);

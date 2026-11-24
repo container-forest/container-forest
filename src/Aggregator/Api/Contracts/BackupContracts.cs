@@ -22,7 +22,8 @@ namespace ContainerForest.Aggregator.Api.Contracts;
 /// <param name="Token">For the action that asked for it; valid only for this user until it expires.</param>
 public sealed record IdentityConfirmationResponse(string Token, DateTimeOffset ExpiresAt);
 
-public sealed record ConfirmWithPasswordRequest(string Password);
+/// <param name="Code">The current code of the authenticator app, for an account with two-factor on (ADR-0019).</param>
+public sealed record ConfirmWithPasswordRequest(string Password, string? Code = null);
 
 /// <param name="Credential">The result of <c>navigator.credentials.get()</c>, serialized with <c>toJSON()</c>.</param>
 public sealed record ConfirmWithPasskeyRequest(string Credential);

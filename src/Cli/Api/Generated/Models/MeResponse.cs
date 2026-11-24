@@ -18,6 +18,10 @@ namespace ContainerForest.Cli.Api.Generated.Models
         public Guid? Id { get; set; }
         /// <summary>The isAdmin property</summary>
         public bool? IsAdmin { get; set; }
+        /// <summary>The twoFactorEnabled property</summary>
+        public bool? TwoFactorEnabled { get; set; }
+        /// <summary>The twoFactorSetupRequired property</summary>
+        public bool? TwoFactorSetupRequired { get; set; }
         /// <summary>The userName property</summary>
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_1_OR_GREATER
 #nullable enable
@@ -32,6 +36,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
         public MeResponse()
         {
             AdditionalData = new Dictionary<string, object>();
+            TwoFactorEnabled = false;
+            TwoFactorSetupRequired = false;
         }
         /// <summary>
         /// Creates a new instance of the appropriate class based on discriminator value
@@ -53,6 +59,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
             {
                 { "id", n => { Id = n.GetGuidValue(); } },
                 { "isAdmin", n => { IsAdmin = n.GetBoolValue(); } },
+                { "twoFactorEnabled", n => { TwoFactorEnabled = n.GetBoolValue(); } },
+                { "twoFactorSetupRequired", n => { TwoFactorSetupRequired = n.GetBoolValue(); } },
                 { "userName", n => { UserName = n.GetStringValue(); } },
             };
         }
@@ -65,6 +73,8 @@ namespace ContainerForest.Cli.Api.Generated.Models
             if(ReferenceEquals(writer, null)) throw new ArgumentNullException(nameof(writer));
             writer.WriteGuidValue("id", Id);
             writer.WriteBoolValue("isAdmin", IsAdmin);
+            writer.WriteBoolValue("twoFactorEnabled", TwoFactorEnabled);
+            writer.WriteBoolValue("twoFactorSetupRequired", TwoFactorSetupRequired);
             writer.WriteStringValue("userName", UserName);
             writer.WriteAdditionalData(AdditionalData);
         }

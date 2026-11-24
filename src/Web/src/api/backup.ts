@@ -28,10 +28,14 @@ export function useRunBackupMutation() {
   });
 }
 
-/** A fresh proof of identity with the password; returns the token for the action that needs it. */
+/**
+ * A fresh proof of identity with the password, and with two-factor on (ADR-0019) the current code of the app;
+ * returns the token for the action that needs it.
+ */
 export function useConfirmWithPasswordMutation() {
   return useMutation({
-    mutationFn: async (password: string) => unwrap(await api.POST("/api/auth/confirm/password", { body: { password } })).token,
+    mutationFn: async ({ password, code }: { password: string; code?: string }) =>
+      unwrap(await api.POST("/api/auth/confirm/password", { body: { password, code: code || null } })).token,
   });
 }
 

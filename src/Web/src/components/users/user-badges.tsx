@@ -16,6 +16,13 @@ export function UserStatusBadge({ user, now }: { user: User; now: Date }) {
   return <Badge variant={statusVariants[status]}>{t(`users.status.${status}`)}</Badge>;
 }
 
+/** Shown only when two-factor is on (ADR-0019): its absence is the usual case. */
+export function UserTwoFactorBadge({ user }: { user: User }) {
+  const { t } = useTranslation();
+
+  return user.twoFactorEnabled ? <Badge variant="outline">{t("users.twoFactor")}</Badge> : null;
+}
+
 export function UserKindBadge({ user }: { user: User }) {
   const { t } = useTranslation();
 

@@ -11,6 +11,12 @@ public enum SecretPurpose
     IdentityConfirmation,
     GitPushToken,
     AggregatorSigningKey,
+
+    /// <summary>The shared key of a user's authenticator app (TOTP), and their unused recovery codes.</summary>
+    AuthenticatorSecret,
+
+    /// <summary>The state between a correct password and the two-factor code, in the <c>cf_2fa</c> cookie.</summary>
+    TwoFactorSignIn,
 }
 
 /// <summary>Encrypts secrets the aggregator keeps in its database, such as registry passwords.</summary>

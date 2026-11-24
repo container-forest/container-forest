@@ -19,6 +19,17 @@ Decisions: [ADR-0007](../adr/0007-api-tokens.md) (tokens), [ADR-0008](../adr/000
   - The `cf_session` cookie: HttpOnly, `SameSite=Strict`, `Secure` `Always` (`SameAsRequest` in `Development`); `RememberMe` makes it persistent, otherwise it's a session cookie. The security stamp is checked on every request (`ValidationInterval = 0`): changing the password ends other sessions at once and reissues the current one (`RefreshSignInAsync`). The price is a database query and a new cookie on every response.
   - The first administrator: after migrations, if the database has no users, `AdminBootstrapper` creates one from `CF_BOOTSTRAP__ADMINUSERNAME` / `CF_BOOTSTRAP__ADMINPASSWORD` (set both or neither, `ValidateOnStart`). The password isn't logged; with neither the variables nor any users there's a warning in the log.
 
+## Two-factor authentication
+
+The flow, what it covers and the requirement for administrators are in ADR-0019.
+
+- **Code:** `Infrastructure/Accounts/TotpAuthenticator.cs` (the token provider, `options.Tokens.AuthenticatorTokenProvider`), `ProtectedAccountStore.cs` (the key and the recovery codes encrypted, `SecretPurpose.AuthenticatorSecret`), `Api/Access/TwoFactorSignIn.cs` (the second step, the `cf_2fa` cookie, `SecretPurpose.TwoFactorSignIn`), `TwoFactorManagement.cs`, `TwoFactorEnrollment.cs` (the middleware after `ReadOnlyTokens`), `Endpoints/TwoFactorEndpoints.cs`, `Application/Access/SignInSettings.cs`.
+- **Sign-in:** `PasswordSignIn` returns `PasswordSignInResult`; `/api/auth/login` answers 200 with `MeResponse` or 202 with `TwoFactorChallengeResponse`. Six digits are an app code, anything else is tried as a recovery code. Wrong codes, an expired step and a changed stamp all get the same 401.
+- **Replay:** the last accepted step is the token `[ContainerForest]/LastTotpStep` in `AspNetUserTokens`; it is deleted when two-factor is turned off.
+- **State in `MeResponse`:** `twoFactorEnabled` (the confirmation dialog asks for the code), `twoFactorSetupRequired` (the panel's `_authed` layout sends the user to `/account`).
+- **Stamps:** setting up, turning on and turning off change the security stamp; the user's other sessions end and the current one is signed in again (`RefreshSignInAsync`).
+- **Tests:** `tests/Aggregator/Api/TwoFactorTests.cs` with a movable clock (one code per 30-second step), `tests/Aggregator/Infrastructure/Accounts/TotpAuthenticatorTests.cs` (the RFC 6238 vectors).
+
 ## API tokens
 
 Format, restriction rules and reasons are in ADR-0007.

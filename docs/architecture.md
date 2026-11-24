@@ -19,7 +19,7 @@ A technical description of the system: components, protocols, the security and p
 ## Features of the system
 
 1. mTLS between agents and the aggregator, to make unauthorised connections harder, is a possible future addition.
-2. Sign-in with a user name and password, passwordless sign-in with passkeys (WebAuthn, ADR-0009) and Discord OAuth2. 2FA and external sign-in through OIDC (e.g. Google) are planned.
+2. Sign-in with a user name and password, with an authenticator app code after the password when two-factor is on (TOTP, ADR-0019), passwordless sign-in with passkeys (WebAuthn, ADR-0009) and Discord OAuth2. External sign-in through OIDC (e.g. Google) is planned.
 3. The aggregator holds the private and public keys for SOPS.
 4. A deployment pipeline of steps. Roughly: aggregator: git fetch → sops decrypt → verify images → resolve registry auth → build bundle → send to agent; agent: update stack files and secrets → docker pull → docker compose up; aggregator: logging, notifications.
 5. Managing stacks in the panel: up / down / restart / redeploy / redeploy with pull, container logs, container state, and managing each container separately (start / stop / restart / remove). Resource usage graphs for containers, stacks and servers. exec and an attached console are planned.

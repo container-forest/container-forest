@@ -68,6 +68,9 @@ internal sealed class IdentityAccountStore(UserManager<AccountUser> userManager,
         }
     }
 
+    public async Task<IReadOnlySet<UserId>> ListTwoFactorAsync(CancellationToken cancellationToken) =>
+        (await db.Users.Where(a => a.TwoFactorEnabled).Select(a => a.Id).ToListAsync(cancellationToken)).Select(UserId.From).ToHashSet();
+
     public async Task<IReadOnlyDictionary<UserId, DateTimeOffset>> ListLockoutsAsync(
         DateTimeOffset now, CancellationToken cancellationToken)
     {

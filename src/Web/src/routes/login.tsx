@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TwoFactorLoginStep } from "@/components/two-factor/two-factor-login-step";
 import { Brand } from "@/components/layout/brand";
 import { autofillSupported, browserErrorKey, isCancelled, passkeysSupported } from "@/features/passkeys/model";
 import type { MessageKey } from "@/i18n";
@@ -62,6 +63,8 @@ function LoginScreen() {
   // A browser navigation, not a fetch: Discord's page comes next, and the aggregator brings the browser back.
   const discordHref = `/api/auth/discord/login?redirect=${encodeURIComponent(redirect ?? "/")}`;
   const autofill = useRef<AbortController | null>(null);
+  // After the right password of an account with two-factor on, the form gives way to the code (ADR-0019).
+  const [step, setStep] = useState<"password" | "code">("password");
   const {
     register,
     control,
@@ -75,7 +78,20 @@ function LoginScreen() {
 
   const signedIn = () => navigate({ href: redirect ?? "/", replace: true });
 
-  const onSubmit = handleSubmit((form) => login.mutate(form, { onSuccess: signedIn }));
+  const onSubmit = handleSubmit((form) =>
+    login.mutate(form, {
+      onSuccess: (result) => {
+        if (result.kind === "signedIn") {
+          void signedIn();
+          return;
+        }
+
+        // A waiting passkey ceremony would only get in the way of typing the code.
+        autofill.current?.abort();
+        setStep("code");
+      },
+    }),
+  );
 
   // Passkeys in the user name field's autofill: the browser's ceremony has to be waiting before the field is
   // focused, so it starts with the page rather than on a click, and stops when the page goes.
@@ -120,106 +136,118 @@ function LoginScreen() {
       <Brand className="text-2xl" />
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-xl">{t("login.title")}</CardTitle>
-          <CardDescription>{t("login.description")}</CardDescription>
+          <CardTitle className="text-xl">{step === "code" ? t("twoFactor.login.title") : t("login.title")}</CardTitle>
+          <CardDescription>{step === "code" ? t("twoFactor.login.description") : t("login.description")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-4" noValidate onSubmit={onSubmit}>
-            <div className="grid gap-2">
-              <Label htmlFor="userName">{t("login.userName")}</Label>
-              <Input
-                id="userName"
-                autoComplete={offerPasskeys ? "username webauthn" : "username"}
-                autoFocus
-                aria-invalid={errors.userName ? true : undefined}
-                aria-describedby={errors.userName ? "userName-error" : undefined}
-                {...register("userName")}
-              />
-              <FieldError id="userName-error" message={errors.userName?.message} />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="password">{t("login.password")}</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                aria-invalid={errors.password ? true : undefined}
-                aria-describedby={errors.password ? "password-error" : undefined}
-                {...register("password")}
-              />
-              <FieldError id="password-error" message={errors.password?.message} />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Controller
-                control={control}
-                name="rememberMe"
-                render={({ field }) => (
-                  <Checkbox
-                    id="rememberMe"
-                    checked={field.value}
-                    onCheckedChange={(checked) => field.onChange(checked === true)}
-                    onBlur={field.onBlur}
-                    ref={field.ref}
+          {step === "code" ? (
+            <TwoFactorLoginStep
+              onSignedIn={() => void signedIn()}
+              onBack={() => {
+                login.reset();
+                setStep("password");
+              }}
+            />
+          ) : (
+            <>
+              <form className="grid gap-4" noValidate onSubmit={onSubmit}>
+                <div className="grid gap-2">
+                  <Label htmlFor="userName">{t("login.userName")}</Label>
+                  <Input
+                    id="userName"
+                    autoComplete={offerPasskeys ? "username webauthn" : "username"}
+                    autoFocus
+                    aria-invalid={errors.userName ? true : undefined}
+                    aria-describedby={errors.userName ? "userName-error" : undefined}
+                    {...register("userName")}
                   />
+                  <FieldError id="userName-error" message={errors.userName?.message} />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="password">{t("login.password")}</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    aria-invalid={errors.password ? true : undefined}
+                    aria-describedby={errors.password ? "password-error" : undefined}
+                    {...register("password")}
+                  />
+                  <FieldError id="password-error" message={errors.password?.message} />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Controller
+                    control={control}
+                    name="rememberMe"
+                    render={({ field }) => (
+                      <Checkbox
+                        id="rememberMe"
+                        checked={field.value}
+                        onCheckedChange={(checked) => field.onChange(checked === true)}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    )}
+                  />
+                  <Label htmlFor="rememberMe" className="font-normal">
+                    {t("login.rememberMe")}
+                  </Label>
+                </div>
+
+                {login.isError && (
+                  <p role="alert" className="text-destructive text-sm">
+                    {isUnauthorized(login.error)
+                      ? t("login.errors.invalidCredentials")
+                      : hasStatus(login.error, 429)
+                        ? t("login.errors.tooManyAttempts")
+                        : t("login.errors.failed")}
+                  </p>
                 )}
-              />
-              <Label htmlFor="rememberMe" className="font-normal">
-                {t("login.rememberMe")}
-              </Label>
-            </div>
 
-            {login.isError && (
-              <p role="alert" className="text-destructive text-sm">
-                {isUnauthorized(login.error)
-                  ? t("login.errors.invalidCredentials")
-                  : hasStatus(login.error, 429)
-                    ? t("login.errors.tooManyAttempts")
-                    : t("login.errors.failed")}
-              </p>
-            )}
-
-            <Button type="submit" className="w-full" disabled={login.isPending || passkeyLogin.isPending}>
-              {login.isPending && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
-              {t("login.submit")}
-            </Button>
-          </form>
-
-          {(offerPasskeys || offerDiscord) && (
-            <div className="mt-4 grid gap-3">
-              <div className="text-muted-foreground flex items-center gap-3 text-xs">
-                <span className="bg-border h-px flex-1" />
-                {t("login.passkey.or")}
-                <span className="bg-border h-px flex-1" />
-              </div>
-              {offerPasskeys && (
-                <Button type="button" variant="outline" className="w-full" disabled={login.isPending || passkeyLogin.isPending} onClick={onPasskey}>
-                  {passkeyLogin.isPending ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : <KeyIcon data-icon="inline-start" />}
-                  {t("login.passkey.button")}
+                <Button type="submit" className="w-full" disabled={login.isPending || passkeyLogin.isPending}>
+                  {login.isPending && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
+                  {t("login.submit")}
                 </Button>
+              </form>
+
+              {(offerPasskeys || offerDiscord) && (
+                <div className="mt-4 grid gap-3">
+                  <div className="text-muted-foreground flex items-center gap-3 text-xs">
+                    <span className="bg-border h-px flex-1" />
+                    {t("login.passkey.or")}
+                    <span className="bg-border h-px flex-1" />
+                  </div>
+                  {offerPasskeys && (
+                    <Button type="button" variant="outline" className="w-full" disabled={login.isPending || passkeyLogin.isPending} onClick={onPasskey}>
+                      {passkeyLogin.isPending ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : <KeyIcon data-icon="inline-start" />}
+                      {t("login.passkey.button")}
+                    </Button>
+                  )}
+                  {offerDiscord && (
+                    <Button asChild variant="outline" className="w-full">
+                      <a href={discordHref}>
+                        <DiscordIcon data-icon="inline-start" />
+                        {t("login.discord.button")}
+                      </a>
+                    </Button>
+                  )}
+                  {signInError === "discord" && (
+                    <p role="alert" className="text-destructive text-sm">
+                      {t("login.discord.failed")}
+                    </p>
+                  )}
+                  {passkeyError && (
+                    <p role="alert" className="text-destructive text-sm">
+                      {isUnauthorized(passkeyError)
+                        ? t("login.passkey.refused")
+                        : (browserErrorKey(passkeyError) && t(browserErrorKey(passkeyError)!)) || t("login.errors.failed")}
+                    </p>
+                  )}
+                </div>
               )}
-              {offerDiscord && (
-                <Button asChild variant="outline" className="w-full">
-                  <a href={discordHref}>
-                    <DiscordIcon data-icon="inline-start" />
-                    {t("login.discord.button")}
-                  </a>
-                </Button>
-              )}
-              {signInError === "discord" && (
-                <p role="alert" className="text-destructive text-sm">
-                  {t("login.discord.failed")}
-                </p>
-              )}
-              {passkeyError && (
-                <p role="alert" className="text-destructive text-sm">
-                  {isUnauthorized(passkeyError)
-                    ? t("login.passkey.refused")
-                    : (browserErrorKey(passkeyError) && t(browserErrorKey(passkeyError)!)) || t("login.errors.failed")}
-                </p>
-              )}
-            </div>
+            </>
           )}
         </CardContent>
       </Card>

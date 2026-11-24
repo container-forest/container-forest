@@ -30,6 +30,9 @@ internal static class AuthenticationSetup
     {
         new IdentityBuilder(typeof(AccountUser), services).AddSignInManager();
         services.AddScoped<PasswordSignIn>();
+        services.AddScoped<TwoFactorSignIn>();
+        services.AddScoped<TwoFactorManagement>();
+        services.AddScoped<MeService>();
         services.AddScoped<PasskeySignIn>();
         services.AddScoped<PasskeyManagement>();
 

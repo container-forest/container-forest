@@ -7,7 +7,7 @@
 services:
   container-forest-agent:
     # "latest" is the last release; pin a version (e.g. :0.8.0) to update only when you choose.
-    image: ghcr.io/container-forest/container-forest-agent:latest
+    image: ghcr.io/container-forest/agent:latest
     restart: unless-stopped
     # The panel lets users only start this container: stopping the agent would cut the host off.
     labels:

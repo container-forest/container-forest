@@ -8,7 +8,7 @@ You need the .NET 10 SDK, Node.js 22.12+ (CI and the image use 24, see `src/Web/
 
 | Where | How |
 |---|---|
-| Docker images | `container-forest-aggregator`, `container-forest-agent`, `container-forest-web`, `container-forest-discord-bot` |
+| Docker images | `ghcr.io/container-forest/aggregator`, `agent`, `web`, `discord-bot` |
 | .NET projects and namespaces | `ContainerForest.*` |
 | Protobuf packages | `<module>` with no prefix or version; the file is `src/Contracts/<module>/` (ADR-0002) |
 | Environment variables | prefix `CF_`, nested sections separated by `__` (e.g. `CF_AGENT__CONTROLLERURL`) |
@@ -311,7 +311,7 @@ All components (aggregator, panel, agent, bot and CLI) share one version `X.Y.Z`
 
 - **release-please computes the version** (the `googleapis/release-please-action` GitHub Action, workflow `Release`) from the Conventional Commits on `main`. While the version is 0.x, `feat` bumps the minor version, `fix` and `perf` the patch version, and a breaking change (`feat!:` or `BREAKING CHANGE:` in the body) also bumps the minor version. `docs`, `ci`, `chore`, `test` and `refactor` don't change the version and don't appear in the changelog.
 - **The release PR.** After every push to `main`, release-please opens or updates the PR `chore(main): release X.Y.Z` with `CHANGELOG.md`, `version.txt` and `<Version>` in `Directory.Build.props`. Merging it releases: the tag `vX.Y.Z` and a GitHub Release are created, and the same workflow publishes the images and attaches the CLI binaries (linux x64/arm64, macOS arm64, Windows x64, with `SHA256SUMS`). The PR is created with `GITHUB_TOKEN`, so CI doesn't run on it; it only changes the version and the changelog.
-- **Image tags.** `ghcr.io/container-forest/container-forest-<name>:X.Y.Z`, `:X.Y` and `:latest` come only from releases, so `latest` is always the last release. Every push to `main` publishes `:main` and `:<sha>` for testing before a release.
+- **Image tags.** `ghcr.io/container-forest/<name>:X.Y.Z`, `:X.Y` and `:latest` come only from releases, so `latest` is always the last release. Every push to `main` publishes `:main` and `:<sha>` for testing before a release.
 - **Upgrading.** You don't have to upgrade everything on every release: the changelog shows which components changed (`feat(web)`, `fix(agent)`), and those are the ones worth upgrading. To stay on a release, pin `:X.Y.Z` in compose instead of `:latest`.
 - **Builds outside a release** carry the last release's version from `Directory.Build.props`; the exact commit is in `InformationalVersion` (`0.8.0+<sha>`).
 - **History.** Before 0.8.0 only the CLI had a version (tags `cli-v0.1.0`…`cli-v0.7.0`); the shared numbering continues it.

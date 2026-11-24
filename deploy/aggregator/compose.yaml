@@ -20,7 +20,7 @@
 # The whole file is passed to the aggregator, so a variable that is not in it stays unset.
 services:
   aggregator:
-    image: ghcr.io/container-forest/container-forest-aggregator:latest
+    image: ghcr.io/container-forest/aggregator:latest
     restart: unless-stopped
     # Parts of container-forest itself: an agent on this host lets the panel only start them, never stop them.
     labels:
@@ -43,7 +43,7 @@ services:
       - no-new-privileges:true
 
   web:
-    image: ghcr.io/container-forest/container-forest-web:latest
+    image: ghcr.io/container-forest/web:latest
     restart: unless-stopped
     labels:
       com.container-forest.system: "true"
